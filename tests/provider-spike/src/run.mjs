@@ -12,7 +12,7 @@
 import { ProbeRunner, OUTCOMES } from "./probe-runner.mjs";
 import { writeRunArtifacts } from "./report.mjs";
 import { runCorsHeaderProbes } from "./probes/cors-headers.mjs";
-import { runMailTmProbes } from "./probes/mailtm.mjs";
+import { runMailTmProbes, runMailTmDeletionProbes } from "./probes/mailtm.mjs";
 import { runGuerrillaProbes } from "./probes/guerrilla.mjs";
 import { runBrowserProbes, runMatchPatternProbe } from "./probes/browser.mjs";
 import { runDeliveryProbes } from "./probes/delivery.mjs";
@@ -90,6 +90,10 @@ await runDeliveryProbes(runner, {
   mailFrom: process.env.SPECTRE_SPIKE_MAIL_FROM ?? null,
   log: console.log,
 });
+
+// Deletion revokes the Mail.tm token, so it MUST come after delivery. Running it
+// earlier made the Mail.tm delivery probe poll a mailbox that no longer existed.
+await runMailTmDeletionProbes(runner, mailtm);
 
 const summary = runner.summary();
 const { jsonPath, txtPath, summaryText } = await writeRunArtifacts(summary, {

@@ -18,14 +18,14 @@
 > source of truth — `openspec/specs/` and the active OpenSpec change artifacts are.
 > Reconcile this block against Git and OpenSpec before trusting it in a later session.
 
-**Roadmap cursor:** M0 — Provider Compatibility Spike (**gate NOT satisfied**)
+**Roadmap cursor:** M0 — Provider Compatibility Spike (**gate satisfied**; awaiting archive)
 
 **OpenSpec change:** `m0-provider-spike` (`openspec/changes/m0-provider-spike/`)
 
 | Milestone | State | Notes |
 |---|---|---|
-| M0 Provider Compatibility Spike | **implementing** | Harness complete and run against the live APIs. Provider roles decided (website Guerrilla-only, extension both). Real external delivery and long-run expiry remain `unverified`. Gate not satisfied. |
-| M1 Monorepo Foundation | not started | Blocked behind the M0 gate, and a provider-role OpenSpec change is needed first. |
+| M0 Provider Compatibility Spike | **verified** | Real external delivery observed on **both** providers. Provider roles decided. Long-run expiry still unverified (no provider advertises a TTL). Gate satisfied. |
+| M1 Monorepo Foundation | not started | Unblocked once M0 is archived. A provider-role OpenSpec change is needed first. |
 | M2–M15 | not started | — |
 
 **OpenSpec lifecycle stage:** Apply
@@ -33,11 +33,10 @@
 **Last updated:** 2026-10-02
 
 **Evidence:** `docs/PROVIDERS.md`, produced from spike run
-`2026-10-01T17:20:33-861Z` — 36 probes: 25 passed, 5 failed, 3 unsupported,
-3 unverified. An interactive re-run (`2026-10-01T17-35-14-033Z`) polled both
-mailboxes for 420s each but no message was sent, so it added no provider
-evidence. Re-run the spike before relying on any of it; provider behaviour and
-terms change.
+`2026-10-01T18-08-41-251Z` — 36 probes: 26 passed, 6 failed, 3 unsupported,
+1 unverified, **including a real external message observed on both providers**.
+Re-run the spike before relying on any of it; provider behaviour and terms
+change.
 
 ### Planning assumptions that M0 disproved
 
@@ -52,8 +51,9 @@ original assumption.
 | "Generate mailbox: 1 action or automatic", "Open app → usable email: a few seconds" | Mail.tm advertises `ratelimit-policy: 1; w=60` on `POST /accounts` — **one mailbox per minute per IP**. Seconds-long generation is not achievable on Mail.tm. |
 | "SSE subscription if stable" (M3) and "SSE where reliable" (M6) | Mail.tm has **no working real-time transport**. Five SSE candidate paths returned 404/406 and no WebSocket accepted a connection, despite the provider's marketing claiming SSE. **Adaptive polling is the only option.** |
 | Extension requests host permissions for the provider | Silent-failure trap, measured: `https://api.mail.tm` is accepted into the manifest and grants **nothing**; `https://api.mail.tm/*` works. The extension must use the `/*` form and must test it. |
-| Mailbox expiry has a knowable TTL | **Unverified for both providers.** No TTL is exposed by either API. `MailboxStatus: expired` must not assume one yet. |
-| A real external verification message can be observed during the spike without a maintainer-supplied credential | **Unverified.** No free, credential-free service can deliver real mail: Ethereal discards all mail and disables inbound for public accounts, Guerrilla's send endpoint is captcha-gated, and open relays are not a legitimate option. An interactive run on 2026-10-02 polled both mailboxes for 7 minutes each but **no message was sent**, so it produced no evidence either way. Closing this still needs one maintainer action: an actual send. |
+| Mailbox expiry has a knowable TTL | **Unverified for both providers.** No TTL is exposed by either API. `MailboxStatus: expired` must not assume one yet. This gap is unchanged and still open. |
+| A harness that reports `unverified` is reporting a provider limitation | **False, and it bit us.** Run `2026-10-01T17-35-14-033Z` reported both delivery checks `unverified` because of two defects in the spike itself: the Mail.tm mailbox was deleted (token revoked → `GET /messages` returns `401`) before delivery polled it, and the Guerrilla address printed to the maintainer was stale after `set_email_user`. Neither was a provider behaviour. Fixed, with an abort-on-`401` guard. |
+| A real external verification message can be observed during the spike without a maintainer-supplied credential | **Resolved by maintainer action.** Run `2026-10-01T18-08-41-251Z` observed a real message on both providers. No credential-free *sender* exists, so this always required one manual send. |
 
 ### Decision: provider roles (2026-10-02)
 
@@ -94,16 +94,26 @@ than against the superseded assumption.
 > **Do not begin full UI work until Mail.tm successfully completes the complete
 > receive-mail lifecycle.**
 
-Mail.tm's mailbox lifecycle is proven working at the API level from a
-privileged extension context. **The receive half of a real external
-verification message is unverified for both providers**, so the gate is not
-satisfied and M1+ work should not begin on the assumption that it is.
+**Gate satisfied.** Run `2026-10-01T18-08-41-251Z` observed a real external email
+arrive on **both** providers: Mail.tm at `spikemupulgy6gkia@uberip.com` (subject
+"TEST", body "TEST M0") and Guerrilla Mail at
+`spikemupull2b4vd@guerrillamailblock.com` (body "test m0", delivered as raw
+HTML). The complete receive-mail lifecycle is therefore proven with a real
+message, not inferred.
 
-An interactive run on 2026-10-02 polled both mailboxes for 420 seconds each and
-**no message was sent to either address**, so that run produced no evidence about
-the providers in either direction. It is not evidence that delivery fails, and it
-must not be cited as such. Closing this requires one maintainer action: an
-actual send while `spike:interactive` is running.
+This gate was previously reported as **unsatisfied** because the delivery probes
+were structurally incapable of passing. Two harness defects caused that — the
+Mail.tm mailbox was deleted before delivery polled it (revoking the token), and
+the Guerrilla address printed to the maintainer was stale after a rename. Both
+were measured against the live API, both are fixed, and the poll loop now aborts
+on `401` so a harness fault can never again be recorded as a provider finding.
+See `docs/PROVIDERS.md` §5.1.
+
+**What remains open.** Mailbox/session expiry is still unverified for both
+providers — neither advertises a TTL — so `MailboxStatus: expired` must not assume
+one. And delivery is proven from a single sender; reputation with providers that
+commonly blocklist disposable domains is untested. Both must be carried into the
+provider-layer spec rather than treated as settled.
 
 ### Additional provider facts that change later milestones
 
@@ -465,14 +475,14 @@ provider terms that affect the product
 
 Guerrilla Mail may remain a fallback-only implementation if browser restrictions prevent parity.
 
-> **M0 result (2026-10-01).** The browser-restriction outcome landed on the
-> *opposite* provider from what this gate anticipated. See `Project Status` and
-> `docs/PROVIDERS.md`. Mail.tm works fully from a Chromium extension and is
-> **unreachable from a normal web page**; Guerrilla Mail works from both. The
-> "complete receive-mail lifecycle" half of this gate is still **unverified**
-> because no credential-free sender can deliver a real external message. The
-> gate is therefore **not satisfied**. The provider roles have since been
-> re-decided — see *Decision: provider roles* in `Project Status`.
+> **M0 result (2026-10-02).** The browser-restriction outcome landed on the
+> *opposite* provider from what this gate anticipated: Mail.tm works fully from a
+> Chromium extension and is **unreachable from a normal web page**, while
+> Guerrilla Mail works from both. The "complete receive-mail lifecycle" half of
+> this gate is now **verified** — run
+> `2026-10-01T18-08-41-251Z` observed a real external message on both providers.
+> **The gate is satisfied.** The provider roles were re-decided as a result; see
+> *Decision: provider roles* in `Project Status`.
 
 If Guerrilla Mail proves unreliable in the website environment:
 

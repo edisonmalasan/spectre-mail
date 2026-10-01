@@ -410,7 +410,23 @@ export async function runMailTmProbes(runner, { gate = createAccountGate() } = {
     },
   );
 
+  return ctx;
+}
+
+/**
+ * Mailbox deletion, kept separate from the lifecycle probes.
+ *
+ * Deleting the account REVOKES its token (measured: after DELETE, `GET /me` and
+ * `POST /token` both return 401, and `GET /messages` returns 401 too). So this
+ * must run AFTER the delivery probes, or the delivery probe polls a mailbox that
+ * no longer exists and can never observe an inbound message regardless of what a
+ * sender does. Measured in the 2026-10-02 interactive run, which recorded
+ * delivery as `unverified` for this reason alone.
+ */
+export async function runMailTmDeletionProbes(runner, ctx) {
   runner.section("Mail.tm — mailbox deletion");
+
+  const authHeaders = () => (ctx.token ? { Authorization: `Bearer ${ctx.token}` } : {});
 
   await runner.probe("mailtm.delete-account", "Delete the mailbox", async () => {
     if (!ctx.token || !ctx.accountUrl) {
@@ -437,6 +453,4 @@ export async function runMailTmProbes(runner, { gate = createAccountGate() } = {
       tokenAfterDelete: tokenAfter.response.status,
     });
   });
-
-  return ctx;
 }

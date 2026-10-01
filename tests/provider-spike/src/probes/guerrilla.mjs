@@ -121,10 +121,17 @@ export async function runGuerrillaProbes(runner) {
         "set_email_user did not report an address; the provider may not allow a chosen local part",
       );
     }
+    // The rename rebinds the session to a different mailbox, so ctx.address MUST
+    // be updated here. The delivery probe prints ctx.address to the maintainer and
+    // polls the session; if this is not kept in sync, the probe advertises an
+    // address the session no longer reads and delivery can never be observed.
+    const previousAddress = ctx.address;
+    ctx.address = body.email_addr;
+
     return passed(`address is now ${body.email_addr}`, {
       status: response.status,
-      previousAddress: ctx.address,
-      address: body.email_addr,
+      previousAddress,
+      address: ctx.address,
       alias: body.alias ?? null,
     });
   });

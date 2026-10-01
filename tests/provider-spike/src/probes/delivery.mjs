@@ -44,6 +44,17 @@ async function pollMailTm(token, { timeoutMs, intervalMs = 5000 }) {
     const response = await fetch("https://api.mail.tm/messages?page=1", {
       headers: { Authorization: `Bearer ${token}` },
     });
+
+    // A deleted or revoked mailbox answers 401 here. Polling it can never observe
+    // an inbound message, so bail out immediately rather than burning the whole
+    // window on a mailbox that no longer exists. This is a HARNESS fault, not a
+    // provider finding, and must never be recorded as one.
+    if (response.status === 401 || response.status === 403) {
+      throw new Error(
+        `the Mail.tm mailbox rejected its own token (HTTP ${response.status}) — it was deleted or revoked before delivery was checked, so this mailbox cannot observe any message`,
+      );
+    }
+
     const body = await readJson(response);
     const members = body?.["hydra:member"] ?? [];
     if (members.length > 0) {
@@ -114,9 +125,14 @@ export async function runDeliveryProbes(
         log("  Then leave this running — the spike will observe it.");
         log("  ────────────────────────────────────────────────────────────");
         log("");
-        const message = await pollMailTm(mailtm.token, {
-          timeoutMs: interactiveTimeout,
-        });
+        let message;
+        try {
+          message = await pollMailTm(mailtm.token, { timeoutMs: interactiveTimeout });
+        } catch (error) {
+          return failed(`HARNESS FAULT, not a provider result: ${error.message}`, {
+            address: target,
+          });
+        }
         if (!message) {
           return unverified(
             `interactive window of ${Math.round(interactiveTimeout / 1000)}s closed with no message at ${target}`,
@@ -144,7 +160,14 @@ export async function runDeliveryProbes(
         return failed(`the configured sender rejected the message: ${error.message}`);
       }
 
-      const message = await pollMailTm(mailtm.token, { timeoutMs: 120000 });
+      let message;
+      try {
+        message = await pollMailTm(mailtm.token, { timeoutMs: 120000 });
+      } catch (error) {
+        return failed(`HARNESS FAULT, not a provider result: ${error.message}`, {
+          address: target,
+        });
+      }
       if (!message) {
         return failed(
           `a real message was sent to ${target} but the provider never surfaced it within 120s`,

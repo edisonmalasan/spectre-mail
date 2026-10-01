@@ -25,7 +25,7 @@ the code or the link — without making you leave the page you were on.
 
 | Milestone | State |
 |---|---|
-| M0 — Provider compatibility spike | ✅ complete (with unverified items — see below) |
+| M0 — Provider compatibility spike | ✅ complete (gate satisfied — see below) |
 | M1 — Monorepo foundation | ⛔ not started |
 | M2–M15 | ⛔ not started |
 
@@ -40,7 +40,12 @@ to its own origins, and its terms forbid proxying the API. It works perfectly
 from a Chromium extension, which holds host permissions.
 
 Guerrilla Mail is the reverse: it works from a normal web page *and* from an
-extension.
+extension. The resulting decision: **the website ships on Guerrilla Mail only, and
+the extension uses Mail.tm primary with Guerrilla Mail as fallback.**
+
+Both providers were also proven end to end: a real external email was observed
+arriving on a live mailbox for each. Mailbox expiry remains unproven — neither
+provider advertises a TTL.
 
 Full evidence, including what remains unproven, is in
 [`docs/PROVIDERS.md`](docs/PROVIDERS.md).

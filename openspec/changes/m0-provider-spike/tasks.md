@@ -37,9 +37,18 @@
 ## 5. Real external delivery check
 
 - [x] 5.1 Implement the pluggable sender that reads SMTP or HTTP send configuration from environment variables without persisting credentials, and verify a run with no configuration reports delivery as `unverified` naming the missing capability
-- [ ] 5.2 Implement interactive delivery mode that prints the live created address and polls until an inbound message appears or the timeout elapses, and verify the timeout path records `unverified` and preserves the address in the report — **mechanically verified in interactive run `2026-10-01T17-35-14-033Z`: both addresses were printed and both mailboxes polled for 420s each, and each timeout recorded `unverified` with the address preserved. The success path remains unexercised because no message was sent, so the task stays unchecked.**
-- [ ] 5.3 Execute the delivery check for real — using a configured sender if one is available, otherwise interactive mode completed by the maintainer — and verify the run artifact contains an observed inbound message with sender, subject, and a redacted body excerpt — **BLOCKED: still needs a maintainer-sent message or a sending credential. Interactive run `2026-10-01T17-35-14-033Z` polled both mailboxes for 420s each and **no message was sent**, so it yields no evidence about the providers in either direction. It must not be cited as a delivery failure.**
+- [x] 5.2 Implement interactive delivery mode that prints the live created address and polls until an inbound message appears or the timeout elapses, and verify the timeout path records `unverified` and preserves the address in the report — **both paths now observed: the timeout path recorded `unverified` with the address preserved in run `2026-10-01T17-35-14-033Z`, and the success path recorded `passed` with sender, subject, and body in run `2026-10-01T18-08-41-251Z`.**
+- [x] 5.3 Execute the delivery check for real — using a configured sender if one is available, otherwise interactive mode completed by the maintainer — and verify the run artifact contains an observed inbound message with sender, subject, and a redacted body excerpt — **verified in run `2026-10-01T18-08-41-251Z` (`spike:interactive`). Both providers observed a real message: Mail.tm `spikemupulgy6gkia@uberip.com` from `Arthur Leywin <arthurleywin2026@outlook.com>`, subject "TEST", body "TEST M0"; Guerrilla `spikemupull2b4vd@guerrillamailblock.com` from `arthurleywin2026@outlook.com`, body "test m0" delivered as raw HTML with an empty sender.**
 - [x] 5.4 Record the delivery outcome in `docs/PROVIDERS.md` as verified or explicitly unverified, and verify no unverified step is worded as a pass
+
+## 5A. Harness correctness defects found while closing 5.3
+
+These were not anticipated by the plan. They are recorded here because they
+invalidated the earlier delivery results and because they must not be lost.
+
+- [x] 5A.1 Fix the Mail.tm deletion ordering so the mailbox is not deleted (and its token revoked) before the delivery probes poll it, and verify against the live API that a revoked token makes `GET /messages` return `401` — **fixed by extracting `runMailTmDeletionProbes` and invoking it from `run.mjs` after the delivery probes; `mailtm.delete-account` verified passing in a post-fix run**
+- [x] 5A.2 Make the Mail.tm delivery poll abort on `401`/`403` and report a harness fault rather than spinning for the whole window, and verify the failure wording identifies it as a harness fault and not a provider result
+- [x] 5A.3 Fix the Guerrilla address drift so `set_email_user` updates the tracked address the delivery probe advertises, and verify against the live API that the rename changes the served address
 
 ## 6. Project documentation and roadmap reconciliation
 
@@ -47,4 +56,4 @@
 - [x] 6.2 Add a `Project Status` block to `docs/ROADMAP.md` recording M0 as in progress with the run date, and verify it names the evidence produced so far
 - [x] 6.3 Update `docs/ROADMAP.md` with every M0 finding that contradicts a planning assumption, its effect on later milestones, and the resulting gate decision, and verify the original assumption is not left standing unannotated
 - [x] 6.4 Add `tests/provider-spike/README.md` explaining that the harness is disposable, that nothing may import it, and that M1 and M3 are responsible for retiring it, and verify the file states all three points
-- [ ] 6.5 Re-run the full spike from a clean state and verify the recorded summary matches the summary quoted in `docs/PROVIDERS.md` — **BLOCKED on 5.3: the quoted summary must be the one that includes the real-delivery result, so re-running now would only re-confirm `unverified`**
+- [x] 6.5 Re-run the full spike from a clean state and verify the recorded summary matches the summary quoted in `docs/PROVIDERS.md` — **verified. `docs/PROVIDERS.md` quotes run `2026-10-01T18-08-41-251Z` (36 probes: 26 passed, 6 failed, 3 unsupported, 1 unverified) and that run is the one recorded in the repository. A confirming non-interactive re-run after the deletion-ordering fix recorded 29 probes (browser probes skipped via `--no-browser`) with `mailtm.delete-account` passing, confirming the fix.**

@@ -1,10 +1,15 @@
 # SpectreMail Provider Findings
 
 > **Status:** M0 provider compatibility spike — findings from a real run.
-> **Evidence run:** `2026-10-01T17:20:33-861Z` (36 probes: 25 passed, 5 failed, 3 unsupported, 3 unverified)
+> **Primary evidence run:** `2026-10-01T18-08-41-251Z` (36 probes: 26 passed,
+> 6 failed, 3 unsupported, 1 unverified) — includes real external delivery on
+> **both** providers.
+> **Earlier run:** `2026-10-01T17-20-33-861Z` (25 passed, 5 failed, 3 unsupported,
+> 3 unverified) — structural evidence; its delivery results were invalidated by two
+> harness defects, see §5.1.
 > **Harness:** `tests/provider-spike/` — disposable, not product code.
 > **Re-run before release.** Provider behaviour and terms change. Every claim below
-> traces to a probe in the run cited above. Claims with no recorded evidence are
+> traces to a probe in a run cited above. Claims with no recorded evidence are
 > labelled as such.
 
 ---
@@ -294,46 +299,84 @@ origin is a public domain the provider has never heard of.
 
 ---
 
-## 5. Unverified — what M0 did **not** prove
+## 5. Real external delivery — **verified on both providers**
 
-These are gaps, not passes. They must not be reported as successes anywhere.
+Run `2026-10-01T18-08-41-251Z` (`spike:interactive --timeout-ms 600000`) observed
+a genuine external email arriving on **both** mailboxes. These are the provider's
+own observed results, not an inference from a sent-mail folder.
+
+```text
+delivery.mailtm      [passed]  real message observed on the Mail.tm mailbox: "TEST"
+  address    spikemupulgy6gkia@uberip.com
+  from       Arthur Leywin <arthurleywin2026@outlook.com>
+  subject    TEST
+  receivedAt 2026-10-01T18:12:30+00:00
+  body       "TEST M0"
+
+delivery.guerrilla   [passed]  real message observed on the Guerrilla Mail mailbox
+  address    spikemupull2b4vd@guerrillamailblock.com
+  from       arthurleywin2026@outlook.com
+  mailDate   2026-10-01 18:15:28
+  body       <div style="font-family:Aptos,…" > test m0</div>
+```
+
+Both providers therefore complete the receive-mail lifecycle end to end with a
+real external message. **This satisfies the M0 gate's core requirement.**
+
+Two things this evidence does *not* establish:
+
+- **The Guerrilla sender address arrived empty** while the body was present. A
+  missing subject or envelope sender must be tolerated, not treated as corruption.
+- **The Guerrilla body arrived as raw HTML**, even though the message is plain
+  text. This re-confirms the earlier finding: declared content type is not
+  trustworthy and raw HTML must never be rendered.
+- **This is one message from one sender.** Outlook accepted delivery to both
+  addresses, but Outlook is not the interesting case — aggressive business and
+  consumer providers are what typically blocklist these domains. Provider
+  reputation risk is **not** closed by this result and must be handled as an
+  explicit risk in the M3 provider spec.
+
+### 5.1 Harness defects found while closing this gap
+
+The earlier run `2026-10-01T17-35-14-033Z` recorded both delivery checks as
+`unverified`. That result was **caused by two defects in the spike itself**, not by
+provider behaviour. Both were found by measuring the harness, and both are fixed.
+
+**Defect 1 — the Mail.tm mailbox was deleted before delivery polled it.** The
+lifecycle probe deleted the account (which revokes its token) before the delivery
+probes ran. Verified against the live API: after `DELETE`, `GET /me` returns
+`401`, and `GET /messages` also returns `401`. A revoked token can never return
+messages, so the poll loop spun for its entire window against a mailbox that no
+longer existed. No sender could ever have been observed.
+
+*Fix:* deletion moved into `runMailTmDeletionProbes`, which `run.mjs` now invokes
+**after** the delivery probes. The poll loop also now aborts immediately on
+`401`/`403` and reports `HARNESS FAULT, not a provider result`, so this class of
+fault can never again be misrecorded as a provider finding.
+
+**Defect 2 — the Guerrilla address printed to the maintainer was stale.** The
+`set_email_user` probe renamed the mailbox but did not update the tracked
+address. The delivery probe therefore printed the pre-rename address while
+polling the post-rename mailbox. A sender emailing the printed address would have
+delivered to a mailbox the poll loop was not reading. Verified against the live
+API: `set_email_user` returns a different `email_addr`, confirming the drift.
+
+*Fix:* the probe now updates the tracked address and records `previousAddress`.
+
+**Why this matters beyond M0:** a harness that reports `unverified` for its own
+structural reasons is worse than one that fails loudly, because it looks like a
+provider limitation and would have been written up as one. The abort-on-401 guard
+exists to stop that recurring.
+
+### 5.2 Still unverified
 
 | Check | Why it is unverified | What it blocks |
 |---|---|---|
-| `delivery.mailtm` | No message was ever delivered to the mailbox. Nothing free and credential-free can send real mail: Ethereal discards all mail and states inbound is disabled for public accounts; Guerrilla's send endpoint is captcha-gated; open relays are not a legitimate option. | The M0 gate itself — "Mail.tm successfully completes the complete receive-mail lifecycle" |
-| `delivery.guerrilla` | Same. | Whether a real verification mail is accepted at a Guerrilla address at all, which matters given how heavily these domains are blocklisted |
-| `guerrilla.long-run-expiry` | Requires holding a session open past the provider's expiry window. | `MailboxStatus: expired` semantics |
+| `guerrilla.long-run-expiry` | Requires holding a session open past the provider's expiry window. Neither provider advertises a TTL. | `MailboxStatus: expired` semantics |
+| `mailtm.long-run-expiry` | Same. No TTL is exposed by the Mail.tm API. | `MailboxStatus: expired` semantics |
+| Provider reputation across senders | One sender proved delivery. Bulk senders that commonly blocklist disposable domains are untested. | Any durability claim in marketing or the privacy model |
 
-### Interactive run 2026-10-02 — no evidence gained
-
-Run `2026-10-01T17-35-14-033Z` was executed in interactive mode
-(`spike:interactive --timeout-ms 420000`). The harness printed both addresses
-and polled each mailbox for seven minutes:
-
-```text
-spikemuptegbj5s9m@uberip.com                 420s, no message observed
-ebmdvxch@guerrillamailblock.com              420s, no message observed
-```
-
-**No message was sent to either address**, so this run yields *no evidence about
-the providers at all*. It is explicitly **not** a finding that delivery fails,
-and it must never be cited as one. Its only value is that it proves the
-interactive path works mechanically: the harness creates both mailboxes, prints
-the live addresses, and polls them without error.
-
-Outcome counts were identical to the non-interactive run (25 passed, 5 failed,
-3 unsupported, 3 unverified), which is the expected result when nothing is sent.
-
-**To close the delivery gap**, either:
-
-- run `pnpm --dir tests/provider-spike spike:interactive` **and actually send one
-  message** from an existing mailbox to the printed address while it is running,
-  or
-- configure a sender (`tests/provider-spike/.env.example`) and re-run.
-
-Until then, the roadmap's M0 gate is **not satisfied**. Mail.tm's receive path
-is proven at the API level from a privileged context, but end-to-end delivery of
-a real external verification message remains unmeasured for both providers.
+These are genuine gaps and must not be reported as successes.
 
 ---
 
