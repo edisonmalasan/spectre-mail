@@ -12,6 +12,42 @@
 
 ---
 
+## Project Status
+
+> This block is the root orchestrator's progress ledger. It is **not** the behavioral
+> source of truth — `openspec/specs/` and the active OpenSpec change artifacts are.
+> Reconcile this block against Git and OpenSpec before trusting it in a later session.
+
+**Roadmap cursor:** M0 — Provider Compatibility Spike
+
+**OpenSpec change:** `m0-provider-spike` (`openspec/changes/m0-provider-spike/`)
+
+| Milestone | State | Notes |
+|---|---|---|
+| M0 Provider Compatibility Spike | **proposed** | Planning artifacts complete and validating. Implementation not started. |
+| M1 Monorepo Foundation | not started | Blocked behind the M0 gate. |
+| M2–M15 | not started | — |
+
+**OpenSpec lifecycle stage:** Propose
+
+**Last updated:** 2026-10-01
+
+**M0 evidence produced so far:** none yet. Header-level reconnaissance was performed
+during proposal but has **not** been run through the spike harness and is therefore not
+yet evidence. Nothing in this block may be read as a confirmed provider result until
+`docs/PROVIDERS.md` exists and cites a recorded run.
+
+**Assumptions queued for verification by M0** (recorded here because the spike is
+expected to test them, not confirm them):
+
+- Mail.tm is usable as the primary provider from a normal SpectreMail web page.
+- Guerrilla Mail is usable from a normal web page with no more than session handling.
+- Real-time delivery is available from at least one provider, or polling is acceptable.
+- A real external verification message can be delivered and observed during the spike
+  without a maintainer-supplied sending credential.
+
+---
+
 ## 1. Product Direction
 
 SpectreMail is an accountless temporary-email product designed around one core promise:
