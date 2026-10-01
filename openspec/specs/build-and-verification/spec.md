@@ -1,4 +1,4 @@
-# Spec Delta
+# build-and-verification Specification
 
 ## Purpose
 
@@ -8,7 +8,7 @@ check, and the requirement that a passing check asserts something. This exists
 because a green command that inspects nothing is worse than no command — it
 reads as coverage and is trusted as such.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Verification is invoked through root commands
 
@@ -47,14 +47,6 @@ cover every workspace member.
 - **AND** a recorded result SHALL NOT depend on whether the working tree
   happened to be freshly written by the implementer
 
-*Added by the M1 verification pass.* This scenario exists because the capability
-as originally specified was satisfiable while a documented gate was broken. The
-repository pinned Prettier's `endOfLine: "lf"` without a `.gitattributes`, so the
-result depended on `core.autocrlf`: `pnpm verify` exited 1 on Windows and 0 in CI.
-The original wording covered the *directory* a command runs from but not the
-platform, so a green CI run could coexist with a permanently red local gate — and
-the recorded result looked universal because it had no stated precondition.
-
 ### Requirement: A passing test run asserts something
 
 The test command SHALL fail when an asserted property is violated. A test
@@ -81,13 +73,6 @@ satisfy this capability.
   prohibited condition is deliberately introduced
 - **AND** a check that is narrower in scope than the rule it documents SHALL be
   treated as a failure of this capability, not as a passing check
-
-*Added by the M1 verification pass.* Two of M1's seven assertions were green
-while enforcing less than their documented rule: the import check matched only
-`from "…"`, so dynamic and bare side-effect imports escaped it, and the adapter
-check was scoped to `packages/` and `apps/`, so a root-level or `tests/` module
-could name a provider adapter freely. Nothing detected this, because the tests
-were being credited with a rule they did not carry.
 
 ### Requirement: Toolchain configuration is shared, not duplicated
 

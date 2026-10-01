@@ -812,9 +812,8 @@ Three specific limitations worth not misreading:
   tracked files must be re-checked out.
 
 See `docs/ARCHITECTURE.md` for what each boundary is for, and
-`openspec/changes/monorepo-foundation/specs/build-and-verification/spec.md` for
-the contract these commands implement. It is specified but not yet promoted to
-`openspec/specs/`; that happens at this change's sync stage.
+`openspec/specs/build-and-verification/spec.md` for the contract these commands
+implement.
 
 
 
