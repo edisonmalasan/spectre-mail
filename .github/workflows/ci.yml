@@ -1,0 +1,99 @@
+name: CI
+
+# Runs exactly the commands a maintainer runs locally, with no divergent flags.
+# If a check here passes but fails locally, or the reverse, this file is wrong —
+# not the commands. See openspec/specs/build-and-verification/spec.md.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# A new push to the same branch supersedes the previous run. Redundant runs on a
+# PR cost minutes and tell nobody anything new.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      # Pinned to the versions verified locally on 2026-10-02 (Node v26.10.0,
+      # pnpm 12.6.0). Left unpinned, this workflow would silently drift to a new
+      # major and could pass or fail for reasons unrelated to the change.
+      #
+      # Action major versions were looked up, not guessed: checkout v7,
+      # setup-node v7, action-setup v6 are the current majors as of 2026-10-02.
+      # Node v26.10.0 was confirmed present in the nodejs.org dist index and is
+      # the newest 26.x release. It is not an LTS line; it is pinned because it is
+      # the version this repository is actually verified against, and matching the
+      # verified local runtime is the point.
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 12.6.0
+
+      - name: Install Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 26.10.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Check formatting
+        run: pnpm format:check
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build website
+        run: pnpm build
+
+  spike-self-test:
+    name: spike self-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    # The M0 spike is deliberately NOT a workspace member, so `pnpm install` at
+    # the root does not install it and `pnpm test` does not run it. Its
+    # self-test is a separate job, run in its own directory, because it is the
+    # harness's own contract check and it issues zero network requests.
+    #
+    # This is the M0 gate re-verified. It is not the M0 provider probe: that one
+    # needs live credentials and a real sender, and is documented in
+    # docs/PROVIDERS.md rather than run in CI.
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 12.6.0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26.10.0
+          cache: pnpm
+          cache-dependency-path: tests/provider-spike/pnpm-lock.yaml
+
+      - name: Install spike dependencies
+        run: pnpm --dir tests/provider-spike install --frozen-lockfile
+
+      - name: Spike self-test
+        run: pnpm --dir tests/provider-spike spike:selftest
