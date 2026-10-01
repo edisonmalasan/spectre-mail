@@ -1,0 +1,10 @@
+{
+  "name": "@spectre-mail/extension",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "SpectreMail Chromium extension client. PLACEHOLDER - no extension code exists yet.",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  }
+}

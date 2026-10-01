@@ -1,0 +1,13 @@
+{
+  "version": "0.0.0",
+  "name": "@spectre-mail/providers",
+  "description": "Provider adapters. The ONLY place provider wire format and provider-specific code may live.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "private": true
+}

@@ -1,0 +1,13 @@
+{
+  "version": "0.0.0",
+  "name": "@spectre-mail/core",
+  "description": "Normalized product logic: mailbox lifecycle, provider selection and health, message and error normalization, expiration, shared types.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "private": true
+}

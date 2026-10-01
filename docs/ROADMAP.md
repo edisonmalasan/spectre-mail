@@ -23,33 +23,90 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor:** M1 — Monorepo Foundation (**proposed**). Unblocked: its only
-precondition was that `provider-role-decision` be specified, which is satisfied
-and merged, so M2 and M3 will be written against measured behaviour rather than
-the superseded assumption.
+**Roadmap cursor:** M1 - Monorepo Foundation (**implementing**). All seven M1
+acceptance criteria were executed and passed on 2026-10-02. The change is at
+apply; verification, sync, and archive remain.
 
 **OpenSpec change:** `monorepo-foundation`
-(`openspec/changes/monorepo-foundation/`) — proposed 2026-10-02. Establishes the
-pnpm workspace, the planned structure, shared TypeScript configuration, linting,
-formatting, a test runner, CI, and root scripts, and adds the
-`monorepo-foundation` and `build-and-verification` capabilities.
+(`openspec/changes/monorepo-foundation/`) - proposed 2026-10-02, merged as PR #7.
+Establishes the pnpm workspace, the planned structure, shared TypeScript
+configuration, linting, formatting, a test runner, CI, and root scripts, and adds
+the `monorepo-foundation` and `build-and-verification` capabilities. Those two
+specs are **not yet promoted**; only `provider-abstraction` is live in
+`openspec/specs/` until the sync stage.
+
 `provider-role-decision` is archived at
 `openspec/changes/archive/2026-10-02-provider-role-decision/` (PRs #4, #5, #6),
-its capability spec is live at `openspec/specs/provider-abstraction/spec.md`, and
-M0's `m0-provider-spike` is archived at
+and M0's `m0-provider-spike` is archived at
 `openspec/changes/archive/2026-10-02-m0-provider-spike/` (PR #2).
 
 | Milestone | State | Notes |
 |---|---|---|
 | M0 Provider Compatibility Spike | **archived** | Real external delivery observed on **both** providers. Provider roles decided. Long-run expiry still unverified (no provider exposes a TTL in its API). Gate satisfied. |
-| Provider-role specification | **archived** | Documentation and specification only. No product code. `provider-abstraction` is now a live capability spec: 9 requirements, 18 scenarios. |
-| M1 Monorepo Foundation | **proposed** | Active change `monorepo-foundation`. Creates the structure and tooling only — no product behaviour, no extension build, no visual design. |
-| M2–M15 | not started | — |
+| Provider-role specification | **archived** | Documentation and specification only. No product code. `provider-abstraction` is a live capability spec: 9 requirements, 18 scenarios. |
+| M1 Monorepo Foundation | **implementing** | Change `monorepo-foundation` at apply. Structure and tooling only: no product behaviour, no extension build, no visual design. All 7 acceptance criteria pass; each was proven non-vacuous. |
+| M2-M15 | not started | - |
 
 **OpenSpec lifecycle stage:** M0 and the provider-role change are both complete
-(propose → apply → verify → archive). M1's foundation change is at propose.
+(propose -> apply -> verify -> archive). M1's foundation change is at **apply**:
+46 of 47 tasks complete. Task 8.11, the independent vacuity check, is
+deliberately left unticked for the verification stage.
 
-**Next required change:** none beyond `monorepo-foundation`.
+**Next required change:** none beyond `monorepo-foundation`. After it archives,
+the cursor advances to **M2 - Shared Domain Model**.
+
+**M1 as built, for the next milestone's benefit:**
+
+- The M0 spike is **deliberately outside the workspace** (`pnpm-workspace.yaml`
+  lists `apps/*` and `packages/*` only). It keeps its own lockfile, and root
+  `pnpm install` does not install it. This makes "product code must never import
+  the spike" structurally impossible rather than documented. **M2 and M3 must not
+  add `tests/` to the workspace globs.** The spike is not deleted; retiring it is
+  M3's decision once real adapters exist.
+- Shared packages are consumed **as TypeScript source** (`exports` points at
+  `./src/index.ts`). There is no per-package build and no bundler, so
+  `pnpm build` builds the website only and package correctness is established by
+  `pnpm typecheck`. Revisit when a non-Vite consumer appears.
+- `packages/providers/src/index.ts` deliberately declares **no** `MailProvider`
+  contract. M3 owns that decision, and it should be written against the measured
+  behaviour in `docs/PROVIDERS.md` rather than against an interface invented here.
+- Every placeholder package contains no behaviour and no stub exports. The domain
+  model (M2), the provider contract (M3), storage (M5/M6), and UI (M7+) are each
+  still unimplemented, exactly as the roadmap schedules them.
+- The architecture boundaries are enforced by `tests/architecture/boundaries.test.ts`,
+  not merely documented. Each assertion was proven able to fail. **Any new code
+  must keep it passing** - in particular, no provider JSON field name may appear
+  under `apps/`, and provider adapter identifiers may only appear in
+  `packages/providers`.
+- `vitest.config.ts` scopes `include` to `tests/architecture/**/*.test.ts`
+  explicitly and leaves `passWithNoTests` off. M2 adds tests and **must widen that
+  glob deliberately**, never to `tests/**`, or the root test command could begin
+  executing the spike harness.
+
+**Open items carried forward:**
+
+- **Mail.tm publishes no terms page** (verified 2026-10-02). No attribution,
+  resale, or quota obligation may be asserted or denied until real terms are
+  located. See `docs/PROVIDERS.md` section 2.
+- **The live host-permission check is deferred, not done.** The measured fact
+  stands: `https://api.mail.tm/*` is the required wildcard form and
+  `https://api.mail.tm` silently grants nothing. The check needs extension and
+  browser-test infrastructure that does not exist, so it is recorded against the
+  milestone that owns that infrastructure. M1 claimed no result for it and built
+  no throwaway production code to satisfy it. `apps/extension` has no manifest at
+  all, which is why the trap cannot currently be hit.
+- **CI is green but unexercised against real change.** `.github/workflows/ci.yml`
+  ran green on 2026-10-02 (run `36935477321`; `verify` and `spike self-test`
+  both SUCCESS), which confirms it works on a clean Linux runner with the pinned
+  Node and action versions. It has never yet been made to *fail*, so its
+  ability to catch a regression is unproven. Treat the first real red run as
+  unverified behaviour.
+- **The Guerrilla dead-session trap has no requirement.** It is deliberately
+  deferred to the mailbox-lifecycle capability, not overlooked. Note that
+  `packages/storage/src/index.ts` records why the `SpectreStorage` contract must
+  be able to represent "session gone" distinctly from "no messages".
+- **Delivery reputation is proven from one sender.** Providers that commonly
+  blocklist disposable domains are untested.
 
 **Open items carried forward into M1 and beyond:**
 

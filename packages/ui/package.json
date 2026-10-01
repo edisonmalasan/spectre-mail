@@ -1,0 +1,13 @@
+{
+  "version": "0.0.0",
+  "name": "@spectre-mail/ui",
+  "description": "Reusable product UI and design tokens. Not marketing-only website sections.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "private": true
+}

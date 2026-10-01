@@ -1,254 +1,261 @@
 # SpectreMail
 
-**Temporary email without interrupting what you're doing.**
+Temporary email for the web and the browser.
 
-SpectreMail gives you a disposable email address, lets you receive
-verification messages in it, and surfaces the one thing you actually came for:
-the code or the link — without making you leave the page you were on.
+SpectreMail gives you a disposable email address you can read without leaving the
+page or the signup flow you were on. It exists as a website and as a browser
+extension, both talking to the same provider abstraction.
 
-> **Status: pre-alpha.** Milestone **M0 (provider compatibility spike)** is
-> complete and its findings materially changed the provider plan. There is no
-> working product yet: no website, no extension, no user-facing UI.
-> `SpectreMail` is a project codename until naming checks are complete.
-
-- **Roadmap:** [`docs/ROADMAP.md`](docs/ROADMAP.md) — the program plan, with a
-  `Project Status` block recording live progress.
-- **Provider findings:** [`docs/PROVIDERS.md`](docs/PROVIDERS.md) — what the
-  providers actually do, measured rather than assumed.
-- **Engineering rules:** [`AGENTS.md`](AGENTS.md) — how work is planned,
-  verified, and merged here.
-- **How this repo works:** [`openspec/`](openspec) — spec-driven development.
+**There is no product yet.** This repository currently contains the architecture,
+the toolchain, and the measured provider research that the product will be built
+on. See [Current status](#current-status).
 
 ---
 
-## Current development status
+## Current status
 
-| Milestone | State |
-|---|---|
-| M0 — Provider compatibility spike | ✅ complete (gate satisfied — see below) |
-| M1 — Monorepo foundation | ⛔ not started |
-| M2–M15 | ⛔ not started |
+| Milestone                         | State                                         |
+| --------------------------------- | --------------------------------------------- |
+| M0 — Provider compatibility spike | complete (gate satisfied — see below)         |
+| M1 — Monorepo foundation          | implementation complete, verification pending |
+| M2–M15                            | not started                                   |
 
-No application code exists yet. The repository currently contains
-documentation, the OpenSpec change for M0, and the disposable spike harness.
+| Capability spec          | State                               |
+| ------------------------ | ----------------------------------- |
+| `provider-abstraction`   | live                                |
+| `monorepo-foundation`    | pending sync (in the active change) |
+| `build-and-verification` | pending sync (in the active change) |
+
+The last two are specified in the active `monorepo-foundation` change. They are promoted to
+`openspec/specs/` during its sync stage; only `provider-abstraction` is live at this commit.
+
+The website currently renders a plain status page. It has **no mailbox feature**,
+no provider call, and no styling. That is the correct state for M1 and it is not a
+placeholder pretending to be software.
 
 ### The one thing you should know
 
-The M0 spike **inverted the provider plan**. Mail.tm — the planned primary
-provider — is **unreachable from a normal web page**: it sends CORS headers only
-to its own origins, and SpectreMail does not proxy provider APIs to work around that. It works perfectly
-from a Chromium extension, which holds host permissions.
+SpectreMail has **no backend and will never proxy a provider API.**
 
-Guerrilla Mail is the reverse: it works from a normal web page *and* from an
-extension. The resulting decision: **the website ships on Guerrilla Mail only, and
-the extension uses Mail.tm primary with Guerrilla Mail as fallback.**
+Mail.tm — one of the two providers — sends CORS headers only to its own origins.
+A normal web page therefore cannot reach it. There is a tempting fix: stand up a
+server and relay the request. SpectreMail does not do that, and the reason is
+product policy rather than a terms judgement: the correct response to a provider
+that will not serve a web page is to not use it on the web page.
 
-Both providers were also proven end to end: a real external email was observed
-arriving on a live mailbox for each. Mailbox expiry remains unproven — neither
-provider exposes a TTL in its API.
+This is why the two clients have different providers, and it is a measured fact,
+not a preference:
 
-Full evidence, including what remains unproven, is in
-[`docs/PROVIDERS.md`](docs/PROVIDERS.md).
+| Client    | Providers                                | Why                                                                 |
+| --------- | ---------------------------------------- | ------------------------------------------------------------------- |
+| Website   | Guerrilla Mail only                      | Mail.tm is unreachable from a web page. No fallback in V1.          |
+| Extension | Mail.tm primary, Guerrilla Mail fallback | A Chromium extension holds host permissions, so both are reachable. |
+
+Provider availability is **per client**, not global. Both providers are still built
+in `packages/providers`.
 
 ---
 
-## Architecture (planned)
-
-The roadmap defines a monorepo where the website and the extension are two
-clients of one shared core:
+## Architecture
 
 ```text
-apps/web ───────┐
-                ├──→ packages/core
-apps/extension ─┘      packages/providers
-                       packages/mail-parser
-                       packages/storage
-                       packages/ui
+apps/web  ────────┐
+                  ├──> packages/*
+apps/extension ───┘
 ```
 
-Shared packages must never import from the apps. Provider-specific code lives
-only in `packages/providers`; no React component may ever understand a
-provider's JSON.
+Five shared packages, each with one responsibility:
 
-**Providers are assigned per client, not globally.** They are not ordered the
-same way for both:
+| Package                     | Owns                                                                                                        |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `@spectre-mail/core`        | Mailbox lifecycle, provider selection and health, message and error normalization, expiration, shared types |
+| `@spectre-mail/providers`   | The Mail.tm and Guerrilla Mail adapters — the only place provider code may live                             |
+| `@spectre-mail/mail-parser` | Safe text extraction, OTP detection, verification-link detection                                            |
+| `@spectre-mail/storage`     | The `SpectreStorage` contract, the web IndexedDB adapter, the extension storage adapter                     |
+| `@spectre-mail/ui`          | Reusable product UI and design tokens                                                                       |
 
-| Client | Providers |
-|---|---|
-| Website | Guerrilla Mail only — no fallback in V1 |
-| Extension | Mail.tm primary, Guerrilla Mail fallback |
+The boundaries are enforced by a test, not just documented. `pnpm test` fails if a
+package imports an app, if a file under `apps/` contains a provider JSON field
+name, or if a provider adapter identifier appears outside `packages/providers`.
 
-Mail.tm grants CORS only to its own origins, so no compliant design lets a web page
-read it. SpectreMail does not proxy provider APIs, and proxying one through a
-SpectreMail server is forbidden by requirement, not merely discouraged.
-
-These boundaries are specified in the `provider-abstraction` capability
-(`openspec/specs/provider-abstraction/spec.md`), with the measured evidence behind
-each in [`docs/PROVIDERS.md`](docs/PROVIDERS.md).
-
-This structure is **not built yet**. It arrives in M1.
+Full detail, including why each rule exists: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ---
 
-## Project structure
+## Repository structure
 
 ```text
-spectre-mail/
-├── AGENTS.md                     engineering + workflow authority
-├── README.md                     this file
-├── docs/
-│   ├── ROADMAP.md                program plan + live Project Status
-│   └── PROVIDERS.md              measured provider findings (M0)
-├── openspec/
-│   ├── specs/                    approved capability specs
-│   └── changes/                  in-flight changes
-└── tests/
-    └── provider-spike/           DISPOSABLE M0 harness — not product code
+apps/
+  web/                 Vite + React website client (no mailbox feature yet)
+  extension/           placeholder — no manifest, no service worker
+packages/
+  core/                normalized product logic
+  providers/           provider adapters
+  mail-parser/         message content interpretation
+  storage/             persistence contracts and adapters
+  ui/                  reusable product UI
+docs/
+  ARCHITECTURE.md      where code lives and why
+  PROVIDERS.md         measured provider evidence
+  ROADMAP.md           the milestone plan
+openspec/
+  specs/               live capability specs
+  changes/             active and archived changes
+tests/
+  architecture/        boundary enforcement
+  provider-spike/      the M0 measurement harness — NOT a workspace member
 ```
 
-### `tests/provider-spike/` is throwaway
+### `tests/provider-spike/` is disposable
 
-It exists to answer whether providers work, in a real browser, before any UI is
-built. Nothing may import it, reusable provider logic belongs in
-`packages/providers` (M3), and it is retired or absorbed during M1/M3. See its
-[README](tests/provider-spike/README.md).
+The M0 spike is **not** a pnpm workspace member. It keeps its own lockfile. This
+makes "product code must never import the spike" structurally impossible rather
+than a documented rule.
+
+It is not deleted: it is the reproducible evidence behind `docs/PROVIDERS.md`, which
+must be re-runnable before release.
 
 ---
 
-## Local setup
+## Setup
 
-Verified on **Windows 11**, **Node.js v26.10.0**, **pnpm 12.6.0**.
+Requires Node.js `v26.10.0` and pnpm `12.6.0` — the versions this repository is
+verified against.
 
 ```bash
-pnpm --version
-node --version
+pnpm install
 ```
 
-The spike is the only thing installed today. It is deliberately **not** a
-workspace member — no workspace exists until M1.
+That installs the workspace. It does **not** install the spike. To run the spike:
 
 ```bash
 pnpm --dir tests/provider-spike install
-pnpm --dir tests/provider-spike exec playwright install chromium
 ```
 
 ---
 
 ## Verified commands
 
-Every command below was actually executed. Nothing else is verified yet.
+Every command below was actually executed on 2026-10-02 and passed. Nothing else
+is verified yet.
 
-| Command | What it proves | What it does **not** prove |
-|---|---|---|
-| `pnpm --dir tests/provider-spike install` | The spike manifest resolves and installs. | Anything about providers or the product. |
-| `pnpm --dir tests/provider-spike spike:selftest` | The harness records `passed`/`failed`/`unsupported`/`unverified` correctly, a failing probe never aborts a run, and both run artifacts are written. | Anything about real providers — it issues zero network requests. |
-| `pnpm --dir tests/provider-spike spike` | The real Mail.tm and Guerrilla Mail lifecycles, CORS behaviour, and browser-context reachability, as recorded in `docs/PROVIDERS.md`. | Real external message delivery — it has no sender, so that check reports `unverified` unless you use `spike:interactive`. Also not long-run mailbox expiry. |
-| `pnpm --dir tests/provider-spike spike:interactive` | Same, plus it prints a live address and waits for you to send it a real message. This is how delivery was verified. | Anything if you don't send a message — the check reports `unverified`. |
-| `openspec validate m0-provider-spike --strict` | The active OpenSpec change is internally consistent. | That the implementation matches it. |
+| Command                              | What it proves                                                        | What it does **not** prove                                                                         |
+| ------------------------------------ | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `pnpm install`                       | The workspace resolves and installs from the committed lockfile.      | Anything about providers or product behaviour.                                                     |
+| `pnpm typecheck`                     | All 8 workspace projects type check under the shared strict config.   | That the types are useful — there is no domain model yet.                                          |
+| `pnpm lint`                          | ESLint passes.                                                        | Type correctness; `pnpm typecheck` owns that.                                                      |
+| `pnpm format:check`                  | Prettier passes on the files this repository governs.                 | That historical documents are formatted; those are deliberately excluded.                          |
+| `pnpm test`                          | 7 architecture boundary assertions pass.                              | Product behaviour. There is none yet, and no product test exists.                                  |
+| `pnpm build`                         | The website builds with Vite.                                         | That packages emit anything — they are consumed as TypeScript source, so there is nothing to emit. |
+| `pnpm dev:web`                       | The website dev server starts and serves the app on `127.0.0.1:5173`. | Any mailbox, provider, or storage behaviour.                                                       |
+| `pnpm spike:selftest`                | The M0 harness records outcomes correctly and writes its artifacts.   | Anything about real providers — it issues zero network requests.                                   |
+| `pnpm verify`                        | typecheck + lint + format + test + build all pass in sequence.        | Anything beyond those five gates.                                                                  |
+| `openspec validate --specs --strict` | The live capability specs are internally consistent.                  | That the implementation matches them.                                                              |
 
-The spike exits non-zero when a probe **fails**. `unsupported` and `unverified`
-are findings, not failures, and never affect the exit code — but they are
-printed prominently and are never described as passes.
+### What M0 established
 
-### A note on `unverified`
+Delivery was observed on **both** providers in spike run `2026-10-01T18-08-41-251Z`.
 
-Real external message delivery has been **verified on both providers**: run
-`2026-10-01T18-08-41-251Z` observed a genuine external email arriving on a live
-mailbox for Mail.tm and for Guerrilla Mail.
+Still unverified, and stated as such:
 
-One gap is still open and must not be reported as working:
+- **Long-run mailbox and session expiry.** Mail.tm publishes a 7-day message
+  retention and states a mailbox lasts until deleted, but neither value appears in
+  any API response and neither was measured live. No countdown may be derived from
+  documentation.
+- **Delivery reputation.** Proven from one sender. Providers that commonly
+  blocklist disposable domains are untested.
+- **Mail.tm's terms.** No terms page could be located. No attribution, resale, or
+  quota obligation may be asserted _or denied_ until real terms are found.
 
-- long-run expiry — Mail.tm publishes a 7-day message retention and states a mailbox
-  lasts until deleted, but exposes no TTL in its API and neither value was measured
-  live, so `MailboxStatus: expired` cannot yet assume one
-
-Re-running the spike without a sender still reports delivery as `unverified`,
-because it cannot observe an inbound message unattended. That is the expected
-result, not a regression.
+Measurements, with the exact observations, are in
+[`docs/PROVIDERS.md`](docs/PROVIDERS.md).
 
 ---
 
-## Privacy model
+## Deferred verification
 
-Current, not aspirational. The product does not exist yet, so there is nothing
-collecting anything.
+**The live host-permission check has not been performed.**
 
-Intended model, from the roadmap:
+The measured fact stands: `https://api.mail.tm/*` is the required wildcard form, and
+a host permission declared as `https://api.mail.tm` **silently grants nothing**.
+A manifest using the slash-less form would fail with no error, which is the kind of
+trap that is invisible until a user reports a feature that "just doesn't work."
 
-```text
-SpectreMail account        none
-SpectreMail state          local-first
-Browsing-history database  none
-Ad injection               none
-User-data sale             none
-Analytics                  none
-```
+The test that exercises the declared pattern against the live provider needs an
+extension and browser-test infrastructure that does not exist yet. It is therefore
+**deferred to the milestone that owns extension and provider infrastructure.**
 
-**What SpectreMail must not claim:** that messages never leave your device.
-That is false — while third-party providers power the addresses, the provider
-receives the mail.
-
-**What SpectreMail may claim:** it does not require an account, and keeps its
-own mailbox state locally. Incoming mail is processed by the temporary-email
-provider powering the address.
-
-Provider terms can impose obligations that are easy to forget. For mail.tm they
-currently impose **none that we can verify**: it publishes no terms page, and its
-FAQ is silent on attribution, resale, and proxying. Nothing is claimed either way
-until real terms are located. See [`docs/PROVIDERS.md`](docs/PROVIDERS.md).
+No result is claimed for it, and no throwaway production code was built to
+manufacture one. `apps/extension` has no manifest at all, which is why the trap
+cannot currently be hit.
 
 ---
 
 ## Development workflow
 
-Work is spec-driven. Non-trivial behavioural changes go through a full OpenSpec
-lifecycle and a reviewed pull request — there is no direct-to-`main` work.
+`main` is the integration branch. Planned work never goes directly onto `main`.
+Every OpenSpec stage uses its own remote branch and a pull request, merged with a
+**merge commit** — not squash, not rebase.
+
+Branch naming is by technical scope:
 
 ```text
-Explore → Propose → Apply → Verify → Sync → Archive
+docs/<scope>-proposal      proposal / planning artifacts
+feat/<scope>               feature implementation
+fix/<scope>                bug fix
+refactor/<scope>           behaviour-preserving restructuring
+test/<scope>               tests or technical validation
+docs/<scope>-spec-sync     syncing a delta spec back to the main specs
+chore/archive-<scope>      archiving a completed change
 ```
 
-Each stage gets its own branch, pushed to `origin` immediately, and lands via a
-**merge commit** (never squash, never rebase).
+Commits use [Conventional Commits](https://www.conventionalcommits.org/):
+`feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`.
+
+### OpenSpec
+
+Nontrivial behavioural and architectural changes are specified before they are
+implemented. The cycle is:
 
 ```text
-main
-  ├── docs/<scope>-proposal      plan the change
-  ├── feat|spike|test/<scope>    implement it
-  ├── docs/<scope>-spec-sync     reconcile approved behaviour into specs
-  └── chore/archive-<scope>      close it out
+Explore -> Propose -> Apply -> Verify -> Sync -> Archive
 ```
-
-Typical loop:
 
 ```bash
-git switch main
-git pull --ff-only origin main
-git switch -c docs/<technical-scope>-proposal
-git push -u origin docs/<technical-scope>-proposal
-# ... create the OpenSpec change ...
-gh pr create --base main --head docs/<technical-scope>-proposal
-gh pr merge <PR> --merge --delete-branch
+openspec list                            # active changes
+openspec status --change <name>          # artifact progress
+openspec validate <name> --strict        # artifact consistency
+openspec validate --specs --strict       # live capability specs
 ```
-
-`AGENTS.md` is the authority on naming, commit conventions, verification duties,
-and the orchestration rules. Read it before making changes.
 
 ### Relationship to the roadmap
 
-- `docs/ROADMAP.md` is the **program plan** — which milestone, and why.
-- `openspec/changes/` holds the **bounded implementation unit** currently in
-  flight.
-- `docs/ROADMAP.md`'s `Project Status` block is a **progress ledger** owned by
-  the root agent, updated at each lifecycle transition.
-- `openspec/specs/` plus the active change artifacts are the **source of truth
-  for behaviour**.
+`docs/ROADMAP.md` is the **program-level plan**: fifteen milestones from the
+provider spike to a public beta. It owns the `Project Status` ledger.
 
-The roadmap is never treated as proof. When a milestone's reality contradicts a
-planning assumption, the roadmap is corrected — that is exactly what M0 was for.
+OpenSpec changes are **bounded implementation units**, not milestones. The roadmap
+says _what_ the program does and in what order; an OpenSpec change specifies _how_
+one coherent piece of it behaves. The roadmap is the plan, OpenSpec is the
+specification, and the capability specs under `openspec/specs/` are the
+behavioural source of truth when the two disagree.
+
+---
+
+## Privacy model
+
+SpectreMail reads disposable mailboxes and nothing else.
+
+- **No backend.** No SpectreMail-operated server, and no proxying of provider APIs.
+- **No account.** There is no sign-up and no user record.
+- **Client-side storage.** Mailboxes persist in IndexedDB on the web and extension
+  storage in the extension, behind a shared contract. Storage is the client's, not
+  the provider's and not ours.
+
+Temporary addresses are disposable by design. Anything sent to one is readable by
+whoever holds the address, so it must never be used for anything that matters.
 
 ---
 
 ## License
 
-Not yet chosen. `LICENSE` will be added before any public release.
+No license has been chosen yet. All rights reserved until one is.

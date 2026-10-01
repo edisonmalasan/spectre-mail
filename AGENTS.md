@@ -102,15 +102,25 @@ Pin versions when exact versions matter.
 
 
 
-- Language(s): JavaScript (ESM, `.mjs`) — the only language currently in the repository.
-  TypeScript is required by the roadmap for `apps/*` and `packages/*` but is not installed yet.
+- Language(s): TypeScript `5.9.3` (verified). Strict mode plus
+  `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`, inherited by every
+  workspace project from the shared `tsconfig.base.json`. ESM throughout.
+  JavaScript `.mjs` remains only inside the disposable `tests/provider-spike/`
+  harness, which is deliberately excluded from type checking because it is
+  hand-rolled and has no types.
 
-- Framework(s): none installed. The roadmap targets React + Vite for the website
-  and React + Manifest V3 for the extension; neither exists yet.
+- Framework(s): React `19.3.0` with Vite `7.3.6` for the website client, verified
+  building, type checking, linting, and serving. The extension client has **no
+  framework and no Manifest V3 manifest** — it is a placeholder. The roadmap schedules
+  the extension build for M8.
 
 - Runtime(s): Node.js `v26.10.0` (verified).
 
-- Frontend / client: none yet.
+- Frontend / client: `apps/web` exists as a working Vite + React site that renders a
+  plain status page. It has **no mailbox feature, no provider call, and no styling** —
+  that is the correct M1 state, not an unfinished screen. `apps/extension` is an empty
+  placeholder. Visual design work starts at M7 under the approved Spectral Swiss
+  Utility direction.
 
 - Backend / server: none. Intentionally `$0` paid backend infrastructure; see
   `docs/PROVIDERS.md` for why a SpectreMail-operated proxy is not a permitted
@@ -122,19 +132,41 @@ Pin versions when exact versions matter.
 
 - ORM / data access: none yet.
 
-- Package manager: pnpm `12.6.0` (verified). A pnpm workspace is **not** initialised
-  yet — that is milestone M1.
+- Package manager: pnpm `12.6.0` (verified). A pnpm workspace **is** initialised,
+  covering `apps/*` and `packages/*` with a single root lockfile. pnpm 12 blocks
+  dependency build scripts by default; `esbuild` is allowed via `allowBuilds` in
+  `pnpm-workspace.yaml`. `tests/provider-spike` is **deliberately not a workspace
+  member** — see `docs/ARCHITECTURE.md`.
 
-- Build tooling: none installed. Roadmap target is Vite (web) and an extension build
-  step (M1/M8).
+- Build tooling: Vite `7.3.6` with `@vitejs/plugin-react` `5.2.0` for the website,
+  verified building to `apps/web/dist` and serving on `127.0.0.1:5173`.
+  Shared packages are consumed **as TypeScript source** (each `exports` points at
+  `./src/index.ts`), so there is no per-package build and no bundler at M1.
+  **`pnpm build` builds the website only**; package correctness is established by
+  `pnpm typecheck`, which is a separate gate. There is still no extension build
+  step — that is M8.
 
-- Testing: a disposable Node.js probe harness at `tests/provider-spike/`
-  (`node:test`-free, hand-rolled, with a self-test at
-  `pnpm --dir tests/provider-spike spike:selftest`). Vitest and Playwright-as-test-runner
-  are roadmap targets for M1 and are not installed. Playwright `1.63.0` **is**
-  installed as a spike-only dev dependency for browser-context probes.
+- Testing: Vitest `3.2.7` at the workspace root, verified running 7 architecture
+  boundary assertions via `pnpm test`. `passWithNoTests` is **off** by design — a
+  green run that inspects nothing is worse than no run. The `include` glob names
+  `tests/architecture/**/*.test.ts` explicitly so the root test command can never
+  execute the spike harness.
+  Also installed: a disposable Node.js probe harness at `tests/provider-spike/`
+  (`node:test`-free, hand-rolled, self-tested at `pnpm spike:selftest`, 16/16
+  passing). Playwright `1.63.0` is a **spike-only** dev dependency, outside the
+  workspace, used for browser-context and MV3 probes. There is **no Playwright
+  browser-automation test suite yet** — the live host-permission check remains deferred.
 
-- Infra / deploy: none. No CI workflow exists yet (roadmap M1 task).
+- Infra / deploy: none. A GitHub Actions workflow exists at `.github/workflows/ci.yml`
+  and runs the same root commands a maintainer runs, with no divergent flags. It
+  **ran green on 2026-10-02** (run `36935477321`; the `verify` and
+  `spike self-test` jobs both SUCCESS), which also confirms the pinned action
+  majors and Node version resolve on a clean Linux runner.
+  Action majors were looked up rather than assumed — an earlier draft of this
+  workflow named checkout `v5`, setup-node `v6`, and action-setup `v4`, and all
+  three were wrong. It has never yet been made to *fail*, so its ability to catch
+  a regression is unproven.
+  No deployment, hosting, or release pipeline exists or is planned for V1.
 
 - External services: `https://api.mail.tm` and `https://api.guerrillamail.com`.
   Both are exercised live by the M0 spike. See `docs/PROVIDERS.md` for measured
@@ -425,17 +457,36 @@ Current entry point:
 
 ```bash
 
-pnpm --dir tests/provider-spike spike
+pnpm dev:web
 
 ```
 
-There is **no application to start yet.** The only runnable entry point is the
-disposable M0 provider spike. `pnpm dev` / `pnpm dev:web` do not exist and must
-not be documented until M1 creates them.
+Starts the website client on `http://127.0.0.1:5173`. Verified 2026-10-02: it
+returned HTTP 200 serving the application, and `/src/main.tsx` was confirmed to
+return Vite-transformed JSX, so the server really serves the app rather than a
+static shell.
+
+The website renders a plain status page. It has **no mailbox feature, no provider
+call, and no styling** — that is the correct M1 state, not an unfinished screen.
+There is still no extension build step; `pnpm dev:extension` does not exist and
+must not be documented until M8 creates it.
 
 
 
 Current dependency manifest / install command:
+
+
+```bash
+
+pnpm install
+
+```
+
+The root `package.json` is the workspace manifest. It installs `apps/*` and
+`packages/*` from the single root `pnpm-lock.yaml`.
+
+`tests/provider-spike/` is **deliberately not a workspace member**, so the root
+install does not install it. To install and run the spike separately:
 
 
 
@@ -445,9 +496,6 @@ pnpm --dir tests/provider-spike install
 pnpm --dir tests/provider-spike exec playwright install chromium
 
 ```
-
-`tests/provider-spike/package.json` is the only manifest in the repository. It is
-deliberately **not** a pnpm workspace member, because no workspace exists until M1.
 
 
 
@@ -476,8 +524,11 @@ node --check tests/provider-spike/src/selftest.mjs
 Verified 2026-10-01: all 12 spike modules parse.
 
 **This proves the spike parses. It proves nothing about behaviour, and nothing at
-all about providers.** There is no type-check, lint, build, or application
-runtime command yet — those arrive with M1.
+all about providers.**
+
+It is now only the spike's lowest-level check. Since M1 there are real workspace
+gates; see the workspace verification gates entry below. This block remains because
+the spike is outside the workspace and so is not covered by them.
 
 
 
@@ -517,11 +568,16 @@ Important:
 
 - The supported development/runtime environment is **Windows 11, Node.js v26.10.0, pnpm 12.6.0** (all verified 2026-10-01).
 
-- Executed dependency/package consistency check: `pnpm --dir tests/provider-spike install` (verified 2026-10-01, succeeds; a lockfile is committed). No workspace-wide check exists yet.
+- Executed dependency/package consistency checks, both verified: `pnpm install` at the
+  root (2026-10-02, lockfile committed and unchanged after re-installing with exact
+  pins) and `pnpm --dir tests/provider-spike install --frozen-lockfile` (2026-10-02).
 
 - Run risky, state-mutating, legacy, or preservation checks in an appropriate disposable environment when required.
 
-- No verified automated test, lint, type-check, build, or runtime command exists unless it is explicitly listed in this section.
+- No verified automated test, lint, type-check, build, or runtime command exists unless
+  it is explicitly listed in this section. A CI workflow is **not** a substitute for a
+  locally verified command: a green CI run proves the command works on a clean Linux
+  runner, which is a different fact from it working on this machine.
 
 - Do not invent commands in this file.
 
@@ -669,40 +725,74 @@ These commands establish that every spike module parses as ESM.
 
 
 
-They do **not** establish any behaviour, correctness, or provider fact. There is
-no type-check, lint, or build command in this repository yet; do not claim one.
+They do **not** establish any behaviour, correctness, or provider fact.
+
+They also do not cover the workspace. Since M1 the real gates are `pnpm typecheck`,
+`pnpm lint`, `pnpm format:check`, `pnpm test`, and `pnpm build`; see the workspace
+verification gates entry below. This block remains because the spike is outside the
+workspace and is therefore not covered by them.
 
 
 
-### Verified project tool: [TOOL / CHECK NAME]
+### Verified project tool: workspace verification gates
 
-
-
-Verified on `[ENVIRONMENT / RUNTIME]`:
+Verified on `Windows 11 / Node.js v26.10.0 / pnpm 12.6.0` on 2026-10-02:
 
 
 
 ```bash
 
-[VERIFIED COMMAND]
-
-[VERIFIED TEST COMMAND]
+pnpm install
+pnpm typecheck
+pnpm lint
+pnpm format:check
+pnpm test
+pnpm build
+pnpm verify
 
 ```
 
+These are the six commands the roadmap's M1 acceptance criteria name, plus
+`pnpm verify`, which runs typecheck, lint, format check, test, and build in
+sequence. All exited `0`.
 
+Observed results:
 
-See `[README / DOCUMENTATION PATH]` for the executable, invocation, exit codes,
+```text
+pnpm typecheck     8/8 workspace projects pass tsc --noEmit
+pnpm lint          exit 0
+pnpm format:check  All matched files use Prettier code style
+pnpm test          1 file, 7 assertions passed
+pnpm build         vite 7.3.6, 28 modules transformed, dist emitted
+```
 
-evidence classification, containment, and limitations.
+These commands establish that the workspace is internally consistent: every
+package and app type checks under the shared strict config, lints, is formatted,
+passes the architecture boundary assertions, and that the website builds.
 
+They do **not** establish any product behaviour. There is no domain model, no
+provider adapter, no storage, and no mailbox feature yet, so no test here can
+assert any. Seven boundary assertions are not coverage of a product that does not
+exist.
 
+Two specific limitations worth not misreading:
 
-These commands establish `[WHAT THE CHECK PROVES]`.
+- **`pnpm build` builds the website only.** Shared packages are consumed as
+  TypeScript source, so there is nothing to emit for them. Package correctness is
+  established by `pnpm typecheck`, which is a separate gate. Do not read a
+  successful `pnpm build` as "the packages compiled".
+- **`pnpm test` is non-vacuous by construction, and that was verified.** Each of
+  the seven assertions was proven able to fail by deliberately introducing the
+  violation and observing a non-zero exit: a package importing an app, a provider
+  field name under `apps/`, a provider adapter identifier outside
+  `packages/providers`, a workspace reference to the spike, and the spike added as
+  a workspace member. A run with the test directory removed was also confirmed to
+  exit `1`, because `passWithNoTests` is off.
 
+See `docs/ARCHITECTURE.md` for what each boundary is for, and
+`openspec/specs/build-and-verification/spec.md` for the contract these commands
+implement.
 
-
-They do ****not**** establish `[WHAT THE CHECK DOES NOT PROVE]`.
 
 
 
