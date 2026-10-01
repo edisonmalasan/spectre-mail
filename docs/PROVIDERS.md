@@ -300,14 +300,35 @@ These are gaps, not passes. They must not be reported as successes anywhere.
 
 | Check | Why it is unverified | What it blocks |
 |---|---|---|
-| `delivery.mailtm` | No sender capable of delivering real mail was available. Nothing free and credential-free can do it: Ethereal discards all mail and states inbound is disabled for public accounts; Guerrilla's send endpoint is captcha-gated; open relays are not a legitimate option. | The M0 gate itself — "Mail.tm successfully completes the complete receive-mail lifecycle" |
+| `delivery.mailtm` | No message was ever delivered to the mailbox. Nothing free and credential-free can send real mail: Ethereal discards all mail and states inbound is disabled for public accounts; Guerrilla's send endpoint is captcha-gated; open relays are not a legitimate option. | The M0 gate itself — "Mail.tm successfully completes the complete receive-mail lifecycle" |
 | `delivery.guerrilla` | Same. | Whether a real verification mail is accepted at a Guerrilla address at all, which matters given how heavily these domains are blocklisted |
 | `guerrilla.long-run-expiry` | Requires holding a session open past the provider's expiry window. | `MailboxStatus: expired` semantics |
 
+### Interactive run 2026-10-02 — no evidence gained
+
+Run `2026-10-01T17-35-14-033Z` was executed in interactive mode
+(`spike:interactive --timeout-ms 420000`). The harness printed both addresses
+and polled each mailbox for seven minutes:
+
+```text
+spikemuptegbj5s9m@uberip.com                 420s, no message observed
+ebmdvxch@guerrillamailblock.com              420s, no message observed
+```
+
+**No message was sent to either address**, so this run yields *no evidence about
+the providers at all*. It is explicitly **not** a finding that delivery fails,
+and it must never be cited as one. Its only value is that it proves the
+interactive path works mechanically: the harness creates both mailboxes, prints
+the live addresses, and polls them without error.
+
+Outcome counts were identical to the non-interactive run (25 passed, 5 failed,
+3 unsupported, 3 unverified), which is the expected result when nothing is sent.
+
 **To close the delivery gap**, either:
 
-- run `pnpm --dir tests/provider-spike spike:interactive` and send one message
-  from an existing mailbox to the printed address, or
+- run `pnpm --dir tests/provider-spike spike:interactive` **and actually send one
+  message** from an existing mailbox to the printed address while it is running,
+  or
 - configure a sender (`tests/provider-spike/.env.example`) and re-run.
 
 Until then, the roadmap's M0 gate is **not satisfied**. Mail.tm's receive path
@@ -321,10 +342,13 @@ a real external verification message remains unmeasured for both providers.
 Recorded here so the plan is not silently built on disproven assumptions. The
 decisions themselves belong to an OpenSpec change, not to this document.
 
-1. **Provider roles must be re-decided.** The roadmap's "Mail.tm primary,
-   Guerrilla fallback" is not achievable in a browser web page. Either the
-   website becomes Guerrilla-only with Mail.tm in the extension, or a
-   CORS-friendly primary provider is evaluated for the website.
+1. **Provider roles have been re-decided** (maintainer decision, 2026-10-02):
+   the website is **Guerrilla Mail only**, and the extension is **Mail.tm
+   primary + Guerrilla fallback**. The alternative — evaluating a CORS-friendly
+   primary for the website — was considered and deferred, as was pulling own
+   infrastructure forward from M15. The website therefore has no provider
+   fallback path until a second web-reachable provider exists, and Mail.tm
+   attribution becomes an extension-only obligation.
 2. **Mail.tm cannot be reached from the website without a non-compliant proxy.**
    The roadmap's "do not introduce a fragile proxy" rule now binds Mail.tm.
 3. **"Generate a mailbox in seconds" is not achievable on Mail.tm.** The

@@ -5,8 +5,8 @@
 > **Architecture:** Monorepo — website + extension + shared packages  
 > **Initial delivery strategy:** Website first, extension immediately after the shared core is stable  
 > **Initial infrastructure target:** $0 paid backend infrastructure  
-> **Primary mail provider:** Mail.tm — ⚠️ **unreachable from a browser web page; see `Project Status`**  
-> **Fallback mail provider:** Guerrilla Mail — ✅ usable from a web page *and* an extension  
+> **Website provider:** Guerrilla Mail — the only provider reachable from a browser web page  
+> **Extension providers:** Mail.tm (primary) + Guerrilla Mail (fallback) — roles changed by M0, see `Project Status`
 > **Visual direction:** Spectral Swiss Utility  
 > **Current public name status:** `SpectreMail` is a project codename until final naming/brand checks are complete
 
@@ -24,18 +24,20 @@
 
 | Milestone | State | Notes |
 |---|---|---|
-| M0 Provider Compatibility Spike | **implementing** | Harness complete and run against the live APIs. Real external delivery and long-run expiry remain `unverified`. Gate not satisfied. |
-| M1 Monorepo Foundation | not started | Blocked behind the M0 gate. |
+| M0 Provider Compatibility Spike | **implementing** | Harness complete and run against the live APIs. Provider roles decided (website Guerrilla-only, extension both). Real external delivery and long-run expiry remain `unverified`. Gate not satisfied. |
+| M1 Monorepo Foundation | not started | Blocked behind the M0 gate, and a provider-role OpenSpec change is needed first. |
 | M2–M15 | not started | — |
 
 **OpenSpec lifecycle stage:** Apply
 
-**Last updated:** 2026-10-01
+**Last updated:** 2026-10-02
 
 **Evidence:** `docs/PROVIDERS.md`, produced from spike run
 `2026-10-01T17:20:33-861Z` — 36 probes: 25 passed, 5 failed, 3 unsupported,
-3 unverified. Re-run the spike before relying on any of it; provider behaviour
-and terms change.
+3 unverified. An interactive re-run (`2026-10-01T17-35-14-033Z`) polled both
+mailboxes for 420s each but no message was sent, so it added no provider
+evidence. Re-run the spike before relying on any of it; provider behaviour and
+terms change.
 
 ### Planning assumptions that M0 disproved
 
@@ -51,7 +53,41 @@ original assumption.
 | "SSE subscription if stable" (M3) and "SSE where reliable" (M6) | Mail.tm has **no working real-time transport**. Five SSE candidate paths returned 404/406 and no WebSocket accepted a connection, despite the provider's marketing claiming SSE. **Adaptive polling is the only option.** |
 | Extension requests host permissions for the provider | Silent-failure trap, measured: `https://api.mail.tm` is accepted into the manifest and grants **nothing**; `https://api.mail.tm/*` works. The extension must use the `/*` form and must test it. |
 | Mailbox expiry has a knowable TTL | **Unverified for both providers.** No TTL is exposed by either API. `MailboxStatus: expired` must not assume one yet. |
-| A real external verification message can be observed during the spike without a maintainer-supplied credential | **Unverified.** No free, credential-free service can deliver real mail: Ethereal discards all mail and disables inbound for public accounts, Guerrilla's send endpoint is captcha-gated, and open relays are not a legitimate option. Closing this needs one maintainer action. |
+| A real external verification message can be observed during the spike without a maintainer-supplied credential | **Unverified.** No free, credential-free service can deliver real mail: Ethereal discards all mail and disables inbound for public accounts, Guerrilla's send endpoint is captcha-gated, and open relays are not a legitimate option. An interactive run on 2026-10-02 polled both mailboxes for 7 minutes each but **no message was sent**, so it produced no evidence either way. Closing this still needs one maintainer action: an actual send. |
+
+### Decision: provider roles (2026-10-02)
+
+Recorded because M0 disproved the roadmap's provider assignment and a
+maintainer decision was required to continue.
+
+```text
+website:
+Guerrilla Mail only
+
+extension:
+Mail.tm (primary) + Guerrilla Mail (fallback)
+```
+
+Rationale: `api.mail.tm` grants CORS only to its own origins, and its terms
+forbid proxying, so no compliant design lets a SpectreMail web page read it.
+Mail.tm remains fully functional from an MV3 extension context, where host
+permissions bypass CORS, so it stays in scope for the extension. The website
+ships on the single provider it can actually reach rather than on a proxy.
+
+Consequences for later milestones:
+
+- The website's provider adapter surface is Guerrilla-only in V1. It must still
+  go through the same provider abstraction, so adding a second web-capable
+  provider later is additive, not a rewrite.
+- The extension carries the provider-fallback logic. The website has no
+  fallback path until a second web-reachable provider exists.
+- Mail.tm attribution is an **extension-only** product obligation.
+- Mail.tm's `POST /accounts` limit of 1 per 60s per IP caps extension mailbox
+  creation throughput and must be surfaced, not silently retried.
+
+This decision belongs in an OpenSpec change before M1 begins, so the provider
+layer spec (`M3`) and the website/extension specs are written against it rather
+than against the superseded assumption.
 
 ### M0 gate status
 
@@ -62,6 +98,12 @@ Mail.tm's mailbox lifecycle is proven working at the API level from a
 privileged extension context. **The receive half of a real external
 verification message is unverified for both providers**, so the gate is not
 satisfied and M1+ work should not begin on the assumption that it is.
+
+An interactive run on 2026-10-02 polled both mailboxes for 420 seconds each and
+**no message was sent to either address**, so that run produced no evidence about
+the providers in either direction. It is not evidence that delivery fails, and it
+must not be cited as such. Closing this requires one maintainer action: an
+actual send while `spike:interactive` is running.
 
 ### Additional provider facts that change later milestones
 
@@ -329,7 +371,7 @@ should run the website.
 | M0 | Provider Compatibility Spike | Prove real incoming mail works in target browser environments |
 | M1 | Monorepo Foundation | Establish repository structure and tooling |
 | M2 | Shared Domain Model | Define provider-independent mailbox/message types |
-| M3 | Provider Layer | Implement Mail.tm + Guerrilla adapters |
+| M3 | Provider Layer | Implement Mail.tm + Guerrilla adapters (website: Guerrilla; extension: both) |
 | M4 | Mail Parsing Engine | OTP + verification-link detection |
 | M5 | Website Core MVP | Working temporary mailbox website |
 | M6 | Website Hardening | Storage, errors, accessibility, security |
@@ -429,8 +471,8 @@ Guerrilla Mail may remain a fallback-only implementation if browser restrictions
 > **unreachable from a normal web page**; Guerrilla Mail works from both. The
 > "complete receive-mail lifecycle" half of this gate is still **unverified**
 > because no credential-free sender can deliver a real external message. The
-> gate is therefore **not satisfied** and the provider roles need re-deciding
-> before M1.
+> gate is therefore **not satisfied**. The provider roles have since been
+> re-decided — see *Decision: provider roles* in `Project Status`.
 
 If Guerrilla Mail proves unreliable in the website environment:
 
@@ -1438,8 +1480,7 @@ Ship:
 
 ```text
 standalone temporary mailbox
-Mail.tm
-Guerrilla fallback where supported
+Guerrilla Mail
 OTP detection
 verification-link detection
 mailbox history
@@ -1447,10 +1488,12 @@ privacy controls
 Spectral Swiss UI
 ```
 
-> **M0 result (2026-10-01).** "Mail.tm" in the website release list is currently
-> **not achievable**: `api.mail.tm` grants CORS only to its own origins and its
-> terms forbid proxying. The website's provider set has to be re-decided before
-> this milestone can be planned. See `Project Status`.
+> **M0 result (2026-10-01) + decision (2026-10-02).** "Mail.tm" was removed from
+> the website release list. `api.mail.tm` grants CORS only to its own origins and
+> its terms forbid proxying, so a SpectreMail web page can never read it. The
+> website ships on Guerrilla Mail alone; Mail.tm stays extension-primary. See
+> *Decision: provider roles* in `Project Status`. The website has no provider
+> fallback until a second web-reachable provider exists.
 
 ## Chromium extension release
 
@@ -1992,8 +2035,9 @@ SpectreMail's initial roadmap is considered successfully completed when:
 ✓ Website is publicly usable
 ✓ Browser extension is publicly usable
 ✓ No SpectreMail account is required
-✓ Mail.tm works as primary provider
-✓ Guerrilla fallback works where technically viable
+✓ Guerrilla Mail works as the website provider
+✓ Mail.tm works as the extension's primary provider
+✓ Guerrilla fallback works in the extension where technically viable
 ✓ Provider-specific code is isolated
 ✓ OTP detection works reliably
 ✓ Verification links are safely exposed
