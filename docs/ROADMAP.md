@@ -28,22 +28,30 @@ until `provider-role-decision` is applied, so M3 and the client capabilities are
 written against measured behaviour rather than the superseded assumption.
 
 **OpenSpec change:** `provider-role-decision`
-(`openspec/changes/provider-role-decision/`) — proposed 2026-10-02. Specifies the
-corrected provider roles and the `provider-abstraction` capability. M0's
-`m0-provider-spike` is archived at
+(`openspec/changes/provider-role-decision/`) — proposed 2026-10-02, applied and
+under verification. Specifies the corrected provider roles and the
+`provider-abstraction` capability. M0's `m0-provider-spike` is archived at
 `openspec/changes/archive/2026-10-02-m0-provider-spike/` (PR #2).
 
 | Milestone | State | Notes |
 |---|---|---|
-| M0 Provider Compatibility Spike | **archived** | Real external delivery observed on **both** providers. Provider roles decided. Long-run expiry still unverified (no provider advertises a TTL). Gate satisfied. |
-| Provider-role specification | **proposed** | Documentation and specification only. No product code. Must land before M1. |
+| M0 Provider Compatibility Spike | **archived** | Real external delivery observed on **both** providers. Provider roles decided. Long-run expiry still unverified (no provider exposes a TTL in its API). Gate satisfied. |
+| Provider-role specification | **verifying** | Documentation and specification only. No product code. Must land before M1. |
 | M1 Monorepo Foundation | not started | Next objective. The disposable spike is retired or absorbed here. |
 | M2–M15 | not started | — |
 
 **OpenSpec lifecycle stage:** M0 complete (propose → apply → verify → archive).
+`provider-role-decision` is at verify, after an independent review corrected three
+claims: an empty **sender** on a real message (only the **subject** was empty),
+quoted Mail.tm terms that do not exist, and an unevidenced "per IP" rate-limit
+scope.
 
 **Next required change:** none beyond `provider-role-decision`. M1 may begin once
-it is applied and verified.
+it is synced and archived.
+
+**Open item carried forward:** Mail.tm publishes **no terms page** (verified
+2026-10-02). No attribution, resale, or quota obligation may be asserted or denied
+for it until real terms are located. See `docs/PROVIDERS.md` §2.
 
 **Last updated:** 2026-10-02
 
@@ -61,9 +69,9 @@ original assumption.
 
 | Roadmap assumption | Observed reality |
 |---|---|
-| Mail.tm is the primary provider for the website | `api.mail.tm` sends `Access-Control-Allow-Origin` only to `https://mail.tm` and `https://api.mail.tm`. A page on our own domain **cannot read it at all**, verified in a real browser. Its terms forbid proxying the API, so there is no compliant workaround. Mail.tm is currently **extension-only**. |
+| Mail.tm is the primary provider for the website | `api.mail.tm` sends `Access-Control-Allow-Origin` only to `https://mail.tm` and `https://api.mail.tm`. A page on our own domain **cannot read it at all**, verified in a real browser. SpectreMail does not proxy provider APIs to work around an origin restriction, so there is no workaround by policy. Mail.tm is currently **extension-only**. |
 | Guerrilla Mail is the fallback, usable where technically reliable | Inverted. Guerrilla Mail works from a normal web page *and* an extension; it is the only provider the website can use today. |
-| "Generate mailbox: 1 action or automatic", "Open app → usable email: a few seconds" | Mail.tm advertises `ratelimit-policy: 1; w=60` on `POST /accounts` — **one mailbox per minute per IP**. Seconds-long generation is not achievable on Mail.tm. |
+| "Generate mailbox: 1 action or automatic", "Open app → usable email: a few seconds" | Mail.tm returns `ratelimit-policy: 1; w=60` on `POST /accounts` — **one mailbox per 60s window**. The header does not state its scope, so "per IP" was inferred and is not evidenced. Seconds-long generation is not achievable on Mail.tm. |
 | "SSE subscription if stable" (M3) and "SSE where reliable" (M6) | Mail.tm has **no working real-time transport**. Five SSE candidate paths returned 404/406 and no WebSocket accepted a connection, despite the provider's marketing claiming SSE. **Adaptive polling is the only option.** |
 | Extension requests host permissions for the provider | Silent-failure trap, measured: `https://api.mail.tm` is accepted into the manifest and grants **nothing**; `https://api.mail.tm/*` works. The extension must use the `/*` form and must test it. |
 | Mailbox expiry has a knowable TTL | **Unverified for both providers.** No TTL is exposed by either API. `MailboxStatus: expired` must not assume one yet. This gap is unchanged and still open. |
@@ -97,7 +105,7 @@ Consequences for later milestones:
 - The extension carries the provider-fallback logic. The website has no
   fallback path until a second web-reachable provider exists.
 - Mail.tm attribution is an **extension-only** product obligation.
-- Mail.tm's `POST /accounts` limit of 1 per 60s per IP caps extension mailbox
+- Mail.tm's `POST /accounts` limit of 1 per 60s window caps extension mailbox
   creation throughput and must be surfaced, not silently retried.
 
 This decision is now **specified** as behaviour, not just recorded here, by the
@@ -132,7 +140,7 @@ dead. These guards are provider-specific and must not be generalised to a provid
 that has not been measured the same way. See `docs/PROVIDERS.md` §5.1.
 
 **What remains open.** Mailbox/session expiry is still unverified for both
-providers — neither advertises a TTL — so `MailboxStatus: expired` must not assume
+providers, and Mail.tm's published values are absent from its API, so `MailboxStatus: expired` must not assume
 one. And delivery is proven from a single sender; reputation with providers that
 commonly blocklist disposable domains is untested. Both must be carried into the
 provider-layer spec rather than treated as settled.
@@ -709,7 +717,7 @@ interface MailProvider {
 > **M0 constraints (2026-10-01).** Two items below are not implementable as
 > written and must be revised in the M3 OpenSpec change:
 >
-> - `POST /accounts` is limited to **1 per 60s per IP**
+> - `POST /accounts` is limited to **1 per 60s window** (scope not stated)
 >   (`ratelimit-policy: 1; w=60`). Mailbox generation cannot be automatic and
 >   instant; the product needs explicit rate-limit handling in the UI, not just
 >   in the adapter.
@@ -1522,7 +1530,7 @@ Spectral Swiss UI
 
 > **M0 result (2026-10-01) + decision (2026-10-02).** "Mail.tm" was removed from
 > the website release list. `api.mail.tm` grants CORS only to its own origins and
-> its terms forbid proxying, so a SpectreMail web page can never read it. The
+> SpectreMail does not proxy provider APIs, so a SpectreMail web page never reads it. The
 > website ships on Guerrilla Mail alone; Mail.tm stays extension-primary. See
 > *Decision: provider roles* in `Project Status`. The website has no provider
 > fallback until a second web-reachable provider exists.

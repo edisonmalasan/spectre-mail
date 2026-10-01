@@ -347,7 +347,9 @@ Remove only rules that genuinely do not apply.
 
 - Provider roles are assigned per client, not globally. The website uses Guerrilla Mail only; the extension uses Mail.tm primary with Guerrilla Mail fallback. Do not add a provider to a client whose environment cannot legally or technically reach it.
 
-- **Never proxy a provider API.** Do not relay a provider through a SpectreMail-operated server, or any other intermediary, to work around a provider's CORS policy, origin restriction, or terms. Mail.tm grants no CORS to third-party origins and forbids proxying, so the correct response is to exclude it from the website, not to add a backend. This is a requirement, not a preference.
+- **Never proxy a provider API.** Do not relay a provider through a SpectreMail-operated server, or any other intermediary, to work around a provider's CORS policy or origin restriction. This is a policy of the product, not a terms-compliance judgement: Mail.tm grants no CORS to third-party origins, so the correct response is to exclude it from the website, not to add a backend. Note that no Mail.tm terms page could be located, so no terms-derived justification may be cited for any provider decision.
+
+- **Do not cite provider terms that were not verified.** Where a provider's terms could not be located, do not quote them, do not rely on them for an architectural decision, and do not assume a required obligation is absent. Mail.tm publishes **no terms page** (verified 2026-10-02); attribution, resale, and quota obligations are therefore all unverified in both directions.
 
 - Do not trust a provider's declared message content type, and never render raw message content as HTML. Guerrilla Mail was measured returning `content_type: "text"` with an HTML body, and its real delivered message arrived as raw HTML. Only Mail.tm's delivered message has been observed as plain text, so the plain-text case is **not** evidence that Mail.tm's content typing is trustworthy either.
 
@@ -355,7 +357,7 @@ Remove only rules that genuinely do not apply.
 
 - Surface provider throttling to the user rather than silently retrying or queueing. Mail.tm caps account creation at `1; w=60`.
 
-- Do not assume a mailbox or session has a known lifetime. Neither provider exposes a TTL, so expiry must follow an observed signal, never an elapsed guess.
+- Do not assume a mailbox or session has a known lifetime, and do not derive a countdown from provider documentation. Mail.tm publishes a 7-day message retention and states a mailbox lasts until deleted, but neither value appears in any API response and neither was measured live; Guerrilla publishes nothing equivalent. Expiry must follow an observed signal, never an elapsed guess.
 
 - Extension manifest host permissions for provider origins must use the wildcard path form (`https://api.example.com/*`). A slash-less pattern (`https://api.example.com`) is silently a no-op and must be covered by a test that exercises the declared pattern.
 
@@ -583,12 +585,17 @@ aborts a run, and that both run artifacts are written.
 
 
 
-They do **not** establish that a real external message can be received. That
-check is `unverified` until a maintainer either sends a message in
-`spike:interactive` mode or configures a sender. They do not establish mailbox or
-session expiry over time. They do not test any product behaviour, because no
-product exists. The spike is disposable and must never be imported by an
-application.
+Real external delivery **has** since been verified on both providers, in
+`spike:interactive` run `2026-10-01T18-08-41-251Z`, where a maintainer-sent message
+was observed on each live mailbox. A bare `spike` run still records both delivery
+checks as `unverified`, because it has no sender and cannot observe inbound mail
+unattended — that is the expected result, not a regression.
+
+The non-interactive `spike` command does **not** by itself establish delivery,
+long-run mailbox or session expiry, or any product behaviour, because no product
+exists. Mail.tm publishes a 7-day message retention but exposes no TTL in its API,
+and neither value was measured live. The spike is disposable and must never be
+imported by an application.
 
 
 

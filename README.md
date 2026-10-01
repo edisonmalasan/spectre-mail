@@ -36,7 +36,7 @@ documentation, the OpenSpec change for M0, and the disposable spike harness.
 
 The M0 spike **inverted the provider plan**. Mail.tm — the planned primary
 provider — is **unreachable from a normal web page**: it sends CORS headers only
-to its own origins, and its terms forbid proxying the API. It works perfectly
+to its own origins, and SpectreMail does not proxy provider APIs to work around that. It works perfectly
 from a Chromium extension, which holds host permissions.
 
 Guerrilla Mail is the reverse: it works from a normal web page *and* from an
@@ -45,7 +45,7 @@ the extension uses Mail.tm primary with Guerrilla Mail as fallback.**
 
 Both providers were also proven end to end: a real external email was observed
 arriving on a live mailbox for each. Mailbox expiry remains unproven — neither
-provider advertises a TTL.
+provider exposes a TTL in its API.
 
 Full evidence, including what remains unproven, is in
 [`docs/PROVIDERS.md`](docs/PROVIDERS.md).
@@ -78,7 +78,7 @@ same way for both:
 | Website | Guerrilla Mail only — no fallback in V1 |
 | Extension | Mail.tm primary, Guerrilla Mail fallback |
 
-Mail.tm grants CORS only to its own origins and its terms forbid proxying, so no
+Mail.tm grants CORS only to its own origins, and SpectreMail does not proxy provider
 compliant design lets a web page read it. Proxying it through a SpectreMail
 server is forbidden by requirement, not merely discouraged.
 
@@ -158,7 +158,7 @@ mailbox for Mail.tm and for Guerrilla Mail.
 
 One check is still unverified and must not be reported as working:
 
-- long-run session and mailbox expiry — neither provider advertises a TTL, so
+- long-run expiry — Mail.tm publishes a 7-day message retention but exposes no TTL in its
   `MailboxStatus: expired` cannot yet assume one
 
 Re-running the spike without a sender still reports delivery as `unverified`,

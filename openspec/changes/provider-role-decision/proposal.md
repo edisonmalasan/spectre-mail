@@ -30,15 +30,16 @@ measured. It deliberately implements no product code: M3 builds the adapter.
   never had. It defines the boundary every provider adapter sits behind, and
   records M0's measured constraints as requirements rather than as comments.
 - **Forbid proxying provider APIs.** Mail.tm's CORS policy grants only its own
-  origins and its terms forbid proxying, so a backend relay is not a permitted
-  workaround. This must be a requirement, because it is the tempting one.
+  origins, and SpectreMail does not proxy provider APIs to work around that, so a backend
+  relay is not a permitted workaround. This must be a requirement, because it is the
+> tempting one.
 - **Forbid trusting declared content type or rendering raw HTML.** Guerrilla Mail
   was measured reporting `content_type: "text"` with an HTML body, and its real
   delivered message arrived as raw HTML.
 - **Require adaptive polling** instead of the SSE/WebSocket transport the roadmap
   assumed, because Mail.tm has none that works.
 - **Require surfaced throttling** instead of silent retry, because Mail.tm caps
-  account creation at one per 60s per IP.
+  account creation at one per 60s window.
 - **Require the wildcard extension host-permission form** and a test that
   exercises it, because `https://api.mail.tm` silently grants nothing while
   `https://api.mail.tm/*` works.
