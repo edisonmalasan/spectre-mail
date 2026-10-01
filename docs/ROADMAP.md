@@ -95,9 +95,12 @@ the cursor advances to **M2 - Shared Domain Model**.
   milestone that owns that infrastructure. M1 claimed no result for it and built
   no throwaway production code to satisfy it. `apps/extension` has no manifest at
   all, which is why the trap cannot currently be hit.
-- **The CI workflow has never executed.** `.github/workflows/ci.yml` runs the
-  same root commands a maintainer runs, but no push has triggered it. Its passing
-  is unverified until a run completes.
+- **CI is green but unexercised against real change.** `.github/workflows/ci.yml`
+  ran green on 2026-10-02 (run `36935477321`; `verify` and `spike self-test`
+  both SUCCESS), which confirms it works on a clean Linux runner with the pinned
+  Node and action versions. It has never yet been made to *fail*, so its
+  ability to catch a regression is unproven. Treat the first real red run as
+  unverified behaviour.
 - **The Guerrilla dead-session trap has no requirement.** It is deliberately
   deferred to the mailbox-lifecycle capability, not overlooked. Note that
   `packages/storage/src/index.ts` records why the `SpectreStorage` contract must

@@ -158,11 +158,15 @@ Pin versions when exact versions matter.
   browser-automation test suite yet** — the live host-permission check remains deferred.
 
 - Infra / deploy: none. A GitHub Actions workflow exists at `.github/workflows/ci.yml`
-  and runs the same root commands a maintainer runs. **It has not been executed yet** —
-  no push has triggered it, so its passing is unverified. Action majors were looked up
-  (checkout `v7`, setup-node `v7`, action-setup `v6`) and Node `26.10.0` was
-  confirmed present in the nodejs.org dist index. No deployment, hosting, or release
-  pipeline exists or is planned for V1.
+  and runs the same root commands a maintainer runs, with no divergent flags. It
+  **ran green on 2026-10-02** (run `36935477321`; the `verify` and
+  `spike self-test` jobs both SUCCESS), which also confirms the pinned action
+  majors and Node version resolve on a clean Linux runner.
+  Action majors were looked up rather than assumed — an earlier draft of this
+  workflow named checkout `v5`, setup-node `v6`, and action-setup `v4`, and all
+  three were wrong. It has never yet been made to *fail*, so its ability to catch
+  a regression is unproven.
+  No deployment, hosting, or release pipeline exists or is planned for V1.
 
 - External services: `https://api.mail.tm` and `https://api.guerrillamail.com`.
   Both are exercised live by the M0 spike. See `docs/PROVIDERS.md` for measured
@@ -570,7 +574,10 @@ Important:
 
 - Run risky, state-mutating, legacy, or preservation checks in an appropriate disposable environment when required.
 
-- No verified automated test, lint, type-check, build, or runtime command exists unless it is explicitly listed in this section.
+- No verified automated test, lint, type-check, build, or runtime command exists unless
+  it is explicitly listed in this section. A CI workflow is **not** a substitute for a
+  locally verified command: a green CI run proves the command works on a clean Linux
+  runner, which is a different fact from it working on this machine.
 
 - Do not invent commands in this file.
 
