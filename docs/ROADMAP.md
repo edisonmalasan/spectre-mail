@@ -5,8 +5,8 @@
 > **Architecture:** Monorepo — website + extension + shared packages  
 > **Initial delivery strategy:** Website first, extension immediately after the shared core is stable  
 > **Initial infrastructure target:** $0 paid backend infrastructure  
-> **Primary mail provider:** Mail.tm  
-> **Fallback mail provider:** Guerrilla Mail  
+> **Primary mail provider:** Mail.tm — ⚠️ **unreachable from a browser web page; see `Project Status`**  
+> **Fallback mail provider:** Guerrilla Mail — ✅ usable from a web page *and* an extension  
 > **Visual direction:** Spectral Swiss Utility  
 > **Current public name status:** `SpectreMail` is a project codename until final naming/brand checks are complete
 
@@ -18,33 +18,68 @@
 > source of truth — `openspec/specs/` and the active OpenSpec change artifacts are.
 > Reconcile this block against Git and OpenSpec before trusting it in a later session.
 
-**Roadmap cursor:** M0 — Provider Compatibility Spike
+**Roadmap cursor:** M0 — Provider Compatibility Spike (**gate NOT satisfied**)
 
 **OpenSpec change:** `m0-provider-spike` (`openspec/changes/m0-provider-spike/`)
 
 | Milestone | State | Notes |
 |---|---|---|
-| M0 Provider Compatibility Spike | **proposed** | Planning artifacts complete and validating. Implementation not started. |
+| M0 Provider Compatibility Spike | **implementing** | Harness complete and run against the live APIs. Real external delivery and long-run expiry remain `unverified`. Gate not satisfied. |
 | M1 Monorepo Foundation | not started | Blocked behind the M0 gate. |
 | M2–M15 | not started | — |
 
-**OpenSpec lifecycle stage:** Propose
+**OpenSpec lifecycle stage:** Apply
 
 **Last updated:** 2026-10-01
 
-**M0 evidence produced so far:** none yet. Header-level reconnaissance was performed
-during proposal but has **not** been run through the spike harness and is therefore not
-yet evidence. Nothing in this block may be read as a confirmed provider result until
-`docs/PROVIDERS.md` exists and cites a recorded run.
+**Evidence:** `docs/PROVIDERS.md`, produced from spike run
+`2026-10-01T17:20:33-861Z` — 36 probes: 25 passed, 5 failed, 3 unsupported,
+3 unverified. Re-run the spike before relying on any of it; provider behaviour
+and terms change.
 
-**Assumptions queued for verification by M0** (recorded here because the spike is
-expected to test them, not confirm them):
+### Planning assumptions that M0 disproved
 
-- Mail.tm is usable as the primary provider from a normal SpectreMail web page.
-- Guerrilla Mail is usable from a normal web page with no more than session handling.
-- Real-time delivery is available from at least one provider, or polling is acceptable.
-- A real external verification message can be delivered and observed during the spike
-  without a maintainer-supplied sending credential.
+These are recorded because the roadmap below still contains them in several
+places. **The observed behaviour wins.** Do not build later milestones on the
+original assumption.
+
+| Roadmap assumption | Observed reality |
+|---|---|
+| Mail.tm is the primary provider for the website | `api.mail.tm` sends `Access-Control-Allow-Origin` only to `https://mail.tm` and `https://api.mail.tm`. A page on our own domain **cannot read it at all**, verified in a real browser. Its terms forbid proxying the API, so there is no compliant workaround. Mail.tm is currently **extension-only**. |
+| Guerrilla Mail is the fallback, usable where technically reliable | Inverted. Guerrilla Mail works from a normal web page *and* an extension; it is the only provider the website can use today. |
+| "Generate mailbox: 1 action or automatic", "Open app → usable email: a few seconds" | Mail.tm advertises `ratelimit-policy: 1; w=60` on `POST /accounts` — **one mailbox per minute per IP**. Seconds-long generation is not achievable on Mail.tm. |
+| "SSE subscription if stable" (M3) and "SSE where reliable" (M6) | Mail.tm has **no working real-time transport**. Five SSE candidate paths returned 404/406 and no WebSocket accepted a connection, despite the provider's marketing claiming SSE. **Adaptive polling is the only option.** |
+| Extension requests host permissions for the provider | Silent-failure trap, measured: `https://api.mail.tm` is accepted into the manifest and grants **nothing**; `https://api.mail.tm/*` works. The extension must use the `/*` form and must test it. |
+| Mailbox expiry has a knowable TTL | **Unverified for both providers.** No TTL is exposed by either API. `MailboxStatus: expired` must not assume one yet. |
+| A real external verification message can be observed during the spike without a maintainer-supplied credential | **Unverified.** No free, credential-free service can deliver real mail: Ethereal discards all mail and disables inbound for public accounts, Guerrilla's send endpoint is captcha-gated, and open relays are not a legitimate option. Closing this needs one maintainer action. |
+
+### M0 gate status
+
+> **Do not begin full UI work until Mail.tm successfully completes the complete
+> receive-mail lifecycle.**
+
+Mail.tm's mailbox lifecycle is proven working at the API level from a
+privileged extension context. **The receive half of a real external
+verification message is unverified for both providers**, so the gate is not
+satisfied and M1+ work should not begin on the assumption that it is.
+
+### Additional provider facts that change later milestones
+
+- **Guerrilla sessions are `sid_token` based, not cookie based.** The provider
+  sets `PHPSESSID` but sends `Access-Control-Allow-Origin: *` with no
+  `Access-Control-Allow-Credentials`, so a browser cannot send the cookie
+  cross-origin. The body-returned `sid_token` is the only workable carrier.
+  Persist the token, never a cookie.
+- **An unrecognised Guerrilla session is not rejected.** It returns `200` with
+  an empty inbox and no auth error, so an expired stored session is
+  indistinguishable from a genuinely empty mailbox. The core mailbox manager
+  must detect this explicitly.
+- **Guerrilla message bodies are raw HTML** while declaring `content_type:
+  "text"`. Declared content type must never be trusted; raw HTML must never be
+  rendered.
+- **mail.tm requires visible attribution** wherever its API is used, and forbids
+  reselling it or proxying it. Attribution is a product obligation, not a
+  nicety.
 
 ---
 
@@ -388,6 +423,15 @@ provider terms that affect the product
 
 Guerrilla Mail may remain a fallback-only implementation if browser restrictions prevent parity.
 
+> **M0 result (2026-10-01).** The browser-restriction outcome landed on the
+> *opposite* provider from what this gate anticipated. See `Project Status` and
+> `docs/PROVIDERS.md`. Mail.tm works fully from a Chromium extension and is
+> **unreachable from a normal web page**; Guerrilla Mail works from both. The
+> "complete receive-mail lifecycle" half of this gate is still **unverified**
+> because no credential-free sender can deliver a real external message. The
+> gate is therefore **not satisfied** and the provider roles need re-deciding
+> before M1.
+
 If Guerrilla Mail proves unreliable in the website environment:
 
 ```text
@@ -588,6 +632,19 @@ interface MailProvider {
 
 ## Mail.tm adapter
 
+> **M0 constraints (2026-10-01).** Two items below are not implementable as
+> written and must be revised in the M3 OpenSpec change:
+>
+> - `POST /accounts` is limited to **1 per 60s per IP**
+>   (`ratelimit-policy: 1; w=60`). Mailbox generation cannot be automatic and
+>   instant; the product needs explicit rate-limit handling in the UI, not just
+>   in the adapter.
+> - **SSE does not exist.** No SSE or WebSocket endpoint is available, so
+>   `subscribe?` cannot be implemented for Mail.tm. Polling is the only option.
+>
+> Mail.tm is also currently **unreachable from a normal web page** — see
+> `Project Status` and `docs/PROVIDERS.md`.
+
 Implement:
 
 ```text
@@ -599,10 +656,18 @@ message fetch
 mailbox deletion
 health checks
 rate-limit handling
-SSE subscription if stable
+SSE subscription if stable   → not available; polling only
 ```
 
 ## Guerrilla Mail adapter
+
+> **M0 constraint (2026-10-01).** Session persistence must store the
+> body-returned `sid_token`, **not** the `PHPSESSID` cookie: the provider sends
+> `Access-Control-Allow-Origin: *` with no
+> `Access-Control-Allow-Credentials`, so a browser cannot send the cookie
+> cross-origin. Session expiration must also be detected explicitly, because an
+> unrecognised session returns `200` with an empty inbox rather than an error.
+> See `docs/PROVIDERS.md`.
 
 Implement:
 
@@ -959,6 +1024,12 @@ adaptive polling otherwise
 pause inbox activity when page is hidden where appropriate
 ```
 
+> **M0 result (2026-10-01).** No provider offers SSE. Mail.tm's real-time
+> endpoints are absent (all candidate paths `404`/`406`; no WebSocket accepts a
+> connection). **Design for adaptive polling as the only transport**, and treat
+> "SSE where reliable" as dead rather than aspirational. See
+> `docs/PROVIDERS.md`.
+
 ---
 
 # 13. M7 — Spectral Swiss Design Pass
@@ -1121,6 +1192,14 @@ apps/extension/src/api/mailtm.ts
 ```
 
 should exist if the logic belongs in `packages/providers`.
+
+> **M0 requirement discovered (2026-10-01).** Host permissions **must** use the
+> wildcard-path match pattern — `https://api.mail.tm/*`, never
+> `https://api.mail.tm`. The slash-less form is accepted into the manifest and
+> then grants nothing, so every cross-origin fetch fails with an opaque
+> `TypeError: Failed to fetch` and the extension ships looking correct while
+> being unable to reach the provider. This was measured, not assumed, and must
+> be covered by a test. See `docs/PROVIDERS.md`.
 
 ---
 
@@ -1367,6 +1446,11 @@ mailbox history
 privacy controls
 Spectral Swiss UI
 ```
+
+> **M0 result (2026-10-01).** "Mail.tm" in the website release list is currently
+> **not achievable**: `api.mail.tm` grants CORS only to its own origins and its
+> terms forbid proxying. The website's provider set has to be re-decided before
+> this milestone can be planned. See `Project Status`.
 
 ## Chromium extension release
 

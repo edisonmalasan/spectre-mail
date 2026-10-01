@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Spike run artifacts (evidence is committed as docs/PROVIDERS.md, not raw runs)
+tests/provider-spike/.runs/
+
+# Local sender credentials for the spike — never commit
+tests/provider-spike/.env
+.env
+.env.*
+!.env.example
+
+# Playwright browsers
+tests/provider-spike/.playwright/
+ms-playwright/
+
+# Build output
+dist/
+build/
+.vite/
+*.tsbuildinfo
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
