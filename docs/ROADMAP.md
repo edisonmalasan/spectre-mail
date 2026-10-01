@@ -18,41 +18,46 @@
 > source of truth — `openspec/specs/` and the active OpenSpec change artifacts are.
 > Reconcile this block against Git and OpenSpec before trusting it in a later session.
 >
-> `openspec/specs/` gains its first capability from `provider-role-decision`. M0's
-> own capability spec was archived with `--skip-specs` deliberately: it specifies a
-> harness that M1/M3 must delete, so landing it would create permanent spec debt
-> for disposable scaffolding.
+> `openspec/specs/` holds one capability, `provider-abstraction`, promoted from
+> `provider-role-decision` at archive. M0's own capability spec was archived with
+> `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
+> landing it would create permanent spec debt for disposable scaffolding.
 
 **Roadmap cursor:** M1 — Monorepo Foundation (**not started**). Its only
-precondition was that `provider-role-decision` be specified, which it now is, so M3
-and the client capabilities will be written against measured behaviour rather than
-the superseded assumption.
+precondition was that `provider-role-decision` be specified, which is now
+satisfied and merged, so M3 and the client capabilities will be written against
+measured behaviour rather than the superseded assumption.
 
-**OpenSpec change:** `provider-role-decision`
-(`openspec/changes/provider-role-decision/`) — proposed 2026-10-02, applied and
-under verification. Specifies the corrected provider roles and the
-`provider-abstraction` capability. M0's `m0-provider-spike` is archived at
-`openspec/changes/archive/2026-10-02-m0-provider-spike/` (PR #2).
+**OpenSpec change:** none active. `provider-role-decision` is archived at
+`openspec/changes/archive/2026-10-02-provider-role-decision/` (PR #4 proposal,
+#5 apply), and its capability spec is live at
+`openspec/specs/provider-abstraction/spec.md`. M0's `m0-provider-spike` is
+archived at `openspec/changes/archive/2026-10-02-m0-provider-spike/` (PR #2).
 
 | Milestone | State | Notes |
 |---|---|---|
 | M0 Provider Compatibility Spike | **archived** | Real external delivery observed on **both** providers. Provider roles decided. Long-run expiry still unverified (no provider exposes a TTL in its API). Gate satisfied. |
-| Provider-role specification | **verifying** | Documentation and specification only. No product code. Must land before M1. |
-| M1 Monorepo Foundation | not started | Next objective. The disposable spike is retired or absorbed here. |
+| Provider-role specification | **archived** | Documentation and specification only. No product code. `provider-abstraction` is now a live capability spec: 9 requirements, 18 scenarios. |
+| M1 Monorepo Foundation | not started | **Next objective.** The disposable spike is retired or absorbed here. |
 | M2–M15 | not started | — |
 
-**OpenSpec lifecycle stage:** M0 complete (propose → apply → verify → archive).
-`provider-role-decision` is at verify, after two independent review rounds
-corrected three claims: a claim that a real message arrived with an empty
-**sender** (only the **subject** was empty), quoted Mail.tm terms that do not exist
-on the provider's site, and an unevidenced "per IP" rate-limit scope.
+**OpenSpec lifecycle stage:** M0 and the provider-role change are both complete
+(propose → apply → verify → archive). No active change.
 
-**Next required change:** none beyond `provider-role-decision`. M1 may begin once
-it is synced and archived.
+**Next required change:** the M1 monorepo-foundation change. M1 is unblocked.
 
-**Open item carried forward:** Mail.tm publishes **no terms page** (verified
-2026-10-02). No attribution, resale, or quota obligation may be asserted or denied
-for it until real terms are located. See `docs/PROVIDERS.md` §2.
+**Open items carried forward into M1 and beyond:**
+
+- **Mail.tm publishes no terms page** (verified 2026-10-02). No attribution,
+  resale, or quota obligation may be asserted or denied until real terms are
+  located. See `docs/PROVIDERS.md` §2.
+- **The live-provider test required by the wildcard host-permission requirement**
+  needs M1 test infrastructure, and the disposable spike may not be imported by
+  an application. Whoever plans M1's test setup must solve this.
+- **The Guerrilla dead-session trap has no requirement.** It is deliberately
+  deferred to the mailbox-lifecycle capability, not overlooked.
+- **Delivery reputation is proven from one sender.** Providers that commonly
+  blocklist disposable domains are untested.
 
 **Last updated:** 2026-10-02
 
@@ -112,12 +117,12 @@ Consequences for later milestones:
   creation throughput and must be surfaced, not silently retried.
 
 This decision is now **specified** as behaviour, not just recorded here, by the
-`provider-role-decision` change (`openspec/changes/provider-role-decision/`). The
-`provider-abstraction` capability states the roles above, plus the measured
-constraints M0 found — untrustworthy content type, no working push transport,
-`1; w=60` account-creation throttling, the wildcard host-permission form, and the
-absent mailbox TTL. M3 and the client capabilities must be written against that
-spec rather than against the superseded assumption above.
+`provider-abstraction` capability (`openspec/specs/provider-abstraction/spec.md`).
+It states the roles above, plus the measured constraints M0 found — untrustworthy
+content type, no working push transport, `1; w=60` account-creation throttling, the
+wildcard host-permission form, and the absent mailbox TTL. M3 and the client
+capabilities must be written against that spec rather than against the superseded
+assumption above.
 
 ### M0 gate status
 

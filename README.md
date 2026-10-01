@@ -83,7 +83,7 @@ read it. SpectreMail does not proxy provider APIs, and proxying one through a
 SpectreMail server is forbidden by requirement, not merely discouraged.
 
 These boundaries are specified in the `provider-abstraction` capability
-(`openspec/changes/provider-role-decision/`), with the measured evidence behind
+(`openspec/specs/provider-abstraction/spec.md`), with the measured evidence behind
 each in [`docs/PROVIDERS.md`](docs/PROVIDERS.md).
 
 This structure is **not built yet**. It arrives in M1.

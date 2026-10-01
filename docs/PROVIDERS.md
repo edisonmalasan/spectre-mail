@@ -20,7 +20,7 @@
 >
 > **What follows from this document.** These are measurements, not requirements.
 > The behaviours they imply are specified separately in the `provider-abstraction`
-> capability (`openspec/changes/provider-role-decision/`), which states the
+> capability (`openspec/specs/provider-abstraction/spec.md`), which states the
 > corrected per-client roles and turns each measured constraint below — untrustworthy
 > content type, no working push transport, `1; w=60` account creation, the wildcard
 > host-permission form, and the absent mailbox TTL — into a requirement. Where this
