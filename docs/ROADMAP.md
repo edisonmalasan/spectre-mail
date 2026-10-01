@@ -17,18 +17,30 @@
 > This block is the root orchestrator's progress ledger. It is **not** the behavioral
 > source of truth — `openspec/specs/` and the active OpenSpec change artifacts are.
 > Reconcile this block against Git and OpenSpec before trusting it in a later session.
+>
+> `openspec/specs/` is currently **empty**. M0's capability spec was archived with
+> `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
+> landing it in the main specs would create permanent spec debt for disposable
+> scaffolding. The durable provider facts live in `docs/PROVIDERS.md`; the durable
+> behavioural requirements belong to the M2/M3 capabilities, which do not exist yet.
 
-**Roadmap cursor:** M0 — Provider Compatibility Spike (**gate satisfied**; awaiting archive)
+**Roadmap cursor:** M1 — Monorepo Foundation (**not started**). A
+provider-role change must be proposed and applied before M1 begins.
 
-**OpenSpec change:** `m0-provider-spike` (`openspec/changes/m0-provider-spike/`)
+**OpenSpec change:** none active. `m0-provider-spike` is archived at
+`openspec/changes/archive/2026-10-02-m0-provider-spike/` (PR #2).
 
 | Milestone | State | Notes |
 |---|---|---|
-| M0 Provider Compatibility Spike | **verified** | Real external delivery observed on **both** providers. Provider roles decided. Long-run expiry still unverified (no provider advertises a TTL). Gate satisfied. |
-| M1 Monorepo Foundation | not started | Unblocked once M0 is archived. A provider-role OpenSpec change is needed first. |
+| M0 Provider Compatibility Spike | **archived** | Real external delivery observed on **both** providers. Provider roles decided. Long-run expiry still unverified (no provider advertises a TTL). Gate satisfied. |
+| M1 Monorepo Foundation | not started | Next objective. The disposable spike is retired or absorbed here — at which point `openspec/specs/` gains its first real capability. |
 | M2–M15 | not started | — |
 
-**OpenSpec lifecycle stage:** Apply
+**OpenSpec lifecycle stage:** M0 complete (propose → apply → verify → archive).
+
+**Next required change:** a provider-role change recording the decision below,
+so the M3 provider-layer spec and the website/extension specs are written against
+it rather than against the superseded roadmap assumption.
 
 **Last updated:** 2026-10-02
 
