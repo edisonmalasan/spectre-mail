@@ -20,14 +20,13 @@ on. See [Current status](#current-status).
 | M1 — Monorepo foundation          | implementation complete, verification pending |
 | M2–M15                            | not started                                   |
 
-| Capability spec          | State                               |
-| ------------------------ | ----------------------------------- |
-| `provider-abstraction`   | live                                |
-| `monorepo-foundation`    | pending sync (in the active change) |
-| `build-and-verification` | pending sync (in the active change) |
+| Capability spec          | State |
+| ------------------------ | ----- |
+| `provider-abstraction`   | live  |
+| `monorepo-foundation`    | live  |
+| `build-and-verification` | live  |
 
-The last two are specified in the active `monorepo-foundation` change. They are promoted to
-`openspec/specs/` during its sync stage; only `provider-abstraction` is live at this commit.
+The last two were promoted from the `monorepo-foundation` change at its sync stage.
 
 The website currently renders a plain status page. It has **no mailbox feature**,
 no provider call, and no styling. That is the correct state for M1 and it is not a

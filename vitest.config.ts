@@ -13,7 +13,7 @@ import { defineConfig } from "vitest/config";
  * At M1 this suite contains the architecture boundary test and nothing else.
  * That is a real assertion, not an empty pass: `passWithNoTests` is left OFF, so
  * a run with no test files fails rather than reporting success. See
- * `openspec/changes/monorepo-foundation/specs/build-and-verification/spec.md`.
+ * `openspec/specs/build-and-verification/spec.md`.
  */
 export default defineConfig({
   test: {

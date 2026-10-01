@@ -217,8 +217,5 @@ local identifier — not to widen the exclusion.
   around.
 - `openspec/specs/provider-abstraction/spec.md` — the provider capability contract
   (live).
-- `openspec/changes/monorepo-foundation/specs/monorepo-foundation/spec.md` — the
-  layout and boundary contract. Specified but **not yet promoted**: it moves to
-  `openspec/specs/monorepo-foundation/spec.md` at this change's sync stage.
-- `openspec/changes/monorepo-foundation/specs/build-and-verification/spec.md` —
-  the toolchain contract, likewise promoted at sync.
+- `openspec/specs/monorepo-foundation/spec.md` — the layout and boundary contract.
+- `openspec/specs/build-and-verification/spec.md` — the toolchain contract.

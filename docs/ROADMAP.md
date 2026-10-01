@@ -23,9 +23,10 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor:** M1 - Monorepo Foundation (**verifying**). Apply merged as PR #8
-(`5ad51d7`). An independent verification pass then found a blocking defect and
-several documentation errors; repairs are in flight. Sync and archive remain.
+**Roadmap cursor:** M1 - Monorepo Foundation (**synced; archive pending**). Apply
+merged as PR #8 (`5ad51d7`); an independent verification pass found a blocking
+defect, repaired in PR #9 (`41da7b2`); both capability specs are now promoted and
+validate strict. Archive is the only remaining step.
 
 **Verification found a gate that was failing and being recorded as passing.** On
 Windows - the environment `AGENTS.md` declares supported - `pnpm format:check`
@@ -48,11 +49,28 @@ escaping cases are now proven to fail.
 
 **OpenSpec change:** `monorepo-foundation`
 (`openspec/changes/monorepo-foundation/`) - proposed 2026-10-02, merged as PR #7;
-apply merged as PR #8 (`5ad51d7`). Establishes the pnpm workspace, the planned
-structure, shared TypeScript configuration, linting, formatting, a test runner, CI,
-and root scripts, and adds the `monorepo-foundation` and `build-and-verification`
-capabilities. Those two specs are **not yet promoted**; only `provider-abstraction`
-is live in `openspec/specs/` until the sync stage.
+apply merged as PR #8 (`5ad51d7`); verification repairs merged as PR #9
+(`41da7b2`). Establishes the pnpm workspace, the planned structure, shared
+TypeScript configuration, linting, formatting, a test runner, CI, and root
+commands, and adds the `monorepo-foundation` and `build-and-verification`
+capabilities. Both are **now live** in `openspec/specs/`, promoted at sync
+alongside the earlier `provider-abstraction`. All three validate strict.
+
+The sync also **amended the `build-and-verification` delta** with two scenarios,
+because the defect it exposed was a gap in the requirement rather than only in the
+implementation:
+
+- *A maintainer verifies on the declared supported platform.* A check whose
+  result depends on anything outside the command itself - the working-tree line
+  ending, the shell, the filesystem - SHALL have that pinned by a committed
+  config rather than inherited from each contributor's local settings. The
+  original wording covered the *directory* a command runs from but not the
+  platform, which is precisely how a green CI run coexisted with a permanently
+  red local gate.
+- *An assertion passes for the wrong reason.* Each assertion SHALL have been
+  observed to fail when its prohibited condition is introduced, and a check
+  narrower than the rule it documents is a failure of this capability rather
+  than a passing check.
 
 `provider-role-decision` is archived at
 `openspec/changes/archive/2026-10-02-provider-role-decision/` (PRs #4, #5, #6),
@@ -63,13 +81,15 @@ and M0's `m0-provider-spike` is archived at
 |---|---|---|
 | M0 Provider Compatibility Spike | **archived** | Real external delivery observed on **both** providers. Provider roles decided. Long-run expiry still unverified (no provider exposes a TTL in its API). Gate satisfied. |
 | Provider-role specification | **archived** | Documentation and specification only. No product code. `provider-abstraction` is a live capability spec: 9 requirements, 18 scenarios. |
-| M1 Monorepo Foundation | **verifying** | Change `monorepo-foundation`; apply merged as PR #8. Structure and tooling only: no product behaviour, no extension build, no visual design. A verification pass found a failing format gate that was being recorded as passing; repairs in flight. |
+| M1 Monorepo Foundation | **synced** | Change `monorepo-foundation`; apply merged as PR #8, verification repairs as PR #9. Structure and tooling only: no product behaviour, no extension build, no visual design. A verification pass found a failing format gate that was being recorded as passing; repaired and proven from a clean clone. |
 | M2-M15 | not started | - |
 
 **OpenSpec lifecycle stage:** M0 and the provider-role change are both complete
-(propose -> apply -> verify -> archive). M1's foundation change is at **verify**:
-46 of 47 tasks were complete at apply, and task 8.11 - the independent vacuity
-check - has now been performed and is the step that surfaced the defect above.
+(propose -> apply -> verify -> archive). M1's foundation change is at **sync**,
+now complete: all 47 tasks ticked, verification performed, and both capability
+specs promoted. Task 8.11 - the independent vacuity check - was the step that
+surfaced the defect above, and is now ticked because the check was performed and
+it found something.
 
 **Next required change:** none beyond `monorepo-foundation`. After it archives,
 the cursor advances to **M2 - Shared Domain Model**.

@@ -10,7 +10,7 @@ name: CI
 # stale rather than silently re-resolving, otherwise a green run could be testing
 # dependencies nobody committed. It does not change what any check asserts.
 #
-# See openspec/changes/monorepo-foundation/specs/build-and-verification/spec.md.
+# See openspec/specs/build-and-verification/spec.md.
 
 on:
   push:
