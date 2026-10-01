@@ -97,4 +97,4 @@
 - [x] 8.9 Confirm the spike is still not a workspace member and its own install
       still works
 - [x] 8.10 `openspec validate monorepo-foundation --strict` passes
-- [ ] 8.11 Independently verify no acceptance criterion is satisfied vacuously
+- [x] 8.11 Independently verify no acceptance criterion is satisfied vacuously

@@ -1,8 +1,16 @@
 name: CI
 
-# Runs exactly the commands a maintainer runs locally, with no divergent flags.
-# If a check here passes but fails locally, or the reverse, this file is wrong —
-# not the commands. See openspec/specs/build-and-verification/spec.md.
+# The five check steps run exactly the commands a maintainer runs locally, with
+# no divergent flags: pnpm typecheck, pnpm lint, pnpm format:check, pnpm test,
+# pnpm build.
+#
+# One deliberate difference, stated here rather than glossed over: the install
+# step uses `--frozen-lockfile`, where the documented maintainer command is plain
+# `pnpm install`. That is intentional hardening. CI must fail if the lockfile is
+# stale rather than silently re-resolving, otherwise a green run could be testing
+# dependencies nobody committed. It does not change what any check asserts.
+#
+# See openspec/changes/monorepo-foundation/specs/build-and-verification/spec.md.
 
 on:
   push:

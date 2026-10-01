@@ -25,11 +25,47 @@ const APPS_DIR = join(REPO_ROOT, "apps");
 const SPIKE_DIR = join(REPO_ROOT, "tests", "provider-spike");
 
 const SOURCE_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"];
-const SKIP_DIRECTORIES = new Set(["node_modules", "dist", "build", "coverage", ".vite"]);
+
+// `.git` and `.agents` matter because two rules below scan the whole repository
+// rather than only `packages/` and `apps/`. Walking either would be slow, and
+// `.agents` is generated content this repository must not edit anyway.
+const SKIP_DIRECTORIES = new Set([
+  "node_modules",
+  "dist",
+  "build",
+  "coverage",
+  ".vite",
+  ".git",
+  ".agents",
+]);
 
 /**
- * Provider JSON field names measured from live responses. Sourced from
- * `docs/PROVIDERS.md` sections 2 and 3, which record the observed shapes.
+ * Every module specifier a source file can name, in every syntactic form the
+ * boundary rules must cover:
+ *
+ *   from "x"        static and `import type` re-exports
+ *   import "x"      bare side-effect import
+ *   import("x")     dynamic import
+ *   require("x")    CommonJS, for completeness
+ *
+ * The M1 verification pass proved the earlier `from`-only pattern missed both
+ * `import "x"` and `import("x")`, which is a real gap: a package could reach an
+ * app through either and the test would stay green. `tsc` happens to reject the
+ * dynamic form with TS2307, but a rule the documentation credits to this test
+ * must actually be carried by this test.
+ */
+const MODULE_SPECIFIER_PATTERN =
+  /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+|\brequire\s*\(\s*)["']([^"']+)["']/g;
+
+/**
+ * Provider JSON field names measured from live provider responses.
+ *
+ * Provenance, corrected by the M1 verification pass. The earlier comment cited
+ * `docs/PROVIDERS.md` sections 2 and 3 for all seven, which is wrong: only
+ * `mail_id`, `sid_token`, `content_type`, and `ratelimit-policy` appear there.
+ * `mail_from`, `mail_date`, and `hydra:member` are recorded in the M0 spike
+ * source (`tests/provider-spike/src/probes/mailtm.mjs` and its run artifacts),
+ * not in that document. The list itself is sound; the citation was not.
  *
  * Deliberately specific. Broad words like `list`, `error`, `id`, or `token` are
  * excluded: they are common in ordinary application code, and a rule that fires
@@ -156,7 +192,7 @@ describe("architecture boundaries", () => {
     for (const file of packageFiles) {
       const contents = readFileSync(file, "utf8");
 
-      for (const match of contents.matchAll(/from\s+["']([^"']+)["']/g)) {
+      for (const match of contents.matchAll(MODULE_SPECIFIER_PATTERN)) {
         const specifier = match[1];
         if (specifier === undefined) continue;
 
@@ -194,15 +230,21 @@ describe("architecture boundaries", () => {
     const providersDir = join(PACKAGES_DIR, "providers");
     const violations: string[] = [];
 
-    for (const root of [PACKAGES_DIR, APPS_DIR]) {
-      for (const file of collectSourceFiles(root)) {
-        if (file.startsWith(providersDir)) continue;
+    // Scanned across the whole repository, not just `packages/` and `apps/`.
+    // The M1 verification pass proved the narrower scope was escapable: a
+    // root-level module and a module under `tests/` could both name an adapter
+    // and the test still passed. The requirement is that *no file outside the
+    // package* references one.
+    for (const file of collectSourceFiles(REPO_ROOT)) {
+      if (file.startsWith(providersDir)) continue;
 
-        const contents = readFileSync(file, "utf8");
-        for (const identifier of PROVIDER_ADAPTER_IDENTIFIERS) {
-          if (contents.includes(identifier)) {
-            violations.push(`${toRepoPath(file)} references ${identifier}`);
-          }
+      // This file necessarily contains the identifiers as string literals.
+      if (file === __filename) continue;
+
+      const contents = readFileSync(file, "utf8");
+      for (const identifier of PROVIDER_ADAPTER_IDENTIFIERS) {
+        if (contents.includes(identifier)) {
+          violations.push(`${toRepoPath(file)} references ${identifier}`);
         }
       }
     }
