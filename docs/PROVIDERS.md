@@ -13,8 +13,10 @@
 > harness defects, see §5.1.
 > **Harness:** `tests/provider-spike/` — disposable, not product code.
 > **Re-run before release.** Provider behaviour and terms change. Every claim below
-> traces to a probe in a run cited above. Claims with no recorded evidence are
-> labelled as such.
+> traces to a probe in a run cited above, **except** where a section states its own
+> non-probe basis and retrieval date — §2's provider-terms and published-lifetime
+> findings, which no probe captures. Claims with no recorded evidence are labelled
+> as such.
 >
 > **What follows from this document.** These are measurements, not requirements.
 > The behaviours they imply are specified separately in the `provider-abstraction`
@@ -102,15 +104,16 @@ Advertised via the `ratelimit-policy` response header:
 | `POST /accounts` | **`1; w=60`** | authenticated |
 
 **One mailbox per 60s window.** The `ratelimit-policy` header does not state its
-scope, so "per IP" is an inference and not evidenced; a real `429` was recorded on
-a second call in run `2026-10-01T18-18-42-250Z`. This directly contradicts the
-roadmap's UX target of "Open app → usable email: a few seconds" and "Generate
-mailbox: 1 action or automatic". A user who clicks "new address" twice in a minute
-action or automatic". A user who clicks "new address" twice in a minute gets a
-`429` and a dead end. The spike enforces this budget itself by serialising
-account creation; production must do the same, and must design the UI around it
-(reuse the current mailbox, disable/queue regeneration, and treat rate limiting
-as a normal state rather than an error).
+scope, so "per IP" is an inference and not evidenced. A `429` was observed in run
+`2026-10-01T18-18-42-250Z`, on probe `mailtm.validation-error`, which **failed** —
+but that 429 was the spike's own ungated call exceeding the budget, not a clean
+provider throttle, so it evidences the limit's existence only. This directly
+contradicts the roadmap's UX target of "Open app → usable email: a few seconds" and
+"Generate mailbox: 1 action or automatic". A user who clicks "new address" twice in
+a minute gets a `429` and a dead end. The spike enforces this budget itself by
+serialising account creation; production must do the same, and must design the UI
+around it (reuse the current mailbox, disable/queue regeneration, and treat rate
+limiting as a normal state rather than an error).
 
 ### Real-time delivery: **not available**
 
@@ -225,6 +228,13 @@ What the located pages *do* say, quoted:
 
 **Open action:** locate Mail.tm's actual terms, if they exist, and record the URL
 and retrieval date. Until then this section is a known gap, not a source.
+
+**These withdrawn claims survive in the archived M0 change**, which is frozen
+history and is not edited: `archive/2026-10-02-m0-provider-spike/proposal.md` states
+the proxying and per-IP claims, and `archive/2026-10-02-m0-provider-spike/tasks.md`
+task 5.3 says the delivered message arrived "with an empty sender". All three are
+falsified — the latter contradicted by the very run artifact the archive cites.
+Read this section, not the archive, for terms and lifetime claims.
 
 ---
 
@@ -377,7 +387,7 @@ delivery.guerrilla   [passed]  real message observed on the Guerrilla Mail mailb
 Both providers therefore complete the receive-mail lifecycle end to end with a
 real external message. **This satisfies the M0 gate's core requirement.**
 
-Two things this evidence does *not* establish:
+Three things this evidence does *not* establish:
 
 - **The Guerrilla subject arrived empty** while the sender and body were both
   present. A missing subject must be tolerated, not treated as corruption.
@@ -488,9 +498,10 @@ decisions themselves belong to an OpenSpec change, not to this document.
    primary + Guerrilla fallback**. The alternative — evaluating a CORS-friendly
    primary for the website — was considered and deferred, as was pulling own
    infrastructure forward from M15. The website therefore has no provider
-   fallback path until a second web-reachable provider exists, and Mail.tm
-   attribution becomes an extension-only obligation.
-2. **Mail.tm cannot be reached from the website without a non-compliant proxy.**
+   fallback path until a second web-reachable provider exists.
+2. **Mail.tm cannot be reached from the website without a relay, and SpectreMail
+   does not build one.** This is a product policy, not a terms-compliance
+   judgement — see §2, which records that no Mail.tm terms page could be found.
    The roadmap's "do not introduce a fragile proxy" rule now binds Mail.tm.
 3. **"Generate a mailbox in seconds" is not achievable on Mail.tm.** The
    `1; w=60` creation budget forces either mailbox reuse or a queued
@@ -502,5 +513,6 @@ decisions themselves belong to an OpenSpec change, not to this document.
    test that fails when that regresses.
 6. **Guerrilla session expiry must be detected explicitly**, because the
    provider reports an expired session as an empty inbox.
-7. **`MailboxStatus: expired` cannot assume a known TTL** for either provider
-   until expiry is actually measured.
+7. **`MailboxStatus: expired` cannot assume a known TTL** for either provider.
+   Mail.tm publishes values in its FAQ only; neither they nor any Guerrilla
+   equivalent are exposed in the API or were measured live.

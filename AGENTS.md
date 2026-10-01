@@ -593,9 +593,10 @@ unattended — that is the expected result, not a regression.
 
 The non-interactive `spike` command does **not** by itself establish delivery,
 long-run mailbox or session expiry, or any product behaviour, because no product
-exists. Mail.tm publishes a 7-day message retention but exposes no TTL in its API,
-and neither value was measured live. The spike is disposable and must never be
-imported by an application.
+exists. Mail.tm's FAQ publishes a 7-day message retention and states a mailbox lasts
+until deleted, but neither value appears in its API, and neither the retention nor
+the lifetime was measured live. The spike is disposable and must never be imported
+by an application.
 
 
 

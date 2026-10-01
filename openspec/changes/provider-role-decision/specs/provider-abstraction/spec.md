@@ -65,8 +65,9 @@ technically access.
 - **WHEN** a provider cannot be reached from a given client environment for legal
   or technical reasons
 - **THEN** that client SHALL NOT be built against it
-- **AND** the reason SHALL be recorded in `docs/PROVIDERS.md` as a measurement or
-  an explicit "unverified", with the run that observed it cited
+- **AND** the reason SHALL be recorded in `docs/PROVIDERS.md`
+- **AND** a measured reason SHALL cite the run that observed it, while an
+  unverified reason SHALL be labelled "unverified" with **no** run claimed
 - **AND** it SHALL NOT be worked around by a relay
 
 ### Requirement: Provider APIs are never proxied
@@ -125,9 +126,8 @@ SSE, WebSocket, or other push transport that a provider does not actually serve.
 #### Scenario: A provider advertises a push transport but serves none
 
 - **WHEN** a provider's documentation describes an SSE or WebSocket transport
-- **THEN** the application SHALL NOT open a subscription to it as its only
-  retrieval path
-- **AND** messages SHALL still arrive through polling
+- **THEN** the application SHALL NOT open a subscription to it
+- **AND** messages SHALL arrive through polling
 - **AND** a client SHALL NOT be left waiting on a subscription that never delivers
 
 #### Scenario: Polling a mailbox

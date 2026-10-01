@@ -51,9 +51,10 @@ function randomPassword() {
 /**
  * Serialised account-creation gate.
  *
- * Mail.tm advertises `ratelimit-policy: 1; w=60` on POST /accounts — one
- * account per minute per IP. The spike must not blow through a real provider's
- * budget, so creation calls are queued with a configurable floor between them.
+ * Mail.tm returns `ratelimit-policy: 1; w=60` on POST /accounts — one account per
+ * 60s window. The header does not state its scope, so "per IP" is not established.
+ * The spike must not blow through a real provider's budget either way, so creation
+ * calls are queued with a configurable floor between them.
  */
 export function createAccountGate(minIntervalMs = Number(process.env.SPECTRE_SPIKE_MAILTM_ACCOUNT_INTERVAL_MS ?? 62000)) {
   let chain = Promise.resolve();

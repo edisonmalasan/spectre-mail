@@ -10,7 +10,7 @@ a real web page and a real MV3 extension context, and observed the following.
 | Mail.tm CORS | `Access-Control-Allow-Origin` only for `https://mail.tm` and `https://api.mail.tm`. A page on a third-party origin gets no ACAO, not even for the public domain list. |
 | Mail.tm from an extension | Full lifecycle reachable; host permissions bypass CORS. |
 | Mail.tm real-time transport | Five SSE candidate paths returned 404/406. No WebSocket accepted a connection. |
-| Mail.tm account creation | `ratelimit-policy: 1; w=60`. The header states a quota of 1 per 60s window but **does not state its scope**; "per IP" was inferred and is not evidenced. A run did record a real `429` on a second call. |
+| Mail.tm account creation | `ratelimit-policy: 1; w=60`. The header states a quota of 1 per 60s window but **does not state its scope**; "per IP" was inferred and is not evidenced. A `429` was observed in run `2026-10-01T18-18-42-250Z`, on a probe that **failed** because the spike exceeded its own budget — so it evidences the limit's existence, not a clean throttle. |
 | Guerrilla reachability | Works from a normal web page and from an extension. |
 | Guerrilla content typing | A plain-text message arrived as raw HTML. |
 | Guerrilla envelope fields | The subject arrived empty on a real message; the sender was present. |

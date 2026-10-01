@@ -23,9 +23,10 @@
 > harness that M1/M3 must delete, so landing it would create permanent spec debt
 > for disposable scaffolding.
 
-**Roadmap cursor:** M1 — Monorepo Foundation (**not started**). Blocked only
-until `provider-role-decision` is applied, so M3 and the client capabilities are
-written against measured behaviour rather than the superseded assumption.
+**Roadmap cursor:** M1 — Monorepo Foundation (**not started**). Its only
+precondition was that `provider-role-decision` be specified, which it now is, so M3
+and the client capabilities will be written against measured behaviour rather than
+the superseded assumption.
 
 **OpenSpec change:** `provider-role-decision`
 (`openspec/changes/provider-role-decision/`) — proposed 2026-10-02, applied and
@@ -41,10 +42,10 @@ under verification. Specifies the corrected provider roles and the
 | M2–M15 | not started | — |
 
 **OpenSpec lifecycle stage:** M0 complete (propose → apply → verify → archive).
-`provider-role-decision` is at verify, after an independent review corrected three
-claims: an empty **sender** on a real message (only the **subject** was empty),
-quoted Mail.tm terms that do not exist, and an unevidenced "per IP" rate-limit
-scope.
+`provider-role-decision` is at verify, after two independent review rounds
+corrected three claims: a claim that a real message arrived with an empty
+**sender** (only the **subject** was empty), quoted Mail.tm terms that do not exist
+on the provider's site, and an unevidenced "per IP" rate-limit scope.
 
 **Next required change:** none beyond `provider-role-decision`. M1 may begin once
 it is synced and archived.
@@ -74,7 +75,7 @@ original assumption.
 | "Generate mailbox: 1 action or automatic", "Open app → usable email: a few seconds" | Mail.tm returns `ratelimit-policy: 1; w=60` on `POST /accounts` — **one mailbox per 60s window**. The header does not state its scope, so "per IP" was inferred and is not evidenced. Seconds-long generation is not achievable on Mail.tm. |
 | "SSE subscription if stable" (M3) and "SSE where reliable" (M6) | Mail.tm has **no working real-time transport**. Five SSE candidate paths returned 404/406 and no WebSocket accepted a connection, despite the provider's marketing claiming SSE. **Adaptive polling is the only option.** |
 | Extension requests host permissions for the provider | Silent-failure trap, measured: `https://api.mail.tm` is accepted into the manifest and grants **nothing**; `https://api.mail.tm/*` works. The extension must use the `/*` form and must test it. |
-| Mailbox expiry has a knowable TTL | **Unverified for both providers.** No TTL is exposed by either API. `MailboxStatus: expired` must not assume one yet. This gap is unchanged and still open. |
+| Mailbox expiry has a knowable TTL | **Unmeasured.** Mail.tm's FAQ publishes a 7-day message retention and a no-expiry mailbox statement, but neither value appears in its API and neither was verified live; Guerrilla publishes nothing equivalent. `MailboxStatus: expired` must still follow an observed signal. |
 | A harness that reports `unverified` is reporting a provider limitation | **False, and it bit us.** Run `2026-10-01T17-35-14-033Z` reported both delivery checks `unverified` because of two defects in the spike itself: the Mail.tm mailbox was deleted (token revoked → `GET /messages` returns `401`) before delivery polled it, and the Guerrilla address printed to the maintainer was stale after `set_email_user`. Neither was a provider behaviour. Fixed, with an abort-on-`401` guard. |
 | A real external verification message can be observed during the spike without a maintainer-supplied credential | **Resolved by maintainer action.** Run `2026-10-01T18-08-41-251Z` observed a real message on both providers. No credential-free *sender* exists, so this always required one manual send. |
 
@@ -104,7 +105,9 @@ Consequences for later milestones:
   provider later is additive, not a rewrite.
 - The extension carries the provider-fallback logic. The website has no
   fallback path until a second web-reachable provider exists.
-- Mail.tm attribution is an **extension-only** product obligation.
+- Mail.tm attribution is an **extension-only** obligation **if** it exists. No
+  attribution term could be verified (see `docs/PROVIDERS.md` §2), so this is
+  carried as an open item, not a requirement.
 - Mail.tm's `POST /accounts` limit of 1 per 60s window caps extension mailbox
   creation throughput and must be surfaced, not silently retried.
 
@@ -139,11 +142,13 @@ no `list` for Guerrilla, whose `auth.success` is `true` even when the session is
 dead. These guards are provider-specific and must not be generalised to a provider
 that has not been measured the same way. See `docs/PROVIDERS.md` §5.1.
 
-**What remains open.** Mailbox/session expiry is still unverified for both
-providers, and Mail.tm's published values are absent from its API, so `MailboxStatus: expired` must not assume
-one. And delivery is proven from a single sender; reputation with providers that
-commonly blocklist disposable domains is untested. Both must be carried into the
-provider-layer spec rather than treated as settled.
+**What remains open.** Long-run expiry is unmeasured for both providers.
+Mail.tm's FAQ publishes a 7-day message retention and a no-expiry mailbox statement,
+but neither value is in its API and neither was measured live, so
+`MailboxStatus: expired` must still follow an observed signal rather than a
+horizon. And delivery is proven from a single sender; reputation with providers that
+commonly blocklist disposable domains is untested. Both are now carried into the
+`provider-abstraction` spec rather than treated as settled.
 
 ### Additional provider facts that change later milestones
 
@@ -159,9 +164,10 @@ provider-layer spec rather than treated as settled.
 - **Guerrilla message bodies are raw HTML** while declaring `content_type:
   "text"`. Declared content type must never be trusted; raw HTML must never be
   rendered.
-- **mail.tm requires visible attribution** wherever its API is used, and forbids
-  reselling it or proxying it. Attribution is a product obligation, not a
-  nicety.
+- **mail.tm's terms could not be located.** No terms page exists and the FAQ is
+  silent on attribution, resale, proxying, and quota. Whether an attribution
+  obligation exists is therefore **unknown**, not "required" and not "absent".
+  Anything depending on it is blocked until the real terms are found.
 
 ---
 
