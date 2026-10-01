@@ -2,7 +2,7 @@
 #
 # Only apps/* and packages/* are members. `tests/provider-spike` is deliberately
 # EXCLUDED, for three reasons recorded in
-# openspec/changes/monorepo-foundation/design.md:
+# openspec/changes/archive/2026-10-02-monorepo-foundation/design.md:
 #
 #   1. It carries playwright as a dev dependency. As a member, every root
 #      `pnpm install` would pull Playwright's package graph for contributors who
