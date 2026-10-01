@@ -36,7 +36,7 @@ documentation, the OpenSpec change for M0, and the disposable spike harness.
 
 The M0 spike **inverted the provider plan**. Mail.tm — the planned primary
 provider — is **unreachable from a normal web page**: it sends CORS headers only
-to its own origins, and its terms forbid proxying the API. It works perfectly
+to its own origins, and SpectreMail does not proxy provider APIs to work around that. It works perfectly
 from a Chromium extension, which holds host permissions.
 
 Guerrilla Mail is the reverse: it works from a normal web page *and* from an
@@ -45,7 +45,7 @@ the extension uses Mail.tm primary with Guerrilla Mail as fallback.**
 
 Both providers were also proven end to end: a real external email was observed
 arriving on a live mailbox for each. Mailbox expiry remains unproven — neither
-provider advertises a TTL.
+provider exposes a TTL in its API.
 
 Full evidence, including what remains unproven, is in
 [`docs/PROVIDERS.md`](docs/PROVIDERS.md).
@@ -69,6 +69,22 @@ apps/extension ─┘      packages/providers
 Shared packages must never import from the apps. Provider-specific code lives
 only in `packages/providers`; no React component may ever understand a
 provider's JSON.
+
+**Providers are assigned per client, not globally.** They are not ordered the
+same way for both:
+
+| Client | Providers |
+|---|---|
+| Website | Guerrilla Mail only — no fallback in V1 |
+| Extension | Mail.tm primary, Guerrilla Mail fallback |
+
+Mail.tm grants CORS only to its own origins, so no compliant design lets a web page
+read it. SpectreMail does not proxy provider APIs, and proxying one through a
+SpectreMail server is forbidden by requirement, not merely discouraged.
+
+These boundaries are specified in the `provider-abstraction` capability
+(`openspec/changes/provider-role-decision/`), with the measured evidence behind
+each in [`docs/PROVIDERS.md`](docs/PROVIDERS.md).
 
 This structure is **not built yet**. It arrives in M1.
 
@@ -140,10 +156,11 @@ Real external message delivery has been **verified on both providers**: run
 `2026-10-01T18-08-41-251Z` observed a genuine external email arriving on a live
 mailbox for Mail.tm and for Guerrilla Mail.
 
-One check is still unverified and must not be reported as working:
+One gap is still open and must not be reported as working:
 
-- long-run session and mailbox expiry — neither provider advertises a TTL, so
-  `MailboxStatus: expired` cannot yet assume one
+- long-run expiry — Mail.tm publishes a 7-day message retention and states a mailbox
+  lasts until deleted, but exposes no TTL in its API and neither value was measured
+  live, so `MailboxStatus: expired` cannot yet assume one
 
 Re-running the spike without a sender still reports delivery as `unverified`,
 because it cannot observe an inbound message unattended. That is the expected
@@ -175,9 +192,10 @@ receives the mail.
 own mailbox state locally. Incoming mail is processed by the temporary-email
 provider powering the address.
 
-Provider terms also impose obligations that are easy to forget: mail.tm
-**requires visible attribution** wherever its API is used, and forbids
-reselling it or proxying it. See [`docs/PROVIDERS.md`](docs/PROVIDERS.md).
+Provider terms can impose obligations that are easy to forget. For mail.tm they
+currently impose **none that we can verify**: it publishes no terms page, and its
+FAQ is silent on attribution, resale, and proxying. Nothing is claimed either way
+until real terms are located. See [`docs/PROVIDERS.md`](docs/PROVIDERS.md).
 
 ---
 

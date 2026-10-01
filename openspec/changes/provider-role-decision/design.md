@@ -10,14 +10,15 @@ a real web page and a real MV3 extension context, and observed the following.
 | Mail.tm CORS | `Access-Control-Allow-Origin` only for `https://mail.tm` and `https://api.mail.tm`. A page on a third-party origin gets no ACAO, not even for the public domain list. |
 | Mail.tm from an extension | Full lifecycle reachable; host permissions bypass CORS. |
 | Mail.tm real-time transport | Five SSE candidate paths returned 404/406. No WebSocket accepted a connection. |
-| Mail.tm account creation | `ratelimit-policy: 1; w=60`. One account per minute per IP. |
+| Mail.tm account creation | `ratelimit-policy: 1; w=60`. The header states a quota of 1 per 60s window but **does not state its scope**; "per IP" was inferred and is not evidenced. A `429` was observed in run `2026-10-01T18-18-42-250Z`, on a probe that **failed** because the spike exceeded its own budget — so it evidences the limit's existence, not a clean throttle. |
 | Guerrilla reachability | Works from a normal web page and from an extension. |
 | Guerrilla content typing | A plain-text message arrived as raw HTML. |
-| Guerrilla envelope fields | Sender and subject arrived empty on a real message. |
+| Guerrilla envelope fields | The subject arrived empty on a real message; the sender was present. |
 | Extension host permissions | `https://api.mail.tm` grants nothing; `https://api.mail.tm/*` works. |
 | Real delivery | Verified on both providers, run `2026-10-01T18-08-41-251Z`. |
-| Mailbox/session TTL | Not exposed by either API. Unverified. |
+| Mailbox/session TTL | Not exposed by either API. Mail.tm's **FAQ** publishes a 7-day message retention and states a mailbox lasts until deleted; neither value is in the API response, and neither was measured live. Guerrilla publishes nothing equivalent. |
 | Guerrilla dead session | HTTP 200 with an `error` key and no `list`; `auth.success` stays `true`. |
+| Mail.tm terms | **No terms page exists** (`/terms` → 404). The FAQ is silent on proxying, resale, attribution, and quota. Verified 2026-10-02. |
 
 The roadmap's plan was "Mail.tm primary for the website, Guerrilla Mail as
 fallback where technically reliable". Measurement inverts it.
@@ -51,10 +52,14 @@ Rejected alternatives:
 
 - **A CORS-friendly primary for the website.** No such provider was measured as
   satisfying the roadmap's other requirements, so this was speculative.
-- **Operate our own relay.** Explicitly rejected: Mail.tm's terms forbid proxying
-  the API, so a SpectreMail-operated proxy is not a permitted workaround. It is
-  now a requirement rather than a preference, because it is the option someone
-  will otherwise suggest.
+- **Operate our own relay.** Explicitly rejected as a matter of product policy:
+  SpectreMail does not relay a provider API to work around an origin restriction.
+  This is deliberately **not** justified by provider terms — Mail.tm publishes no
+  terms page at all, and its FAQ is silent, so no terms-derived argument is
+  available or cited. The rule stands on its own purpose. It is written as a
+  requirement rather than a preference because it is the option someone will
+  otherwise suggest once the website's single-provider limitation becomes
+  uncomfortable.
 - **Drop Mail.tm entirely.** Rejected: it works fully from the extension, where
   CORS does not apply, and it is the stronger provider there.
 
@@ -122,5 +127,12 @@ migrate and nothing to roll back.
 
 - Which mailbox capability owns "the provider silently discarded a live-looking
   mailbox"? Deferred to the capability that defines mailbox lifecycle.
-- Does Mail.tm attribution have UI wording requirements beyond a visible credit?
-  Deferred to the extension capability.
+- **Where are Mail.tm's actual terms, if they exist?** No terms page was found.
+  Until located, no attribution, resale, or proxying obligation may be asserted or
+  denied. This blocks any claim about commercial use.
+- Does the "register disposable mailboxes in bulk" path Mail.tm advertises on its
+  homepage sit behind a different quota than the measured `1; w=60`? Unmeasured.
+- Was the Guerrilla dead-session trap deliberately excluded from the requirements?
+  It was not: five of six measured constraints became requirements and this one
+  was deferred to the mailbox capability. If that reasoning is wrong it should be
+  reversed here, not silently later.

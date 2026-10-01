@@ -30,19 +30,24 @@ measured. It deliberately implements no product code: M3 builds the adapter.
   never had. It defines the boundary every provider adapter sits behind, and
   records M0's measured constraints as requirements rather than as comments.
 - **Forbid proxying provider APIs.** Mail.tm's CORS policy grants only its own
-  origins and its terms forbid proxying, so a backend relay is not a permitted
+  origins, so no compliant design lets a web page read it. SpectreMail does not
+  proxy provider APIs to work around that, and a relay is not a permitted
   workaround. This must be a requirement, because it is the tempting one.
-- **Forbid trusting declared content type or rendering raw HTML.** Both providers
-  were measured returning HTML for plain-text mail.
+- **Forbid trusting declared content type or rendering raw HTML.** Guerrilla Mail
+  was measured reporting `content_type: "text"` with an HTML body, and its real
+  delivered message arrived as raw HTML.
 - **Require adaptive polling** instead of the SSE/WebSocket transport the roadmap
   assumed, because Mail.tm has none that works.
 - **Require surfaced throttling** instead of silent retry, because Mail.tm caps
-  account creation at one per 60s per IP.
+  account creation at one per 60s window.
 - **Require the wildcard extension host-permission form** and a test that
   exercises it, because `https://api.mail.tm` silently grants nothing while
   `https://api.mail.tm/*` works.
-- **Forbid assuming a mailbox TTL.** Neither provider advertises one and it is
-  unverified, so `MailboxStatus: expired` must not assume a duration.
+- **Forbid assuming a mailbox TTL, or deriving a countdown from documentation.**
+  Mail.tm's FAQ publishes a 7-day message retention and states a mailbox lasts
+  until deleted, but neither value appears in any API response and neither was
+  measured live; Guerrilla publishes nothing equivalent. `MailboxStatus: expired`
+  must therefore follow an observed signal, never a horizon.
 
 ## Non-Goals
 
