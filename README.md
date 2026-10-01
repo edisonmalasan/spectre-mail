@@ -70,6 +70,22 @@ Shared packages must never import from the apps. Provider-specific code lives
 only in `packages/providers`; no React component may ever understand a
 provider's JSON.
 
+**Providers are assigned per client, not globally.** They are not ordered the
+same way for both:
+
+| Client | Providers |
+|---|---|
+| Website | Guerrilla Mail only — no fallback in V1 |
+| Extension | Mail.tm primary, Guerrilla Mail fallback |
+
+Mail.tm grants CORS only to its own origins and its terms forbid proxying, so no
+compliant design lets a web page read it. Proxying it through a SpectreMail
+server is forbidden by requirement, not merely discouraged.
+
+These boundaries are specified in the `provider-abstraction` capability
+(`openspec/changes/provider-role-decision/`), with the measured evidence behind
+each in [`docs/PROVIDERS.md`](docs/PROVIDERS.md).
+
 This structure is **not built yet**. It arrives in M1.
 
 ---

@@ -343,6 +343,22 @@ Remove only rules that genuinely do not apply.
 
 - Do not bypass an established abstraction merely because direct access is easier.
 
+- All temporary-mail provider access goes through the provider abstraction. Presentation code must never interpret a provider's HTTP response or contain a provider JSON field name. See the `provider-abstraction` capability.
+
+- Provider roles are assigned per client, not globally. The website uses Guerrilla Mail only; the extension uses Mail.tm primary with Guerrilla Mail fallback. Do not add a provider to a client whose environment cannot legally or technically reach it.
+
+- **Never proxy a provider API.** Do not relay a provider through a SpectreMail-operated server, or any other intermediary, to work around a provider's CORS policy, origin restriction, or terms. Mail.tm grants no CORS to third-party origins and forbids proxying, so the correct response is to exclude it from the website, not to add a backend. This is a requirement, not a preference.
+
+- Do not trust a provider's declared message content type, and never render raw message content as HTML. Guerrilla Mail was measured returning `content_type: "text"` with an HTML body, and its real delivered message arrived as raw HTML. Only Mail.tm's delivered message has been observed as plain text, so the plain-text case is **not** evidence that Mail.tm's content typing is trustworthy either.
+
+- Do not depend on a provider push transport that has not been verified against the live API. Mail.tm advertises SSE and serves none; message retrieval is adaptive polling.
+
+- Surface provider throttling to the user rather than silently retrying or queueing. Mail.tm caps account creation at `1; w=60`.
+
+- Do not assume a mailbox or session has a known lifetime. Neither provider exposes a TTL, so expiry must follow an observed signal, never an elapsed guess.
+
+- Extension manifest host permissions for provider origins must use the wildcard path form (`https://api.example.com/*`). A slash-less pattern (`https://api.example.com`) is silently a no-op and must be covered by a test that exercises the declared pattern.
+
 - Avoid shared mutable global state unless explicitly required and documented.
 
 - Cross-cutting services must stay focused on their defined responsibility.
