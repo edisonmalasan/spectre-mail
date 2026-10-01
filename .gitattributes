@@ -1,0 +1,53 @@
+# Normalise all text to LF, in the repository and in every working tree.
+#
+# Why this file exists — it was added by the M1 independent verification pass,
+# after `pnpm format:check` and `pnpm verify` were found to exit 1 on Windows.
+#
+# The failure: `.prettierrc.json` pins `"endOfLine": "lf"`, but with no
+# `.gitattributes`, the working-tree line ending was left to each contributor's
+# `core.autocrlf`. Stock Git for Windows ships `core.autocrlf=true` (set in
+# `C:/Program Files/Git/etc/gitconfig`, not by any local override), so a Windows
+# clone checked files out as CRLF and Prettier rejected all 34 governed files.
+# `pnpm verify` exited 1 while CI stayed green, because `autocrlf` is inert on
+# Linux and the runner checked out LF.
+#
+# That is the worst kind of gate defect: a documented, committed, false result.
+# CI was green three times and the failure was still invisible, because every
+# gate that *executes* code passed. Only reading the docs against the declared
+# supported environment surfaced it.
+#
+# `eol=lf` makes the working-tree line ending a committed fact rather than a
+# function of the host OS, so a green CI run and a green local run finally mean
+# the same thing. It also overrides a contributor's local `core.autocrlf` for
+# tracked files, so a misconfigured editor can no longer silently diverge from
+# CI.
+#
+# Do not remove this file on the belief that "git handles line endings". It does
+# not, unless it is told to, and the repository does tell it here.
+#
+# Everything is already stored as LF in the index, so this file changes no
+# repository content. It only changes how the working tree is materialised.
+* text=auto eol=lf
+
+# Binary assets, if any are ever added. The repository currently contains none,
+# and `text=auto` already content-sniffs, so these are belt-and-braces against
+# the well-known `text=auto` failure mode of misclassifying a binary as text.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.webp binary
+*.pdf  binary
+*.zip  binary
+*.gz   binary
+*.woff binary
+*.woff2 binary
+*.ttf  binary
+*.otf  binary
+*.eot  binary
+
+# The M0 spike keeps its own lockfile and is not a workspace member. Its own
+# tooling is hand-rolled; declaring it here keeps that intent explicit even
+# though nothing currently requires an exception.
+tests/provider-spike/** text=auto eol=lf
