@@ -18,29 +18,32 @@
 > source of truth — `openspec/specs/` and the active OpenSpec change artifacts are.
 > Reconcile this block against Git and OpenSpec before trusting it in a later session.
 >
-> `openspec/specs/` is currently **empty**. M0's capability spec was archived with
-> `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
-> landing it in the main specs would create permanent spec debt for disposable
-> scaffolding. The durable provider facts live in `docs/PROVIDERS.md`; the durable
-> behavioural requirements belong to the M2/M3 capabilities, which do not exist yet.
+> `openspec/specs/` gains its first capability from `provider-role-decision`. M0's
+> own capability spec was archived with `--skip-specs` deliberately: it specifies a
+> harness that M1/M3 must delete, so landing it would create permanent spec debt
+> for disposable scaffolding.
 
-**Roadmap cursor:** M1 — Monorepo Foundation (**not started**). A
-provider-role change must be proposed and applied before M1 begins.
+**Roadmap cursor:** M1 — Monorepo Foundation (**not started**). Blocked only
+until `provider-role-decision` is applied, so M3 and the client capabilities are
+written against measured behaviour rather than the superseded assumption.
 
-**OpenSpec change:** none active. `m0-provider-spike` is archived at
+**OpenSpec change:** `provider-role-decision`
+(`openspec/changes/provider-role-decision/`) — proposed 2026-10-02. Specifies the
+corrected provider roles and the `provider-abstraction` capability. M0's
+`m0-provider-spike` is archived at
 `openspec/changes/archive/2026-10-02-m0-provider-spike/` (PR #2).
 
 | Milestone | State | Notes |
 |---|---|---|
 | M0 Provider Compatibility Spike | **archived** | Real external delivery observed on **both** providers. Provider roles decided. Long-run expiry still unverified (no provider advertises a TTL). Gate satisfied. |
-| M1 Monorepo Foundation | not started | Next objective. The disposable spike is retired or absorbed here — at which point `openspec/specs/` gains its first real capability. |
+| Provider-role specification | **proposed** | Documentation and specification only. No product code. Must land before M1. |
+| M1 Monorepo Foundation | not started | Next objective. The disposable spike is retired or absorbed here. |
 | M2–M15 | not started | — |
 
 **OpenSpec lifecycle stage:** M0 complete (propose → apply → verify → archive).
 
-**Next required change:** a provider-role change recording the decision below,
-so the M3 provider-layer spec and the website/extension specs are written against
-it rather than against the superseded roadmap assumption.
+**Next required change:** none beyond `provider-role-decision`. M1 may begin once
+it is applied and verified.
 
 **Last updated:** 2026-10-02
 
@@ -97,9 +100,13 @@ Consequences for later milestones:
 - Mail.tm's `POST /accounts` limit of 1 per 60s per IP caps extension mailbox
   creation throughput and must be surfaced, not silently retried.
 
-This decision belongs in an OpenSpec change before M1 begins, so the provider
-layer spec (`M3`) and the website/extension specs are written against it rather
-than against the superseded assumption.
+This decision is now **specified** as behaviour, not just recorded here, by the
+`provider-role-decision` change (`openspec/changes/provider-role-decision/`). The
+`provider-abstraction` capability states the roles above, plus the measured
+constraints M0 found — untrustworthy content type, no working push transport,
+`1; w=60` account-creation throttling, the wildcard host-permission form, and the
+absent mailbox TTL. M3 and the client capabilities must be written against that
+spec rather than against the superseded assumption above.
 
 ### M0 gate status
 
