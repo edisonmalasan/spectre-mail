@@ -50,10 +50,20 @@ invalidated the earlier delivery results and because they must not be lost.
 - [x] 5A.2 Make the Mail.tm delivery poll abort on `401`/`403` and report a harness fault rather than spinning for the whole window, and verify the failure wording identifies it as a harness fault and not a provider result
 - [x] 5A.3 Fix the Guerrilla address drift so `set_email_user` updates the tracked address the delivery probe advertises, and verify against the live API that the rename changes the served address
 
-## 6. Project documentation and roadmap reconciliation
+## 5B. Verification review findings
 
+Raised by an independent verification pass over the completed implementation.
+
+- [x] 5B.1 Apply the harness-fault guard to the Guerrilla delivery probe as well as Mail.tm, checking for an auth error rather than only HTTP status, because Guerrilla reports a dead session as `200` with an empty inbox — **done, with a `guerrilla.address` precondition check; four new offline self-test checks pin the classification**
+- [x] 5B.2 Prevent a false pass from the provider's own seeded welcome message, which arrived with HTTP 200 and was previously matched by `list[0]`, and verify with an offline self-test
+- [x] 5B.3 Route `mailtm.validation-error` through the account-creation gate so the spike does not exceed the advertised `1; w=60` budget and record its own overrun as a provider failure — **the previous ungated call did return `429` in run `2026-10-01T18-18-42-250Z`; it is now gated and reports the rate limit distinctly**
+- [x] 5B.4 Measure `GET /messages` after deletion in the deletion probe, since the `401` that justifies the abort guard was asserted in a comment but recorded in no artifact
+- [x] 5B.5 Disclose the `ReferenceError` failure present in the primary evidence run and correct the claims that the fault class "can never" recur, which was overstated and provider-specific
+- [x] 5B.6 Correct the `README.md` contradiction that described both delivery checks as proven and as unverified, and the `tasks.md` claim that run artifacts are "recorded in the repository" when `.runs/` is gitignored
+
+## 6. Project documentation and roadmap reconciliation
 - [x] 6.1 Add a root `README.md` covering what SpectreMail is, current development status, the verified spike command, project structure, and the privacy model as it stands today, and verify every command shown was actually executed
 - [x] 6.2 Add a `Project Status` block to `docs/ROADMAP.md` recording M0 as in progress with the run date, and verify it names the evidence produced so far
 - [x] 6.3 Update `docs/ROADMAP.md` with every M0 finding that contradicts a planning assumption, its effect on later milestones, and the resulting gate decision, and verify the original assumption is not left standing unannotated
 - [x] 6.4 Add `tests/provider-spike/README.md` explaining that the harness is disposable, that nothing may import it, and that M1 and M3 are responsible for retiring it, and verify the file states all three points
-- [x] 6.5 Re-run the full spike from a clean state and verify the recorded summary matches the summary quoted in `docs/PROVIDERS.md` — **verified. `docs/PROVIDERS.md` quotes run `2026-10-01T18-08-41-251Z` (36 probes: 26 passed, 6 failed, 3 unsupported, 1 unverified) and that run is the one recorded in the repository. A confirming non-interactive re-run after the deletion-ordering fix recorded 29 probes (browser probes skipped via `--no-browser`) with `mailtm.delete-account` passing, confirming the fix.**
+- [x] 6.5 Re-run the full spike from a clean state and verify the recorded summary matches the summary quoted in `docs/PROVIDERS.md` — **verified. Run `2026-10-01T18-08-41-251Z` (36 probes: 26 passed, 6 failed, 3 unsupported, 1 unverified) is the run quoted in `docs/PROVIDERS.md`. NOTE: `.runs/` is gitignored, so no run artifact is committed; the summary is recorded in the documentation and the run is reproducible with `pnpm --dir tests/provider-spike spike`.**

@@ -139,6 +139,140 @@ await (async () => {
   }
 })();
 
+// ---------------------------------------------------------------------------
+// Regression coverage for the harness-fault contract.
+//
+// Both defects found while closing the delivery check were the same class of
+// bug: the harness reported its own fault as a provider finding. These checks
+// pin the classification so that class cannot silently return.
+// ---------------------------------------------------------------------------
+
+await (async () => {
+  const { runDeliveryProbes } = await import("./probes/delivery.mjs");
+
+  const realFetch = globalThis.fetch;
+  const stubFetch = (handler) => {
+    globalThis.fetch = handler;
+  };
+  const jsonResponse = (status, body) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { "Content-Type": "application/json" },
+    });
+
+  try {
+    await check(
+      "a revoked Mail.tm token is a harness fault, not unverified or a provider finding",
+      async () => {
+        const runner = new ProbeRunner(quiet);
+        // Reproduces the original defect: the mailbox was deleted before delivery
+        // polled it, so GET /messages answers 401 forever.
+        stubFetch(async (input) => {
+          const url = String(input?.url ?? input);
+          if (url.includes("/messages")) return jsonResponse(401, { "hydra:description": "Unauthorized" });
+          return jsonResponse(200, {});
+        });
+
+        await runDeliveryProbes(runner, {
+          mailtm: { address: "spike@uberip.com", token: "revoked" },
+          guerrilla: null,
+          sender: null,
+          interactive: true,
+          timeoutMs: 2000,
+          mailFrom: null,
+          log: () => {},
+        });
+
+        const result = runner.summary().results.find((r) => r.id === "delivery.mailtm");
+        assert.equal(result.outcome, "failed");
+        assert.match(result.detail, /HARNESS FAULT/i);
+        // It must not be reported as a provider limitation.
+        assert.doesNotMatch(result.detail, /unverified/);
+      },
+    );
+
+    await check(
+      "a rejected Guerrilla session is a harness fault rather than an empty inbox",
+      async () => {
+        const runner = new ProbeRunner(quiet);
+        // Guerrilla does not answer 401 for a dead session; it can surface an auth
+        // error with HTTP 200. Either way it must abort as a harness fault.
+        stubFetch(async () =>
+          jsonResponse(200, { error: "invalid sid_token", list: [] }),
+        );
+
+        await runDeliveryProbes(runner, {
+          mailtm: null,
+          guerrilla: { sid: "dead", address: "spike@guerrillamailblock.com", knownMailIds: new Set() },
+          sender: null,
+          interactive: true,
+          timeoutMs: 2000,
+          mailFrom: null,
+          log: () => {},
+        });
+
+        const result = runner.summary().results.find((r) => r.id === "delivery.guerrilla");
+        assert.equal(result.outcome, "failed");
+        assert.match(result.detail, /HARNESS FAULT/i);
+      },
+    );
+
+    await check(
+      "a Guerrilla session with no address is a harness fault",
+      async () => {
+        const runner = new ProbeRunner(quiet);
+        stubFetch(async () => jsonResponse(200, { list: [] }));
+
+        await runDeliveryProbes(runner, {
+          mailtm: null,
+          guerrilla: { sid: "s", address: null },
+          sender: null,
+          interactive: true,
+          timeoutMs: 2000,
+          mailFrom: null,
+          log: () => {},
+        });
+
+        const result = runner.summary().results.find((r) => r.id === "delivery.guerrilla");
+        assert.equal(result.outcome, "failed");
+        assert.match(result.detail, /HARNESS FAULT/i);
+      },
+    );
+
+    await check(
+      "the provider's own welcome message is never counted as external delivery",
+      async () => {
+        const runner = new ProbeRunner(quiet);
+        // Guerrilla seeds the inbox with its own mail. Matching list[0] would have
+        // recorded a false pass.
+        const welcome = { mail_id: "1", mail_from: "no-reply@guerrillamail.com", mail_subject: "Welcome to Guerrilla Mail" };
+        stubFetch(async (input) => {
+          const url = String(input?.url ?? input);
+          if (url.includes("fetch_email")) {
+            return jsonResponse(200, { mail_from: "no-reply@guerrillamail.com", mail_body: "welcome" });
+          }
+          return jsonResponse(200, { list: [welcome] });
+        });
+
+        await runDeliveryProbes(runner, {
+          mailtm: null,
+          guerrilla: { sid: "s", address: "spike@guerrillamailblock.com", knownMailIds: new Set() },
+          sender: null,
+          interactive: true,
+          timeoutMs: 1200,
+          mailFrom: null,
+          log: () => {},
+        });
+
+        const result = runner.summary().results.find((r) => r.id === "delivery.guerrilla");
+        assert.equal(result.outcome, "unverified");
+      },
+    );
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+})();
+
 if (failures > 0) {
   console.error(`\nself-test FAILED: ${failures} check(s)`);
   process.exit(1);

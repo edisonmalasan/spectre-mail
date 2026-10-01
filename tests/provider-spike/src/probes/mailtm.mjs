@@ -251,11 +251,22 @@ export async function runMailTmProbes(runner, { gate = createAccountGate() } = {
   );
 
   await runner.probe("mailtm.validation-error", "Invalid create payload", async () => {
-    const { response, body } = await api("/accounts", {
-      method: "POST",
-      headers: jsonHeaders(),
-      body: JSON.stringify({ address: "not-an-email", password: "x" }),
-    });
+    // POST /accounts is rate limited to 1; w=60, so this MUST go through the same
+    // gate as real account creation. Ungated, the spike would blow its own budget
+    // and record the resulting 429 as a provider validation failure.
+    const { response, body } = await gate(() =>
+      api("/accounts", {
+        method: "POST",
+        headers: jsonHeaders(),
+        body: JSON.stringify({ address: "not-an-email", password: "x" }),
+      }),
+    );
+    if (response.status === 429) {
+      return failed(
+        `POST /accounts was rate limited (429) before validation could be observed; advertised policy was "${response.headers.get("ratelimit-policy")}". This probe must share the account-creation gate.`,
+        { ratelimitPolicy: response.headers.get("ratelimit-policy") },
+      );
+    }
     if (response.status !== 422) {
       return failed(
         `POST /accounts with an invalid address returned ${response.status}, expected 422`,
@@ -447,10 +458,15 @@ export async function runMailTmDeletionProbes(runner, ctx) {
       headers: jsonHeaders(),
       body: JSON.stringify({ address: ctx.address, password: ctx.password }),
     });
+    // Measure, rather than assert, that a deleted mailbox cannot be polled. This is
+    // the justification for the delivery probe's abort-on-401 guard, so it belongs
+    // in the recorded evidence instead of only in a code comment.
+    const messagesAfter = await api("/messages?page=1", { headers: authHeaders() });
     return passed("mailbox deleted and no longer usable", {
       deleteStatus: response.status,
       meAfterDelete: after.response.status,
       tokenAfterDelete: tokenAfter.response.status,
+      messagesAfterDelete: messagesAfter.response.status,
     });
   });
 }

@@ -70,7 +70,25 @@ async function pollMailTm(token, { timeoutMs, intervalMs = 5000 }) {
   return null;
 }
 
-async function pollGuerrilla(sid, { timeoutMs, intervalMs = 5000 }) {
+/**
+ * Poll a Guerrilla inbox until a message arrives or the deadline passes.
+ *
+ * Guards two harness faults, both of which would otherwise be misrecorded as a
+ * provider gap:
+ *
+ *   1. A dead session. Guerrilla does NOT answer 401 for an unusable sid_token —
+ *      it answers 200 with an empty inbox and no auth error (measured by
+ *      `guerrilla.stale-session`). So a status check alone cannot detect this.
+ *      When the provider does surface an auth error, abort rather than spin.
+ *   2. Provider-generated mail. Guerrilla seeds the inbox with its own
+ *      "Welcome to Guerrilla Mail" message, which also arrives with HTTP 200.
+ *      Matching `list[0]` would return the provider's own mail and record a
+ *      false `passed`, so messages are filtered by the sender we expect.
+ */
+async function pollGuerrilla(
+  sid,
+  { timeoutMs, intervalMs = 5000, expectFrom = null, knownMailIds = new Set() },
+) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const url = new URL(GUERRILLA_API);
@@ -79,14 +97,37 @@ async function pollGuerrilla(sid, { timeoutMs, intervalMs = 5000 }) {
     url.searchParams.set("sid_token", sid);
     const response = await fetch(url);
     const body = await readJson(response);
+
+    // Surface an explicit auth failure rather than reading it as an empty inbox.
+    const authError =
+      body?.error ?? body?.error_code ?? body?.auth_error ?? body?.result ?? null;
+    if (!response.ok || authError) {
+      throw new Error(
+        `the Guerrilla Mail session was rejected (HTTP ${response.status}${
+          authError ? `, ${String(authError)}` : ""
+        }) — this mailbox cannot observe any message`,
+      );
+    }
+
     const list = body?.list ?? [];
-    if (list.length > 0) {
+    // Ignore mail that predates the delivery check, and mail the provider itself
+    // generated. Guerrilla seeds the inbox with its own welcome message, which
+    // arrives with HTTP 200 like any other, so neither check alone is sufficient.
+    const candidate = list.find((m) => {
+      if (knownMailIds.has(m.mail_id)) return false;
+      const from = String(m.mail_from ?? "").toLowerCase();
+      if (from.includes("@guerrillamail.com")) return false;
+      if (expectFrom && !from.includes(String(expectFrom).toLowerCase())) return false;
+      return true;
+    });
+
+    if (candidate) {
       const fetchUrl = new URL(GUERRILLA_API);
       fetchUrl.searchParams.set("f", "fetch_email");
-      fetchUrl.searchParams.set("email_id", list[0].mail_id);
+      fetchUrl.searchParams.set("email_id", candidate.mail_id);
       fetchUrl.searchParams.set("sid_token", sid);
       const detail = await fetch(fetchUrl);
-      return await readJson(detail);
+      return { message: await readJson(detail), mailId: candidate.mail_id };
     }
     await sleep(intervalMs);
   }
@@ -194,6 +235,13 @@ export async function runDeliveryProbes(
           "no Guerrilla Mail session exists, so real delivery could not be attempted",
         );
       }
+      // A session without an address cannot be advertised to a sender, and polling
+      // it would be meaningless. That is a harness fault, not a provider gap.
+      if (!guerrilla.address) {
+        return failed(
+          "HARNESS FAULT, not a provider result: the Guerrilla Mail session has a sid_token but no address to poll or advertise",
+        );
+      }
       const target = guerrilla.address;
 
       if (!sender && interactive) {
@@ -203,17 +251,26 @@ export async function runDeliveryProbes(
         log("  Then leave this running — the spike will observe it.");
         log("  ────────────────────────────────────────────────────────────");
         log("");
-        const message = await pollGuerrilla(guerrilla.sid, {
-          timeoutMs: interactiveTimeout,
-        });
-        if (!message) {
+        let found;
+        try {
+          found = await pollGuerrilla(guerrilla.sid, {
+            timeoutMs: interactiveTimeout,
+            knownMailIds: guerrilla.knownMailIds ?? new Set(),
+          });
+        } catch (error) {
+          return failed(`HARNESS FAULT, not a provider result: ${error.message}`, {
+            address: target,
+          });
+        }
+        if (!found) {
           return unverified(
             `interactive window of ${Math.round(interactiveTimeout / 1000)}s closed with no message at ${target}`,
             { address: target, subject: SUBJECT },
           );
         }
+        const message = found.message;
         return passed(
-          `real message observed on the Guerrilla Mail mailbox: "${message.mail_subject}"`,
+          `real message observed on the Guerrilla Mail mailbox: "${message.mail_subject ?? "(no subject)"}"`,
           {
             address: target,
             provider: "guerrilla",
@@ -233,13 +290,24 @@ export async function runDeliveryProbes(
         return failed(`the configured sender rejected the message: ${error.message}`);
       }
 
-      const message = await pollGuerrilla(guerrilla.sid, { timeoutMs: 120000 });
-      if (!message) {
+      let found;
+      try {
+        found = await pollGuerrilla(guerrilla.sid, {
+          timeoutMs: 120000,
+          knownMailIds: guerrilla.knownMailIds ?? new Set(),
+        });
+      } catch (error) {
+        return failed(`HARNESS FAULT, not a provider result: ${error.message}`, {
+          address: target,
+        });
+      }
+      if (!found) {
         return failed(
           `a real message was sent to ${target} but the provider never surfaced it within 120s`,
           { address: target },
         );
       }
+      const message = found.message;
       return passed("real message observed on the Guerrilla Mail mailbox", {
         address: target,
         provider: "guerrilla",

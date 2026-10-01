@@ -136,15 +136,18 @@ printed prominently and are never described as passes.
 
 ### A note on `unverified`
 
-Three checks are currently unverified and must not be reported as working:
+Real external message delivery has been **verified on both providers**: run
+`2026-10-01T18-08-41-251Z` observed a genuine external email arriving on a live
+mailbox for Mail.tm and for Guerrilla Mail.
 
-- real external message delivery on Mail.tm
-- real external message delivery on Guerrilla Mail
-- long-run session and mailbox expiry
+One check is still unverified and must not be reported as working:
 
-Closing the delivery gap needs one action from a maintainer: either run
-`spike:interactive` and send a single email, or configure a sender
-(`tests/provider-spike/.env.example`).
+- long-run session and mailbox expiry — neither provider advertises a TTL, so
+  `MailboxStatus: expired` cannot yet assume one
+
+Re-running the spike without a sender still reports delivery as `unverified`,
+because it cannot observe an inbound message unattended. That is the expected
+result, not a regression.
 
 ---
 

@@ -351,8 +351,9 @@ longer existed. No sender could ever have been observed.
 
 *Fix:* deletion moved into `runMailTmDeletionProbes`, which `run.mjs` now invokes
 **after** the delivery probes. The poll loop also now aborts immediately on
-`401`/`403` and reports `HARNESS FAULT, not a provider result`, so this class of
-fault can never again be misrecorded as a provider finding.
+`401`/`403` and reports `HARNESS FAULT, not a provider result`. The post-delete
+probe now also records `GET /messages` after deletion, so the `401` that
+justifies the guard is measured in the artifact rather than asserted in a comment.
 
 **Defect 2 — the Guerrilla address printed to the maintainer was stale.** The
 `set_email_user` probe renamed the mailbox but did not update the tracked
@@ -361,19 +362,44 @@ polling the post-rename mailbox. A sender emailing the printed address would hav
 delivered to a mailbox the poll loop was not reading. Verified against the live
 API: `set_email_user` returns a different `email_addr`, confirming the drift.
 
-*Fix:* the probe now updates the tracked address and records `previousAddress`.
+*Fix:* the probe now updates the tracked address and records `previousAddress`, and
+re-reads the served address if the rename reports none, so the failure branches
+cannot leave a stale address behind.
+
+**A third defect, found by review rather than by running:** the delivery probe
+matched `list[0]` with no sender filter. Guerrilla seeds the inbox with its own
+"Welcome to Guerrilla Mail" message, which arrives with HTTP 200 like any other,
+so the probe could have recorded `passed` using the provider's own welcome mail as
+proof of external delivery. It happened to return the maintainer's real message in
+the cited run, but the false-pass path was open. The probe now excludes messages
+that predate the check and messages from the provider's own domain, and a
+self-test pins that behaviour.
+
+**Defect 3 — a `ReferenceError` in the deletion probe, present in the cited run.**
+Run `2026-10-01T18-08-41-251Z` records `mailtm.delete-account` as
+`[FAILED] ReferenceError: authHeaders is not defined`, because the first
+extraction of `runMailTmDeletionProbes` lost that closure. It was fixed, and a
+later `--no-browser` run recorded the probe passing. It is disclosed here because
+that run is the primary evidence for this document, and a reviewer must be able
+to see that one probe in it failed for a code reason rather than a provider one.
+The delivery results in that same run are unaffected: they were produced by the
+correct poll logic, and the failure was in the deletion probe that runs after
+them.
 
 **Why this matters beyond M0:** a harness that reports `unverified` for its own
 structural reasons is worse than one that fails loudly, because it looks like a
-provider limitation and would have been written up as one. The abort-on-401 guard
-exists to stop that recurring.
+provider limitation and would have been written up as one. Both delivery probes
+now abort and report a harness fault when their own preconditions are unmet.
+The guards are deliberately provider-specific: Mail.tm signals a dead mailbox
+with `401`, whereas Guerrilla signals a dead session with `200` and no auth error,
+so a status check alone would never have caught it there. Neither guard should be
+assumed to generalise to a provider that has not been measured.
 
 ### 5.2 Still unverified
 
 | Check | Why it is unverified | What it blocks |
 |---|---|---|
-| `guerrilla.long-run-expiry` | Requires holding a session open past the provider's expiry window. Neither provider advertises a TTL. | `MailboxStatus: expired` semantics |
-| `mailtm.long-run-expiry` | Same. No TTL is exposed by the Mail.tm API. | `MailboxStatus: expired` semantics |
+| `guerrilla.long-run-expiry` | Requires holding a session open past the provider's expiry window. Neither provider advertises a TTL. There is no equivalent Mail.tm probe; the same gap applies to it. | `MailboxStatus: expired` semantics |
 | Provider reputation across senders | One sender proved delivery. Bulk senders that commonly blocklist disposable domains are untested. | Any durability claim in marketing or the privacy model |
 
 These are genuine gaps and must not be reported as successes.

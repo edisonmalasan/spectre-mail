@@ -117,6 +117,18 @@ export async function runGuerrillaProbes(runner) {
     const error = authError(body);
     if (error) return failed("set_email_user rejected the requested local part", error);
     if (!body?.email_addr) {
+      // The session may still have been rebound even though no address came back.
+      // Re-read it so no later probe advertises a stale address. Skipping this
+      // leaves exactly the drift the delivery probe depends on.
+      const reread = await guerrilla({ f: "check_email", seq: 0, sid_token: ctx.sid });
+      const rereadAddress = reread.body?.email_addr ?? null;
+      if (rereadAddress && rereadAddress !== ctx.address) {
+        ctx.address = rereadAddress;
+        return unsupported(
+          `set_email_user reported no address, but the session now serves ${rereadAddress}; the tracked address was updated so the delivery probe cannot advertise a stale one`,
+          { address: ctx.address },
+        );
+      }
       return unsupported(
         "set_email_user did not report an address; the provider may not allow a chosen local part",
       );
@@ -150,6 +162,9 @@ export async function runGuerrillaProbes(runner) {
     }
     const list = body?.list ?? [];
     ctx.messages = list;
+    // Record what is already in the inbox so the delivery probe cannot mistake the
+    // provider's own "Welcome to Guerrilla Mail" message for external delivery.
+    ctx.knownMailIds = new Set(list.map((m) => m.mail_id));
     return passed(`${list.length} message(s) in the inbox`, {
       status: response.status,
       count: list.length,
