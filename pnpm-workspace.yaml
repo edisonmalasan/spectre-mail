@@ -1,0 +1,28 @@
+# SpectreMail workspace.
+#
+# Only apps/* and packages/* are members. `tests/provider-spike` is deliberately
+# EXCLUDED, for three reasons recorded in
+# openspec/changes/archive/2026-10-02-monorepo-foundation/design.md:
+#
+#   1. It carries playwright as a dev dependency. As a member, every root
+#      `pnpm install` would pull Playwright's package graph for contributors who
+#      will never run it.
+#   2. It is hand-rolled .mjs with no types, so it could not satisfy the
+#      workspace typecheck or lint gates without permanent suppressions.
+#   3. Excluding it makes "product code must never import the spike" structurally
+#      impossible rather than a documented rule.
+#
+# It keeps its own package.json and its own pnpm-lock.yaml. To run it:
+#   pnpm --dir tests/provider-spike install
+# See the spike README.
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# pnpm 12 blocks dependency build scripts by default. esbuild's postinstall
+# places its platform binary, and Vite cannot run without it, so it is the one
+# package allowed to build. Declared here rather than via an interactive
+# `pnpm approve-builds` so the allow-list is reviewable in the diff.
+# pnpm 12 reads settings from this file, not from package.json.
+allowBuilds:
+  esbuild: true

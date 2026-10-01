@@ -1,0 +1,13 @@
+{
+  "version": "0.0.0",
+  "name": "@spectre-mail/storage",
+  "description": "Shared SpectreStorage contract plus platform adapters: web IndexedDB and extension storage.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "private": true
+}

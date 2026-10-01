@@ -1,0 +1,13 @@
+{
+  "version": "0.0.0",
+  "name": "@spectre-mail/mail-parser",
+  "description": "Safe text extraction, OTP detection, verification-link detection, message classification helpers.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "private": true
+}

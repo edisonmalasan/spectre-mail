@@ -1,0 +1,38 @@
+# Prettier scope.
+#
+# Principle: at M1, formatting governs the code this milestone creates. It does
+# NOT retroactively reformat the repository. Running `prettier --write .` across
+# everything touched 41 pre-existing files — the whole M0 spike, the 2000-line
+# roadmap, and the promoted capability spec — which is unrelated churn that would
+# bury this milestone's actual change in a reformat diff. Each exclusion below
+# records why that file is not governed.
+
+# Generated and machine-written.
+node_modules/
+dist/
+build/
+coverage/
+.vite/
+*.tsbuildinfo
+pnpm-lock.yaml
+
+# Installed skill content is generated. AGENTS.md forbids editing it by hand, and
+# reformatting it would create a diff against its upstream source of truth.
+.agents/
+
+# The M0 measurement harness. It is disposable, is not a workspace member, is
+# governed by its own contract and self-test, and has established formatting that
+# a reformat would obscure when it is eventually retired.
+tests/provider-spike/
+
+# OpenSpec workflow output. Specs and change artifacts have their own authored
+# formatting, and the promoted specs in openspec/specs/ are the behavioural
+# source of truth — reformatting their bytes is churn with no benefit.
+openspec/
+
+# Long-form pre-existing documents, each with established formatting across
+# thousands of lines. Reformatting them would produce a diff unrelated to any
+# change. New documents created by this milestone are NOT excluded.
+AGENTS.md
+docs/ROADMAP.md
+docs/PROVIDERS.md
