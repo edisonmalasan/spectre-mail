@@ -132,3 +132,20 @@ The spike SHALL be isolated from production product code, SHALL NOT be imported 
 - **WHEN** a spike run finishes
 - **THEN** the summary reports counts of passed, failed, unsupported, and unverified checks
 - **AND** the summary does not describe an unverified check as a success
+
+#### Scenario: A probe cannot run because of the harness rather than the provider
+
+- **WHEN** a probe's own preconditions are not met, such as polling a mailbox whose
+  credentials were revoked before the probe ran
+- **THEN** the probe SHALL NOT record the outcome as a provider limitation or as
+  `unverified`, because both misrepresent a harness fault as a provider finding
+- **AND** it SHALL report the outcome as a harness fault that identifies the
+  precondition which was violated
+- **AND** it SHALL abort promptly rather than consuming its whole timeout against a
+  resource that cannot produce the awaited result
+
+> Added after implementation. Real delivery was first recorded as `unverified` for
+> both providers because the spike deleted the Mail.tm mailbox before polling it
+> and advertised a stale Guerrilla address. An `unverified` outcome for a harness
+> fault is indistinguishable from a genuine provider gap, and would have been
+> written up as one. See `docs/PROVIDERS.md` §5.1.

@@ -1,0 +1,18 @@
+{
+  "name": "@spectre-mail/provider-spike",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "DISPOSABLE feasibility harness for SpectreMail milestone M0. Proves provider mailbox lifecycles against the real APIs. Not product code, not importable by applications.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "spike": "node src/run.mjs",
+    "spike:interactive": "node src/run.mjs --interactive",
+    "spike:selftest": "node src/selftest.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}

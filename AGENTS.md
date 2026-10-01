@@ -102,33 +102,48 @@ Pin versions when exact versions matter.
 
 
 
-- Language(s):
+- Language(s): JavaScript (ESM, `.mjs`) — the only language currently in the repository.
+  TypeScript is required by the roadmap for `apps/*` and `packages/*` but is not installed yet.
 
-- Framework(s):
+- Framework(s): none installed. The roadmap targets React + Vite for the website
+  and React + Manifest V3 for the extension; neither exists yet.
 
-- Runtime(s):
+- Runtime(s): Node.js `v26.10.0` (verified).
 
-- Frontend / client:
+- Frontend / client: none yet.
 
-- Backend / server:
+- Backend / server: none. Intentionally `$0` paid backend infrastructure; see
+  `docs/PROVIDERS.md` for why a SpectreMail-operated proxy is not a permitted
+  workaround for Mail.tm.
 
-- Database / storage:
+- Database / storage: none yet. Roadmap target is IndexedDB in the web client and
+  extension storage in the extension, behind a shared `SpectreStorage` contract
+  (milestones M5–M6).
 
-- ORM / data access:
+- ORM / data access: none yet.
 
-- Package manager:
+- Package manager: pnpm `12.6.0` (verified). A pnpm workspace is **not** initialised
+  yet — that is milestone M1.
 
-- Build tooling:
+- Build tooling: none installed. Roadmap target is Vite (web) and an extension build
+  step (M1/M8).
 
-- Testing:
+- Testing: a disposable Node.js probe harness at `tests/provider-spike/`
+  (`node:test`-free, hand-rolled, with a self-test at
+  `pnpm --dir tests/provider-spike spike:selftest`). Vitest and Playwright-as-test-runner
+  are roadmap targets for M1 and are not installed. Playwright `1.63.0` **is**
+  installed as a spike-only dev dependency for browser-context probes.
 
-- Infra / deploy:
+- Infra / deploy: none. No CI workflow exists yet (roadmap M1 task).
 
-- External services:
+- External services: `https://api.mail.tm` and `https://api.guerrillamail.com`.
+  Both are exercised live by the M0 spike. See `docs/PROVIDERS.md` for measured
+  behaviour, rate limits, and terms.
 
-- Specification workflow: OpenSpec
+- Specification workflow: OpenSpec `1.13.2` (verified CLI version)
 
-- Optional later infrastructure:
+- Optional later infrastructure: none. Any own-domain mail infrastructure is
+  explicitly a M15 decision, not a V1 requirement.
 
 
 
@@ -392,9 +407,13 @@ Current entry point:
 
 ```bash
 
-[VERIFIED START / DEVELOPMENT COMMAND]
+pnpm --dir tests/provider-spike spike
 
 ```
+
+There is **no application to start yet.** The only runnable entry point is the
+disposable M0 provider spike. `pnpm dev` / `pnpm dev:web` do not exist and must
+not be documented until M1 creates them.
 
 
 
@@ -404,9 +423,13 @@ Current dependency manifest / install command:
 
 ```bash
 
-[VERIFIED DEPENDENCY INSTALL COMMAND]
+pnpm --dir tests/provider-spike install
+pnpm --dir tests/provider-spike exec playwright install chromium
 
 ```
+
+`tests/provider-spike/package.json` is the only manifest in the repository. It is
+deliberately **not** a pnpm workspace member, because no workspace exists until M1.
 
 
 
@@ -416,9 +439,27 @@ Current baseline syntax / compile check:
 
 ```bash
 
-[VERIFIED SYNTAX / COMPILE COMMAND]
+# Parses every spike module without executing it. This is a syntax check only.
+node --check tests/provider-spike/src/run.mjs
+node --check tests/provider-spike/src/probe-runner.mjs
+node --check tests/provider-spike/src/probes/mailtm.mjs
+node --check tests/provider-spike/src/probes/guerrilla.mjs
+node --check tests/provider-spike/src/probes/browser.mjs
+node --check tests/provider-spike/src/probes/delivery.mjs
+node --check tests/provider-spike/src/probes/cors-headers.mjs
+node --check tests/provider-spike/src/senders/smtp.mjs
+node --check tests/provider-spike/src/senders/index.mjs
+node --check tests/provider-spike/src/browser/extension-fixture.mjs
+node --check tests/provider-spike/src/report.mjs
+node --check tests/provider-spike/src/selftest.mjs
 
 ```
+
+Verified 2026-10-01: all 12 spike modules parse.
+
+**This proves the spike parses. It proves nothing about behaviour, and nothing at
+all about providers.** There is no type-check, lint, build, or application
+runtime command yet — those arrive with M1.
 
 
 
@@ -456,9 +497,9 @@ Important:
 
 
 
-- The supported development/runtime environment is `[SUPPORTED ENVIRONMENT / VERSION / OS]`.
+- The supported development/runtime environment is **Windows 11, Node.js v26.10.0, pnpm 12.6.0** (all verified 2026-10-01).
 
-- Executed dependency/package consistency check: `[VERIFIED COMMAND OR N/A]`.
+- Executed dependency/package consistency check: `pnpm --dir tests/provider-spike install` (verified 2026-10-01, succeeds; a lockfile is committed). No workspace-wide check exists yet.
 
 - Run risky, state-mutating, legacy, or preservation checks in an appropriate disposable environment when required.
 
@@ -489,6 +530,123 @@ utility, generator, test suite, asset processor, schema checker, etc.
 Do not retain examples that do not apply to the project.
 
 -->
+
+
+
+### Verified project tool: M0 provider spike harness
+
+
+
+Verified on `Windows 11 / Node.js v26.10.0 / pnpm 12.6.0` on 2026-10-01:
+
+
+
+```bash
+
+pnpm --dir tests/provider-spike install
+pnpm --dir tests/provider-spike exec playwright install chromium
+pnpm --dir tests/provider-spike spike:selftest
+pnpm --dir tests/provider-spike spike
+pnpm --dir tests/provider-spike spike:interactive
+
+```
+
+
+
+See `tests/provider-spike/README.md` for the harness contract and outcome
+vocabulary, and `docs/PROVIDERS.md` for the findings a run produced.
+
+
+
+These commands establish the measured behaviour of `api.mail.tm` and
+`api.guerrillamail.com`, including the mailbox lifecycles, CORS reachability from
+a real web page and a real MV3 extension context, advertised rate limits, and the
+absence of any real-time transport. `spike:selftest` additionally establishes the
+harness's own contract: the four outcome classes, that a failing probe never
+aborts a run, and that both run artifacts are written.
+
+
+
+They do **not** establish that a real external message can be received. That
+check is `unverified` until a maintainer either sends a message in
+`spike:interactive` mode or configures a sender. They do not establish mailbox or
+session expiry over time. They do not test any product behaviour, because no
+product exists. The spike is disposable and must never be imported by an
+application.
+
+
+
+Exit codes: `0` when no probe failed, `1` when at least one probe failed.
+`unsupported` and `unverified` are findings, not failures, and never change the
+exit code — but they are never reported as passes.
+
+
+
+### Verified project tool: OpenSpec
+
+
+
+Verified on `Windows 11` on 2026-10-01:
+
+
+
+```bash
+
+openspec --version                       # 1.13.2
+openspec validate m0-provider-spike --strict
+openspec status --change m0-provider-spike
+```
+
+
+
+See `openspec/` and `.agents/skills/openspec-*` for the workflow and artifact
+format.
+
+
+
+These commands establish that the active change's planning artifacts exist, are
+internally consistent, and satisfy the schema's validation rules.
+
+
+
+They do **not** establish that the implementation matches the change. Validation
+is a static check over `proposal.md`, the spec delta, `design.md`, and
+`tasks.md`. Only reading the implementation and the recorded run evidence
+establishes that.
+
+
+
+### Verified project tool: baseline syntax check
+
+
+
+Verified on `Windows 11 / Node.js v26.10.0` on 2026-10-01:
+
+
+
+```bash
+
+node --check tests/provider-spike/src/run.mjs
+node --check tests/provider-spike/src/probe-runner.mjs
+node --check tests/provider-spike/src/probes/mailtm.mjs
+node --check tests/provider-spike/src/probes/guerrilla.mjs
+node --check tests/provider-spike/src/probes/browser.mjs
+node --check tests/provider-spike/src/probes/delivery.mjs
+node --check tests/provider-spike/src/probes/cors-headers.mjs
+node --check tests/provider-spike/src/senders/smtp.mjs
+node --check tests/provider-spike/src/report.mjs
+node --check tests/provider-spike/src/selftest.mjs
+
+```
+
+
+
+These commands establish that every spike module parses as ESM.
+
+
+
+They do **not** establish any behaviour, correctness, or provider fact. There is
+no type-check, lint, or build command in this repository yet; do not claim one.
 
 
 
