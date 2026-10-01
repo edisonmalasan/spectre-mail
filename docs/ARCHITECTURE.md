@@ -215,6 +215,10 @@ local identifier — not to widen the exclusion.
   implemented.
 - `docs/PROVIDERS.md` — the measured provider evidence this architecture is built
   around.
-- `openspec/specs/provider-abstraction/spec.md` — the provider capability contract.
-- `openspec/specs/monorepo-foundation/spec.md` — the layout and boundary contract.
-- `openspec/specs/build-and-verification/spec.md` — the toolchain contract.
+- `openspec/specs/provider-abstraction/spec.md` — the provider capability contract
+  (live).
+- `openspec/changes/monorepo-foundation/specs/monorepo-foundation/spec.md` — the
+  layout and boundary contract. Specified but **not yet promoted**: it moves to
+  `openspec/specs/monorepo-foundation/spec.md` at this change's sync stage.
+- `openspec/changes/monorepo-foundation/specs/build-and-verification/spec.md` —
+  the toolchain contract, likewise promoted at sync.

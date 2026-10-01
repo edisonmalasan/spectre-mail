@@ -125,11 +125,26 @@ allowed M2 to violate it first. The roadmap's M1 goal is explicitly to stop
 "feature code spread[ing] into the wrong locations".
 
 **On the provider-field-name check.** It matches a fixed list of field names
-measured from both providers' responses, recorded in `docs/PROVIDERS.md`. It is
-a known-weak heuristic — a variable may legitimately share a name — so it is
-scoped to `apps/*`, where provider wire format has no legitimate reason to
-appear, and it reports the offending file and line rather than just failing.
-It is a tripwire, not a proof of absence.
+measured from both providers' responses. It is a known-weak heuristic — a
+variable may legitimately share a name — so it is scoped to `apps/*`, where
+provider wire format has no legitimate reason to appear, and it reports the
+offending file and line rather than just failing. It is a tripwire, not a proof
+of absence.
+
+*Provenance corrected by the M1 verification pass.* This originally cited
+`docs/PROVIDERS.md` for all seven names, which is inaccurate: `mail_id`,
+`sid_token`, `content_type`, and `ratelimit-policy` appear there, but
+`mail_from`, `mail_date`, and `hydra:member` are recorded in the M0 spike source
+and its run artifacts instead. The list is sound; the citation was not. Fixed
+here and in `tests/architecture/boundaries.test.ts`.
+
+**Two assertions were narrower than the rules they claimed to enforce.** The
+verification pass proved that the import check matched only `from "…"`, missing
+dynamic `import("…")` and bare side-effect `import "…"`, and that the adapter
+check was scoped to `packages/` and `apps/`, so a root-level or `tests/` module
+could name an adapter freely. Both are now wider than the M1 original. The lesson
+generalises: an assertion can pass for the wrong reason, and "the test is green"
+is not the same claim as "the rule is enforced".
 
 ### 5. Lint, format, and test stay separate commands
 

@@ -139,10 +139,20 @@ pnpm --dir tests/provider-spike install
 Every command below was actually executed on 2026-10-02 and passed. Nothing else
 is verified yet.
 
+These results were reached **after** a defect was found and fixed. An independent
+verification pass discovered that `pnpm format:check` and `pnpm verify` were
+failing on Windows — the environment this project supports — because the
+repository pinned `endOfLine: "lf"` for Prettier without shipping a
+`.gitattributes`, so Git checked files out as CRLF. CI stayed green throughout,
+because `core.autocrlf` does nothing on Linux. `.gitattributes` now makes LF a
+committed fact; see [`.gitattributes`](.gitattributes). The lesson is recorded
+here rather than quietly dropped: **a green CI run is not evidence that a gate
+works on your machine.**
+
 | Command                              | What it proves                                                        | What it does **not** prove                                                                         |
 | ------------------------------------ | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | `pnpm install`                       | The workspace resolves and installs from the committed lockfile.      | Anything about providers or product behaviour.                                                     |
-| `pnpm typecheck`                     | All 8 workspace projects type check under the shared strict config.   | That the types are useful — there is no domain model yet.                                          |
+| `pnpm typecheck`                     | All 7 workspace projects type check under the shared strict config.   | That the types are useful — there is no domain model yet.                                          |
 | `pnpm lint`                          | ESLint passes.                                                        | Type correctness; `pnpm typecheck` owns that.                                                      |
 | `pnpm format:check`                  | Prettier passes on the files this repository governs.                 | That historical documents are formatted; those are deliberately excluded.                          |
 | `pnpm test`                          | 7 architecture boundary assertions pass.                              | Product behaviour. There is none yet, and no product test exists.                                  |

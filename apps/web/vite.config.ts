@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react";
 
 // SpectreMail website client. M1 establishes that this builds, lints, type
 // checks, and serves; it does not yet contain product behaviour. See
-// openspec/changes/archive/2026-10-02-monorepo-foundation/design.md.
+// openspec/changes/monorepo-foundation/design.md.
 export default defineConfig({
   plugins: [react()],
   server: {

@@ -736,7 +736,10 @@ workspace and is therefore not covered by them.
 
 ### Verified project tool: workspace verification gates
 
-Verified on `Windows 11 / Node.js v26.10.0 / pnpm 12.6.0` on 2026-10-02:
+Verified on `Windows 11 / Node.js v26.10.0 / pnpm 12.6.0` on 2026-10-02, and
+**re-verified after `.gitattributes` was added.** All exited `0` on an LF working
+tree, which `.gitattributes` now enforces on every platform — see the third
+limitation below, because this result was once false on Windows.
 
 
 
@@ -759,7 +762,7 @@ sequence. All exited `0`.
 Observed results:
 
 ```text
-pnpm typecheck     8/8 workspace projects pass tsc --noEmit
+pnpm typecheck     7 of 7 workspace projects run tsc --noEmit
 pnpm lint          exit 0
 pnpm format:check  All matched files use Prettier code style
 pnpm test          1 file, 7 assertions passed
@@ -775,7 +778,7 @@ provider adapter, no storage, and no mailbox feature yet, so no test here can
 assert any. Seven boundary assertions are not coverage of a product that does not
 exist.
 
-Two specific limitations worth not misreading:
+Three specific limitations worth not misreading:
 
 - **`pnpm build` builds the website only.** Shared packages are consumed as
   TypeScript source, so there is nothing to emit for them. Package correctness is
@@ -787,11 +790,31 @@ Two specific limitations worth not misreading:
   field name under `apps/`, a provider adapter identifier outside
   `packages/providers`, a workspace reference to the spike, and the spike added as
   a workspace member. A run with the test directory removed was also confirmed to
-  exit `1`, because `passWithNoTests` is off.
+  exit `1`, because `passWithNoTests` is off. The M1 independent verification
+  pass then found that two of those assertions were **narrower than the rule they
+  claimed to enforce**, and widened them: the import rule had missed dynamic
+  `import("…")` and bare side-effect `import "…"`, and the adapter rule had been
+  scoped to `packages/` and `apps/` so a root-level or `tests/` module could name
+  an adapter freely. Both widened cases were then proven to fail. An assertion that
+  passes for the wrong reason is not a passing assertion.
+- **`format:check` is sensitive to working-tree line endings, and was silently
+  broken on Windows until `.gitattributes` existed.** `.prettierrc.json` pins
+  `"endOfLine": "lf"`, but with no `.gitattributes` the working-tree line ending
+  fell to each contributor's `core.autocrlf`. Stock Git for Windows ships
+  `core.autocrlf=true` (set in the system gitconfig, not by any local override), so
+  a Windows checkout materialised CRLF and `format:check` failed on 34 files with
+  `pnpm verify` exiting `1` — while CI on Linux stayed green, because `autocrlf`
+  is inert there. Found by the independent verification pass, not by any test,
+  because every gate that executes code passed. `.gitattributes` (`* text=auto
+  eol=lf`) now makes LF a committed fact and overrides a contributor's local
+  setting. **Keep that file. Do not remove it on the belief that "git handles line
+  endings".** Note that adding it does not repair an existing working tree; the
+  tracked files must be re-checked out.
 
 See `docs/ARCHITECTURE.md` for what each boundary is for, and
-`openspec/specs/build-and-verification/spec.md` for the contract these commands
-implement.
+`openspec/changes/monorepo-foundation/specs/build-and-verification/spec.md` for
+the contract these commands implement. It is specified but not yet promoted to
+`openspec/specs/`; that happens at this change's sync stage.
 
 
 

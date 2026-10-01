@@ -23,17 +23,36 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor:** M1 - Monorepo Foundation (**implementing**). All seven M1
-acceptance criteria were executed and passed on 2026-10-02. The change is at
-apply; verification, sync, and archive remain.
+**Roadmap cursor:** M1 - Monorepo Foundation (**verifying**). Apply merged as PR #8
+(`5ad51d7`). An independent verification pass then found a blocking defect and
+several documentation errors; repairs are in flight. Sync and archive remain.
+
+**Verification found a gate that was failing and being recorded as passing.** On
+Windows - the environment `AGENTS.md` declares supported - `pnpm format:check`
+failed on 34 files and `pnpm verify` exited `1`. Cause: `.prettierrc.json` pins
+`endOfLine: "lf"` but the repository shipped no `.gitattributes`, so the
+working-tree line ending came from `core.autocrlf`, which stock Git for Windows
+sets to `true` in the system gitconfig. CI stayed green across three runs because
+`autocrlf` is inert on Linux. Fixed by `.gitattributes` (`* text=auto eol=lf`).
+
+Worth preserving as a process lesson: **every gate that executes code passed.**
+The defect was only visible by reading the recorded results against the declared
+environment. That is precisely what an independent verification pass is for, and
+it is why task 8.11 exists rather than being a formality.
+
+The same pass also found two boundary assertions that were **narrower than the
+rule they claimed to enforce** - the import rule missed dynamic and bare
+side-effect imports, and the adapter rule was scoped so root-level and `tests/`
+modules could name an adapter freely. Both are widened and the previously
+escaping cases are now proven to fail.
 
 **OpenSpec change:** `monorepo-foundation`
-(`openspec/changes/monorepo-foundation/`) - proposed 2026-10-02, merged as PR #7.
-Establishes the pnpm workspace, the planned structure, shared TypeScript
-configuration, linting, formatting, a test runner, CI, and root scripts, and adds
-the `monorepo-foundation` and `build-and-verification` capabilities. Those two
-specs are **not yet promoted**; only `provider-abstraction` is live in
-`openspec/specs/` until the sync stage.
+(`openspec/changes/monorepo-foundation/`) - proposed 2026-10-02, merged as PR #7;
+apply merged as PR #8 (`5ad51d7`). Establishes the pnpm workspace, the planned
+structure, shared TypeScript configuration, linting, formatting, a test runner, CI,
+and root scripts, and adds the `monorepo-foundation` and `build-and-verification`
+capabilities. Those two specs are **not yet promoted**; only `provider-abstraction`
+is live in `openspec/specs/` until the sync stage.
 
 `provider-role-decision` is archived at
 `openspec/changes/archive/2026-10-02-provider-role-decision/` (PRs #4, #5, #6),
@@ -44,13 +63,13 @@ and M0's `m0-provider-spike` is archived at
 |---|---|---|
 | M0 Provider Compatibility Spike | **archived** | Real external delivery observed on **both** providers. Provider roles decided. Long-run expiry still unverified (no provider exposes a TTL in its API). Gate satisfied. |
 | Provider-role specification | **archived** | Documentation and specification only. No product code. `provider-abstraction` is a live capability spec: 9 requirements, 18 scenarios. |
-| M1 Monorepo Foundation | **implementing** | Change `monorepo-foundation` at apply. Structure and tooling only: no product behaviour, no extension build, no visual design. All 7 acceptance criteria pass; each was proven non-vacuous. |
+| M1 Monorepo Foundation | **verifying** | Change `monorepo-foundation`; apply merged as PR #8. Structure and tooling only: no product behaviour, no extension build, no visual design. A verification pass found a failing format gate that was being recorded as passing; repairs in flight. |
 | M2-M15 | not started | - |
 
 **OpenSpec lifecycle stage:** M0 and the provider-role change are both complete
-(propose -> apply -> verify -> archive). M1's foundation change is at **apply**:
-46 of 47 tasks complete. Task 8.11, the independent vacuity check, is
-deliberately left unticked for the verification stage.
+(propose -> apply -> verify -> archive). M1's foundation change is at **verify**:
+46 of 47 tasks were complete at apply, and task 8.11 - the independent vacuity
+check - has now been performed and is the step that surfaced the defect above.
 
 **Next required change:** none beyond `monorepo-foundation`. After it archives,
 the cursor advances to **M2 - Shared Domain Model**.
