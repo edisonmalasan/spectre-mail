@@ -105,9 +105,12 @@ This gate was previously reported as **unsatisfied** because the delivery probes
 were structurally incapable of passing. Two harness defects caused that — the
 Mail.tm mailbox was deleted before delivery polled it (revoking the token), and
 the Guerrilla address printed to the maintainer was stale after a rename. Both
-were measured against the live API, both are fixed, and the poll loop now aborts
-on `401` so a harness fault can never again be recorded as a provider finding.
-See `docs/PROVIDERS.md` §5.1.
+were measured against the live API, both are fixed, and both poll loops now abort
+and report a harness fault when their own preconditions are unmet — using the
+signal each provider actually returns: `401` for Mail.tm, and an `error` key with
+no `list` for Guerrilla, whose `auth.success` is `true` even when the session is
+dead. These guards are provider-specific and must not be generalised to a provider
+that has not been measured the same way. See `docs/PROVIDERS.md` §5.1.
 
 **What remains open.** Mailbox/session expiry is still unverified for both
 providers — neither advertises a TTL — so `MailboxStatus: expired` must not assume

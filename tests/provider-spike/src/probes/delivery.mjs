@@ -87,7 +87,7 @@ async function pollMailTm(token, { timeoutMs, intervalMs = 5000 }) {
  */
 async function pollGuerrilla(
   sid,
-  { timeoutMs, intervalMs = 5000, expectFrom = null, knownMailIds = new Set() },
+  { timeoutMs, intervalMs = 5000, knownMailIds = new Set() },
 ) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -98,26 +98,36 @@ async function pollGuerrilla(
     const response = await fetch(url);
     const body = await readJson(response);
 
-    // Surface an explicit auth failure rather than reading it as an empty inbox.
-    const authError =
-      body?.error ?? body?.error_code ?? body?.auth_error ?? body?.result ?? null;
-    if (!response.ok || authError) {
+    // Detect a dead session. Measured shapes from the live API:
+    //   healthy  -> 200, { auth: { success: true, error_codes: [] }, list: [...] }
+    //   dead     -> 200, { error: "Please call get_email_address or set_email_user first",
+    //                       auth: { success: true, error_codes: [] } }   <- note: NO list
+    // So `auth.success` is true in BOTH cases and cannot be used here; the usable
+    // signals are the `error` key and the absence of `list`. Only measured keys
+    // are checked — an unmeasured one could reject a healthy mailbox and turn a
+    // real delivery check into a false harness fault.
+    const sessionError = typeof body?.error === "string" ? body.error : null;
+    if (!response.ok || sessionError || !Array.isArray(body?.list)) {
       throw new Error(
-        `the Guerrilla Mail session was rejected (HTTP ${response.status}${
-          authError ? `, ${String(authError)}` : ""
-        }) — this mailbox cannot observe any message`,
+        `the Guerrilla Mail session is unusable (HTTP ${response.status}` +
+          `${sessionError ? `, ${sessionError}` : ""}` +
+          `${Array.isArray(body?.list) ? "" : ", no list in the response"}` +
+          `) — this mailbox cannot observe any message`,
       );
     }
 
-    const list = body?.list ?? [];
+    const list = body.list;
     // Ignore mail that predates the delivery check, and mail the provider itself
     // generated. Guerrilla seeds the inbox with its own welcome message, which
     // arrives with HTTP 200 like any other, so neither check alone is sufficient.
     const candidate = list.find((m) => {
       if (knownMailIds.has(m.mail_id)) return false;
       const from = String(m.mail_from ?? "").toLowerCase();
-      if (from.includes("@guerrillamail.com")) return false;
-      if (expectFrom && !from.includes(String(expectFrom).toLowerCase())) return false;
+      // The provider's own domain covers both @guerrillamail.com and the
+      // @guerrillamailblock.com mailboxes, which is what it actually sends from.
+      if (from.endsWith("@guerrillamail.com") || from.endsWith("@guerrillamailblock.com")) {
+        return false;
+      }
       return true;
     });
 

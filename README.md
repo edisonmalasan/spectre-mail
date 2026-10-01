@@ -126,8 +126,8 @@ Every command below was actually executed. Nothing else is verified yet.
 |---|---|---|
 | `pnpm --dir tests/provider-spike install` | The spike manifest resolves and installs. | Anything about providers or the product. |
 | `pnpm --dir tests/provider-spike spike:selftest` | The harness records `passed`/`failed`/`unsupported`/`unverified` correctly, a failing probe never aborts a run, and both run artifacts are written. | Anything about real providers — it issues zero network requests. |
-| `pnpm --dir tests/provider-spike spike` | The real Mail.tm and Guerrilla Mail lifecycles, CORS behaviour, and browser-context reachability, as recorded in `docs/PROVIDERS.md`. | Real external message delivery, or long-run mailbox expiry. Both are recorded as `unverified`. |
-| `pnpm --dir tests/provider-spike spike:interactive` | Same, plus it prints a live address and waits for you to send it a real message. | Anything if you don't send a message — the check reports `unverified`. |
+| `pnpm --dir tests/provider-spike spike` | The real Mail.tm and Guerrilla Mail lifecycles, CORS behaviour, and browser-context reachability, as recorded in `docs/PROVIDERS.md`. | Real external message delivery — it has no sender, so that check reports `unverified` unless you use `spike:interactive`. Also not long-run mailbox expiry. |
+| `pnpm --dir tests/provider-spike spike:interactive` | Same, plus it prints a live address and waits for you to send it a real message. This is how delivery was verified. | Anything if you don't send a message — the check reports `unverified`. |
 | `openspec validate m0-provider-spike --strict` | The active OpenSpec change is internally consistent. | That the implementation matches it. |
 
 The spike exits non-zero when a probe **fails**. `unsupported` and `unverified`

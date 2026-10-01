@@ -1,9 +1,13 @@
 # SpectreMail Provider Findings
 
 > **Status:** M0 provider compatibility spike — findings from a real run.
-> **Primary evidence run:** `2026-10-01T18-08-41-251Z` (36 probes: 26 passed,
+> **Delivery evidence run:** `2026-10-01T18-08-41-251Z` (36 probes: 26 passed,
 > 6 failed, 3 unsupported, 1 unverified) — includes real external delivery on
 > **both** providers.
+> **Fix-validation run:** `2026-10-01T19-07-42-576Z` (36 probes: 25 passed, 5 failed,
+> 3 unsupported, 3 unverified) — run at the corrected code state, validating
+> the harness fixes in §5.1. Its own delivery checks are `unverified`: no message
+> was sent during its window, so it adds no delivery evidence.
 > **Earlier run:** `2026-10-01T17-20-33-861Z` (25 passed, 5 failed, 3 unsupported,
 > 3 unverified) — structural evidence; its delivery results were invalidated by two
 > harness defects, see §5.1.
@@ -352,8 +356,10 @@ longer existed. No sender could ever have been observed.
 *Fix:* deletion moved into `runMailTmDeletionProbes`, which `run.mjs` now invokes
 **after** the delivery probes. The poll loop also now aborts immediately on
 `401`/`403` and reports `HARNESS FAULT, not a provider result`. The post-delete
-probe now also records `GET /messages` after deletion, so the `401` that
-justifies the guard is measured in the artifact rather than asserted in a comment.
+probe now also measures `GET /messages` after deletion. Run
+`2026-10-01T19-07-42-576Z` records it: `deleteStatus: 204`, `meAfterDelete: 401`,
+`tokenAfterDelete: 401`, `messagesAfterDelete: 401`. The `401` that justifies the
+abort guard is therefore measured, not asserted.
 
 **Defect 2 — the Guerrilla address printed to the maintainer was stale.** The
 `set_email_user` probe renamed the mailbox but did not update the tracked
@@ -366,7 +372,8 @@ API: `set_email_user` returns a different `email_addr`, confirming the drift.
 re-reads the served address if the rename reports none, so the failure branches
 cannot leave a stale address behind.
 
-**A third defect, found by review rather than by running:** the delivery probe
+**Defect 3 — the delivery probe could have counted the provider's own mail,
+found by review rather than by running.** The delivery probe
 matched `list[0]` with no sender filter. Guerrilla seeds the inbox with its own
 "Welcome to Guerrilla Mail" message, which arrives with HTTP 200 like any other,
 so the probe could have recorded `passed` using the provider's own welcome mail as
@@ -375,7 +382,7 @@ the cited run, but the false-pass path was open. The probe now excludes messages
 that predate the check and messages from the provider's own domain, and a
 self-test pins that behaviour.
 
-**Defect 3 — a `ReferenceError` in the deletion probe, present in the cited run.**
+**Defect 4 — a `ReferenceError` in the deletion probe, present in the cited run.**
 Run `2026-10-01T18-08-41-251Z` records `mailtm.delete-account` as
 `[FAILED] ReferenceError: authHeaders is not defined`, because the first
 extraction of `runMailTmDeletionProbes` lost that closure. It was fixed, and a
@@ -386,14 +393,27 @@ The delivery results in that same run are unaffected: they were produced by the
 correct poll logic, and the failure was in the deletion probe that runs after
 them.
 
+**Measured Guerrilla session shapes** (live, 2026-10-02). The guard keys only on
+signals observed here, because an unmeasured key could reject a healthy mailbox
+and turn a real delivery into a false harness fault:
+
+```text
+healthy  200  {"list":[...],"auth":{"success":true,"error_codes":[]}}
+dead     200  {"error":"Please call get_email_address or set_email_user first",
+               "auth":{"success":true,"error_codes":[]}}      <- no "list"
+```
+
+`auth.success` is `true` in **both** cases, so it cannot be used to detect a dead
+session — the project's own `authError()` helper in `probes/guerrilla.mjs` is
+blind to this specific failure. The usable signals are the `error` key and the
+absence of `list`, both of which the delivery probe now checks.
+
 **Why this matters beyond M0:** a harness that reports `unverified` for its own
 structural reasons is worse than one that fails loudly, because it looks like a
 provider limitation and would have been written up as one. Both delivery probes
 now abort and report a harness fault when their own preconditions are unmet.
-The guards are deliberately provider-specific: Mail.tm signals a dead mailbox
-with `401`, whereas Guerrilla signals a dead session with `200` and no auth error,
-so a status check alone would never have caught it there. Neither guard should be
-assumed to generalise to a provider that has not been measured.
+The guards are deliberately provider-specific and must not be generalised to a
+provider that has not been measured the same way.
 
 ### 5.2 Still unverified
 

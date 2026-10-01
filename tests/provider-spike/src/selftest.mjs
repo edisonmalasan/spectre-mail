@@ -195,10 +195,14 @@ await (async () => {
       "a rejected Guerrilla session is a harness fault rather than an empty inbox",
       async () => {
         const runner = new ProbeRunner(quiet);
-        // Guerrilla does not answer 401 for a dead session; it can surface an auth
-        // error with HTTP 200. Either way it must abort as a harness fault.
+        // Measured dead-session shape: HTTP 200 with an `error` key and no `list`,
+        // and `auth.success` still true. Any of those signals must abort the poll
+        // as a harness fault rather than reading it as an empty inbox.
         stubFetch(async () =>
-          jsonResponse(200, { error: "invalid sid_token", list: [] }),
+          jsonResponse(200, {
+            error: "Please call get_email_address or set_email_user first",
+            auth: { success: true, error_codes: [] },
+          }),
         );
 
         await runDeliveryProbes(runner, {
@@ -244,8 +248,13 @@ await (async () => {
       async () => {
         const runner = new ProbeRunner(quiet);
         // Guerrilla seeds the inbox with its own mail. Matching list[0] would have
-        // recorded a false pass.
-        const welcome = { mail_id: "1", mail_from: "no-reply@guerrillamail.com", mail_subject: "Welcome to Guerrilla Mail" };
+        // recorded a false pass. Note the sender domain is the one the provider
+        // actually uses.
+        const welcome = {
+          mail_id: "1",
+          mail_from: "no-reply@guerrillamail.com",
+          mail_subject: "Welcome to Guerrilla Mail",
+        };
         stubFetch(async (input) => {
           const url = String(input?.url ?? input);
           if (url.includes("fetch_email")) {
@@ -266,6 +275,88 @@ await (async () => {
 
         const result = runner.summary().results.find((r) => r.id === "delivery.guerrilla");
         assert.equal(result.outcome, "unverified");
+      },
+    );
+
+    await check(
+      "mail that predates the delivery check is ignored even from a non-provider sender",
+      async () => {
+        const runner = new ProbeRunner(quiet);
+        // Covers the knownMailIds exclusion independently of the domain filter: a
+        // pre-existing message from an ordinary sender must not count either.
+        const preExisting = {
+          mail_id: "77",
+          mail_from: "someone.else@example.com",
+          mail_subject: "Unrelated earlier mail",
+        };
+        stubFetch(async (input) => {
+          const url = String(input?.url ?? input);
+          if (url.includes("fetch_email")) {
+            return jsonResponse(200, { mail_from: "someone.else@example.com", mail_body: "old" });
+          }
+          return jsonResponse(200, { list: [preExisting] });
+        });
+
+        await runDeliveryProbes(runner, {
+          mailtm: null,
+          guerrilla: {
+            sid: "s",
+            address: "spike@guerrillamailblock.com",
+            knownMailIds: new Set(["77"]),
+          },
+          sender: null,
+          interactive: true,
+          timeoutMs: 1200,
+          mailFrom: null,
+          log: () => {},
+        });
+
+        const result = runner.summary().results.find((r) => r.id === "delivery.guerrilla");
+        assert.equal(result.outcome, "unverified");
+      },
+    );
+
+    await check(
+      "a genuinely new external message IS still accepted as delivery",
+      async () => {
+        const runner = new ProbeRunner(quiet);
+        // Guards against over-filtering: the exclusions must not swallow a real
+        // inbound message, which would break the M0 gate itself.
+        const welcome = {
+          mail_id: "1",
+          mail_from: "no-reply@guerrillamail.com",
+          mail_subject: "Welcome to Guerrilla Mail",
+        };
+        const real = {
+          mail_id: "2",
+          mail_from: "sender@example.org",
+          mail_subject: "Your code",
+        };
+        stubFetch(async (input) => {
+          const url = String(input?.url ?? input);
+          if (url.includes("fetch_email")) {
+            return jsonResponse(200, { mail_from: "sender@example.org", mail_subject: "Your code", mail_body: "123456" });
+          }
+          return jsonResponse(200, { list: [welcome, real] });
+        });
+
+        await runDeliveryProbes(runner, {
+          mailtm: null,
+          guerrilla: {
+            sid: "s",
+            address: "spike@guerrillamailblock.com",
+            knownMailIds: new Set(["1"]),
+          },
+          sender: null,
+          interactive: true,
+          timeoutMs: 1200,
+          mailFrom: null,
+          log: () => {},
+        });
+
+        const result = runner.summary().results.find((r) => r.id === "delivery.guerrilla");
+        assert.equal(result.outcome, "passed");
+        assert.equal(result.data.subject, "Your code");
       },
     );
   } finally {
