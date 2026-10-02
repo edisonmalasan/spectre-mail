@@ -24,13 +24,19 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor:** M5 - Website Core MVP (**verifying**, branch
-`test/mailbox-session-verify`, change `mailbox-session-layer`; proposed by PR #28,
-applied by PR #29). **Slice 1 of M5 applied** — `packages/mailbox` created, and
-`apps/web` now creates a mailbox and renders its address. Tasks 1.1–5.5 were ticked
-at apply; **task 5.6, the independent verification pass, is done and ticked**, on the
-rule that a task box is not evidence and the verification is performed against the
-specs rather than against the boxes.
+**Roadmap cursor:** M5 - Website Core MVP (**verified, awaiting archive**; branch
+`docs/mailbox-session-spec-sync`, change `mailbox-session-layer`; proposed by PR #28,
+applied by PR #29, verified by PR #30). **Slice 1 of M5 is complete.** The two new
+capabilities `mailbox-session` and `website-client` are now in `openspec/specs/`
+(8 specs, `openspec validate --specs --strict`: 8 passed, 0 failed). **The sync added
+no scenario to either capability — 7 requirements and 29 scenarios in, 29 out** — and
+that is the point worth recording: the verification pass found eleven defects and
+every one of them was in a *test*, a *rule*, or a *document*. The contract it was
+checking turned out to be sound. A sync that had to change a requirement would have
+meant the pass had missed something, and the mechanical delta-to-spec comparison
+(script kept outside the repository) is what establishes that nothing was quietly
+dropped in the merge.
+Tasks 1.1–5.6 are all ticked, the last on the rule that a task box is not evidence.
 **M5 is being delivered as a sequence of bounded changes rather than one**, and the
 first settles where client-side orchestration lives. The roadmap's shared-package
 list had no home for it: it assigned "mailbox lifecycle" and "mailbox manager" to
