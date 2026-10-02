@@ -36,7 +36,22 @@ const BASE_CONFIDENCE = 0.5;
 /** Added when the candidate's block says something about verification. */
 const KEYWORD_BOOST = 0.25;
 
-/** Added when the candidate is the only digit run in a block that talks about verification. */
+/**
+ * Added when the candidate is the **only digit run in its block**.
+ *
+ * Deliberately wider than the comment this constant used to carry, which claimed a
+ * block "that talks about verification". There is no keyword condition, and there was
+ * never one: the boost has always fired on `blockRunCount === 1` alone, so
+ * "The number is 551203" scored 0.6 rather than 0.5. The implementation is the
+ * intended behaviour and D4 publishes the arithmetic, so the wording was wrong rather
+ * than the code.
+ *
+ * The wider rule is also the better one, and for a stated reason: a lone digit run in
+ * its own block is more likely to be the thing the message is about, whatever the
+ * wording around it says. Requiring verification wording as well would make the boost
+ * and `KEYWORD_BOOST` fire on exactly the same set of candidates, which is the same
+ * signal counted twice rather than two independent signals.
+ */
 const SOLE_CANDIDATE_BOOST = 0.1;
 
 /** Removed for each recognised non-code shape, in total. */
@@ -51,7 +66,28 @@ const SHAPE_PENALTY = 0.25;
  */
 const MAX_TOTAL_PENALTY = 0.35;
 
-/** The floor, so a heavily penalised candidate is still a candidate. */
+/**
+ * The floor, so a heavily penalised candidate is still a candidate.
+ *
+ * **Unreachable by the arithmetic above, and kept anyway.** The worst score the rules
+ * can produce is `BASE 0.5` with the penalty saturated at `MAX_TOTAL_PENALTY 0.35`,
+ * which is `0.15`. So this constant cannot bind today, and an M4 verification pass
+ * confirmed that deleting it entirely leaves the suite green.
+ *
+ * Kept rather than deleted, for the same reason `MAX_CONFIDENCE` is kept as a clamp as
+ * well as a published sum: it is defence in depth against a **rule added later**.
+ * Every term in this module is a number someone can change — a new boost, a larger
+ * `SHAPE_PENALTY`, a cap raised above `0.5` — and any of them can push a score past
+ * this bound without anyone revisiting this line. The floor then guarantees the
+ * property that matters regardless: no detection is ever reported as *worthless*,
+ * because D6 returns every candidate and a zero would read as a decision rather than
+ * a ranking.
+ *
+ * Because it is a clamp and not the mechanism, the test that pins the floor's role
+ * asserts the arithmetic minimum of `0.15` exactly. Asserting that the worst score is
+ * merely greater than zero would pass for every input this module can produce, which
+ * is the same defect the M4 verification pass found in that test.
+ */
 const MIN_CONFIDENCE = 0.05;
 
 /**
