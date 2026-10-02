@@ -18,6 +18,9 @@ import { isSpectreError, NormalizedErrorCode } from "@spectre-mail/core";
 import type { Mailbox, SpectreError } from "@spectre-mail/core";
 import type { MailProvider, ProviderHealth, ProviderManager } from "@spectre-mail/providers";
 
+import type { MailboxScheduler } from "./clock";
+import { createInboxTracker } from "./inbox";
+import type { InboxState } from "./state";
 import type { SessionFailure, SessionState } from "./state";
 
 /** What a client can ask of a session. */
@@ -39,7 +42,9 @@ export interface MailboxSession {
    *
    * The previous state is **not** mutated. A client holding the old value keeps a
    * truthful description of what it held, which is why this returns rather than
-   * assigning in place.
+   * assigning in place. The inbox is reset with it: message ids are provider-scoped,
+   * so one mailbox's analysis carried onto another's message would be a claim about
+   * a body this session never read.
    */
   replace(): Promise<SessionState>;
 
@@ -50,6 +55,54 @@ export interface MailboxSession {
    * cache one across a failure, and does not derive anything from elapsed time.
    */
   health(): Promise<ProviderHealth>;
+
+  /**
+   * Ask for the current mailbox's messages now.
+   *
+   * This is also the only way back after a throttled refusal, which stops the
+   * polling loop rather than backing off - a scheduled retry would be a request the
+   * user cannot see and cannot decline.
+   */
+  checkInbox(): Promise<InboxState>;
+
+  /**
+   * Tell the session whether anything is displaying the inbox.
+   *
+   * Nothing is polled while this is `false`. A check the user cannot see is cost
+   * with no possible benefit, and against a provider with no published limit it is
+   * cost against an unknown budget.
+   */
+  reportInboxVisible(visible: boolean): void;
+
+  /**
+   * Stop polling and release the scheduler.
+   *
+   * Slice 1's design recorded that a value-shaped session would have to grow a
+   * lifecycle once polling arrived, and this is that cost being paid rather than
+   * inherited. `current()` still answers afterwards; the session simply stops.
+   *
+   * **A caller that unmounts must think before calling this.** React's StrictMode
+   * mounts, unmounts, and remounts the same component with the *same* session
+   * instance, so an unmount cleanup that destroyed the session would leave the
+   * remounted page looking alive and never polling again. A component should
+   * report the inbox invisible on unmount instead, which is reversible; this is
+   * for a caller that genuinely discards the session.
+   */
+  destroy(): void;
+
+  /**
+   * Be told whenever the session's state changes.
+   *
+   * Added with polling, and it is not optional: a value-shaped session that can
+   * only be read when the caller happens to ask is unrenderable once something is
+   * changing on a timer. Every inbox transition — including the move into
+   * `checking`, which happens before the provider has answered — arrives here.
+   *
+   * The returned function unsubscribes. It is called on every change rather than
+   * only when a call settles, so a caller never renders a state the session has
+   * already left.
+   */
+  subscribe(listener: (state: SessionState) => void): () => void;
 
   /** The providers this session may use, in preference order. */
   readonly providers: readonly MailProvider[];
@@ -74,9 +127,51 @@ export interface MailboxSession {
  * the same code, which is the point: the website reaches Guerrilla Mail alone and
  * the extension reaches Mail.tm with Guerrilla Mail behind it, and neither
  * decision leaks into this package.
+ *
+ * **`scheduler` is required, not defaulted.** A default reaching for the global
+ * timer would compile happily here - `@types/node` declares `setTimeout` in exactly
+ * the way it declares `navigator`, which slice 1's verification pass measured - and
+ * would then be a path that only runs in production. Requiring it means there is no
+ * such path to take.
  */
-export function createMailboxSession(manager: ProviderManager): MailboxSession {
+export function createMailboxSession(
+  manager: ProviderManager,
+  scheduler: MailboxScheduler,
+): MailboxSession {
   let state: SessionState = { kind: "creating" };
+
+  const listeners = new Set<(next: SessionState) => void>();
+
+  const inbox = createInboxTracker({
+    providerFor: (mailbox) => manager.providerFor(mailbox),
+    scheduler,
+    // Republish on every inbox transition, not only when a call returns. The move
+    // into `checking` happens synchronously inside the call, before the provider has
+    // answered, so a client that refreshed only on return would never see it - and a
+    // page that cannot say it is checking looks broken.
+    onChange: (next) => {
+      if (state.kind === "ready") setState({ ...state, inbox: next });
+    },
+  });
+
+  /**
+   * Replace the state and tell everyone.
+   *
+   * Listeners are notified from a **copy** of the set: a listener that unsubscribes
+   * itself - which React does on every effect cleanup - would otherwise mutate the
+   * set being iterated, and the next listener would be skipped. A session that
+   * silently stopped notifying one of two subscribers would be very hard to see.
+   */
+  function setState(next: SessionState): SessionState {
+    state = next;
+    for (const listener of [...listeners]) listener(state);
+    return state;
+  }
+
+  /** Republish the session so it carries the tracker's latest inbox, and notify. */
+  function withInbox(next: SessionState): SessionState {
+    return setState(next.kind === "ready" ? { ...next, inbox: inbox.state } : next);
+  }
 
   const session: MailboxSession = {
     providers: manager.available,
@@ -85,10 +180,21 @@ export function createMailboxSession(manager: ProviderManager): MailboxSession {
 
     providerFor: (mailbox) => manager.providerFor(mailbox),
 
+    subscribe(listener) {
+      listeners.add(listener);
+      // Told the current state on the way in, so a subscriber does not have to call
+      // `current()` separately and cannot end up one render behind a session it
+      // subscribed to after the state had already moved.
+      listener(state);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+
     async open() {
-      state = { kind: "creating" };
-      state = await createOnce(manager);
-      return state;
+      inbox.reset();
+      withInbox({ kind: "creating" });
+      return withInbox(await createOnce(manager));
     },
 
     async replace() {
@@ -102,6 +208,21 @@ export function createMailboxSession(manager: ProviderManager): MailboxSession {
       const owner = mailboxOf(state);
       const provider = owner === undefined ? firstConfigured(manager) : manager.providerFor(owner);
       return provider.checkHealth();
+    },
+
+    async checkInbox() {
+      // The tracker notifies on every transition, including the move into
+      // `checking`, so there is nothing to republish here: doing it again would tell
+      // subscribers about a state they were just told.
+      return inbox.check(mailboxOf(state));
+    },
+
+    reportInboxVisible(visible) {
+      inbox.setVisible(visible);
+    },
+
+    destroy() {
+      inbox.destroy();
     },
   };
 
@@ -117,7 +238,7 @@ export function createMailboxSession(manager: ProviderManager): MailboxSession {
 async function createOnce(manager: ProviderManager): Promise<SessionState> {
   try {
     const mailbox = await manager.createMailbox();
-    return { kind: "ready", mailbox };
+    return { kind: "ready", mailbox, inbox: { kind: "notStarted" } };
   } catch (cause) {
     return { kind: "failed", failure: normalize(cause, manager.available) };
   }

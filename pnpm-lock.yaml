@@ -255,6 +255,9 @@ importers:
       '@spectre-mail/core':
         specifier: workspace:*
         version: link:../core
+      '@spectre-mail/mail-parser':
+        specifier: workspace:*
+        version: link:../mail-parser
       '@spectre-mail/providers':
         specifier: workspace:*
         version: link:../providers

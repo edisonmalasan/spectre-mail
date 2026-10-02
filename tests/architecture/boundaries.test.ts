@@ -456,6 +456,60 @@ const MARKUP_ESCAPE_PATTERN =
   /dangerouslySetInnerHTML|\.(?:inner|outer)HTML\s*=|insertAdjacentHTML|document\.write\s*\(/g;
 
 /**
+ * Every way to read the clock or arm a timer, one entry per spelling.
+ *
+ * **The compiler does not enforce this, and that was measured rather than assumed.**
+ * `packages/mailbox`'s `tsconfig` withholds the `DOM` lib, which rejects `window`,
+ * `document`, `location`, `indexedDB`, `caches`, and `history` — but it does **not**
+ * reject `setTimeout`, `setInterval`, `Date`, or `performance`, because `@types/node`
+ * declares them exactly as it declares `navigator`, which slice 1's verification pass
+ * measured compiling here. So "the poller cannot reach a timer" is true by
+ * convention alone unless something here enforces it.
+ *
+ * This is that something. `MailboxScheduler` exists precisely so the package is given
+ * its timer rather than finding one, and a rule that fires the moment it reaches for
+ * a global is what keeps the seam from quietly becoming decorative.
+ *
+ * **`Date.parse` is in the list, not out of it.** Parsing a timestamp out of a string
+ * is one step from deciding how long a mailbox has been alive, and
+ * `provider-abstraction` forbids inferring expiry from elapsed time. `Date.UTC` is
+ * deliberately *not* matched: it is date arithmetic that reads no clock and returns
+ * the same number forever, which is why `test-support.ts` can pin an instant with it.
+ *
+ * **One pattern per spelling, because the first recorded instance of this repository's
+ * recurring defect is a single-pattern rule with one control.** A rule here has stayed
+ * green while guarding nothing four separate times; a list of forms with a control
+ * each is the only shape that does not rot that way.
+ */
+const CLOCK_GLOBAL_PATTERNS: readonly { readonly label: string; readonly pattern: RegExp }[] = [
+  { label: "Date.now", pattern: /(?<![\w.$])Date\.now\s*\(/g },
+  { label: "Date.parse", pattern: /(?<![\w.$])Date\.parse\s*\(/g },
+  { label: "new Date", pattern: /(?<![\w.$])new\s+Date\b/g },
+  { label: "performance.now", pattern: /(?<![\w.$])performance\.now\s*\(/g },
+  { label: "setTimeout", pattern: /(?<![\w.$])setTimeout\s*\(/g },
+  { label: "setInterval", pattern: /(?<![\w.$])setInterval\s*\(/g },
+  { label: "setImmediate", pattern: /(?<![\w.$])setImmediate\s*\(/g },
+];
+
+/**
+ * The only package permitted to reach the mail parser.
+ *
+ * The parser is a pure function of a message body, and it is reached in one
+ * direction on purpose: `packages/mailbox` calls it, and a client renders the
+ * verdict the session cached. A client that could call the parser itself would be
+ * able to re-parse on every render, which is precisely the twice-per-message work
+ * `mailbox-session` requires it not to do — and the requirement would then be
+ * enforced by nothing but good intentions in a view file.
+ *
+ * So this is a *direction* rule, not an existence rule: the parser must have exactly
+ * one caller in this repository, and it is `packages/mailbox`.
+ */
+const PARSER_ALLOWED_IMPORTERS = ["mailbox"] as const;
+
+/** Specifiers that resolve to the mail parser, however they are written. */
+const PARSER_SPECIFIER_PATTERN = /@spectre-mail\/mail-parser|\.\.\/mail-parser|\.\/mail-parser/g;
+
+/**
  * Workspace member globs, with comments stripped.
  *
  * Comments are stripped because `pnpm-workspace.yaml` documents the spike's
@@ -489,8 +543,20 @@ const FETCH_PROBE_MODULE = [
   "}",
 ].join("\n");
 
-/** The package directories the `fetch` rule scans, in one place. */
-const NETWORK_FORBIDDEN_PACKAGES = ["providers", "mail-parser"] as const;
+/**
+ * The package directories the `fetch` rule scans, in one place.
+ *
+ * **`packages/mailbox` joined this list at M5 slice 2, and it was a real gap rather
+ * than tidiness.** The rule existed to hold the promoted `mailbox-session`
+ * requirement that the session layer "reaches no network directly", and it covered
+ * the two packages that *could* plausibly have wanted a transport. Then slice 2 added
+ * a polling loop to a third package — and a loop is exactly the code whose temptation
+ * is to reach for `fetch`. The behaviour was still correct (every call goes through a
+ * `MailProvider`), but nothing held it: a `fetch` introduced into `inbox.ts` would
+ * have turned no assertion red, because the behavioural test that drives a recording
+ * transport only ever opened a mailbox, and the scan looked elsewhere.
+ */
+const NETWORK_FORBIDDEN_PACKAGES = ["providers", "mail-parser", "mailbox"] as const;
 
 /**
  * Run the real `fetch` rule over a package directory into which `moduleSource` has
@@ -546,6 +612,100 @@ function frameworkViolationsWithIntroducedModule(moduleSource: string): string[]
   } finally {
     rmSync(probePath, { force: true });
   }
+}
+
+/**
+ * The same trick for the clock rule: run the real scan over a module written into
+ * `packages/mailbox` for the duration of the assertion, and delete it either way.
+ *
+ * `try`/`finally` with an unconditional delete is what makes this safe: a probe never
+ * survives the test, whether the assertion passes or throws.
+ */
+function clockViolationsWithIntroducedModule(moduleSource: string): string[] {
+  return scanPackageWithProbe("mailbox", "__clock-rule-probe.ts", moduleSource, (contents) =>
+    collectClockViolations(contents),
+  );
+}
+
+/** Every clock or timer global in one module's comment-stripped source. */
+function collectClockViolations(contents: string): string[] {
+  const code = stripComments(contents);
+  const violations: string[] = [];
+
+  for (const { label, pattern } of CLOCK_GLOBAL_PATTERNS) {
+    for (const hit of findPatternOccurrences(code, pattern)) {
+      violations.push(`${hit} (${label})`);
+    }
+  }
+
+  return violations;
+}
+
+/**
+ * Write `moduleSource` into `packageName`, run `inspect` over every module there, and
+ * remove the probe again whatever happens.
+ *
+ * One helper for the two rules that both need the whole pipeline exercised — file
+ * collection, the `.test.ts` exemption, comment stripping — and only differ in the
+ * pattern they apply. Editing a checked-in module instead would mean a failing
+ * assertion left the repository in a state its own test caused.
+ */
+function scanPackageWithProbe(
+  packageName: string,
+  probeFileName: string,
+  moduleSource: string,
+  inspect: (contents: string) => string[],
+): string[] {
+  const probePath = join(PACKAGES_DIR, packageName, probeFileName);
+
+  try {
+    writeFileSync(probePath, moduleSource, "utf8");
+    return collectSourceFiles(join(PACKAGES_DIR, packageName))
+      .filter((file) => !file.endsWith(".test.ts"))
+      .flatMap((file) =>
+        inspect(readFileSync(file, "utf8")).map((hit) => `${toRepoPath(file)} ${hit}`),
+      );
+  } finally {
+    rmSync(probePath, { force: true });
+  }
+}
+
+/**
+ * Every module outside `packages/mailbox` that names the mail parser.
+ *
+ * Scanned over the whole workspace rather than `packages/` alone, because the
+ * interesting violation is a **client** reaching the parser directly: `apps/web` is
+ * exactly where that would be tempting, and it is a directory this repository's
+ * package-only scans have missed before.
+ */
+function parserDirectionViolations(): string[] {
+  const violations: string[] = [];
+
+  for (const root of [PACKAGES_DIR, APPS_DIR]) {
+    for (const file of collectSourceFiles(root)) {
+      const relative = toRepoPath(file).split("\\").join("/");
+
+      // The parser itself names itself in its own public surface, and a test names
+      // whatever it is exercising.
+      if (relative.startsWith("packages/mail-parser/")) continue;
+      // `tsx` as well as `ts`. Every other rule in this file exempts tests on the
+      // stated ground that a check asserting a name's absence has to be able to name
+      // it, and this one exempted only the extension-less form - so a future
+      // `apps/web/src/*.test.tsx` importing the parser would be reported, which is the
+      // inconsistency a reader would take for a rule that meant something.
+      if (/\.test\.tsx?$/.test(file)) continue;
+
+      const importer = relative.split("/")[1];
+      if (importer !== undefined && PARSER_ALLOWED_IMPORTERS.includes(importer as never)) continue;
+
+      const contents = stripComments(readFileSync(file, "utf8"));
+      for (const hit of findPatternOccurrences(contents, PARSER_SPECIFIER_PATTERN)) {
+        violations.push(`${relative} ${hit} (imports the mail parser directly)`);
+      }
+    }
+  }
+
+  return violations;
 }
 
 describe("architecture boundaries", () => {
@@ -637,7 +797,20 @@ describe("architecture boundaries", () => {
       // still covered. Tests are not shipped runtime code.
       if (file.endsWith(".test.ts")) continue;
 
-      const contents = readFileSync(file, "utf8");
+      // **Comments are stripped, and this is the fourth recorded instance of a check
+      // in this file firing on its own documentation.** `packages/mailbox`'s inbox
+      // parser documents the grammar it reads a rate-limit window out of, and naming
+      // the header it arrived in is exactly how a future reader learns where the
+      // string came from. The rule fired on that sentence. Rewording the comment until
+      // the rule went quiet would have been the wrong fix twice over: it would have
+      // deleted a true statement about provenance, and it would have left the rule
+      // able to fail on the next honest comment. Every other scan here strips
+      // comments; this one did not, and that inconsistency is the defect.
+      //
+      // It still matches real code and real strings — `stripComments` removes
+      // comments, not identifiers — and the control below drives a field name through
+      // each of those so this is not taken on trust.
+      const contents = stripComments(readFileSync(file, "utf8"));
 
       for (const field of PROVIDER_FIELD_NAMES) {
         for (const hit of findOccurrences(contents, field)) {
@@ -649,7 +822,7 @@ describe("architecture boundaries", () => {
     // The apps keep their own scan, unchanged: provider wire format has no
     // legitimate reason to appear there either.
     for (const file of collectSourceFiles(APPS_DIR)) {
-      const contents = readFileSync(file, "utf8");
+      const contents = stripComments(readFileSync(file, "utf8"));
 
       for (const field of PROVIDER_FIELD_NAMES) {
         for (const hit of findOccurrences(contents, field)) {
@@ -659,6 +832,23 @@ describe("architecture boundaries", () => {
     }
 
     expect(violations).toEqual([]);
+  });
+
+  it("catches a provider field name in code while ignoring one in a comment", () => {
+    // One control per direction, because a rule that strips comments is only honest
+    // if it is still capable of firing. The positive control is a real file written
+    // with the name in an identifier position; the negative control is the same name
+    // in prose. Both are driven through the same two entry points the rule uses.
+    const inCode = `const value = record.mail_from ?? "";\n`;
+    const inComment = `/** The sender arrived as \`mail_from\`. */\nexport const x = 1;\n`;
+
+    // Positive: a field name read off an object.
+    expect(findOccurrences(stripComments(inCode), "mail_from")).toHaveLength(1);
+    // Negative: the same name, described rather than used.
+    expect(findOccurrences(stripComments(inComment), "mail_from")).toHaveLength(0);
+    // And the strip is what makes the difference, not a quirk of the fixture: read
+    // raw, the comment *does* match, which is precisely the defect.
+    expect(findOccurrences(inComment, "mail_from")).toHaveLength(1);
   });
 
   it("keeps the mailbox session layer free of a framework and a DOM", () => {
@@ -769,17 +959,17 @@ describe("architecture boundaries", () => {
     };
 
     for (const [name, source] of Object.entries(forms)) {
-      const probePath = join(PACKAGES_DIR, "mailbox", "__storage-rule-probe.ts");
-      try {
-        writeFileSync(probePath, source, "utf8");
-        const contents = stripComments(readFileSync(probePath, "utf8"));
-        expect(
-          findPatternOccurrences(contents, STORAGE_API_PATTERN).length,
-          `${name} should be caught`,
-        ).toBeGreaterThan(0);
-      } finally {
-        rmSync(probePath, { force: true });
-      }
+      // **Through `scanPackageWithProbe`, not around it.** The first version of this
+      // control wrote the probe and then read *that one file* directly, so it proved
+      // the pattern fires and proved nothing about whether the rule's file discovery
+      // would find it. The framework and clock controls already went end to end; this
+      // one is now the same shape rather than a third way of testing the same idea.
+      expect(
+        scanPackageWithProbe("mailbox", "__storage-rule-probe.ts", source, (contents) =>
+          findPatternOccurrences(stripComments(contents), STORAGE_API_PATTERN),
+        ),
+        `${name} should be caught`,
+      ).not.toEqual([]);
     }
   });
 
@@ -797,6 +987,129 @@ describe("architecture boundaries", () => {
       /react/i,
     );
     expect(scanned).not.toMatch(/react/i);
+  });
+
+  it("keeps a clock and a timer out of the mailbox session layer", () => {
+    // **The rule the compiler cannot enforce, and the one the seam exists for.**
+    // `MailboxScheduler` is why this package can poll at all without holding a timer,
+    // so a module quietly reaching for `setTimeout` would mean the seam had become
+    // decorative — and a test that waits a real 30 seconds would then be the only
+    // thing still proving the cadence.
+    //
+    // The stated limit, stated here rather than left for a reader to assume: this
+    // matches spellings, not aliases. A module that took a timer as a parameter, or
+    // read one off `globalThis["setTimeout"]`, would pass. So would a `Date` reached
+    // through a destructured name. It is a backstop over the forms a careless
+    // implementation actually takes, and the seam — not this scan — is the guarantee.
+    const violations = clockViolationsWithIntroducedModule("export const ok = 1;\n");
+    expect(violations).toEqual([]);
+  });
+
+  it("catches a clock global in every spelling, not only the obvious one", () => {
+    // **One control per spelling, which is the whole point of the list.** The first
+    // four times a rule in this repository stayed green while guarding nothing, the
+    // cause was a single pattern checked by a single control exercising the form its
+    // author happened to think of. `setTimeout` is the spelling an author would think
+    // of; the other six are the ones that get missed.
+    const forms = {
+      "Date.now": "export const x = Date.now();",
+      "Date.parse": 'export const x = Date.parse("2026-10-02T12:00:00Z");',
+      "new Date": "export const x = new Date();",
+      "performance.now": "export const x = performance.now();",
+      setTimeout: "export const x = setTimeout(() => {}, 10);",
+      setInterval: "export const x = setInterval(() => {}, 10);",
+      setImmediate: "export const x = setImmediate(() => {});",
+      // The negative half: a parameter named `setTimeout` and a local named `Date`
+      // are ordinary code, and a rule that fires on them gets disabled within a week.
+      "a parameter of the same name":
+        "export function f(setTimeout: number) { return setTimeout; }",
+      "a local binding of the same name": "export const f = (Date: number) => Date + 1;",
+      "Date.UTC, which reads no clock": "export const x = Date.UTC(2026, 9, 2);",
+    };
+
+    for (const [name, source] of Object.entries(forms)) {
+      const violations = clockViolationsWithIntroducedModule(source);
+      const shouldFire = ![
+        "a parameter of the same name",
+        "a local binding of the same name",
+        "Date.UTC, which reads no clock",
+      ].includes(name);
+
+      if (shouldFire) {
+        expect(violations.length, `${name} should be caught`).toBeGreaterThan(0);
+      } else {
+        expect(violations, `${name} should not be caught`).toEqual([]);
+      }
+    }
+  });
+
+  it("reaches the mail parser through one direction only", () => {
+    // `packages/mailbox` is the parser's only caller in this repository. A client
+    // that imported it directly could re-parse on every render, undoing the
+    // once-per-message requirement from the one place nothing would police.
+    expect(parserDirectionViolations()).toEqual([]);
+  });
+
+  it("catches a client importing the mail parser directly", () => {
+    // The positive control for the rule above, and the form the rule exists for:
+    // the violation is not in a shared package at all, it is in `apps/web`, which
+    // every package-only scan in this file would have missed.
+    const probePath = join(APPS_DIR, "web", "__parser-direction-probe.ts");
+
+    try {
+      writeFileSync(
+        probePath,
+        'import { analyseMessage } from "@spectre-mail/mail-parser";\n',
+        "utf8",
+      );
+      expect(parserDirectionViolations()).not.toEqual([]);
+    } finally {
+      rmSync(probePath, { force: true });
+    }
+
+    // And the probe really is gone, or the rule above would now be failing for a
+    // reason that has nothing to do with the implementation.
+    expect(parserDirectionViolations()).toEqual([]);
+  });
+
+  it("still allows the mailbox layer itself to import the parser", () => {
+    // The other half of the direction rule: a rule that forbade the parser anywhere
+    // would pass every assertion above while making the real implementation
+    // impossible. So the permitted caller is asserted positively, not left implicit.
+    const contents = stripComments(
+      readFileSync(join(PACKAGES_DIR, "mailbox", "src", "inbox.ts"), "utf8"),
+    );
+    expect(findPatternOccurrences(contents, PARSER_SPECIFIER_PATTERN).length).toBeGreaterThan(0);
+  });
+
+  it("keeps the DOM lib out of the mailbox session layer's compiler, and the DOM out of its globals", () => {
+    // Two halves of one claim, and **only the first is the compiler's.** The second
+    // is measured here because a runtime claim needs a runtime check.
+    //
+    // `globalThis.document` does not compile in `packages/mailbox` - the package's
+    // `tsconfig` has no `DOM` lib, so naming it is a type error - which is exactly
+    // why the globals are read through `Reflect.get` below: writing `globalThis.window`
+    // in this file to prove it is undefined would not compile here either. The
+    // workaround is `Reflect.get`, and it is called out here because it would
+    // otherwise read as a strange way to spell a property access.
+    const tsconfig = JSON.parse(
+      readFileSync(join(PACKAGES_DIR, "mailbox", "tsconfig.json"), "utf8"),
+    ) as { compilerOptions?: { lib?: readonly string[] } };
+
+    expect(tsconfig.compilerOptions?.lib).toEqual(["ES2023"]);
+    expect(tsconfig.compilerOptions?.lib ?? []).not.toContain("DOM");
+
+    // Vitest's own environment is `node`, which has no DOM — but that is the test
+    // runner's environment, not this package's. Asserting on it states what was
+    // actually observed and where.
+    for (const name of ["window", "document", "location"]) {
+      expect(Reflect.get(globalThis, name), `${name} should be absent here`).toBeUndefined();
+    }
+
+    // And the check above can fail: a global that really is present must be found by
+    // the same read, or "absent" would be a property of `Reflect.get` rather than of
+    // the environment.
+    expect(Reflect.get(globalThis, "globalThis")).toBe(globalThis);
   });
 
   it("keeps a markup escape hatch out of every client", () => {
@@ -1035,6 +1348,26 @@ describe("architecture boundaries", () => {
     // `packages/providers` either, and the provider package is the one whose
     // conformance suite must never touch the network.
     expect(scanWithIntroducedModule("packages/providers/src", FETCH_PROBE_MODULE)).not.toEqual([]);
+  });
+
+  it("catches a bare fetch call introduced into the mailbox session layer too", () => {
+    // **The control that was missing, and its absence was the gap.** `packages/mailbox`
+    // is where the polling loop lives, and a loop is the code most likely to reach for
+    // `fetch` directly. The scan did not include it, so a `fetch` introduced into
+    // `inbox.ts` would have turned nothing red.
+    //
+    // Every form, not just the bare one, because the other two controls above proved
+    // the patterns work — not that they are applied to *this* package's files.
+    for (const [name, source] of [
+      ["a bare call", FETCH_PROBE_MODULE],
+      ["a window.fetch call", FETCH_PROBE_MODULE.replace("fetch(", "window.fetch(")],
+      ["a globalThis.fetch reference", FETCH_PROBE_MODULE.replace("fetch(", "globalThis.fetch(")],
+    ]) {
+      expect(
+        scanWithIntroducedModule("packages/mailbox", source),
+        `${name} in packages/mailbox should be caught`,
+      ).not.toEqual([]);
+    }
   });
 
   it("stays quiet when fetch is a parameter name rather than a global reference", () => {
