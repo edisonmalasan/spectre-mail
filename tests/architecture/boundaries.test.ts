@@ -82,14 +82,39 @@ const PROVIDER_FIELD_NAMES = [
 ];
 
 /**
- * Provider adapter identifiers. Any reference to one outside
- * `packages/providers` means provider logic has escaped its package.
+ * Provider adapter identifiers, and the names that would introduce one.
+ *
+ * Both halves matter, and the second half is the one that keeps this rule honest.
+ *
+ * Provenance, and a third instance of this repository's recurring defect. The
+ * original list held `MailTmProvider`, `GuerrillaMailProvider`, and
+ * `SpectreMailProvider` — **none of which existed**. M3 named its exports
+ * `createMailTmAdapter` and `createGuerrillaAdapter`, and the rule stayed green
+ * while guarding nothing at all. A list of identifiers nothing references cannot
+ * fail, so it was indistinguishable from having no rule, and it would have kept
+ * passing after any adapter escaped.
+ *
+ * The factory names are therefore matched directly, and so is the pattern that
+ * would mint a new adapter elsewhere. Matching `create*Adapter` is what stops this
+ * from needing editing at the next milestone — which is when it would silently rot
+ * again.
  */
 const PROVIDER_ADAPTER_IDENTIFIERS = [
-  "MailTmProvider",
-  "GuerrillaMailProvider",
-  "SpectreMailProvider",
+  "createMailTmAdapter",
+  "createGuerrillaAdapter",
+  "createFetchTransport",
+  "runProviderConformance",
+  "createProviderManager",
 ];
+
+/**
+ * Any identifier shaped like an adapter factory or contract implementation.
+ *
+ * A catch-all alongside the concrete list above: the list guards today's exports,
+ * and this guards tomorrow's. `createSpectreAdapter` matches the factory shape, so a
+ * new provider cannot be added outside the package without naming it here first.
+ */
+const PROVIDER_ADAPTER_PATTERN = /\bcreate[A-Z][A-Za-z]*Adapter\b/g;
 
 function isSourceFile(filePath: string): boolean {
   return SOURCE_EXTENSIONS.some((extension) => filePath.endsWith(extension));
@@ -118,6 +143,90 @@ function collectSourceFiles(root: string): string[] {
 
 function toRepoPath(absolutePath: string): string {
   return relative(REPO_ROOT, absolutePath).split(sep).join("/");
+}
+
+/**
+ * Replace comment content with spaces, preserving line structure.
+ *
+ * Needed because several rules here are about what the *code* references, and a
+ * prose mention of `fetch(` in a doc comment is documentation rather than a
+ * dependency. Blanking rather than deleting keeps every line number correct, so a
+ * failure still names the line a reader has to open.
+ *
+ * Deliberately simple, and known to be imperfect: it does not understand string
+ * literals, so a provider field name written inside a string in a non-test file is
+ * still caught (correct) while a `"fetch("` inside a string would be a false
+ * positive. That direction of error is the safer one.
+ */
+function stripComments(source: string): string {
+  let out = "";
+  let inBlock = false;
+  let inLine = false;
+  let inString: '"' | "'" | "`" | null = null;
+
+  for (let i = 0; i < source.length; i += 1) {
+    const char = source[i] as string;
+    const next = source[i + 1];
+
+    if (inLine) {
+      if (char === "\n") {
+        inLine = false;
+        out += char;
+      } else {
+        out += " ";
+      }
+      continue;
+    }
+
+    if (inBlock) {
+      if (char === "*" && next === "/") {
+        inBlock = false;
+        out += "  ";
+        i += 1;
+      } else {
+        out += char === "\n" ? "\n" : " ";
+      }
+      continue;
+    }
+
+    if (inString !== null) {
+      out += char;
+      if (char === "\\") {
+        const following = source[i + 1];
+        if (following !== undefined) {
+          out += following;
+          i += 1;
+        }
+        continue;
+      }
+      if (char === inString) {
+        inString = null;
+      }
+      continue;
+    }
+
+    if (char === "/" && next === "/") {
+      inLine = true;
+      out += " ";
+      i += 1;
+      continue;
+    }
+    if (char === "/" && next === "*") {
+      inBlock = true;
+      out += " ";
+      i += 1;
+      continue;
+    }
+    if (char === '"' || char === "'" || char === "`") {
+      inString = char;
+      out += char;
+      continue;
+    }
+
+    out += char;
+  }
+
+  return out;
 }
 
 /**
@@ -278,6 +387,38 @@ describe("architecture boundaries", () => {
       for (const identifier of PROVIDER_ADAPTER_IDENTIFIERS) {
         if (contents.includes(identifier)) {
           violations.push(`${toRepoPath(file)} references ${identifier}`);
+        }
+      }
+      for (const match of contents.matchAll(PROVIDER_ADAPTER_PATTERN)) {
+        violations.push(`${toRepoPath(file)} defines adapter-shaped identifier ${match[0]}`);
+      }
+    }
+
+    expect(violations).toEqual([]);
+  });
+
+  it("keeps a module-level fetch out of the provider package", () => {
+    // The transport seam is what lets the conformance suite run without a provider.
+    // A module-level `fetch` call anywhere in the package would bypass it, and the
+    // suite would then contact a live provider — turning a third party's
+    // availability into this repository's CI status.
+    const violations: string[] = [];
+
+    for (const file of collectSourceFiles(join(PACKAGES_DIR, "providers"))) {
+      if (file.endsWith(".test.ts")) continue;
+
+      const contents = readFileSync(file, "utf8");
+      const code = stripComments(contents);
+
+      for (const hit of findOccurrences(code, "globalThis.fetch")) {
+        violations.push(`${toRepoPath(file)} ${hit}`);
+      }
+      // A bare `fetch(` is a global reference. `createFetchTransport` receives
+      // `fetch` as a *parameter* and never calls it, and a local helper may reuse the
+      // name — so the global forms are matched rather than the bare identifier.
+      for (const pattern of [/(?<![\w.$])fetch\s*\(/g, /window\.fetch\s*\(/g]) {
+        for (const hit of findOccurrences(code, pattern.source)) {
+          violations.push(`${toRepoPath(file)} ${hit} (bare fetch reference)`);
         }
       }
     }

@@ -128,7 +128,19 @@ Pin versions when exact versions matter.
   closed set of normalized error codes. It contains **no provider wire format and no
   runtime behaviour**: no adapter, no `MailProvider` contract, no mailbox lifecycle,
   no expiry evaluation, and no HTTP. It is consumed as TypeScript source and has no
-  dependencies.
+  dependencies. **Unchanged by M3**, which consumes the model rather than widening
+  it — no provider field name and no field added for a value no measurement
+  produced.
+
+- Provider layer: `packages/providers` has real behaviour since M3. It declares the
+  `MailProvider` contract and implements it twice — a Mail.tm adapter and a
+  Guerrilla Mail adapter — plus a provider manager, an injected transport seam, and
+  one shared conformance suite both adapters pass. The contract has **no
+  subscription method**, because no provider serves a push transport (five SSE paths
+  and two WebSocket paths were probed; none connected). **80 tests**, of which 24 are
+  the shared conformance suite run once per adapter. All are driven by recorded
+  provider responses, so **no test contacts a live provider**. Its one workspace
+  dependency is `@spectre-mail/core`.
 
 - Backend / server: none. Intentionally `$0` paid backend infrastructure; see
   `docs/PROVIDERS.md` for why a SpectreMail-operated proxy is not a permitted
@@ -154,11 +166,17 @@ Pin versions when exact versions matter.
   `pnpm typecheck`, which is a separate gate. There is still no extension build
   step — that is M8.
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running 7 architecture
-  boundary assertions via `pnpm test`. `passWithNoTests` is **off** by design — a
-  green run that inspects nothing is worse than no run. The `include` glob names
-  `tests/architecture/**/*.test.ts` explicitly so the root test command can never
-  execute the spike harness.
+- Testing: Vitest `3.2.7` at the workspace root, verified running **142 tests across
+  12 files** via `pnpm test`: 54 in `packages/core`, 80 in `packages/providers`, and
+  8 architecture boundary assertions. `passWithNoTests` is **off** by design — a
+  green run that inspects nothing is worse than no run. The `include` globs name
+  `tests/architecture/**/*.test.ts` and `packages/*/src/**/*.test.ts` explicitly, so
+  the root test command can never execute the spike harness. The package glob is
+  deliberately package-shaped: a test placed at the repository root or under
+  `tests/` outside `architecture/` is **silently skipped**, verified 2026-10-02 by
+  observing the collected count stay at 142 with such a file present. An
+  undiscovered test reads as covered, so a test that must run at the root belongs in
+  the architecture glob.
   Also installed: a disposable Node.js probe harness at `tests/provider-spike/`
   (`node:test`-free, hand-rolled, self-tested at `pnpm spike:selftest`, 16/16
   passing). Playwright `1.63.0` is a **spike-only** dev dependency, outside the
@@ -784,25 +802,29 @@ These are the six commands the roadmap's M1 acceptance criteria name, plus
 `pnpm verify`, which runs typecheck, lint, format check, test, and build in
 sequence. All exited `0`.
 
-Observed results:
+Observed results, re-verified after M3 on 2026-10-02:
 
 ```text
 pnpm typecheck     7 of 7 workspace projects run tsc --noEmit
 pnpm lint          exit 0
 pnpm format:check  All matched files use Prettier code style
-pnpm test          1 file, 7 assertions passed
-pnpm build         vite 7.3.6, 28 modules transformed, dist emitted
+pnpm test          12 files, 142 tests passed
+pnpm build         vite 7.3.6, dist emitted
+pnpm verify        exit 0
 ```
 
 These commands establish that the workspace is internally consistent: every
 package and app type checks under the shared strict config, lints, is formatted,
-passes the architecture boundary assertions, and that the website builds.
+passes its unit tests and the architecture boundary assertions, and that the
+website builds.
 
-They do **not** establish any product behaviour. As of M2 there is a domain model
-but still no provider adapter, no storage, and no mailbox feature, so no test can
-assert product behaviour. The 54 unit tests in `packages/core` assert type and
-construction invariants, not user-visible outcomes. Boundary assertions are not
-coverage of a product that does not exist.
+They do **not** establish that any provider behaves as its adapter claims against
+the **live** service. Every test in `packages/providers` runs from **recorded**
+responses, so the suite proves this repository's mapping of a provider's wire format
+and nothing about the provider's current behaviour. A provider renaming a field
+would leave this suite green. Fixture refresh against `docs/PROVIDERS.md` is a
+deliberate diff, not something CI does. Nor is there a mailbox feature yet: no
+client consumes this package, so no test can assert a user-visible outcome.
 
 Three specific limitations worth not misreading:
 
@@ -823,6 +845,35 @@ Three specific limitations worth not misreading:
   scoped to `packages/` and `apps/` so a root-level or `tests/` module could name
   an adapter freely. Both widened cases were then proven to fail. An assertion that
   passes for the wrong reason is not a passing assertion.
+- **`pnpm test` proved a third check of that same shape was vacuous, and the fix
+  was to delete the gap rather than to add an exemption.** The adapter-identifier
+  rule listed `MailTmProvider`, `GuerrillaMailProvider`, and `SpectreMailProvider`
+  — **none of which existed**. M3 named its exports `createMailTmAdapter` and
+  `createGuerrillaAdapter`, so the rule stayed green while guarding nothing; a list
+  of identifiers nothing references cannot fail. That is the **fourth** time this
+  repository shipped a check narrower than the rule it documented (M1: the import
+  pattern and this rule's scope; M2: the wire-format scope, then a type assertion
+  that resolved to `never` for every input). M3 widened the list to the real
+  exports and added a shape match for `create*Adapter`.
+- **M3's falsification pass ran 16 deliberate violations and all were caught, with
+  every file restored byte-identical.** Nine targeted the boundary and contract
+  rules (a `subscribe` member, a push-transport name, a module-level `fetch`, a
+  bare `fetch(` call, an adapter exported outside its package, an adapter-shaped
+  identifier, a wire field name in `packages/core`, one in `apps/web`, and an
+  adapter alias in the shared index). Seven reverted a behaviour the specs
+  **require** — the Guerrilla dead-session check, the verbatim rate-limit header,
+  the throttle path, the empty-subject preservation, the absence of a markup field,
+  fallback honesty, and expiry invention — and each produced a red suite naming the
+  matching test. One case initially went red on an assertion other than the intended
+  one; it was re-run in isolation until the correct test was confirmed to be the
+  one that failed, because "the suite went red" is not the same claim as "this test
+  catches this defect".
+- **Two M3 checks initially fired on their own documentation.** The contract test
+  asserted the absence of `subscribe` and the source contained the word in prose
+  explaining why it is absent; the `fetch` rule matched `fetch(` inside a doc
+  comment. Both were fixed by stripping comments before matching, not by rewording
+  the documentation until the rule went quiet — a rule that cannot tell a
+  declaration from a comment about that declaration is measuring the wrong thing.
 - **`format:check` is sensitive to working-tree line endings, and was silently
   broken on Windows until `.gitattributes` existed.** `.prettierrc.json` pins
   `"endOfLine": "lf"`, but with no `.gitattributes` the working-tree line ending
