@@ -18,7 +18,7 @@ on. See [Current status](#current-status).
 | --------------------------------- | ------------------------------------- |
 | M0 — Provider compatibility spike | complete (gate satisfied — see below) |
 | M1 — Monorepo foundation          | complete and archived                 |
-| M2 — Shared domain model          | implementing                          |
+| M2 — Shared domain model          | complete and archived                 |
 | M3—M15                            | not started                           |
 
 | Capability spec          | State |
