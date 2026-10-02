@@ -161,18 +161,23 @@ failed listing SHALL NOT be reported as an empty inbox.
 - **THEN** the session SHALL report an inbox with no messages
 - **AND** it SHALL NOT report that as a failure
 
-### Requirement: The session is given its clock, and reaches no timer itself
+### Requirement: The session is given its scheduler, and reaches no timer itself
 
-The session SHALL obtain the passage of time and any scheduling primitive from its
-caller, and SHALL NOT read a clock, a timer, or a global of any kind for itself.
-The caller SHALL be able to run a session without any real time passing.
+The session SHALL obtain every scheduling primitive from its caller, and SHALL NOT
+read a clock, a timer, or a global of any kind for itself. The caller SHALL be able to
+run a session without any real time passing.
+
+**Retitled during the M5 slice 2 verification pass**, from "The session is given its
+clock" — the seam carries no clock. `design.md`'s D2 records the narrowing to a
+scheduler-only `MailboxScheduler { schedule }`, and a requirement whose title names a
+capability the interface does not have is a requirement a reader will look for.
 
 **Note, recorded during the M5 slice 1 verification pass.** `packages/mailbox`'s
 `tsconfig` omits the `DOM` lib, which rejects `window`, `document`, and `location`
 at compile time. It does **not** reject a timer: `@types/node` declares `setTimeout`
 in exactly the way it declares `navigator`, which that pass measured. So the missing
 `DOM` lib cannot be relied on to keep a scheduler out of this package, and the
-injected clock is what actually does it.
+injected scheduler is what actually does it.
 
 #### Scenario: The session runs with no real time passing
 
