@@ -20,7 +20,7 @@ on. See [Current status](#current-status).
 | M1 — Monorepo foundation          | complete and archived                 |
 | M2 — Shared domain model          | complete and archived                 |
 | M3 — Provider layer               | complete and archived                 |
-| M4 — Mail parsing engine          | implementing                          |
+| M4 — Mail parsing engine          | complete and archived                 |
 | M5—M15                            | not started                           |
 
 | Capability spec          | State |

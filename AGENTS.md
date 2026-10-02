@@ -715,6 +715,40 @@ openspec validate --specs --strict                             # all promoted sp
 This window is expected rather than a fault; `openspec archive` closes it. Do not
 respond by deleting the promoted spec to make the bare name resolve again.
 
+**Archive must run with `--skip-specs` when a sync stage already promoted the delta**,
+or the requirements are applied twice. Verified at M4: the sync stage had already
+written `openspec/specs/mail-parsing/spec.md`, so archive was run as
+
+```bash
+
+openspec archive mail-parsing-engine --skip-specs --yes
+
+```
+
+It reported `Task status: Complete`, moved the change to
+`openspec/changes/archive/2026-10-02-mail-parsing-engine/` with its `.openspec.yaml`,
+`proposal.md`, `design.md`, `tasks.md`, and its delta under `specs/`, and left
+`openspec validate --specs --strict` at **6 passed, 0 failed**. `openspec status` then
+reported `No active changes`, which is the correct end state for a completed milestone.
+
+This establishes that the archive moved the change and did not corrupt the promoted
+specs.
+
+**The archived delta and the promoted spec are NOT byte-identical, by design, and the
+difference was measured rather than assumed.** Verified at M4 by extracting everything
+from the first `### Requirement:` in each file and comparing: **9 requirements in
+both**, but **28 scenarios in the archived delta against 31 in the promoted spec**. The
+three extra scenarios are the ones the verification pass added. They were written into
+the promoted spec at the sync stage rather than back into the change's delta, because
+the change was already applied and its delta is the record of what the change
+originally proposed.
+
+So: **`openspec/specs/` is the source of truth for what is required**, and the
+archived delta is the record of what the change asked for. A later reader comparing
+them will find a gap, and it is a real one rather than a mistake — but it should be
+read as "the verification pass strengthened this", not "the archive lost
+something".
+
 
 
 ### Verified project tool: baseline syntax check
