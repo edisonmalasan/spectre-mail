@@ -24,7 +24,9 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor:** M4 - Mail Parsing Engine (**not started**). **M3 completed its
+**Roadmap cursor:** M4 - Mail Parsing Engine (**proposing**, PR #22 on
+`docs/mail-parsing-engine-proposal`; change `mail-parsing-engine`).
+**M3 completed its
 full lifecycle**: propose PR #17 (`7f20877`), apply PR #18 (`fe54b22`),
 verification repairs PR #19 (`ede63bb`), sync PR #20 (`ffdaa13`), archive PR #21,
 archived at `openspec/changes/archive/2026-10-02-provider-layer/` with its delta
@@ -266,15 +268,15 @@ M3 had just written. A check that does not exist cannot be falsified, so it has 
 be written before the pass, not after.
 
 | M3 | complete (archived) | `provider-layer` |
-| M4-M15 | not started | - |
+| M4 | proposing | `mail-parsing-engine` |
+| M5-M15 | not started | - |
 
 **OpenSpec lifecycle stage:** M0, the provider-role change, M1's foundation change,
 M2's `shared-domain-model`, and M3's `provider-layer` are all complete (propose ->
-apply -> verify -> sync -> archive). **No active change remains**, so the next
-milestone begins with a fresh proposal for M4. Task 8.11 - the independent vacuity
-check - was the step that surfaced the defect above, and is ticked because the check
-was performed and it found something. M3's own verification pass found two more, so
-the task keeps earning its place.
+apply -> verify -> sync -> archive). **One active change: `mail-parsing-engine`**, at
+propose. Task 8.11 - the independent vacuity check - was the step that surfaced the
+defect above, and is ticked because the check was performed and it found something.
+M3's own verification pass found two more, so the task keeps earning its place.
 
 **Next required change:** finish `provider-layer` (apply, verify, sync, archive).
 
