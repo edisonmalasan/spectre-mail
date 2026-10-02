@@ -147,9 +147,22 @@ const PROVIDER_COMPOSITION_SEAMS = ["createProviderManager", "createFetchTranspo
  *                          choosing which providers it can reach is that module's
  *                          entire purpose; plus test files, for the reason below.
  *   name the *seam*        a client's provider-configuration and transport modules,
- *                          and `packages/mailbox`, which composes a manager on a
- *                          client's behalf but does not decide which providers
- *                          exist - reachability is a property of the host.
+ *                          which are the two places a browser actually turns a
+ *                          choice into a reachable transport.
+ *
+ * **`packages/mailbox` was on the seam list and was removed.** The justification
+ * said it "composes a manager on a client's behalf", which is not true of the code
+ * as written: `createMailboxSession` *receives* a `ProviderManager` and never calls
+ * `createProviderManager` or `createFetchTransport` outside its own tests, which the
+ * test-file branch already covers. So the entry could be deleted with no effect at
+ * all - a list of allowances nothing exercises cannot fail, which is the same defect
+ * M3 corrected in the identifier list three changes ago. It was removed rather than
+ * kept with a weaker rationale, because a live-looking permission nobody uses is
+ * harder to notice than a missing one.
+ *
+ * If a future slice genuinely needs to compose a manager inside the session layer,
+ * the entry returns here with a control proving it is reachable. That is the point:
+ * an allowance should arrive with evidence, not with a plausible sentence.
  *
  * **Test files are exempt from the adapter half**, for the same reason this file is
  * exempt from the rule that names its own identifiers: a check that asserts a
@@ -171,7 +184,6 @@ const PROVIDER_COMPOSITION_SEAMS = ["createProviderManager", "createFetchTranspo
 const PROVIDER_SEAM_ALLOWED_FILES = [
   /^apps\/[^/]+\/src\/provider-config\.ts$/,
   /^apps\/[^/]+\/src\/transport\.ts$/,
-  /^packages\/mailbox\/src\//,
   /^(?:apps|packages)\/[^/]+\/src\/[^/]*\.test\.tsx?$/,
 ] as const;
 
@@ -398,9 +410,40 @@ function collectFetchViolations(repoPath: string, contents: string): string[] {
  * Matches the specifier's first path segment, so `react/jsx-runtime` and
  * `react-dom/client` are caught as readily as the bare package, and
  * `@spectre-mail/mail-parser` is not caught merely for containing the letters.
+ *
+ * **It covers all four import forms, and the first version of this rule did
+ * not.** It originally matched `from "x"`, `import("x")`, and `require("x")` but
+ * not a bare side-effect `import "x";` — which is the form a polyfill, a CSS
+ * shim, and a `React` global pre-load actually take. `MODULE_SPECIFIER_PATTERN`
+ * above has carried `\bimport\s+` since M1, after that exact gap was found there;
+ * reproducing the gap in a rule written two hundred lines later is the same defect
+ * in a new place. `\bimport\s+` is included below for that reason, and the rule
+ * carries positive controls for **all four** forms rather than one, because a
+ * control that exercises only the form the author happened to think of is how the
+ * other three stayed unproven.
+ *
+ * `export ... from "x"` needs no alternative here: the `from\s+` branch already
+ * matches it, because the rule looks at the specifier rather than at the statement.
  */
 const FRAMEWORK_IMPORT_PATTERN =
-  /(?:from\s+|import\s*\(\s*|require\s*\(\s*)["'](react|react-dom|preact|solid-js|vue|svelte)(\/[^"']*)?["']/g;
+  /(?:from\s+|import\s*\(\s*|require\s*\(\s*|\bimport\s+)["'](react|react-dom|preact|solid-js|vue|svelte)(\/[^"']*)?["']/g;
+
+/**
+ * A global store, a cookie jar, or the URL — anything a shared package could use
+ * to remember something between page loads.
+ *
+ * **This exists because the compiler does not enforce it**, which was measured
+ * rather than assumed: `packages/mailbox`'s `tsconfig.json` withholds `DOM`, which
+ * rejects `window`, `document`, and `location`, but `navigator`, `localStorage`, and
+ * `sessionStorage` all compile because `@types/node` declares them. `"types": []`
+ * was tried and does not exclude them either. So "references no storage or cookie
+ * API" had no enforcement of any kind for the two globals that matter most.
+ *
+ * A word boundary is required on each side: `mylocalStorage` is not the global,
+ * and a rule that fires on ordinary code gets disabled within a week.
+ */
+const STORAGE_API_PATTERN =
+  /(?<![\w.$])(?:localStorage|sessionStorage|navigator|cookies?|location|history|indexedDB|caches)(?![\w$])|\.cookie\b/g;
 
 /**
  * Any way a client can turn a string into markup.
@@ -477,9 +520,47 @@ function scanWithIntroducedModule(packageDir: string, moduleSource: string): str
   }
 }
 
+/**
+ * The same trick for the framework rule: run the real scan over a module written
+ * into `packages/mailbox` for the duration of the assertion.
+ *
+ * It exists because the rule was **narrower than it claimed for its whole life**.
+ * Its controls exercised `import * as React from "react"`, which the pattern
+ * matched — so the test was green, and a bare `import "react";` in a real file of
+ * the package passed unnoticed. A control proves the form its author thought of;
+ * only a control **per form** proves the rule.
+ */
+function frameworkViolationsWithIntroducedModule(moduleSource: string): string[] {
+  const probePath = join(PACKAGES_DIR, "mailbox", "__framework-rule-probe.ts");
+
+  try {
+    writeFileSync(probePath, moduleSource, "utf8");
+    return collectSourceFiles(join(PACKAGES_DIR, "mailbox"))
+      .filter((file) => !file.endsWith(".test.ts"))
+      .flatMap((file) => {
+        const contents = stripComments(readFileSync(file, "utf8"));
+        return findPatternOccurrences(contents, FRAMEWORK_IMPORT_PATTERN).map(
+          (hit) => `${toRepoPath(file)} ${hit}`,
+        );
+      });
+  } finally {
+    rmSync(probePath, { force: true });
+  }
+}
+
 describe("architecture boundaries", () => {
   it("has the packages and apps the roadmap specifies", () => {
-    const expectedPackages = ["core", "mail-parser", "providers", "storage", "ui"];
+    // **This list is the roadmap's shared-package list, transcribed.** It was
+    // written at M1 and left at M4, so after M5 slice 1 amended that list to add
+    // `mailbox` and to move lifecycle behaviour out of `core`, this rule no longer
+    // encoded the roadmap while still being named for it. A check that has quietly
+    // stopped checking is worse than one that was never written.
+    //
+    // `mailbox` was previously guarded only by accident: the framework rule's own
+    // `readdirSync` over the directory would have thrown if it did not exist. That is
+    // not an assertion about the roadmap, and it stops guarding the moment that rule
+    // changes.
+    const expectedPackages = ["core", "mail-parser", "mailbox", "providers", "storage", "ui"];
 
     for (const name of expectedPackages) {
       expect(() => statSync(join(PACKAGES_DIR, name))).not.toThrow();
@@ -588,10 +669,16 @@ describe("architecture boundaries", () => {
     // either ship React or rewrite the shared layer.
     //
     // **This rule is a backstop, not the primary enforcement.** The package's own
-    // `tsconfig.json` sets `"lib": ["ES2023"]` with no `"DOM"`, so `document`,
-    // `window`, and `navigator` fail to *compile*. The compiler is the real boundary
-    // and this scan cannot strengthen it - which is why the rule is stated as
-    // supplementary rather than as the guarantee.
+    // `tsconfig.json` sets `"lib": ["ES2023"]` with no `"DOM"`, so `window`,
+    // `document`, and `location` fail to *compile*. Measured name by name on
+    // 2026-10-02: those three are rejected by `tsc`, while `navigator`,
+    // `localStorage`, and `sessionStorage` all compile — they arrive through
+    // `@types/node`, which a bare `lib` does not exclude. `types: []` was tried
+    // and does not change this. So the compiler blocks **the DOM**, not **storage
+    // or the navigator**, and the storage half of the no-storage requirement is
+    // held by the separate rule below rather than by the compiler. The compiler is
+    // still the stronger of the two, which is why it stays the primary and this
+    // scan the supplement.
     //
     // **Its stated limit:** it matches import *specifiers* only. A framework reached
     // through a global, through a dynamic `import()` with a computed specifier, or
@@ -609,6 +696,91 @@ describe("architecture boundaries", () => {
     }
 
     expect(violations).toEqual([]);
+  });
+
+  it("catches a framework import in every syntactic form, not only the obvious one", () => {
+    // **One control per import form.** The rule above spent its whole life with a
+    // single control — `import * as React from "react"` — which it matched. So the
+    // test was green and a bare `import "react";` in a real module of the package
+    // went unnoticed. A control proves the form its author happened to think of;
+    // `MODULE_SPECIFIER_PATTERN` has carried `\bimport\s+` since M1 for exactly this
+    // reason, and the gap was reproduced rather than avoided when this rule was
+    // written later.
+    const forms = {
+      "static import": 'import * as React from "react";',
+      "bare side-effect import": 'import "react";',
+      "scoped subpath": 'import "react-dom/client";',
+      "dynamic import": 'void import("react");',
+      "commonjs require": 'const React = require("react");',
+      "re-export": 'export { default } from "react";',
+      "single quotes": "import 'vue';",
+      "non-framework, same shape": 'import { x } from "spectre-mail-not-a-framework";',
+    };
+
+    for (const [name, source] of Object.entries(forms)) {
+      const violations = frameworkViolationsWithIntroducedModule(source);
+      if (name === "non-framework, same shape") {
+        // The negative half of a positive control: a package whose name merely
+        // contains the letters must not fire, or the rule is useless within a week.
+        expect(violations).toEqual([]);
+      } else {
+        expect(violations.length, `${name} should be caught`).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("keeps storage, cookies, and the URL out of the mailbox session layer", () => {
+    // Task 1.6's storage half, and it is **a separate rule because the compiler
+    // cannot do this job.** `packages/mailbox`'s `tsconfig.json` withholds `DOM`,
+    // which rejects `window`, `document`, and `location` — measured name by name.
+    // It does *not* reject `navigator`, `localStorage`, or `sessionStorage`:
+    // `@types/node` declares all three, and `"types": []` was tried and does not
+    // exclude it. So a session that quietly persisted itself would have compiled,
+    // typechecked, and passed every other gate in this file.
+    //
+    // Storage is M6 and arrives behind a `SpectreStorage` contract that is passed
+    // *in*. A session reaching for a global store would make that contract
+    // decorative and would put a per-client persistence decision inside a shared
+    // package, where neither client can see it.
+    const violations: string[] = [];
+
+    for (const file of collectSourceFiles(join(PACKAGES_DIR, "mailbox"))) {
+      if (file.endsWith(".test.ts")) continue;
+      const contents = stripComments(readFileSync(file, "utf8"));
+      for (const hit of findPatternOccurrences(contents, STORAGE_API_PATTERN)) {
+        violations.push(`${toRepoPath(file)} ${hit} (reaches a global store or the URL)`);
+      }
+    }
+
+    expect(violations).toEqual([]);
+  });
+
+  it("catches a storage API in the session layer, in every spelling", () => {
+    // The positive control the rule above had none of. Each spelling is listed
+    // separately because `localStorage` and `sessionStorage` are two distinct
+    // globals that one careless pattern would half-cover, and because
+    // `document.cookie` is a property of an object rather than a bare global.
+    const forms = {
+      localStorage: "export const x = localStorage.length;",
+      sessionStorage: "export const x = sessionStorage.length;",
+      cookies: "export const x = document.cookie;",
+      url: "export const x = location.href;",
+      navigator: "export const x = navigator.userAgent;",
+    };
+
+    for (const [name, source] of Object.entries(forms)) {
+      const probePath = join(PACKAGES_DIR, "mailbox", "__storage-rule-probe.ts");
+      try {
+        writeFileSync(probePath, source, "utf8");
+        const contents = stripComments(readFileSync(probePath, "utf8"));
+        expect(
+          findPatternOccurrences(contents, STORAGE_API_PATTERN).length,
+          `${name} should be caught`,
+        ).toBeGreaterThan(0);
+      } finally {
+        rmSync(probePath, { force: true });
+      }
+    }
   });
 
   it("stays quiet on the word framework in a comment", () => {
@@ -648,16 +820,25 @@ describe("architecture boundaries", () => {
     expect(violations).toEqual([]);
   });
 
-  it("collects the client's own tests rather than skipping them", () => {
+  it("collects every test this repository ships, rather than skipping them", () => {
     // The root Vitest `include` globs `apps/` as of M5 slice 1, and before it did
     // not. An app test placed under a glob that is not listed is **silently
     // skipped** - and a skipped test reads as covered. That is the exact failure the
     // package-shaped package glob was designed to prevent, reintroduced one
     // directory over.
     //
+    // **This originally resolved `apps/` only, which left the same hole open one
+    // level down.** Deleting `"packages/*/src/**/*.test.ts"` from the config dropped
+    // the suite from 365 tests to 40 with a green exit: every one of `mailbox`'s 33,
+    // and all of `core`, `providers`, and `mail-parser`, silently stopped running.
+    // `passWithNoTests: false` did not help, because three files still ran. A rule
+    // named for the client's own tests that only checked the client's own tests
+    // reads as general and is not - the same defect class as the framework rule
+    // above, one scope narrower than its name.
+    //
     // This resolves the configured globs against the real test files rather than
-    // asserting that a literal string is present. Narrowing the glob, deleting the
-    // entry, or moving the test file each break it; a comment saying the entry is
+    // asserting that a literal string is present. Narrowing a glob, deleting an
+    // entry, or moving a test file each break it; a comment saying the entry is
     // there breaks none of them.
     const config = readFileSync(join(REPO_ROOT, "vitest.config.ts"), "utf8");
     const includeBlock = config.match(/include:\s*\[([^\]]*)\]/);
@@ -693,13 +874,27 @@ describe("architecture boundaries", () => {
     };
     const matchers = patterns.map(toMatcher);
 
-    const appTests = collectSourceFiles(APPS_DIR).filter((file) => /\.test\.tsx?$/.test(file));
+    // **Both** roots, not just the apps. `packages/` is where 33 of this change's
+    // tests live, and an unchecked package glob is the silent-skip failure this rule
+    // exists to catch - in the one directory the rule did not look at.
+    const shippedTests = [
+      ...collectSourceFiles(PACKAGES_DIR),
+      ...collectSourceFiles(APPS_DIR),
+    ].filter((file) => /\.test\.tsx?$/.test(file));
 
     // A precondition, so the assertions below cannot pass vacuously by finding no
     // files at all.
-    expect(appTests.length).toBeGreaterThan(0);
+    expect(shippedTests.length).toBeGreaterThan(0);
 
-    const uncovered = appTests
+    // And a precondition on the **spread**: a rule that only ever looked at one root
+    // must not be able to satisfy this by finding one. `mailbox` is the package this
+    // change added and `web` the client it reached, so their absence from the list is
+    // exactly the regression being asserted against.
+    const paths = shippedTests.map((file) => toRepoPath(file));
+    expect(paths.filter((path) => path.startsWith("packages/mailbox/"))).not.toHaveLength(0);
+    expect(paths.filter((path) => path.startsWith("apps/web/"))).not.toHaveLength(0);
+
+    const uncovered = shippedTests
       .filter((file) => !matchers.some((matcher) => matcher.test(toRepoPath(file))))
       .map((file) => toRepoPath(file));
 

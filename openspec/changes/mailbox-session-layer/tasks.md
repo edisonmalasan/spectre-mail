@@ -140,9 +140,50 @@
   the mailbox** because storage is M6. Verify: every count quoted matches an
   observed run, and no document claims a user-visible milestone beyond this slice.
 
-- [ ] 5.6 Perform an independent verification pass comparing the implementation
+- [x] 5.6 Perform an independent verification pass comparing the implementation
   against `specs/mailbox-session/spec.md` and `specs/website-client/spec.md`
   rather than against these boxes. Verify: every scenario is either covered by a
   test that genuinely exercises it or is **explicitly recorded as uncovered with
   its reason**. A scenario whose only coverage would pass with the behaviour
   removed is a vacuous scenario and must be fixed or reported, not counted.
+
+  **Done, and it found eleven defects — the largest count this change produced.** All
+  29 scenarios across both deltas were mapped to a named test; none is uncovered now.
+  The findings, and where each is recorded, are:
+
+  - **The slice's central assertion was vacuous.** The recording transport's `requests`
+    was the live array, so `const before = recorder.requests` aliased it, `reset()`
+    emptied the alias in place, and `expect(recorder.requests).toHaveLength(before.length)`
+    compared the array with itself. A mutation issuing an extra request passed. The
+    access is now a snapshot, which removes the class rather than the instance.
+  - **A tautology was the only coverage for "the address is exposed as text"**:
+    `expect(x.trim()).toBe(x.trim())`.
+  - **Five of eight failure codes had no render test**, so "each branch is a different
+    instruction" was untested. Now an `it.each` over `Object.values(NormalizedErrorCode)`
+    plus a distinctness assertion.
+  - **Two scenarios were uncovered**: "A reload loses the session", and the
+    conditional "The provider selector is present", whose `WHEN` never fires and so had
+    nothing asserting it. Both now have tests; the selector test is written to be
+    *replaced* by the selector slice, and says so.
+  - **The ready state was never checked for asking the user for something**, though the
+    creating and failed states both were.
+  - **`failed` states' key set was never asserted**, so task 1.2's "no state carries a
+    field belonging to another variant" was never established for the variant a client
+    is most tempted to read a mailbox off.
+  - **Three boundary rules were wrong on arrival** — the framework rule matched three of
+    four import forms, the collection rule resolved `apps/` only (deleting the package
+    glob gave a green exit with 40 of 365 tests running), and the seam allowance named
+    `packages/mailbox` for a seam it never calls.
+  - **Five documents claimed the compiler blocks `navigator`.** Measured: it does not.
+    A new storage rule now holds the half the compiler does not.
+  - **`Function.length` was used as a proxy for "no transport parameter"**, and cannot
+    detect a defaulted one. Replaced with a check of the declared signature.
+  - **Two claims in this change's own documents were false** and are corrected: D8 said
+    the website had no DOM test, and the "no request of its own" zero was described as
+    a measurement while comparing an array with itself.
+
+  **Re-verified:** 21 further mutation attempts against the repaired assertions, 19
+  `CAUGHT`, every file restored byte-identical. Both non-`CAUGHT` results are recorded
+  with reasons in `design.md`; neither is a gap in the suite. Two earlier `NOT-CAUGHT`
+  results were faults in the mutations rather than in the assertions, and were
+  re-authored — which is why the count of attempts is 21 and not 19.

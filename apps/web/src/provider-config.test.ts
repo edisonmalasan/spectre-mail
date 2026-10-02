@@ -52,9 +52,21 @@ describe("the website's provider configuration", () => {
     const { transport } = recorder();
     const manager = createWebsiteProviderManager(transport);
 
-    // A second provider would be a claim of redundancy this client does not have. The
-    // list is the single place that decision lives, so asserting its length pins it.
+    // A second provider would be a claim of redundancy this client does not have.
+    // Asserting the length pins that, and the id pins which one.
+    //
+    // **These two constants are independent, and an earlier comment here claimed
+    // they were not.** It said "the list is the single place that decision lives",
+    // but `createWebsiteProviderManager` constructs `createGuerrillaAdapter`
+    // directly and never reads `WEBSITE_PROVIDER_IDS`. So the list documented an
+    // indirection that did not exist, and a reader would reasonably assume editing
+    // the list changed the client's behaviour. It does not.
+    //
+    // The coverage is unaffected — the assertions above drive a real creation and
+    // check every URL, which is what actually pins the behaviour — but the two
+    // constants must be changed together, so that is now said rather than implied.
     expect(manager.available).toHaveLength(WEBSITE_PROVIDER_IDS.length);
     expect(manager.available[0]?.displayName).toBe("Guerrilla Mail");
+    expect(WEBSITE_PROVIDER_IDS).toEqual(["guerrilla"]);
   });
 });

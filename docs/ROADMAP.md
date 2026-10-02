@@ -24,12 +24,13 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor:** M5 - Website Core MVP (**applying**, branch `feat/mailbox-session`,
-change `mailbox-session-layer`; proposed by PR #28). **Slice 1 of M5 applied** —
-`packages/mailbox` created, and `apps/web` now creates a mailbox and renders its
-address. Tasks 1.1–5.5 are ticked; **task 5.6, the independent verification pass, is
-deliberately not ticked**, because ticking a task box from the implementer's own
-recollection is exactly the failure this repository records repeatedly.
+**Roadmap cursor:** M5 - Website Core MVP (**verifying**, branch
+`test/mailbox-session-verify`, change `mailbox-session-layer`; proposed by PR #28,
+applied by PR #29). **Slice 1 of M5 applied** — `packages/mailbox` created, and
+`apps/web` now creates a mailbox and renders its address. Tasks 1.1–5.5 were ticked
+at apply; **task 5.6, the independent verification pass, is done and ticked**, on the
+rule that a task box is not evidence and the verification is performed against the
+specs rather than against the boxes.
 **M5 is being delivered as a sequence of bounded changes rather than one**, and the
 first settles where client-side orchestration lives. The roadmap's shared-package
 list had no home for it: it assigned "mailbox lifecycle" and "mailbox manager" to
@@ -53,12 +54,47 @@ re-scoped to separate *implementing/re-exporting* an adapter from *naming* one, 
 **fired on its own documentation**, the third time in this repository that has
 happened — fixed by stripping comments before matching, not by rewording the prose
 until the rule went quiet.
-**Falsification:** 38 mutation attempts, 31 recorded `CAUGHT` with the intended test
-named, every file restored byte-identical. Two real gaps were found that way (a
-vacuous mutual-exclusion assertion in the website's state test, and a first fix for
-it that was itself wrong), 5 were faults in the harness rather than findings, and a
+**Falsification at apply:** 38 mutation attempts, 31 recorded `CAUGHT` with the
+intended test named, every file restored byte-identical. Two real gaps were found that
+way (a vacuous mutual-exclusion assertion in the website's state test, and a first fix
+for it that was itself wrong), 5 were faults in the harness rather than findings, and a
 dead branch in `normalize` was found by inspection rather than by the pass — the
 record in `design.md` does not credit the pass with it.
+
+**The independent verification pass then found eleven defects in the slice's own
+verification, and this is the part worth carrying forward.** The apply-stage record
+claimed the assertions were falsified; several were falsifiable *in principle* and had
+never actually been tried. Concretely:
+
+- **The load-bearing assertion of the whole slice was vacuous.** The test proving
+  `mailbox-session`'s "reaches no network directly" held an **alias** of the
+  recorder's live array, so `reset()` emptied the alias and the comparison was the
+  array against itself. A mutation making the session issue an extra request passed.
+  The recorder now returns a snapshot, which removes the class rather than the
+  mistake.
+- **A tautology in the client**, `expect(x.trim()).toBe(x.trim())`, was the *only*
+  coverage for "the address is exposed as text".
+- **Five of eight failure codes had no render test**, so the claim that each branch is
+  a different instruction was untested — replacing three branches' copy with another
+  branch's kept the suite green.
+- **Two scenarios were uncovered**: a reload losing the session, and the conditional
+  provider-selector one, whose `WHEN` never fires and so had nothing asserting it.
+- **Three boundary rules were wrong on arrival** — see `AGENTS.md`; the framework rule
+  matched three of four import forms, the collection rule checked only `apps/`, and
+  five documents claimed the compiler blocked `navigator` when it does not.
+- **Two claims in this change's own documents were false**: `design.md` said the
+  website had no DOM test (it now has 33), and the recording-transport zero was
+  described as a measurement while it compared an array with itself.
+
+**Re-verification:** 21 further mutation attempts against the repaired assertions, 19
+`CAUGHT`, every file restored byte-identical. The 2 that were not are recorded with
+their reasons in `design.md` — one is statically unreachable and is the compiler's
+guarantee rather than a test's, and one was a no-op mutation. Two earlier
+`NOT-CAUGHT` results were faults in the mutations and were re-authored.
+
+**Result: 382 tests across 21 files, 23 boundary assertions, `pnpm verify` exit 0.**
+**Still not established:** that a real browser reaches Guerrilla Mail. Every provider
+interaction in every test replays a recording.
 **Remaining slices of M5:** inbox with polling, message view, then history, provider
 selector, theme, and clear-data.
 *Corrected 2026-10-02:* an earlier revision of this line named the next milestone
@@ -102,7 +138,7 @@ others, because it predates the milestone that documented it. Six warnings were 
 with it, including a published test count that was arithmetically wrong (14 fixtures × 2
 generated tests is 28, not 26) and four `D4` shape descriptions that overstated their own
 reach. **307 tests across 18 files** after the repairs; no published confidence constant
-was changed. (That figure was M4's. The workspace now runs **365 tests across 21 files**
+was changed. (That figure was M4's. The workspace now runs **382 tests across 21 files**
 — see the Project Status cursor below.)
 **M4's implementation found three defects in its own design before any of it was
 verified**, and all three are recorded in the change rather than quietly fixed:
@@ -739,10 +775,20 @@ creation-failure normalization
 
 It is **framework-free and DOM-free by compiler, not by convention**: its
 `tsconfig.json` sets `lib: ["ES2023"]` with no `"DOM"`, so `window`, `document`, and
-`navigator` fail to compile there. Placing it outside `apps/web` is what keeps M8's
+`location` fail to compile there. Placing it outside `apps/web` is what keeps M8's
 extension from becoming a rewrite.
 
-As implemented (verified 2026-10-02, `pnpm verify` exit 0, **33 tests**): the session
+**The compiler's reach stops short of storage, and that limit was measured rather
+than assumed.** An earlier revision of this line claimed `navigator` was blocked too.
+Probing `tsc` name by name on 2026-10-02: `window`, `document`, `location`,
+`indexedDB`, `caches`, and `history` are rejected, while `navigator`,
+`localStorage`, and `sessionStorage` **compile** — `@types/node` declares them, and
+`"types": []` does not exclude them. Node v26.10.0 additionally *defines* `navigator`
+and `sessionStorage` at runtime. So a session that persisted itself would have
+compiled and passed every other gate; the storage half is now held by a separate
+boundary rule, which is the only thing holding it.
+
+As implemented (verified 2026-10-02, `pnpm verify` exit 0, **34 tests**): the session
 state is an immutable discriminated union — `creating`, `ready`, `failed` — rather
 than a mailbox plus a loading flag, because those two can disagree and a
 disagreement is a rendering bug no unit test writes itself. It performs **no request

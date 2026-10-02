@@ -155,9 +155,17 @@ Pin versions when exact versions matter.
   so a new package took the behaviour and `docs/ROADMAP.md`'s list was amended to
   match. It is **framework-free and DOM-free by compiler, not by convention**: its
   `tsconfig.json` sets `lib: ["ES2023"]` with no `"DOM"`, so `document`, `window`,
-  and `navigator` fail to *compile*. That is the enforcement; the architecture scan
-  for framework imports is a supplementary backstop which states its own limits.
-  **33 tests**, all driven by stub providers or the real Guerrilla adapter over a
+  and `location` fail to *compile*. That is the enforcement. **The compiler does
+  not block everything the claim implies, and the limit is measured rather than
+  assumed:** measured name by name on 2026-10-02, `navigator`, `localStorage`, and
+  `sessionStorage` all compile there, because `@types/node` declares them, and
+  `"types": []` does not exclude it. Node v26.10.0 additionally *defines*
+  `navigator` and `sessionStorage` on `globalThis` at runtime. So "no DOM" and "no
+  storage" are two separate properties, only the first of which the compiler
+  enforces; a separate boundary rule forbids the second and states that it is the
+  only thing doing so. The architecture scan for framework imports is likewise a
+  supplementary backstop which states its own limits.
+  **34 tests**, all driven by stub providers or the real Guerrilla adapter over a
   recording transport — no test contacts a provider, and no test needs a browser.
   It is consumed by the website now and by the extension at M8; placing it outside
   `apps/web` is what keeps that from becoming a rewrite.
@@ -190,11 +198,11 @@ Pin versions when exact versions matter.
   `pnpm typecheck`, which is a separate gate. There is still no extension build
   step — that is M8.
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running **365 tests across
-  21 files** via `pnpm test` (2026-10-02): 54 in `packages/core`, 89 in
-  `packages/providers`, **149 in `packages/mail-parser`**, **33 in `packages/mailbox`**,
-  **20 in `apps/web`** (17 rendering, 3 provider configuration), and **20 architecture
-  boundary assertions**.
+- Testing: Vitest `3.2.7` at the workspace root, verified running **382 tests across
+  21 files** via `pnpm test` (2026-10-02, re-verified after the M5 slice 1
+  verification repairs): 54 in `packages/core`, 89 in `packages/providers`, **149 in
+  `packages/mail-parser`**, **34 in `packages/mailbox`**, **33 in `apps/web`** (30
+  rendering, 3 provider configuration), and **23 architecture boundary assertions**.
   `passWithNoTests` is **off** by design - a
   green run that inspects nothing is worse than no run. The `include` globs name
   `tests/architecture/**/*.test.ts`, `packages/*/src/**/*.test.ts`,
@@ -858,14 +866,15 @@ These are the six commands the roadmap's M1 acceptance criteria name, plus
 `pnpm verify`, which runs typecheck, lint, format check, test, and build in
 sequence. All exited `0`.
 
-Observed results, re-verified after the M4 verification repair and again after the
-M5 slice 1 apply stage, both on 2026-10-02:
+Observed results, re-verified after the M4 verification repair, again after the
+M5 slice 1 apply stage, and again after its independent verification repairs, all on
+2026-10-02:
 
 ```text
 pnpm typecheck     8 of 8 workspace projects run tsc --noEmit
 pnpm lint          exit 0
 pnpm format:check  All matched files use Prettier code style
-pnpm test          21 files, 365 tests passed
+pnpm test          21 files, 382 tests passed
 pnpm build         vite 7.3.6, dist emitted
 pnpm verify        exit 0
 ```
@@ -881,7 +890,7 @@ responses, so the suite proves this repository's mapping of a provider's wire fo
 and nothing about the provider's current behaviour. A provider renaming a field
 would leave this suite green. Fixture refresh against `docs/PROVIDERS.md` is a
 deliberate diff, not something CI does. The same limit now applies to the client:
-`apps/web`'s 20 tests render against a **stub provider** or a recording transport,
+`apps/web`'s 33 tests render against a **stub provider** or a recording transport,
 so they prove the page composes the abstraction correctly and say **nothing** about
 whether a real browser reaches Guerrilla Mail successfully. No live browser run has
 been made, and none is claimed.
@@ -905,22 +914,45 @@ Three specific limitations worth not misreading:
   scoped to `packages/` and `apps/` so a root-level or `tests/` module could name
   an adapter freely. Both widened cases were then proven to fail. An assertion that
   passes for the wrong reason is not a passing assertion.
-- **The count is now 20 boundary assertions, and M5 slice 1 added four.** The
+- **The count is now 23 boundary assertions. M5 slice 1 added seven, and its
+  independent verification pass found five defects in them.** The
   adapter-confinement rule was **re-scoped**, which is the first recorded instance of
   an assertion being *broader* than its documented rule rather than narrower: it also
   forbade `createProviderManager` and `createFetchTransport` outside
   `packages/providers`, which left `MailProvider` and `ProviderManager` with no way
   to be instantiated outside the package declaring them. The rule now separates two
   entitlements — naming an *adapter* (a client's `provider-config.ts`, plus test
-  files) and naming the *composition seam* (that module, `transport.ts`, and
-  `packages/mailbox`) — and **strips comments before matching**, because it had been
-  reading raw text and fired on `packages/mailbox`'s own explanation of what it
-  deliberately does not do. That is the **third** time a check here has fired on its
-  own documentation; it was fixed by stripping comments, not by rewording the prose
-  until the rule went quiet. New rules: no framework import in `packages/mailbox`,
-  no markup escape hatch under `apps/`, and an assertion that client tests are
-  **collected** rather than silently skipped. Each was falsified, and each rule
-  states its own limits in its own comment.
+  files) and naming the *composition seam* (that module and `transport.ts`) — and
+  **strips comments before matching**, because it had been reading raw text and fired
+  on `packages/mailbox`'s own explanation of what it deliberately does not do. That is
+  the **third** time a check here has fired on its own documentation; it was fixed by
+  stripping comments, not by rewording the prose until the rule went quiet. New rules:
+  no framework import in `packages/mailbox`, no storage/cookie/URL API in it, no markup
+  escape hatch under `apps/`, and an assertion that **every** shipped test is
+  **collected** rather than silently skipped.
+
+  **The verification pass then found that three of those new rules were wrong on
+  arrival**, which is why the seven became nine, and why the record matters more than
+  the count:
+
+  - The framework rule **matched only three of four import forms**, missing a bare
+    side-effect `import "react";` — so its single control, which used the form the
+    author happened to pick, passed while the gap was open. That is the **fifteenth**
+    recorded instance of a check narrower than its rule and the **fourth** in this one
+    change. Fixed with a control **per form** plus a negative control.
+  - The collection rule resolved `apps/` only. Deleting the package glob dropped the
+    suite from 365 tests to 40 with a **green exit** — `passWithNoTests: false` did not
+    help, because three files still ran. A rule named for the client's tests that
+    checked only the client's tests reads as general and is not.
+  - The framework rule claimed the compiler blocked `navigator`. **It does not.**
+    Measured name by name: `window`, `document`, and `location` are rejected;
+    `navigator`, `localStorage`, and `sessionStorage` compile, and Node v26.10.0
+    *defines* `navigator` and `sessionStorage` at runtime. So the storage rule is the
+    **only** thing holding the storage half, and it says so. Five documents carried the
+    false claim and were corrected.
+  - Two more: a **dead allowance** naming `packages/mailbox` for a seam it never calls
+    (removed, since a list nothing exercises cannot fail), and `expectedPackages`
+    omitting `mailbox` while being named for the roadmap's list.
 - **`pnpm test` proved a third check of that same shape was vacuous, and the fix
   was to delete the gap rather than to add an exemption.** The adapter-identifier
   rule listed `MailTmProvider`, `GuerrillaMailProvider`, and `SpectreMailProvider`

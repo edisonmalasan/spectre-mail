@@ -44,7 +44,7 @@ styling is a decision rather than an omission: M7 owns the visual design, so mar
 written now would be markup M7 rewrites.
 
 Nothing has yet been verified against the **live** Guerrilla Mail API from a
-browser. The website's 20 tests render against a stub provider or a recording
+browser. The website's 33 tests render against a stub provider or a recording
 transport, which establishes that the page composes the abstraction correctly and
 says nothing about whether a real browser reaches that provider successfully.
 
@@ -132,18 +132,33 @@ Six shared packages, each with one responsibility:
 
 `packages/mailbox` is **framework-free and DOM-free by compiler rather than by
 convention**: its `tsconfig.json` sets `lib: ["ES2023"]` with no `"DOM"`, so `window`,
-`document`, and `navigator` fail to compile there. That is why placing the session
+`document`, and `location` fail to compile there. That is why placing the session
 outside `apps/web` is not premature abstraction — it is what keeps the extension from
 becoming a rewrite.
 
-The boundaries are enforced by a test, not just documented — **20 assertions** in
+**The compiler's reach has a measured limit, and it is worth knowing before
+relying on it.** It does **not** reject `navigator`, `localStorage`, or
+`sessionStorage` — `@types/node` declares all three, and `"types": []` does not
+exclude them — and Node v26.10.0 additionally defines `navigator` and
+`sessionStorage` on `globalThis` at runtime. So the missing `DOM` lib removes the
+DOM and **not** storage; the second half of that boundary is held by an explicit
+rule in `tests/architecture/boundaries.test.ts` rather than by a compiler option.
+
+The boundaries are enforced by a test, not just documented — **23 assertions** in
 `pnpm test`. They fail if a package imports an app, if a file outside
 `packages/providers` contains a provider JSON field name, if a provider adapter is
 implemented or re-exported outside `packages/providers`, if a module in
 `packages/mail-parser` or `packages/mailbox` reaches the global `fetch` instead of
-its injected transport, if `apps/` inserts untrusted values as markup, and if a
-client test is not actually collected by the test runner. Each rule states its own
-limits in the source, and each was proven able to fail.
+its injected transport, if `packages/mailbox` imports a UI framework **in any of the
+four import forms**, if it reaches a global store, cookie jar, or URL, if `apps/`
+inserts untrusted values as markup, and if **any** shipped test is not actually
+collected by the test runner.
+
+Each rule states its own limits in the source, and each was proven able to fail. That
+last clause is not a formality: this repository has now recorded **fifteen** instances
+of a check that was narrower or broader than the rule it documented while staying
+green, including rules that fired on their own documentation and rules whose single
+positive control proved only the case its author thought of.
 
 Full detail, including why each rule exists: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
@@ -223,7 +238,7 @@ works on your machine.**
 | `pnpm typecheck`                     | All 8 workspace projects type check under the shared strict config.            | That the types are useful — that is what the tests are for.                                        |
 | `pnpm lint`                          | ESLint passes.                                                                 | Type correctness; `pnpm typecheck` owns that.                                                      |
 | `pnpm format:check`                  | Prettier passes on the files this repository governs.                          | That historical documents are formatted; those are deliberately excluded.                          |
-| `pnpm test`                          | 365 tests across 21 files pass, including 20 architecture boundary assertions. | Product behaviour against a **live** provider. Every provider test replays recorded responses.     |
+| `pnpm test`                          | 382 tests across 21 files pass, including 23 architecture boundary assertions. | Product behaviour against a **live** provider. Every provider test replays recorded responses.     |
 | `pnpm build`                         | The website builds with Vite.                                                  | That packages emit anything — they are consumed as TypeScript source, so there is nothing to emit. |
 | `pnpm dev:web`                       | The website dev server starts and serves the app on `127.0.0.1:5173`.          | That a real browser can reach Guerrilla Mail. No live browser run has been made.                   |
 | `pnpm spike:selftest`                | The M0 harness records outcomes correctly and writes its artifacts.            | Anything about real providers — it issues zero network requests.                                   |

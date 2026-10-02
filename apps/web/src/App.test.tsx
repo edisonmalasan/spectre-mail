@@ -168,7 +168,20 @@ describe("the website", () => {
       expect(address.textContent).toContain("guerrilla-1@mail.example");
       expect(address.querySelector("input")).toBeNull();
       expect(address.querySelector("img")).toBeNull();
-      expect(address.textContent?.trim()).toBe(address.textContent?.trim());
+
+      // **The element's own text is the address, and nothing else.** Announcing it
+      // reads whatever is in the node, so a stray "New address" label or a
+      // placeholder inside the same element would be read out as part of the address
+      // — which is the failure a visual check cannot see and a `querySelector` for
+      // two tag names cannot either.
+      //
+      // **This assertion used to be a tautology.** It read
+      // `expect(x.trim()).toBe(x.trim())` — `x === x`, which cannot fail, while
+      // reading as though it checked for surrounding whitespace. It was the *only*
+      // coverage for the requirement that the address be exposed as text, so the
+      // scenario's evidence passed with the behaviour removed. An assertion that
+      // cannot fail is not weak evidence; it is none.
+      expect(address.textContent).toBe("guerrilla-1@mail.example");
     });
 
     it("names the copy action for what it copies", async () => {
@@ -446,6 +459,155 @@ describe("the website", () => {
       expect(screen.getByTestId("failure-explanation").textContent).toContain("could not tell why");
       expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
     });
+
+    /**
+     * Every code, not the two that happened to be written first.
+     *
+     * `MailboxFailure.tsx` states that each branch is a *different instruction* —
+     * wait, come back later, try again — and that one generic message would make the
+     * code pointless. **Five of the eight branches had no render test**, so that
+     * rationale was unverified: replacing `AUTH_FAILED`'s copy with the
+     * `UNKNOWN_PROVIDER_ERROR` copy, and `MAILBOX_EXPIRED`'s and `NETWORK_ERROR`'s
+     * with `PROVIDER_UNAVAILABLE`'s, left all 365 tests green. The claim survived
+     * the code being deleted in three places.
+     *
+     * Two assertions, because "renders something" is too weak: the page must render
+     * **its own** message (so a copy borrowed from another branch fails), and it
+     * must render it for **every** code (so a branch that falls through to `default`
+     * fails).
+     */
+    const EVERY_CODE: readonly NormalizedErrorCode[] = Object.values(NormalizedErrorCode);
+
+    /**
+     * A **valid** `SpectreError` for a code, with the extra fields that code requires.
+     *
+     * Written this way because the first version of this test built every code as
+     * `{ code, provider, description }` and three of them were rejected by
+     * `core`'s `isSpectreError`: `NETWORK_ERROR` requires a `cause`,
+     * `MESSAGE_NOT_FOUND` a `messageId`, and `UNSUPPORTED_OPERATION` an `operation`.
+     * The session then correctly refused to read a code out of a value it did not
+     * recognise and fell back to `UNKNOWN_PROVIDER_ERROR`, so those three rendered
+     * `[object Object]` and the test failed.
+     *
+     * **That failure was the fixture's, not the page's**, and the distinction is
+     * worth stating: `normalize` degrading an unrecognised throwable to
+     * `UNKNOWN_PROVIDER_ERROR` is the behaviour `mailbox-session` requires. A test
+     * that reached it by accident would have "found a bug" that is the design
+     * working — so the per-code requirements are satisfied explicitly here instead.
+     */
+    function specterErrorFor(code: NormalizedErrorCode): SpectreError {
+      // Each branch spells out its own variant rather than spreading a `shared` object
+      // across a widened `code`. `SpectreError` is a **discriminated union** whose
+      // members carry literal `code` types and per-code required fields, so a shared
+      // base object typed `code: NormalizedErrorCode` cannot satisfy any member — and
+      // the compiler says so, which is the model working rather than a nuisance.
+      switch (code) {
+        case NormalizedErrorCode.NETWORK_ERROR:
+          return {
+            code: NormalizedErrorCode.NETWORK_ERROR,
+            provider: "guerrilla",
+            description: "The provider said so.",
+            cause: new Error("the socket closed"),
+          };
+        case NormalizedErrorCode.MESSAGE_NOT_FOUND:
+          return {
+            code: NormalizedErrorCode.MESSAGE_NOT_FOUND,
+            provider: "guerrilla",
+            description: "The provider said so.",
+            messageId: "abc123",
+          };
+        case NormalizedErrorCode.UNSUPPORTED_OPERATION:
+          return {
+            code: NormalizedErrorCode.UNSUPPORTED_OPERATION,
+            provider: "guerrilla",
+            description: "The provider said so.",
+            operation: "createMailbox",
+          };
+        default:
+          return { code, provider: "guerrilla", description: "The provider said so." };
+      }
+    }
+
+    it("covers every normalized code, so none is left to the default branch", () => {
+      // A precondition on the *set*: the table below is only a real check while it
+      // enumerates the closed set rather than a hand-copied subset of it. A new code
+      // added to `core` lands here automatically, which is the whole point of
+      // deriving the list instead of writing it out.
+      expect(EVERY_CODE.length).toBeGreaterThanOrEqual(8);
+    });
+
+    it.each(EVERY_CODE)("names %s in its own words, and stays retryable", async (code) => {
+      const session = sessionOver(providerReturning({ failWith: specterErrorFor(code) }));
+
+      render(<App session={session} />);
+      const explanation = await screen.findByTestId("failure-explanation");
+
+      // Its own words, not the fallback. `explain()` throws for an unhandled code,
+      // so a code that fell through to `default` fails here by not rendering at all
+      // — which is the failure mode this assertion exists to catch.
+      expect(explanation.textContent).not.toContain("Unhandled failure code");
+      expect(explanation.textContent).toBeTruthy();
+
+      // The provider's own words are kept, as text, in every branch. Also the
+      // positive signal that the code reached the page as itself rather than being
+      // degraded: an unrecognised failure would not carry this description at all.
+      expect(screen.getByTestId("failure-detail").textContent).toContain("The provider said so.");
+
+      // Retryable by hand in every branch, and no address rendered in any of them —
+      // a stale or placeholder address is the specific dishonesty this state exists
+      // to prevent.
+      expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
+      expect(screen.queryByTestId("ready")).toBeNull();
+      expect(visibleText()).not.toContain("@mail.example");
+    });
+
+    it("gives different codes different instructions, rather than one message", async () => {
+      // The distinctness half of the claim above, stated as its own assertion
+      // because a per-code assertion cannot see it: eight branches all rendering the
+      // *same* sentence would pass every `it.each` above.
+      //
+      // Only codes the page names separately are compared. `MESSAGE_NOT_FOUND` and
+      // `UNSUPPORTED_OPERATION` deliberately share one message in the source — the
+      // page cannot act differently on either — so requiring eight distinct strings
+      // would demand a distinction the component is right not to make.
+      const DISTINCT = [
+        NormalizedErrorCode.RATE_LIMITED,
+        NormalizedErrorCode.PROVIDER_UNAVAILABLE,
+        NormalizedErrorCode.AUTH_FAILED,
+        NormalizedErrorCode.MAILBOX_EXPIRED,
+        NormalizedErrorCode.NETWORK_ERROR,
+        NormalizedErrorCode.UNKNOWN_PROVIDER_ERROR,
+      ];
+
+      // **Sequentially, not with `Promise.all`.** The first version mapped over the
+      // codes concurrently, so all six components were mounted at once and
+      // `screen` — which queries the whole document — returned the *first*
+      // explanation for all six. Every message was identical because they were all
+      // literally the same node, and the assertion "different codes read
+      // differently" passed for exactly the wrong reason: it was comparing one string
+      // with itself six times. Unmounting between renders is what makes the
+      // comparison mean anything.
+      const messages: string[] = [];
+      for (const code of DISTINCT) {
+        const session = sessionOver(providerReturning({ failWith: specterErrorFor(code) }));
+        const { unmount } = render(<App session={session} />);
+        const explanation = await screen.findByTestId("failure-explanation");
+        messages.push(explanation.textContent ?? "");
+        unmount();
+      }
+
+      // A precondition on the sample, so an empty loop cannot satisfy the check
+      // below vacuously.
+      expect(messages).toHaveLength(DISTINCT.length);
+
+      // Every message is distinct. A duplicate here means two conditions a user must
+      // act on differently are being described the same way.
+      expect(new Set(messages).size).toBe(messages.length);
+
+      // And the one that must differ most is the throttle's: telling a rate-limited
+      // user to try again is the failure `provider-abstraction` names.
+      expect(messages[0]).not.toBe(messages[1]);
+    });
   });
 
   describe("what the page claims", () => {
@@ -488,6 +650,88 @@ describe("the website", () => {
       // visible characters and no element was created from it.
       expect(container.querySelector("img")).toBeNull();
       expect(screen.getByTestId("address").textContent).toContain("<img src=x");
+    });
+
+    it("asked the user for nothing, in every state including the ready one", async () => {
+      // **The ready state was never checked for this.** The creating and failed
+      // states both assert there is no `input`, which is half the scenario: "creates a
+      // mailbox without asking … without requiring an account, a sign-up step, an
+      // email address of the user's own, or any other information". A form that
+      // appeared only *after* the mailbox arrived — asking for the address to keep,
+      // say — would satisfy the earlier states and break the requirement, and no
+      // assertion would have noticed.
+      const session = sessionOver(providerReturning({}));
+
+      const { container } = render(<App session={session} />);
+      await screen.findByTestId("ready");
+
+      expect(container.querySelector("form")).toBeNull();
+      expect(container.querySelector("input")).toBeNull();
+      expect(container.querySelector("select")).toBeNull();
+      expect(container.querySelector("textarea")).toBeNull();
+      expect(document.querySelector("dialog[open]")).toBeNull();
+    });
+
+    it("offers no provider selector, and does not present its absence as missing", async () => {
+      // `website-client`'s provider-selector scenario is conditional — "WHEN the
+      // website renders a provider selector" — and today it renders none, so the
+      // scenario's *WHEN* never fires. A conditional scenario with nothing asserting
+      // the condition is the shape that hides a whole slice: nobody can tell whether
+      // the selector was forgotten, deliberately deferred, or quietly removed.
+      //
+      // So the condition is asserted instead. This is a real claim, not a
+      // placeholder: the selector belongs to a later slice of M5, and this test is
+      // what makes adding it a *deliberate act* rather than an accident. When the
+      // selector slice lands, this test is expected to be **replaced**, and the
+      // replacement is the honest thing to do — this one would otherwise start
+      // failing and someone would delete it.
+      const session = sessionOver(providerReturning({}));
+
+      const { container } = render(<App session={session} />);
+      await screen.findByTestId("ready");
+
+      // No provider-picking control of any kind.
+      expect(container.querySelector("select")).toBeNull();
+      expect(screen.queryByRole("combobox")).toBeNull();
+      expect(screen.queryByRole("listbox")).toBeNull();
+
+      // And the page names exactly one provider, rather than offering or
+      // apologising for a choice it does not have.
+      expect(visibleText()).toContain("Guerrilla Mail and nothing else");
+      expect(visibleText()).not.toMatch(/mail\.tm/i);
+      expect(visibleText()).not.toMatch(/coming soon|not yet available|unavailable provider/i);
+    });
+
+    it("starts a fresh mailbox after a reload instead of claiming the old one", async () => {
+      // `mailbox-session`'s "A reload loses the session": the session SHALL NOT claim
+      // to have recovered that mailbox, and SHALL open a new one or report none.
+      //
+      // This was **uncovered**, and the obvious mutation to try — a module-level
+      // cache in `useMailboxSession` that returns the previous mailbox after a
+      // remount — turned out to be caught only by *cross-test contamination*
+      // through the shared module registry, by an unrelated test. A test that
+      // passes for a reason other than the one it names is not coverage, which is
+      // why this exists rather than relying on that accident.
+      //
+      // The reload is modelled the way jsdom allows: unmount, then mount a fresh
+      // component against a *different* provider, which is what a real reload gives
+      // you — a new session object and no memory of the old one.
+      const first = sessionOver(providerReturning({ mailbox: mailbox("guerrilla-1") }));
+      const { unmount } = render(<App session={first} />);
+      await screen.findByTestId("ready");
+      expect(visibleText()).toContain("guerrilla-1@mail.example");
+      unmount();
+
+      // A fresh mount over a provider that hands out a different mailbox.
+      const second = sessionOver(providerReturning({ mailbox: mailbox("guerrilla-2") }));
+      render(<App session={second} />);
+      await screen.findByTestId("ready");
+
+      // The new mailbox, and no trace of the old one. Claiming the first address
+      // after a reload would show a user an address the page cannot prove it still
+      // holds.
+      expect(visibleText()).toContain("guerrilla-2@mail.example");
+      expect(visibleText()).not.toContain("guerrilla-1@mail.example");
     });
 
     // The structural counterpart - that no file under `apps/` contains an escape hatch
