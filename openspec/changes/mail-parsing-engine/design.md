@@ -159,11 +159,36 @@ acceptable because boosting is not reporting — every candidate is returned reg
 ### D4 — A small, closed set of numeric shapes, and the "reduce" list is not a denylist
 
 **Decision:** candidates are runs of 4–8 digits that are not part of a longer
-digit run. Eight numeric shapes reduce confidence: a currency symbol or `USD`/`EUR`
-prefix or suffix, a month name or `/` date separator, a phone grouping (`555-1234`,
-`+1 555`), an `order`/`#`-prefixed reference, a `tracking`/`tracking number`
-reference, a postal-code label, a year in `19xx`/`20xx`, and a bare `ID`-suffixed
-number.
+digit run. Eight numeric shapes reduce confidence, listed here as **measured**
+behaviour rather than as the shapes they were drafted from — every form below was run
+through the detector and the result read off `explainCodePenalty`, because a shape
+description written from intent rather than observation is exactly the kind of prose
+that outlives the code it describes:
+
+- **a price** — a currency symbol before or after the value (`$551203`, `551203 USD`),
+  or a `USD`/`EUR`/`GBP`/`JPY`/`CAD`/`AUD` marker **after** it. Measured: `551203 USD`
+  reduces, `USD 551203` does **not**. The three-letter form is suffix-only.
+- **a date** — a month name then a day then the value (`April 15, 663218`,
+  `Apr. 15, 663218`), or a hyphen/slash-separated date with the value as its year, its
+  trailing field, or its leading field (`2026-04-15`, `663218-04-15`, `04-663218-15`).
+  Measured: `04/15/551203` does **not** match — the value has to be a *whole* field of
+  the date, not the month-and-day beside it.
+- **a phone number** — the value falls inside a grouped number carrying at least one
+  separator (`+1 555-1234`, `555.1234`). See the amendment below; the reach is
+  narrower than the shape suggests.
+- **an order number** — a literal `order`/`invoice`/`ref` word before the value, with
+  an optional `no`/`number`/`#` and an optional `:`/`#`/`-`. Measured: `Order#4471902`
+  and `Ref 4471902` reduce, a bare `#4471902` does **not** — the `#` alone is not a
+  label.
+- **a tracking number** — a `track`/`tracking` word, optionally followed by
+  `no`/`number`/`#`.
+- **a postal code** — a `postal`/`post code`/`zip`/`zip code` label before the value.
+- **a year** — the value itself is `19xx` or `20xx`.
+- **an identifier** — an `id`/`identifier`/`ref`/`account`/`invoice`/`customer` label
+  before the value, with an optional `no`/`number`/`#` and a **required** `:`/`#`/`-`.
+  Measured: `Customer ID: 4471902` reduces, `ID 4471902` does **not**, and a
+  suffixed `4471902 ID` does **not** either. The separator is what distinguishes a
+  labelled field from two unrelated words.
 
 **Rationale.** The roadmap says *reduce* confidence for these, and it means it: none
 of them **removes** a candidate. A real order confirmation can contain a 6-digit
@@ -180,6 +205,27 @@ because it was not penalised.
 **Amendment.** The phone-number shape no longer tests the candidate's own value. It
 tests whether the candidate falls inside a **grouped** number in its block — a run of
 digits carrying at least one separator — and is only reachable when such a token exists.
+
+**Narrowed again 2026-10-02, by the M4 verification repair.** "At least one
+separator" turned out to be too weak a condition, because the first version's separator
+class held **whitespace** and a **hyphen**. Two consequences, both measured:
+
+- `Your verification code is 1234 5678` was penalised as a phone number and scored 0.5
+  where 0.75 was right. A space-separated code is the same code, presented
+  differently; it is not another shape.
+- `2026-04-15` and `555-1234` are the same characters in the same class, so an ISO
+  date took a phone penalty *on top of* the date penalty it already had, for the same
+  span of text. The 0.35 total-penalty cap meant the score did not move, which is
+  precisely why `detect-codes.test.ts` asserts the penalty **names** rather than only
+  the number.
+
+Whitespace is now out of the class. The hyphen stays, and a token matching a
+hyphenated date in any of the three orders `DATE` recognises is skipped explicitly —
+the date is `DATE`'s business, and counting it twice made the ranking less honest, not
+more. Scores that moved: `1234`/`5678` in `1234 5678` 0.5 → 0.75; `663218` in
+`Apr 15 663218` 0.25 → 0.35; `663218` in `663218-04-15` and `04-663218-15` 0.25 → 0.35.
+`2026` in the order-confirmation fixture stays at 0.15, because the cap had already
+saturated there. **No corpus expectation changed.**
 
 **Why this changed.** The rule as originally written was **structurally broken**, and
 the corpus is what exposed it. It asked whether the candidate's value "looked like a
@@ -366,9 +412,23 @@ without ceremony, and it works.
 
 ### D11 — The corpus is authored, and its fixtures say so
 
-**Decision:** twelve fixtures covering the roadmap's listed shapes, each labelled as
-**synthetic** and each declaring the candidates it is expected to yield. No fixture
-claims to be a captured message from a named service.
+**Decision:** **fourteen** fixtures — the thirteen shapes the roadmap lists, plus one
+addition — each labelled as **synthetic** and each declaring the candidates it is
+expected to yield. No fixture claims to be a captured message from a named service.
+
+**Corrected 2026-10-02 by the M4 verification repair.** This decision originally read
+"twelve fixtures covering the roadmap's listed shapes", and both numbers were wrong.
+The count is fourteen, and it was never twelve at any point during apply. The
+fourteenth is `block-separated-code`, added because **it measured a defect in the rule
+as proposed** — under same-block association alone it scored 0.6, which forced the
+widening recorded under D3. It is the fixture the corpus exists to be able to produce,
+and it is kept under its own name rather than folded into a required one.
+
+That addition stays reviewable rather than merely present: `corpus.test.ts` asserts
+`covers` **set coverage** against the roadmap's list (so a duplicated shape cannot
+balance out a dropped one) *and* separately asserts that the fixtures outside that set
+are exactly `["block-separated-code"]`. Adding a fifteenth fixture therefore fails a
+named test, and a roadmap shape quietly going unmeasured fails another.
 
 **Rationale.** The roadmap asks for "GitHub-style verification" and
 "Discord-style verification". Those are *shapes* — a short code beside strong

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 
 /**
@@ -246,6 +246,74 @@ function findOccurrences(contents: string, needle: string): string[] {
 }
 
 /**
+ * Report every line matching `pattern`, with its 1-based line number and the
+ * trimmed text.
+ *
+ * **This exists because `findOccurrences` was handed a regex's `.source` and so
+ * matched nothing.** The caller below passed `pattern.source` — the literal text
+ * `(?<![\w.$])fetch\s*\(` — to a function doing `line.includes(needle)`, and that
+ * text appears in no source file. Both global-`fetch` patterns were therefore dead
+ * code: a bare `fetch(` and a `window.fetch(` call compiled, ran, and were never
+ * flagged. Only the separate `globalThis.fetch` substring check could fire, and it
+ * is why the rule looked alive while holding nothing. A ninth instance of the same
+ * defect class this repository keeps meeting: a rule that cannot be exercised is not
+ * a rule.
+ *
+ * Line-by-line rather than whole-source, so a reported hit still names the line a
+ * reader has to open. Each line is tested with a freshly built non-global copy,
+ * because a shared `/g` regex carries `lastIndex` between calls and would skip
+ * matches.
+ */
+function findPatternOccurrences(contents: string, pattern: RegExp): string[] {
+  const hits: string[] = [];
+  const perLine = new RegExp(pattern.source, pattern.flags.replace(/[gy]/g, ""));
+
+  contents.split("\n").forEach((line, index) => {
+    if (perLine.test(line)) {
+      hits.push(`line ${index + 1}: ${line.trim()}`);
+    }
+  });
+
+  return hits;
+}
+
+/**
+ * The global `fetch` references a package in this repository must not contain.
+ *
+ * `createFetchTransport` receives `fetch` as a **parameter** and never calls the
+ * global, so a signature or a `transport(fetchImpl)` call is not a violation — but a
+ * `window.fetch(` and a bare `fetch(` are, and neither is caught by a rule that only
+ * looks for `globalThis.fetch`. Note that the bare-`fetch` pattern excludes a
+ * preceding `.`, which is what keeps `window.fetch` and `conformance.fetch` out of it;
+ * they are matched by their own patterns instead, deliberately, so a member access
+ * named `fetch` and a global call are distinguishable in a failure message.
+ */
+const GLOBAL_FETCH_PATTERNS: readonly { readonly label: string; readonly pattern: RegExp }[] = [
+  { label: "globalThis.fetch reference", pattern: /globalThis\.fetch\b/ },
+  { label: "window.fetch call", pattern: /window\.fetch\s*\(/ },
+  { label: "bare fetch call", pattern: /(?<![\w.$])fetch\s*\(/ },
+];
+
+/**
+ * Every global-`fetch` reference in one file's comment-stripped source.
+ *
+ * Split out from the test so the rule can be exercised directly against a snippet,
+ * which is the only way to prove a rule fires without editing a package on disk.
+ */
+function collectFetchViolations(repoPath: string, contents: string): string[] {
+  const code = stripComments(contents);
+  const violations: string[] = [];
+
+  for (const { label, pattern } of GLOBAL_FETCH_PATTERNS) {
+    for (const hit of findPatternOccurrences(code, pattern)) {
+      violations.push(`${repoPath} ${hit} (${label})`);
+    }
+  }
+
+  return violations;
+}
+
+/**
  * Workspace member globs, with comments stripped.
  *
  * Comments are stripped because `pnpm-workspace.yaml` documents the spike's
@@ -263,6 +331,51 @@ function readWorkspaceGlobs(): string[] {
         .trim()
         .replace(/^["']|["']$/g, ""),
     );
+}
+
+/**
+ * A module containing one global `fetch` call, used by the positive controls.
+ *
+ * Written so the `fetch(` occurrence is a single, unambiguous literal substring: the
+ * window and globalThis controls replace that one occurrence with their own form, so
+ * each control introduces exactly one violation and nothing else in the file can
+ * account for a hit.
+ */
+const FETCH_PROBE_MODULE = [
+  "export function probe(url: string): void {",
+  '  void fetch("https://example.test/beacon");',
+  "}",
+].join("\n");
+
+/** The package directories the `fetch` rule scans, in one place. */
+const NETWORK_FORBIDDEN_PACKAGES = ["providers", "mail-parser"] as const;
+
+/**
+ * Run the real `fetch` rule over a package directory into which `moduleSource` has
+ * just been written as a temporary file.
+ *
+ * The positive controls need the rule exercised end to end — file collection, the
+ * `.test.ts` exemption, the package filter, comment stripping and the patterns — and
+ * the only way to do that is to put the violation in a file the scan will really
+ * collect. Editing a checked-in package module instead would mean a failing assertion
+ * left the repository in a state its own test caused.
+ *
+ * `try`/`finally` with an unconditional delete is what makes this safe to run: the
+ * probe never survives the test, whether the assertion passes or throws.
+ */
+function scanWithIntroducedModule(packageDir: string, moduleSource: string): string[] {
+  const probePath = join(REPO_ROOT, packageDir, "__fetch-rule-probe.ts");
+
+  try {
+    writeFileSync(probePath, moduleSource, "utf8");
+    return NETWORK_FORBIDDEN_PACKAGES.flatMap((packageName) =>
+      collectSourceFiles(join(PACKAGES_DIR, packageName))
+        .filter((file) => !file.endsWith(".test.ts"))
+        .flatMap((file) => collectFetchViolations(toRepoPath(file), readFileSync(file, "utf8"))),
+    );
+  } finally {
+    rmSync(probePath, { force: true });
+  }
 }
 
 describe("architecture boundaries", () => {
@@ -418,35 +531,112 @@ describe("architecture boundaries", () => {
     // `WebSocket`, `EventSource`, `import()`, a dynamic import of a client, or a
     // package that reaches the network through some other global. It is one named
     // escape hatch, not a general I/O audit.
+    //
+    // Comments are stripped before matching, and that is load-bearing rather than
+    // cosmetic: two rules in this file previously fired on their own documentation,
+    // because a rule that cannot tell a declaration from a comment about that
+    // declaration is measuring the wrong thing. The controls below pin both halves —
+    // it must fire on a call, and it must stay quiet on a doc comment saying the same
+    // word.
     const violations: string[] = [];
 
-    for (const packageName of ["providers", "mail-parser"]) {
+    for (const packageName of NETWORK_FORBIDDEN_PACKAGES) {
       for (const file of collectSourceFiles(join(PACKAGES_DIR, packageName))) {
         if (file.endsWith(".test.ts")) continue;
 
-        const contents = readFileSync(file, "utf8");
-        const code = stripComments(contents);
-
-        for (const hit of findOccurrences(code, "globalThis.fetch")) {
-          violations.push(`${toRepoPath(file)} ${hit}`);
-        }
-        // A bare `fetch(` is a global reference. `createFetchTransport` receives
-        // `fetch` as a *parameter* and never calls it, and a local helper may reuse the
-        // name — so the global forms are matched rather than the bare identifier.
-        //
-        // Comments are stripped before this runs, and that is load-bearing rather than
-        // cosmetic: two rules in this file previously fired on their own
-        // documentation, because a rule that cannot tell a declaration from a comment
-        // about that declaration is measuring the wrong thing.
-        for (const pattern of [/(?<![\w.$])fetch\s*\(/g, /window\.fetch\s*\(/g]) {
-          for (const hit of findOccurrences(code, pattern.source)) {
-            violations.push(`${toRepoPath(file)} ${hit} (bare fetch reference)`);
-          }
-        }
+        violations.push(...collectFetchViolations(toRepoPath(file), readFileSync(file, "utf8")));
       }
     }
 
     expect(violations).toEqual([]);
+  });
+
+  it("catches a bare fetch call introduced into a real package file", () => {
+    expect(scanWithIntroducedModule("packages/mail-parser/src", FETCH_PROBE_MODULE)).not.toEqual(
+      [],
+    );
+  });
+
+  it("catches a window.fetch call introduced into a real package file", () => {
+    expect(
+      scanWithIntroducedModule(
+        "packages/mail-parser/src",
+        FETCH_PROBE_MODULE.replace("fetch(", "window.fetch("),
+      ),
+    ).not.toEqual([]);
+  });
+
+  it("catches a globalThis.fetch reference introduced into a real package file", () => {
+    expect(
+      scanWithIntroducedModule(
+        "packages/mail-parser/src",
+        FETCH_PROBE_MODULE.replace("fetch(", "globalThis.fetch("),
+      ),
+    ).not.toEqual([]);
+  });
+
+  it("catches a bare fetch call introduced into the provider package too", () => {
+    // Not a formality: the scan is per-package, so proving one package is scanned
+    // says nothing about the other. This rule was never actually held for
+    // `packages/providers` either, and the provider package is the one whose
+    // conformance suite must never touch the network.
+    expect(scanWithIntroducedModule("packages/providers/src", FETCH_PROBE_MODULE)).not.toEqual([]);
+  });
+
+  it("stays quiet when fetch is a parameter name rather than a global reference", () => {
+    // The negative control, and it is the case the rule's own comment claimed to
+    // cover. `createFetchTransport`'s real signature names a parameter and annotates it
+    // with `typeof fetch`; neither is a global call, and a rule that flagged either
+    // would have to be disabled rather than satisfied.
+    const signatureOnly = [
+      "export type FetchLike = typeof fetch;",
+      "export function createFetchTransport(fetchImpl: FetchLike): Transport {",
+      "  return { send: (request) => fetchImpl(request.url, { method: request.method }) };",
+      "}",
+      "export function callIt(transport: Transport): Promise<void> {",
+      "  void transport;",
+      "}",
+    ].join("\n");
+
+    expect(collectFetchViolations("signature-only.ts", signatureOnly)).toEqual([]);
+  });
+
+  it("stays quiet on the word fetch in a doc comment", () => {
+    // The other half of the negative control, and the reason `stripComments` runs
+    // before matching. Two rules in this file have already fired on their own
+    // documentation.
+    const prose = [
+      "/**",
+      " * This module must never call fetch( directly.",
+      " * A bare fetch( here, or window.fetch( here, is a violation.",
+      " */",
+      "export const NETWORK_REFERENCE = 1;",
+    ].join("\n");
+
+    expect(collectFetchViolations("prose-only.ts", prose)).toEqual([]);
+  });
+
+  it("does not flag the real provider transport module", () => {
+    // Held against the live file rather than a snippet, so the negative control cannot
+    // pass by describing a signature the package does not actually have. If this goes
+    // red, the rule has become too broad to keep.
+    const transport = join(PACKAGES_DIR, "providers", "src", "transport.ts");
+
+    expect(collectFetchViolations(toRepoPath(transport), readFileSync(transport, "utf8"))).toEqual(
+      [],
+    );
+  });
+
+  it("still reads every line of a file once rather than skipping past a match", () => {
+    // A shared `/g` regex carries `lastIndex` between calls, so a whole-source
+    // `matchAll` over a file reports every hit while a per-line `test` over the same
+    // file silently alternates. The helper builds a fresh regex per file; this proves
+    // that is what happens, because the two hits here sit on adjacent lines and a
+    // stateful regex would report only one of them.
+    const twoAdjacentHits = ["a", "fetch(", "b", "window.fetch(", "c"].join("\n");
+
+    expect(findPatternOccurrences(twoAdjacentHits, /(?<![\w.$])fetch\s*\(/g)).toHaveLength(1);
+    expect(findPatternOccurrences(twoAdjacentHits, /window\.fetch\s*\(/g)).toHaveLength(1);
   });
 
   it("keeps the spike unreachable from workspace code", () => {

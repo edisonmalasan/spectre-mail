@@ -176,6 +176,54 @@ describe("non-code shapes reduce confidence rather than removing the value", () 
     expect(explainCodePenalty(readable, "12345678")).toEqual([]);
   });
 
+  it("does not read a code shown as two space-separated groups as a phone number", () => {
+    // Narrowed during M4 verification. The phone token's character class held
+    // whitespace, so `1234 5678` — the same code, presented in two groups — was
+    // penalised as a phone number and scored 0.5 instead of 0.75 on wording that was
+    // otherwise perfect. A space is a presentation choice, not a phone's punctuation.
+    const readable = "Your verification code is 1234 5678";
+
+    expect(scoreOf(readable, "1234")).toBe(0.75);
+    expect(scoreOf(readable, "5678")).toBe(0.75);
+    expect(explainCodePenalty(readable, "1234")).toEqual([]);
+    expect(explainCodePenalty(readable, "5678")).toEqual([]);
+  });
+
+  it("does not read a hyphenated date as a phone number", () => {
+    // The same over-reach, seen from the date side: `2026-04-15` and `555-1234` are the
+    // same characters in the same class, so before the date was separated out, an ISO
+    // date took a phone penalty for a cause it did not have. The score is unchanged
+    // here — the total-penalty cap hid the double count — which is exactly why the
+    // penalty *names* are asserted rather than the number alone.
+    const readable = "Placed 2026-04-15";
+
+    expect(explainCodePenalty(readable, "2026")).toEqual(["a date", "a year"]);
+    expect(explainCodePenalty(readable, "2026")).not.toContain("a phone number");
+  });
+
+  it("reads every date separator order as a date, not only the year-first one", () => {
+    // The three ways `DATE` places a candidate in a hyphenated date, all measured
+    // rather than assumed. Each previously also matched the phone shape when the
+    // candidate was not four digits, so sparing only `2026-04-15` would have been an
+    // arbitrary line rather than a rule.
+    expect(explainCodePenalty("Sent 2026-04-15", "2026")).toEqual(["a date", "a year"]);
+    expect(explainCodePenalty("Sent 663218-04-15", "663218")).toEqual(["a date"]);
+    expect(explainCodePenalty("Dated 04-663218-15", "663218")).toEqual(["a date"]);
+  });
+
+  it("still reads a genuinely grouped number as a phone number", () => {
+    // The control for the two above. If narrowing the class had removed hyphen along
+    // with whitespace, this rule would have had no reachable case left at all and the
+    // two passing tests would have been passing for the wrong reason.
+    expect(explainCodePenalty("Call +1 555-1234 today", "1234")).toContain("a phone number");
+    // Grouped by a dot, which is the other punctuation the class keeps.
+    expect(explainCodePenalty("Call 555.1234 today", "1234")).toContain("a phone number");
+    // Recorded as a limit rather than left implicit: a parenthesised group alone is no
+    // longer reachable, because `(555) 1234` is only six characters of punctuation and
+    // the token pattern needs seven. Dropping whitespace necessarily narrowed this.
+    expect(explainCodePenalty("Call (555) 1234 today", "1234")).toEqual([]);
+  });
+
   it("reduces a value labelled as an identifier", () => {
     const readable = "Customer ID: 4471902";
     const identifier = scoreOf(readable, "4471902");
@@ -195,11 +243,43 @@ describe("non-code shapes reduce confidence rather than removing the value", () 
     expect(explainCodePenalty(readable, "2026")).toContain("a year");
   });
 
+  it("penalises a date even when nothing else in the block matches a shape", () => {
+    // **The `DATE` shape's only corpus case was untested.** The one fixture input where
+    // it fires is `2026-04-15` in the order confirmation, and that value matches three
+    // shapes at once — date, phone, year — with the 0.35 total cap saturating. So
+    // deleting `DATE` from `REDUCING_SHAPES` left the whole suite green: the shape was
+    // published in D4 and present in the code while no assertion depended on it.
+    //
+    // This input is chosen so `DATE` is the *only* shape that can match. No currency
+    // marker, no `order`/`invoice`/`ref` word, no tracking or postal label, and 663218
+    // is neither a `19xx`/`20xx` year nor long enough to be grouped with punctuation.
+    // The comma after `15` is load-bearing too: it is not in the phone token's class,
+    // so nothing else can reach the value. Verified by measurement before asserting —
+    // the `Apr 15 663218` spelling suggested for this test reaches the same score only
+    // because of the whitespace the phone shape used to accept.
+    const readable = "Delivered April 15, 663218";
+
+    expect(explainCodePenalty(readable, "663218")).toEqual(["a date"]);
+    // base 0.5, sole-candidate boost 0.1, one shape at 0.25.
+    expect(scoreOf(readable, "663218")).toBe(0.35);
+  });
+
   it("keeps a penalised candidate above the floor rather than scoring it zero", () => {
-    const readable = "Order 123456 confirmed\n\nTracking 98765\n\nZIP 90210";
+    // Rewritten during M4 verification. It asserted `toBeGreaterThan(0)`, which is true
+    // of every possible output of this module — it passed for any input and therefore
+    // held nothing. It now pins the **published minimum**, so deleting the constant
+    // `MAX_TOTAL_PENALTY` (which pushes the arithmetic below the floor and lets the
+    // clamp bind) makes it go red.
+    //
+    // The minimum is derived, not observed: a block with **more than one** digit run
+    // forfeits the `+0.1` sole-candidate boost, so the worst arithmetic is
+    // `BASE 0.5` with the penalty saturated at `0.35`, giving `0.15`. A one-run block
+    // cannot go below `0.25`, which is why the input below deliberately shares a block
+    // between two digit runs.
+    const readable = "Order 123456 ref: 98765";
     const worst = Math.min(...detectVerificationCodes(readable).map((code) => code.confidence));
 
-    expect(worst).toBeGreaterThan(0);
+    expect(worst).toBe(0.15);
   });
 
   it("caps the total penalty so a triple match stays a weak candidate, not a nonsense one", () => {
@@ -219,6 +299,35 @@ describe("non-code shapes reduce confidence rather than removing the value", () 
     expect(triple).toBe(0.15);
     expect(triple).toBeGreaterThan(0);
     expect(triple).toBeLessThan(0.5);
+  });
+
+  it("boosts the only digit run in a block with no verification wording at all", () => {
+    // Pins `SOLE_CANDIDATE_BOOST`'s actual condition, which the constant's comment used
+    // to misstate. The comment claimed a block "that talks about verification"; the code
+    // has always tested `blockRunCount === 1` alone, with no keyword requirement, so a
+    // wording-free message still collects the boost and scores 0.6 rather than 0.5.
+    //
+    // The wording-bearing comparison is included so the assertion cannot pass because
+    // the boost simply always fires: if `KEYWORD_BOOST` and `SOLE_CANDIDATE_BOOST`
+    // collapsed into one, both halves here would still hold. The gap between them is
+    // exactly what the two constants are.
+    const wordingFree = scoreOf("The number is 551203", "551203");
+    const withWording = scoreOf("Your verification code is 551203", "551203");
+
+    expect(wordingFree).toBe(0.6);
+    expect(withWording).toBe(0.85);
+    expect(withWording - wordingFree).toBe(0.25);
+  });
+
+  it("withholds the sole-candidate boost from a block carrying several digit runs", () => {
+    // The other half of the condition. Both values here are 0.6 and both have no
+    // wording, so only the boost separates them: a second digit run in the same block
+    // costs the lone one its +0.1.
+    const alone = scoreOf("Reference 551203", "551203");
+    const shared = scoreOf("Reference 551203 backup 992417", "551203");
+
+    expect(alone).toBe(0.6);
+    expect(shared).toBe(0.5);
   });
 });
 
