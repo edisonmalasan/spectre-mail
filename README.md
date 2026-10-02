@@ -30,8 +30,11 @@ on. See [Current status](#current-status).
 | `build-and-verification` | live  |
 | `shared-domain-model`    | live  |
 | `provider-adapters`      | live  |
+| `mail-parsing`           | live  |
 
-`provider-adapters` was promoted at the sync stage of the `provider-layer` change.
+`provider-adapters` was promoted at the sync stage of the `provider-layer` change, and
+`mail-parsing` at the sync stage of the `mail-parsing-engine` change — 9 requirements
+and 31 scenarios, three of which were added by its verification pass.
 
 The website currently renders a plain status page. It has **no mailbox feature**,
 no provider call, and no styling. That is still the correct state and it is not a

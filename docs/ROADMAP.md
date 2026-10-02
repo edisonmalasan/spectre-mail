@@ -293,17 +293,26 @@ M3 had just written. A check that does not exist cannot be falsified, so it has 
 be written before the pass, not after.
 
 | M3 | complete (archived) | `provider-layer` |
-| M4 | verifying (repairs merged into apply branch line) | `mail-parsing-engine` |
+| M4 | verifying -> synced | `mail-parsing-engine` |
 | M5-M15 | not started | - |
 
 **OpenSpec lifecycle stage:** M0, the provider-role change, M1's foundation change,
 M2's `shared-domain-model`, and M3's `provider-layer` are all complete (propose ->
-apply -> verify -> sync -> archive). **One active change: `mail-parsing-engine`**, at
-verify. Task 8.11 - the independent vacuity check - was the step that surfaced the
+apply -> verify -> sync -> archive). **One active change: `mail-parsing-engine`**, now
+**synced** - its delta is promoted to `openspec/specs/mail-parsing/spec.md` with **9
+requirements and 31 scenarios**, of which three were added by the verification pass.
+Task 8.11 - the independent vacuity check - was the step that surfaced the
 defect above, and is ticked because the check was performed and it found something.
 M3's own verification pass found two more, and **M4's verification pass found two
 CRITICAL and six warnings**, so the task keeps earning its place on a schedule that has
 now surfaced a defect in four consecutive milestones.
+
+**One of M4's verification scenarios is a rule for writing future specs**, and it is the
+change's most transferable result: *every reducing shape must be reachable on its own.*
+The `date` shape was published as one of eight while being invisible, because the only
+input where it fired also matched `phone` and `year` and the penalty cap hid the
+difference. `design.md` D4 had already named that hazard in its own words, and `date`
+was the sentence's unheeded example.
 
 **M4's falsification pass found two more, and both are the same failure in a new
 shape.** The first was the total-penalty cap test, which asserted that a candidate
