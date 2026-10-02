@@ -52,6 +52,54 @@ const CONFORMANCE: ProviderConformance = {
 runProviderConformance(CONFORMANCE);
 
 describe("Guerrilla Mail adapter", () => {
+  it("carries no state between mailboxes through one adapter instance", async () => {
+    // The counterpart to the Mail.tm case. Here the state a caching adapter would
+    // keep is the session token, and the consequence would be worse: reading one
+    // mailbox's mail through another mailbox's session, which is both a data leak
+    // and a silent misreport of whose mail this is.
+    const environment = providerOnlyEnvironment([
+      fixtures.guerrillaSessionCreated,
+      {
+        response: {
+          status: 200,
+          headers: {},
+          // The recording must echo the SECOND mailbox's own address. Reusing the
+          // first mailbox's recording made the liveness check reject it - which is
+          // that check working correctly, and the reason a fixture for a second
+          // mailbox cannot be a copy of the first.
+          body: JSON.stringify({
+            email_addr: "someone.else@sharklasers.com",
+            sid_token: "second-session-token",
+            list: [],
+          }),
+        },
+      },
+      fixtures.guerrillaLiveList,
+    ]);
+    const adapter = createGuerrillaAdapter(environment);
+
+    const first = await adapter.createMailbox();
+    const second: Mailbox = {
+      ...first,
+      id: "second-session",
+      address: "someone.else@sharklasers.com",
+      credentials: { provider: "guerrilla", sessionId: "second-session-token" },
+    };
+
+    await adapter.listMessages(second);
+
+    // The first mailbox's token must appear in neither the URL nor the path of the
+    // later request.
+    const request = environment.requests[1];
+    expect(new URL(request?.url ?? "").searchParams.get("sid_token")).toBe("second-session-token");
+    expect(request?.url).not.toContain(GUERRILLA.sessionId);
+
+    await adapter.listMessages(first);
+    expect(new URL(environment.requests[2]?.url ?? "").searchParams.get("sid_token")).toBe(
+      GUERRILLA.sessionId,
+    );
+  });
+
   it("carries the session in the query string, never as a cookie", async () => {
     const environment = providerOnlyEnvironment([fixtures.guerrillaSessionCreated]);
 

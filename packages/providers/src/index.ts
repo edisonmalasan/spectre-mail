@@ -53,3 +53,5 @@ export { createGuerrillaAdapter } from "./guerrilla";
 
 export type { ProviderManager } from "./manager";
 export { createProviderManager } from "./manager";
+
+export { deleteMessage, destroyMailbox } from "./operations";

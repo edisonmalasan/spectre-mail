@@ -45,6 +45,51 @@ const CONFORMANCE: ProviderConformance = {
 runProviderConformance(CONFORMANCE);
 
 describe("Mail.tm adapter", () => {
+  it("carries no state between mailboxes through one adapter instance", async () => {
+    // The requirement is *The provider layer does not persist anything*: a mailbox
+    // restored from storage must work with nothing remembered. Every other test in
+    // this package builds a fresh adapter per call, so an adapter that cached the
+    // first mailbox's token would pass all of them — the cache would never be read
+    // by a test that hands over a different mailbox.
+    //
+    // One adapter, two mailboxes, each with its own credentials. If any state were
+    // retained, the second request would carry the first mailbox's token.
+    const environment = stubEnvironment([
+      fixtures.mailtmDomains,
+      fixtures.mailtmAccountCreated,
+      fixtures.mailtmToken,
+      fixtures.mailtmMessageList,
+      fixtures.mailtmMessageList,
+    ]);
+    const adapter = createMailTmAdapter(environment);
+
+    const first = await adapter.createMailbox();
+    const second: Mailbox = {
+      ...first,
+      id: "https://api.mail.tm/accounts/SECOND",
+      address: "second@uberip.com",
+      credentials: {
+        provider: "mailtm",
+        accountId: "/accounts/SECOND",
+        accessToken: "second-token-value",
+      },
+    };
+
+    await adapter.listMessages(second);
+
+    const listRequest = environment.requests[3];
+    expect(listRequest?.url).toContain("/messages");
+    // The FIRST mailbox's token must not appear anywhere in the later request.
+    expect(listRequest?.headers?.authorization).toBe("Bearer second-token-value");
+    expect(JSON.stringify(listRequest)).not.toContain(MAILTM.token);
+
+    // And going back to the first mailbox uses its own token again, so the
+    // assertion above is about which credentials were used rather than about the
+    // adapter having forgotten to attach one at all.
+    await adapter.listMessages(first);
+    expect(environment.requests[4]?.headers?.authorization).toBe(`Bearer ${MAILTM.token}`);
+  });
+
   it("discovers its domain before creating an account", async () => {
     const environment = stubEnvironment([
       fixtures.mailtmDomains,
