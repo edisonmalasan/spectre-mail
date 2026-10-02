@@ -148,6 +148,45 @@ describe("mailbox provider agreement", () => {
     expect(isMailbox(missingToken)).toBe(false);
   });
 
+  it("rejects a stored mailbox whose expiry is not a usable number", () => {
+    // Added by the M2 verification pass, which proved `isMailbox` accepted all
+    // three of these. A human-readable duration in `expiresAt` is exactly the
+    // fabrication the model exists to prevent: that field exists only for an
+    // instant a provider actually reported.
+    const base = {
+      id: "mailbox-1",
+      provider: "mailtm",
+      address: "someone@sharklasers.com",
+      createdAt: 1_700_000_000_000,
+      credentials: mailTmCredentials,
+      status: "active",
+    };
+
+    expect(isMailbox({ ...base, expiresAt: "in seven days" })).toBe(false);
+    expect(isMailbox({ ...base, expiresAt: 1_700_003_600_000 })).toBe(true);
+  });
+
+  it("rejects an expiry that is not a finite number", () => {
+    const base = {
+      id: "mailbox-1",
+      provider: "mailtm",
+      address: "someone@sharklasers.com",
+      createdAt: 1_700_000_000_000,
+      credentials: mailTmCredentials,
+      status: "active",
+    };
+
+    // NaN would render as "Invalid Date"; Infinity would produce a countdown that
+    // never ends. Neither is a value a provider reported.
+    expect(isMailbox({ ...base, expiresAt: Number.NaN })).toBe(false);
+    expect(isMailbox({ ...base, expiresAt: Number.POSITIVE_INFINITY })).toBe(false);
+  });
+
+  it("still accepts a mailbox with no expiry at all", () => {
+    // Absence is the normal case, not a defect. This guards against the fix above
+    // over-correcting and requiring an expiry to exist.
+    expect(isMailbox(createMailbox(init()))).toBe(true);
+  });
   it("accepts a stored mailbox carrying an observed expiry", () => {
     const withExpiry = {
       ...createMailbox(init({ expiresAt: 1_700_003_600_000 })),
