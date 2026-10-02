@@ -149,8 +149,35 @@ const DATE: ReducingShape = {
  * number like `+1 555-1234` never reaches this rule whole, because only its groups are
  * candidates. So the judgement has to be made on the **block**, and only a token that
  * actually carries punctuation can be a phone number.
+ *
+ * **Narrowed during M4 verification, because the class over-reached.** It held both
+ * whitespace and a hyphen, and neither belongs to a phone number:
+ *
+ * - With whitespace in it, `Your verification code is 1234 5678` was penalised as a
+ *   phone number. A space-separated code is a **presentation** choice — it is the same
+ *   code — and the shape the shape exists to detect (a phone number) is the one thing
+ *   the penalty was wrong about. So `1234 5678` scored 0.5 where 0.75 was right, for
+ *   a message whose wording was otherwise perfect.
+ * - `Apr 15 663218` was penalised as a phone number *and* as a date for the same span
+ *   of text: two penalties, one cause, and the total-penalty cap then hid which one
+ *   had fired.
+ *
+ * Whitespace is therefore out. The hyphen stays, because `555-1234` is a real
+ * grouping and is this rule's one reachable case in the corpus. What a hyphen cannot
+ * decide on its own is whether `2026-04-15` is a date or a phone number, so that one
+ * shape is separated out below rather than guessed at.
  */
-const PHONE_LIKE_TOKEN = /(?<![\d+])\+?\d[\d\s().-]{5,}\d(?![\d])/g;
+const PHONE_LIKE_TOKEN = /(?<![\d+])\+?\d[\d().-]{5,}\d(?![\d])/g;
+
+/**
+ * A token that is a hyphenated date rather than a grouped number.
+ *
+ * `2026-04-15` and `555-1234` are the same characters in the same class, so the token
+ * pattern cannot tell them apart. The date is not the phone shape's business: it is
+ * already `DATE`'s, and counting it twice inflated the penalty without making the
+ * ranking more honest. Anchored, because a token is already an isolated run.
+ */
+const ISO_DATE_TOKEN = /^\+?\d{4}-\d{1,2}-\d{1,4}$/;
 
 /**
  * Matches a candidate that falls inside a grouped number in its block.
@@ -163,6 +190,7 @@ const PHONE: ReducingShape = {
   name: "a phone number",
   matches: (block, value) => {
     for (const token of block.match(PHONE_LIKE_TOKEN) ?? []) {
+      if (ISO_DATE_TOKEN.test(token)) continue;
       if (/[^\d]/.test(token) && token.replace(/\D/g, "").includes(value)) {
         return true;
       }

@@ -176,6 +176,44 @@ describe("non-code shapes reduce confidence rather than removing the value", () 
     expect(explainCodePenalty(readable, "12345678")).toEqual([]);
   });
 
+  it("does not read a code shown as two space-separated groups as a phone number", () => {
+    // Narrowed during M4 verification. The phone token's character class held
+    // whitespace, so `1234 5678` — the same code, presented in two groups — was
+    // penalised as a phone number and scored 0.5 instead of 0.75 on wording that was
+    // otherwise perfect. A space is a presentation choice, not a phone's punctuation.
+    const readable = "Your verification code is 1234 5678";
+
+    expect(scoreOf(readable, "1234")).toBe(0.75);
+    expect(scoreOf(readable, "5678")).toBe(0.75);
+    expect(explainCodePenalty(readable, "1234")).toEqual([]);
+    expect(explainCodePenalty(readable, "5678")).toEqual([]);
+  });
+
+  it("does not read an ISO date as a phone number", () => {
+    // The same over-reach, seen from the date side: `2026-04-15` and `555-1234` are the
+    // same characters in the same class, so before the date was separated out, an ISO
+    // date took a phone penalty for a cause it did not have. The score is unchanged
+    // here — the total-penalty cap hid the double count — which is exactly why the
+    // penalty *names* are asserted rather than the number alone.
+    const readable = "Placed 2026-04-15";
+
+    expect(explainCodePenalty(readable, "2026")).toEqual(["a date", "a year"]);
+    expect(explainCodePenalty(readable, "2026")).not.toContain("a phone number");
+  });
+
+  it("still reads a genuinely grouped number as a phone number", () => {
+    // The control for the two above. If narrowing the class had removed hyphen along
+    // with whitespace, this rule would have had no reachable case left at all and the
+    // two passing tests would have been passing for the wrong reason.
+    expect(explainCodePenalty("Call +1 555-1234 today", "1234")).toContain("a phone number");
+    // Grouped by a dot, which is the other punctuation the class keeps.
+    expect(explainCodePenalty("Call 555.1234 today", "1234")).toContain("a phone number");
+    // Recorded as a limit rather than left implicit: a parenthesised group alone is no
+    // longer reachable, because `(555) 1234` is only six characters of punctuation and
+    // the token pattern needs seven. Dropping whitespace necessarily narrowed this.
+    expect(explainCodePenalty("Call (555) 1234 today", "1234")).toEqual([]);
+  });
+
   it("reduces a value labelled as an identifier", () => {
     const readable = "Customer ID: 4471902";
     const identifier = scoreOf(readable, "4471902");
