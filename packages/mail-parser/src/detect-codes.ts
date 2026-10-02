@@ -212,8 +212,14 @@ const PHONE_LIKE_TOKEN = /(?<![\d+])\+?\d[\d().-]{5,}\d(?![\d])/g;
  * pattern cannot tell them apart. The date is not the phone shape's business: it is
  * already `DATE`'s, and counting it twice inflated the penalty without making the
  * ranking more honest. Anchored, because a token is already an isolated run.
+ *
+ * **Deliberately aligned with `DATE`'s own separator forms** rather than written as a
+ * loose "three hyphenated numbers" test, so the two shapes cannot drift apart again.
+ * The middle or leading group may be the candidate, because either can be — measured:
+ * `2026-04-15`, `663218-04-15`, and `04-663218-15` all reach `DATE`, and only the
+ * first was being spared the double count before this was widened.
  */
-const ISO_DATE_TOKEN = /^\+?\d{4}-\d{1,2}-\d{1,4}$/;
+const HYPHENATED_DATE_TOKEN = /^(?:\d{4,8}-\d{1,2}-\d{2,4}|\d{1,2}-\d{4,8}-\d{2,4})$/;
 
 /**
  * Matches a candidate that falls inside a grouped number in its block.
@@ -226,7 +232,7 @@ const PHONE: ReducingShape = {
   name: "a phone number",
   matches: (block, value) => {
     for (const token of block.match(PHONE_LIKE_TOKEN) ?? []) {
-      if (ISO_DATE_TOKEN.test(token)) continue;
+      if (HYPHENATED_DATE_TOKEN.test(token)) continue;
       if (/[^\d]/.test(token) && token.replace(/\D/g, "").includes(value)) {
         return true;
       }

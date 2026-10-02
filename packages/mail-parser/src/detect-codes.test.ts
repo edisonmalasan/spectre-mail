@@ -189,7 +189,7 @@ describe("non-code shapes reduce confidence rather than removing the value", () 
     expect(explainCodePenalty(readable, "5678")).toEqual([]);
   });
 
-  it("does not read an ISO date as a phone number", () => {
+  it("does not read a hyphenated date as a phone number", () => {
     // The same over-reach, seen from the date side: `2026-04-15` and `555-1234` are the
     // same characters in the same class, so before the date was separated out, an ISO
     // date took a phone penalty for a cause it did not have. The score is unchanged
@@ -199,6 +199,16 @@ describe("non-code shapes reduce confidence rather than removing the value", () 
 
     expect(explainCodePenalty(readable, "2026")).toEqual(["a date", "a year"]);
     expect(explainCodePenalty(readable, "2026")).not.toContain("a phone number");
+  });
+
+  it("reads every date separator order as a date, not only the year-first one", () => {
+    // The three ways `DATE` places a candidate in a hyphenated date, all measured
+    // rather than assumed. Each previously also matched the phone shape when the
+    // candidate was not four digits, so sparing only `2026-04-15` would have been an
+    // arbitrary line rather than a rule.
+    expect(explainCodePenalty("Sent 2026-04-15", "2026")).toEqual(["a date", "a year"]);
+    expect(explainCodePenalty("Sent 663218-04-15", "663218")).toEqual(["a date"]);
+    expect(explainCodePenalty("Dated 04-663218-15", "663218")).toEqual(["a date"]);
   });
 
   it("still reads a genuinely grouped number as a phone number", () => {
