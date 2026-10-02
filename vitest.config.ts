@@ -10,10 +10,22 @@ import { defineConfig } from "vitest/config";
  * execute a live provider probe as part of `pnpm test`. The spike is verified by
  * its own self-test, run via `pnpm spike:selftest`.
  *
- * The second entry was added at M2, when `packages/core` gained real tests:
+ * The second entry was added at M2, when `packages/core` gained real tests, and is
+ * what lets M3's adapter tests live beside the adapters:
  *
  *   tests/architecture/, any depth   cross-cutting repository boundary assertions
  *   any shared package's src, any depth   unit tests beside the code they cover
+ *
+ * The package entry is deliberately **package-shaped**: it globs the src directory
+ * of each workspace package, rather than every test file in the repository. A stray
+ * test placed at the repository root or under `tests/` would therefore be
+ * **silently skipped** — an undiscovered test is worse than no test, because it
+ * reads as covered. A test that must run at the root belongs in the first entry.
+ *
+ * The glob is written here rather than quoted in this comment on purpose. The
+ * pattern contains the two-character sequence that closes a block comment, so
+ * transcribing it into prose terminated the comment early and `pnpm lint` failed
+ * with a parse error at this line.
  *
  * **The two must never be merged into one glob, and this list must never become
  * `tests/**`.** Those are different mechanisms that happen to both mention tests:

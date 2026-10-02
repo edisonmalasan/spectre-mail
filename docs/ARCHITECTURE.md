@@ -33,13 +33,41 @@ depend on packages, never the reverse.
 
 ## Packages
 
-| Package                     | Owns                                                                                                                                                | Must never contain                                       |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| `@spectre-mail/core`        | Mailbox lifecycle, provider selection, provider health, the mailbox manager, message and error normalization, expiration logic, shared domain types | Provider wire format; any HTTP call to a provider        |
-| `@spectre-mail/providers`   | The Mail.tm adapter, the Guerrilla Mail adapter, any future SpectreMail-operated provider                                                           | Business logic that belongs in `core`; presentation      |
-| `@spectre-mail/mail-parser` | Safe text extraction, OTP detection, verification-link detection, message classification                                                            | Anything that renders markup; provider field names       |
-| `@spectre-mail/storage`     | The `SpectreStorage` interface, the web IndexedDB adapter, the extension storage adapter                                                            | Provider wire format; assumptions specific to one client |
-| `@spectre-mail/ui`          | Reusable product UI and design tokens                                                                                                               | Marketing-only website sections                          |
+| Package                     | Owns                                                                                                                                                                       | Must never contain                                               |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `@spectre-mail/core`        | Mailbox lifecycle, provider selection, provider health, the mailbox manager, message and error normalization, expiration logic, shared domain types                        | Provider wire format; any HTTP call to a provider                |
+| `@spectre-mail/providers`   | The `MailProvider` contract, the Mail.tm adapter, the Guerrilla Mail adapter, the shared conformance suite, the provider manager, any future SpectreMail-operated provider | Business logic that belongs in `core`; presentation; any storage |
+| `@spectre-mail/mail-parser` | Safe text extraction, OTP detection, verification-link detection, message classification                                                                                   | Anything that renders markup; provider field names               |
+| `@spectre-mail/storage`     | The `SpectreStorage` interface, the web IndexedDB adapter, the extension storage adapter                                                                                   | Provider wire format; assumptions specific to one client         |
+| `@spectre-mail/ui`          | Reusable product UI and design tokens                                                                                                                                      | Marketing-only website sections                                  |
+
+### The provider layer
+
+`packages/providers` holds the `MailProvider` contract and the two adapters that
+implement it. One contract, reached identically by every client, so a caller never
+branches on which provider it asked.
+
+**The contract has no subscription method.** Measured: five SSE candidate paths and
+two WebSocket candidates were probed and none connected. Mail.tm's
+`GET /messages/events` answers `406` for `Accept: text/event-stream` and `404` for
+every format its negotiator accepts, while the provider's own marketing copy claims
+SSE is available. An optional method is still a method — a caller that checks for it
+and finds it absent still handles absence — so the method is removed rather than
+declared and left unimplemented. Messages arrive by the caller polling.
+
+**Every request goes through an injected transport.** There is no module-level
+`fetch` call in the package, and `tests/architecture/boundaries.test.ts` asserts it.
+Neither a web page nor an MV3 service worker lets a test intercept `fetch`, so
+without this seam verifying an adapter means contacting a third party, and the suite
+would then fail whenever that provider is down or rate-limiting — turning their
+availability into this repository's CI status.
+
+The recorded responses the suite runs from are real, measured provider output
+(`docs/PROVIDERS.md`), so the awkward shapes are exercised: a message that arrived
+with an **empty subject**, and an HTML body under a declared plain-text content type.
+
+The cost is stated rather than hidden: recordings mean the suite cannot notice a
+provider _changing_ a field name. Fixture refresh is a deliberate diff.
 
 ### The provider boundary
 
@@ -190,14 +218,34 @@ with "No inputs were found".
 - the workspace declares exactly `apps/*` and `packages/*`;
 - the spike is outside the workspace **and** still exists;
 - no package imports an app;
-- no file under `apps/` contains a measured provider JSON field name;
-- provider adapter identifiers appear only in `packages/providers`;
+- no workspace source file outside `packages/providers` contains a measured provider
+  JSON field name;
+- provider adapter identifiers appear only in `packages/providers`, including any
+  identifier _shaped_ like an adapter factory;
+- no module in `packages/providers` reaches the global `fetch`;
 - no workspace file references the spike.
 
 Each check was proven able to fail by deliberately introducing the violation and
 observing a non-zero exit. An empty suite was also proven to exit 1:
 `passWithNoTests` is left off, because a green run that inspects nothing is worse
 than no run at all.
+
+**The adapter-identifier list was wrong until M3, and the test stayed green.** It
+held `MailTmProvider`, `GuerrillaMailProvider`, and `SpectreMailProvider` — **none of
+which had ever existed**. M3 named its exports `createMailTmAdapter` and
+`createGuerrillaAdapter`, and the rule continued passing while guarding nothing,
+because a list of identifiers nothing references cannot fail. That is the **fourth**
+time this repository has shipped a check narrower than the rule it documented (M1:
+the import pattern and this rule's scope; M2: the wire-format scope, then a type
+assertion that resolved to `never` for every input). The list now names the real
+exports _and_ matches the adapter-factory shape, so the next provider cannot be added
+outside the package without naming it first.
+
+The `fetch` rule initially fired on its own documentation — `contract.ts` explains
+in prose that it has no subscription method, and a rule that cannot tell a
+declaration from a comment about that declaration is measuring the wrong thing. Fixed
+by stripping comments before matching, not by rewording the comment until the rule
+went quiet.
 
 **Scope of the field-name check.** It matches a fixed list of names measured from
 live responses. It is a **tripwire, not a proof of absence**, and it can fire on

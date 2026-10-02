@@ -23,12 +23,93 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor:** M3 - Provider Layer (**proposing**). M2 completed its full
-lifecycle: propose PR #12, apply PR #13, verification repairs PR #14, sync PR #15,
-archive PR #16 (`49b1bfa`), archived at
-`openspec/changes/archive/2026-10-02-shared-domain-model/` with its delta promoted
-to `openspec/specs/shared-domain-model/spec.md`. M3's change is `provider-layer`.
-The site and the spike are untouched by it so far - it is planning artifacts only.
+**Roadmap cursor:** M3 - Provider Layer (**applying**, PR #18 on
+`feat/provider-adapters`). M2 completed its full lifecycle: propose PR #12, apply
+PR #13, verification repairs PR #14, sync PR #15, archive PR #16 (`49b1bfa`),
+archived at `openspec/changes/archive/2026-10-02-shared-domain-model/` with its
+delta promoted to `openspec/specs/shared-domain-model/spec.md`. M3's change is
+`provider-layer`, proposed in PR #17 (`7f20877`). M3 remains unverified, unsynced,
+and unarchived, and the site and the spike are untouched by it.
+
+### M3 decisions, recorded so M4 builds against them rather than re-deciding
+
+- **The contract has no subscription method at all** - not optional, absent.
+  Measured: five SSE candidate paths and two WebSocket candidates were probed and
+  none connected. `GET /messages/events` answers `406` for
+  `Accept: text/event-stream` and `404` for every format its negotiator accepts,
+  while Mail.tm's marketing copy claims SSE is available. An optional method is
+  still a method: a caller that checks for it and finds it absent still has to
+  handle absence. Messages arrive by the caller polling.
+- **Transport is constructor-injected; there is no module-level `fetch` in
+  `packages/providers`**, asserted by `tests/architecture/boundaries.test.ts`.
+  Neither a web page nor an MV3 service worker lets a test intercept `fetch`, so
+  without the seam verifying an adapter means contacting a third party and the
+  suite fails whenever that provider is down or rate-limiting - turning their
+  availability into this repository's CI status.
+- **Credentials are generated client-side inside the adapter**, via an injected
+  random source, and the domain is fetched once per creation because `GET /domains`
+  is `30; w=60` while `POST /accounts` is `1; w=60`.
+- **The dead-session check is provider-specific and mandatory.** Guerrilla's
+  liveness test is whether the response still names the mailbox's own address,
+  because a session it no longer honours answers `HTTP 200` with an empty list, no
+  `error`, and `auth.success` still `true`. Best-effort detection of one known
+  trap, not proof of liveness.
+- **Mail.tm deletion follows the hydrated `@id`** - measured **relative**
+  (`/accounts/{id}`), resolved to absolute once and stored as `Mailbox.id` - never
+  a constructed path.
+- **Rate-limit headers are captured verbatim onto `RATE_LIMITED` and never
+  parsed.** `1; w=60` states a limit and a window and nothing about what it is per.
+  Whether that limit is per-IP or per-account **remains unverified** and no product
+  code asserts either.
+- **The manager is consulted only at creation.** Fallback honesty is structurally
+  guaranteed because M2 derives `Mailbox.provider` from the credential
+  discriminant, so a Guerrilla mailbox cannot be reported as a Mail.tm one.
+- **`deleteMessage` and `destroyMailbox` are optional, plus a required
+  `supports(operation)`**, so absence is discoverable as a question rather than an
+  exception. Neither was observed to work on Guerrilla; that is **unverified**, not
+  proven unsupported.
+- **An unclassifiable failure keeps the provider's own description** and becomes
+  `UNKNOWN_PROVIDER_ERROR`. A `422` is deliberately *not* `UNSUPPORTED_OPERATION`:
+  it means Mail.tm refused the address we generated, not that the provider lacks a
+  capability, and the difference decides whether the user or we own the fault.
+
+**Two of these replaced assumptions in the M3 task plan, and the reason is
+recorded rather than quietly corrected.** The plan asserted a Mail.tm bearer `401`
+means bad credentials; measurement says a deleted mailbox and a bad token **both**
+answer `401` with the same body, so the adapter reports `MAILBOX_EXPIRED` and the
+shared conformance suite accepts either code - demanding one specific code would
+force it to tell a user to check a credential they never entered. The plan also
+mapped a validation rejection to an unsupported operation, which would have been
+confidently false.
+
+**M3 findings recorded during apply:**
+
+- **A fourth check narrower than its documented rule.** The boundary test's
+  provider-adapter list held `MailTmProvider`, `GuerrillaMailProvider`, and
+  `SpectreMailProvider` - **none of which had ever existed**. M3's exports are
+  `createMailTmAdapter` and `createGuerrillaAdapter`, so the rule stayed green
+  while guarding nothing: a list of identifiers nothing references cannot fail.
+  Widened to the real exports plus a `create*Adapter` shape match. This is the
+  third milestone in a row to produce one (M1 twice, M2 twice), which is why the
+  falsification pass is a task rather than a habit.
+- **Two new checks initially fired on their own documentation** - the contract test
+  matched the word `subscribe` in the prose explaining its absence, and the `fetch`
+  rule matched `fetch(` inside a doc comment. Both fixed by stripping comments
+  before matching, not by rewording prose until the rule went quiet.
+- **A test written to be falsifiable stayed vacuous on the first attempt.** The
+  initial proof run showed the suite green after adding a `subscribe` member,
+  which proved no check existed for it. The absence of a member is not observable
+  at runtime, so the check is now a source scan *and* a compile-time assertion -
+  `pnpm typecheck` fails if `subscribe` becomes a key of `MailProvider`.
+- **16 deliberate violations, all caught**, every file restored byte-identical:
+  nine against boundary and contract rules, seven reverting a required behaviour.
+
+**Still unverified after M3, and deliberately so:** the live MV3 host-permission
+check; whether Mail.tm's `1; w=60` is per-IP or per-account; whether Guerrilla
+supports deletion at all; Guerrilla's real mailbox lifetime; and whether the
+recorded fixtures still match the live providers. **No test contacts a live
+provider**, so the suite proves this repository's mapping of a wire format and
+nothing about a provider's current behaviour.
 
 **Verification found a gate that was failing and being recorded as passing.** On
 Windows - the environment `AGENTS.md` declares supported - `pnpm format:check`
@@ -126,13 +207,22 @@ and M0's `m0-provider-spike` is archived at
 That is now three times this repository has produced a check narrower or broader than
 the rule it documented. The habit it produces is the point: prove each assertion can
 fail, and prove the correct case still passes.
-| M3-M15 | not started | - |
 
-**OpenSpec lifecycle stage:** M0, the provider-role change, and M1's foundation
-change are all complete (propose -> apply -> verify -> sync -> archive). **No
-active changes remain.** Task 8.11 - the independent vacuity check - was the step
-that surfaced the defect above, and is ticked because the check was performed and
-it found something.
+**M3 added a fourth and a fifth.** The adapter-identifier rule named three
+identifiers that never existed, so it could not fail (fixed in `Project Status`
+above). And the very first M3 falsification run came back **green** after adding a
+`subscribe` member to the contract - proving no check existed for the requirement
+M3 had just written. A check that does not exist cannot be falsified, so it has to
+be written before the pass, not after.
+
+| M3 | applying | `provider-layer` |
+| M4-M15 | not started | - |
+
+**OpenSpec lifecycle stage:** M0, the provider-role change, M1's foundation change,
+and M2's `shared-domain-model` are all complete (propose -> apply -> verify -> sync
+-> archive). **One active change: `provider-layer`**, at apply. Task 8.11 - the
+independent vacuity check - was the step that surfaced the defect above, and is
+ticked because the check was performed and it found something.
 
 **Next required change:** finish `provider-layer` (apply, verify, sync, archive).
 
@@ -148,21 +238,25 @@ it found something.
   `./src/index.ts`). There is no per-package build and no bundler, so
   `pnpm build` builds the website only and package correctness is established by
   `pnpm typecheck`. Revisit when a non-Vite consumer appears.
-- `packages/providers/src/index.ts` deliberately declares **no** `MailProvider`
-  contract. M3 owns that decision, and it should be written against the measured
-  behaviour in `docs/PROVIDERS.md` rather than against an interface invented here.
-- Every placeholder package contains no behaviour and no stub exports. The domain
-  model (M2), the provider contract (M3), storage (M5/M6), and UI (M7+) are each
-  still unimplemented, exactly as the roadmap schedules them.
+- `packages/providers` **is** implemented as of M3: the `MailProvider` contract,
+  the Mail.tm and Guerrilla Mail adapters, the shared conformance suite, the
+  provider manager, and the injected transport seam. Both adapters pass the same
+  conformance suite with **no per-provider exemption** - an exemption is the
+  mechanism by which a conformance suite quietly stops meaning anything.
+- The remaining placeholder packages contain no behaviour and no stub exports:
+  storage (M5/M6) and UI (M7+). Exactly as the roadmap schedules them.
 - The architecture boundaries are enforced by `tests/architecture/boundaries.test.ts`,
   not merely documented. Each assertion was proven able to fail. **Any new code
   must keep it passing** - in particular, no provider JSON field name may appear
-  under `apps/`, and provider adapter identifiers may only appear in
-  `packages/providers`.
-- `vitest.config.ts` scopes `include` to `tests/architecture/**/*.test.ts`
-  explicitly and leaves `passWithNoTests` off. M2 adds tests and **must widen that
-  glob deliberately**, never to `tests/**`, or the root test command could begin
-  executing the spike harness.
+  outside `packages/providers`, provider adapter identifiers and
+  adapter-shaped identifiers may only appear there, and no module in
+  `packages/providers` may reach the global `fetch`.
+- `vitest.config.ts` scopes `include` to `tests/architecture/**/*.test.ts` and
+  `packages/*/src/**/*.test.ts`, and leaves `passWithNoTests` off. The package glob
+  is deliberately package-shaped: a test at the repository root or under `tests/`
+  outside `architecture/` is **silently skipped**, verified by observing the
+  collected count unchanged with such a file present. Never widen either glob to
+  `tests/**`, or the root test command could begin executing the spike harness.
 
 **Open items carried forward:**
 
@@ -835,6 +929,11 @@ Implement each provider behind one contract.
 
 ## Contract target
 
+> **As implemented by M3 (`openspec/changes/provider-layer`).** The `subscribe?`
+> member below is **absent from the real contract, not optional**, and
+> `supports(operation)` was added. Both differences are deliberate; see the
+> M3 decisions in `Project Status`.
+
 ```ts
 interface MailProvider {
   readonly id: ProviderId;
@@ -862,10 +961,11 @@ interface MailProvider {
     mailbox: Mailbox
   ): Promise<void>;
 
-  subscribe?(
-    mailbox: Mailbox,
-    listener: MessageListener
-  ): UnsubscribeFunction;
+  // Added by M3. Both optional members above are queried through this, so
+  // "can this provider delete a mailbox?" is a compile-time-checkable question
+  // rather than a call that may throw.
+
+  supports(operation: ProviderOperation): boolean;
 }
 ```
 
@@ -880,6 +980,15 @@ interface MailProvider {
 >   in the adapter.
 > - **SSE does not exist.** No SSE or WebSocket endpoint is available, so
 >   `subscribe?` cannot be implemented for Mail.tm. Polling is the only option.
+>
+> **M3 resolved this by deleting the member from the contract** rather than
+> declaring it and leaving it unimplemented. An optional method is still a method:
+> every caller has to check for it and handle its absence, which would have left a
+> dead branch in every client and an implied promise that a push transport might
+> appear later. The measurement is not "SSE is unstable", it is "SSE does not
+> exist", and the honest encoding of that is a contract with no such method.
+> A compile-time assertion and a source scan both fail if `subscribe` is ever
+> reintroduced.
 >
 > Mail.tm is also currently **unreachable from a normal web page** — see
 > `Project Status` and `docs/PROVIDERS.md`.
@@ -897,6 +1006,19 @@ health checks
 rate-limit handling
 SSE subscription if stable   → not available; polling only
 ```
+
+**Delivered by M3**, with two additions the measured behaviour forced:
+
+```text
+credentials generated client-side     (the provider issues no address, and a
+                                       password is required then exchanged)
+deletion follows the hydrated @id     (measured RELATIVE — /accounts/{id} —
+                                       resolved once, never a constructed path)
+```
+
+The `1; w=60` limit is captured **verbatim** and never parsed: it states a limit and
+a window and nothing about what it is per, so "per IP" appears nowhere in this
+product. Whether that limit is per-IP or per-account remains **unverified**.
 
 ## Guerrilla Mail adapter
 
@@ -921,6 +1043,17 @@ health checks
 rate-limit/error handling
 ```
 
+**Delivered by M3.** The dead-session check tests whether the response still names
+the mailbox's own address, since an unrecognised session answers `200` with no
+`list`, no `error`, and `auth.success` still `true` - a mailbox with mail would
+otherwise be reported as empty, which is silent data loss. It is best-effort
+detection of one known trap, **not** proof of liveness.
+
+Deletion operations are **not implemented**: neither was observed in the measured
+surface. `supports()` therefore answers `false`, which records **unverified** - "not
+observed" is not "does not exist" - rather than asserting a provider fact nobody
+measured.
+
 ## Provider manager
 
 Automatic mode:
@@ -941,18 +1074,31 @@ mark degraded
 try Guerrilla Mail
 ```
 
+> **Revised by M3.** The `short retry` step is **absent**. The provider-adstraction
+> capability requires throttling to be surfaced rather than silently retried, and a
+> retry loop here would spend a quota the provider is already refusing to extend.
+> The manager tries each provider exactly once and reports the failures it saw.
+
 Important:
 
 > Failover applies only when creating a new mailbox.
 
 Existing mailboxes must remain attached to the provider that created them.
 
+**Delivered by M3.** This is structural rather than a convention: M2 derives
+`Mailbox.provider` from the credential discriminant, so a Guerrilla mailbox cannot
+be reported as a Mail.tm one even by mistake. With a single configured provider -
+the website's case - the manager attempts exactly once and **does not pretend a
+fallback exists**.
+
 ## Acceptance criteria
 
-- Both adapters pass the same provider contract tests
-- Provider-specific objects stay inside adapter code
-- Automatic mode can choose/fallback without UI changes
-- Manual provider selection is possible
+| Criterion | State after M3 |
+| --- | --- |
+| Both adapters pass the same provider contract tests | **Met.** One shared conformance suite, run once per adapter, with no per-provider exemption. 24 of the 80 package tests are those two runs. |
+| Provider-specific objects stay inside adapter code | **Met.** Enforced by the wire-format boundary scan, whose scope was widened at M2 and widened again at M3 to match adapter-shaped identifiers. |
+| Automatic mode can choose/fallback without UI changes | **Met at the package level; no UI exists.** The manager selects and falls back, and a single-provider configuration is reported honestly. Whether any UI needs changing is not yet observable, since no client consumes this package. |
+| Manual provider selection is possible | **Not met, and not in M3's scope.** Selection is a presentation concern with no client to present it in. Deferred to the milestone that wires `apps/` to this package; recording it as met would be a claim about code that does not exist. |
 
 ---
 
