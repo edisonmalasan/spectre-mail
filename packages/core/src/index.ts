@@ -1,24 +1,59 @@
 /**
- * `@spectre-mail/core` — normalized product logic.
+ * `@spectre-mail/core` — SpectreMail's normalized product vocabulary.
  *
- * Owns: mailbox lifecycle, provider selection, provider health, the mailbox
- * manager, message normalization, error normalization, expiration logic, and the
- * shared domain types.
+ * Owns: the shared domain types, mailbox lifecycle, provider selection, provider
+ * health, the mailbox manager, message normalization, error normalization, and
+ * expiration logic.
  *
- * M1 (monorepo foundation) creates this file and nothing else. It deliberately
- * contains **no runtime behaviour and no exports**. A single documented file
- * exists so the package has a TypeScript input, because `tsc` fails with "No
- * inputs were found" on a project with no source — without it the package
- * could not be type checked at all, and the type check gate would be vacuous.
+ * **M2 (shared domain model) gives this package its first real content**: the
+ * normalized types below. The behaviour that acts on them — mailbox lifecycle,
+ * expiry evaluation, and the mapping from provider HTTP responses onto the
+ * normalized error codes — is **not** here yet. That belongs to later milestones,
+ * and specifically to the provider layer, which is the first thing able to observe a
+ * real provider response.
  *
- * The domain model that belongs here (Mailbox, MessageSummary, Message,
- * VerificationCode, VerificationLink, the normalized error codes) is specified
- * by milestone M2. The `MailProvider` contract is M3. Neither is stubbed here:
- * a placeholder that throws is dead code the owning milestone must delete, and
- * inventing the contract now would front-run a decision not yet made.
+ * What this package deliberately does **not** contain:
  *
- * Boundary: this package must never import from `apps/web` or `apps/extension`.
- * That rule is enforced by `tests/architecture/boundaries.test.ts`, not by
- * convention.
+ * - No provider wire format. Every field name here is SpectreMail's own. A measured
+ *   provider field name must never appear in this package; `tests/architecture/`
+ *   asserts it for apps and this is the same rule by construction.
+ * - No `MailProvider` contract. That is the provider layer's milestone, and it is
+ *   deliberately not anticipated here — inventing it before any provider has been
+ *   measured would freeze a guess.
+ * - No OTP or verification-link detection. `packages/mail-parser` detects; this
+ *   package describes the result.
+ *
+ * The package is consumed **as TypeScript source** (see its `exports`), so there is
+ * no build step for it. Package correctness is established by `pnpm typecheck`; a
+ * successful `pnpm build` builds the website only and says nothing about this
+ * package.
+ *
+ * @module
  */
-export {};
+
+export { PROVIDER_IDS, isProviderId, assertProviderId } from "./provider";
+export type { ProviderId } from "./provider";
+
+export {
+  assertGuerrillaCredentials,
+  assertMailTmCredentials,
+  credentialsProvider,
+} from "./credentials";
+export type { GuerrillaCredentials, MailTmCredentials, ProviderCredentials } from "./credentials";
+
+export { createMailbox, isMailboxGone, withMailboxStatus } from "./mailbox";
+export type { Mailbox, MailboxInit, MailboxStatus } from "./mailbox";
+
+export { isMailbox } from "./invariants";
+export type { AssertProviderAgreement, CredentialsProvider } from "./invariants";
+
+export { assertConfidence, createMessageSummary, isValidConfidence } from "./message";
+export type { Message, MessageSummary, VerificationCode, VerificationLink } from "./message";
+
+export {
+  NORMALIZED_ERROR_CODES,
+  NormalizedErrorCode,
+  isNormalizedErrorCode,
+  isSpectreError,
+} from "./errors";
+export type { SpectreError } from "./errors";

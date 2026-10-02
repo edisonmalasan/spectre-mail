@@ -79,6 +79,21 @@ constructor. TypeScript cannot prevent object literals. That is acceptable and i
 why the agreement assertion is exported as a reusable type rather than a private
 detail: any code that builds a mailbox by hand can be checked against it.
 
+**Revised during implementation.** The assertion was first written as a
+non-generic alias, `MailboxProviderAgreement`, applied to `Mailbox` itself. It
+rejected a mismatched literal as intended - and also rejected every well-formed
+mailbox, resolving to `never`. That is structural, not a typo: a non-generic
+`Mailbox` stores its credentials as the whole `ProviderCredentials` union, and a
+union never `extends` a single provider literal. The first falsification run
+looked green because the mismatched literal *was* rejected, for the wrong reason.
+
+The shipped form is `AssertProviderAgreement<T>`, generic over the candidate and
+using tuple-wrapped conditionals so distribution is suppressed. It narrows a literal
+to itself and resolves `Mailbox` to `Mailbox`. The negative proof was re-run
+with a positive control added, because four negative cases cannot tell a strict
+assertion from a useless one. The decision to keep `Mailbox` monomorphic stands;
+only the enforcement mechanism changed.
+
 ### D2. Credentials are discriminated, and their fields are normalized
 
 **Decision.**
@@ -131,6 +146,16 @@ milestone that produces one.
 an explicit `undefined`. A field that is absent is genuinely absent. I am keeping
 this behaviour deliberately and calling it out, because a later contributor
 looking to "simplify" could turn it off.
+
+**What this decision does not buy, stated plainly.** The observed-only rule cannot be
+enforced mechanically. No type can distinguish an instant read from a provider
+response from one computed as `createdAt + SEVEN_DAYS`. What is enforced is
+structural rather than declarative: `createMailbox` never computes a value,
+`withMailboxStatus` never writes one, and this milestone contains no producer at
+all. The remaining protection is the `provider-abstraction` requirement and review at
+M3, when a producer first appears. A source scan for `expiresAt` assignments would
+create the appearance of enforcement while still passing a computed value, which is
+worse than documenting the limit.
 
 ### D4. Confidence stays a plain `number`
 

@@ -210,9 +210,42 @@ describe("architecture boundaries", () => {
     expect(violations).toEqual([]);
   });
 
-  it("keeps provider wire format out of the apps", () => {
+  it("keeps provider wire format out of every package but the provider package", () => {
     const violations: string[] = [];
+    const providersDir = join(PACKAGES_DIR, "providers");
 
+    // Scope widened at M2, from `apps/` only to every shared package.
+    //
+    // The M2 falsification pass found this rule was narrower than the requirement
+    // it enforced. It guarded `apps/`, so a shared package could name a provider's
+    // wire fields freely - and `packages/core`, whose entire job is to be free of
+    // them, was not covered at all. A green test was carrying a rule it did not
+    // hold. That is the second time this exact failure has appeared in this
+    // repository, which is why it is now checked rather than assumed.
+    //
+    // `packages/providers` is exempt, and must stay exempt: an adapter's entire
+    // purpose is to speak the provider's vocabulary on the way in and SpectreMail's
+    // on the way out.
+    for (const file of collectSourceFiles(PACKAGES_DIR)) {
+      if (file.startsWith(providersDir)) continue;
+
+      // Test files are exempt for the same reason this file is exempt from the
+      // adapter rule: a check that asserts a name's absence has to name it. Keep the
+      // exemption to `*.test.ts` rather than to all tests, so a shared helper is
+      // still covered. Tests are not shipped runtime code.
+      if (file.endsWith(".test.ts")) continue;
+
+      const contents = readFileSync(file, "utf8");
+
+      for (const field of PROVIDER_FIELD_NAMES) {
+        for (const hit of findOccurrences(contents, field)) {
+          violations.push(`${toRepoPath(file)} ${hit} (matched "${field}")`);
+        }
+      }
+    }
+
+    // The apps keep their own scan, unchanged: provider wire format has no
+    // legitimate reason to appear there either.
     for (const file of collectSourceFiles(APPS_DIR)) {
       const contents = readFileSync(file, "utf8");
 

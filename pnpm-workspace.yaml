@@ -15,6 +15,12 @@
 # It keeps its own package.json and its own pnpm-lock.yaml. To run it:
 #   pnpm --dir tests/provider-spike install
 # See the spike README.
+#
+# Do NOT add a `tests` glob here to make a new test discoverable. This file decides
+# which directories are workspace *members*; `vitest.config.ts` decides which files
+# `pnpm test` *executes*. They are different mechanisms. M2 added package tests and
+# widened only the Vitest `include`, because widening this file would make the spike
+# a workspace member and undo reason 3 above.
 packages:
   - "apps/*"
   - "packages/*"
