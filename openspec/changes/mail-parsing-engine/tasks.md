@@ -139,6 +139,12 @@
   **Observed 2026-10-02:** 291 tests across 18 files (54 core, 88 providers, 141
   mail-parser, 8 boundary), 7 of 7 workspace projects running `tsc --noEmit`,
   23 extraction / 30 codes / 30 links / 10 composition / 48 corpus, 14 fixtures.
+  **Corrected 2026-10-02 by the M4 verification repair:** the corpus's 48 tests are
+  **28 generated** (two per fixture, 14 × 2) and 20 hand-written, not 26 generated —
+  `14 × 2 = 28` and the verbose reporter names exactly 28 `yields its declared` lines.
+  Re-observed after the repair: 307 tests across 18 files (54 core, 88 providers, 149
+  mail-parser, 16 boundary), 23 extraction / 37 codes / 30 links / 11 composition /
+  48 corpus.
 - [x] 5.7 Run the full gate and record it honestly: `pnpm verify`,
   `pnpm --dir tests/provider-spike spike:selftest`, and
   `openspec validate mail-parsing-engine --type change --strict`. Verify: all exit

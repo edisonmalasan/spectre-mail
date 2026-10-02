@@ -122,8 +122,9 @@ Pin versions when exact versions matter.
   **pure function of `Message.text`** - safe text extraction, one-time code detection,
   and verification-link detection - with **no network, no clock, and no AI**, which is
   what makes the whole milestone verifiable without contacting a provider.
-  **141 tests** across 5 files: 23 extraction, 30 codes, 30 links, 10 composition, and
-  48 driving a 14-fixture corpus end to end (26 of those generated, two per fixture).
+  **149 tests** across 5 files: 23 extraction, 37 codes, 30 links, 11 composition, and
+  48 driving a 14-fixture corpus end to end (28 of those generated, two per fixture, and
+  20 hand-written).
   The corpus is **authored, not captured**: this repository has never received
   verification mail from any service, so every fixture carries a `synthetic: true`
   field, the two named after services carry an explicit statement that no mail from
@@ -163,9 +164,9 @@ Pin versions when exact versions matter.
   `pnpm typecheck`, which is a separate gate. There is still no extension build
   step — that is M8.
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running **291 tests across
+- Testing: Vitest `3.2.7` at the workspace root, verified running **307 tests across
   18 files** via `pnpm test`: 54 in `packages/core`, 88 in `packages/providers`,
-  **141 in `packages/mail-parser`**, and 8 architecture boundary assertions.
+  **149 in `packages/mail-parser`**, and 16 architecture boundary assertions.
   `passWithNoTests` is **off** by design - a
   green run that inspects nothing is worse than no run. The `include` globs name
   `tests/architecture/**/*.test.ts` and `packages/*/src/**/*.test.ts` explicitly, so
@@ -779,13 +780,13 @@ These are the six commands the roadmap's M1 acceptance criteria name, plus
 `pnpm verify`, which runs typecheck, lint, format check, test, and build in
 sequence. All exited `0`.
 
-Observed results, re-verified after M4 on 2026-10-02:
+Observed results, re-verified after the M4 verification repair on 2026-10-02:
 
 ```text
 pnpm typecheck     7 of 7 workspace projects run tsc --noEmit
 pnpm lint          exit 0
 pnpm format:check  All matched files use Prettier code style
-pnpm test          18 files, 291 tests passed
+pnpm test          18 files, 307 tests passed
 pnpm build         vite 7.3.6, dist emitted
 pnpm verify        exit 0
 ```
