@@ -702,6 +702,23 @@ is a static check over `proposal.md`, the spec delta, `design.md`, and
 `tasks.md`. Only reading the implementation and the recorded run evidence
 establishes that.
 
+**One gotcha, verified 2026-10-02.** Between a change's sync stage and its
+archive stage, the bare name matches both the change and the promoted spec, and
+validation refuses to guess:
+
+```bash
+
+openspec validate shared-domain-model --strict
+# Ambiguous item 'shared-domain-model' matches both a change and a spec.
+
+openspec validate shared-domain-model --type change --strict   # Change ... is valid
+openspec validate shared-domain-model --type spec --strict     # Specification ... is valid
+openspec validate --specs --strict                             # all promoted specs
+```
+
+This window is expected rather than a fault; `openspec archive` closes it. Do not
+respond by deleting the promoted spec to make the bare name resolve again.
+
 
 
 ### Verified project tool: baseline syntax check

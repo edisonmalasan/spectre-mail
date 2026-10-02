@@ -1,13 +1,18 @@
-# Spec Delta
+# shared-domain-model Specification
 
 ## Purpose
-
 Defines SpectreMail's own normalized domain vocabulary - mailbox, message,
 credentials, verification code, verification link, and failure - so that both
 clients, both provider adapters, storage, and the parser can agree on what these
 things are without any of them depending on a provider's wire format.
 
-## ADDED Requirements
+This capability specifies the model and its invariants only. It deliberately does
+not describe a provider adapter, an HTTP call, mailbox lifecycle behaviour, or the
+mapping from a provider response onto these types: those belong to the provider
+layer, which is the first component able to observe a real provider response. See
+`provider-abstraction` for the behaviours this model exists to inherit.
+
+## Requirements
 
 ### Requirement: The shared model contains no provider wire format
 

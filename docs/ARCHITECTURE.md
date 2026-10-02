@@ -270,4 +270,4 @@ provider that has actually been observed, which is the next milestone's job.
   (live).
 - `openspec/specs/monorepo-foundation/spec.md` — the layout and boundary contract.
 - `openspec/specs/build-and-verification/spec.md` — the toolchain contract.
-- `openspec/changes/shared-domain-model/specs/shared-domain-model/spec.md` — the domain model contract. Specified but not yet promoted; it moves to `openspec/specs/shared-domain-model/spec.md` at this change's sync stage.
+- `openspec/specs/shared-domain-model/spec.md` — the domain model contract (live).

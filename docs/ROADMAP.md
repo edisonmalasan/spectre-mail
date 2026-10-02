@@ -27,7 +27,10 @@
 full lifecycle: propose PR #7, apply PR #8 (`5ad51d7`), verification repairs PR #9
 (`41da7b2`), sync PR #10 (`f69ab38`), archive PR #11. M1 is archived at
 `openspec/changes/archive/2026-10-02-monorepo-foundation/`. M2's change is
-`shared-domain-model`, proposed and merged as PR #12; apply is in progress.
+`shared-domain-model`, proposed as PR #12, applied as PR #13, verification repairs as
+PR #14, synced as PR #15. Its delta is promoted to
+`openspec/specs/shared-domain-model/spec.md` (9 requirements, 23 scenarios).
+Only archive remains.
 
 **Verification found a gate that was failing and being recorded as passing.** On
 Windows - the environment `AGENTS.md` declares supported - `pnpm format:check`
