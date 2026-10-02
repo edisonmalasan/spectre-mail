@@ -191,9 +191,9 @@ const DATE: ReducingShape = {
  *
  * - With whitespace in it, `Your verification code is 1234 5678` was penalised as a
  *   phone number. A space-separated code is a **presentation** choice — it is the same
- *   code — and the shape the shape exists to detect (a phone number) is the one thing
- *   the penalty was wrong about. So `1234 5678` scored 0.5 where 0.75 was right, for
- *   a message whose wording was otherwise perfect.
+ *   code — and the one thing this shape is written to detect, a phone number, is the
+ *   one thing the value was not. So `1234 5678` scored 0.5 where 0.75 was right, for a
+ *   message whose wording was otherwise perfect.
  * - `Apr 15 663218` was penalised as a phone number *and* as a date for the same span
  *   of text: two penalties, one cause, and the total-penalty cap then hid which one
  *   had fired.
