@@ -63,7 +63,7 @@ It **never renders anything and never opens a link.** There is no markup field t
 misuse, and reading a message has no side effect. Nothing it reports is ever
 presented as certain — the evidence is wording, and wording is a signal, not proof.
 
-Its 141 tests are driven by a 14-message corpus that is **written, not captured**:
+Its 149 tests are driven by a 14-message corpus that is **written, not captured**:
 this repository has never received verification mail from any service, so every
 fixture says so, and the ones named after services say so explicitly. The corpus
 deliberately includes misleading mail — newsletters, order confirmations full of
@@ -199,7 +199,7 @@ works on your machine.**
 | `pnpm typecheck`                     | All 7 workspace projects type check under the shared strict config.   | That the types are useful — there is no domain model yet.                                          |
 | `pnpm lint`                          | ESLint passes.                                                        | Type correctness; `pnpm typecheck` owns that.                                                      |
 | `pnpm format:check`                  | Prettier passes on the files this repository governs.                 | That historical documents are formatted; those are deliberately excluded.                          |
-| `pnpm test`                          | 7 architecture boundary assertions pass.                              | Product behaviour. There is none yet, and no product test exists.                                  |
+| `pnpm test`                          | 16 architecture boundary assertions pass.                             | Product behaviour. There is none yet, and no product test exists.                                  |
 | `pnpm build`                         | The website builds with Vite.                                         | That packages emit anything — they are consumed as TypeScript source, so there is nothing to emit. |
 | `pnpm dev:web`                       | The website dev server starts and serves the app on `127.0.0.1:5173`. | Any mailbox, provider, or storage behaviour.                                                       |
 | `pnpm spike:selftest`                | The M0 harness records outcomes correctly and writes its artifacts.   | Anything about real providers — it issues zero network requests.                                   |

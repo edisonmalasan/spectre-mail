@@ -24,8 +24,23 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor:** M4 - Mail Parsing Engine (**applying**, PR #23 on
-`feat/mail-parsing`; change `mail-parsing-engine`).
+**Roadmap cursor:** M4 - Mail Parsing Engine (**verifying**, apply PR #23 (`7742545`)
+merged; verification repairs on `fix/m4-verification`).
+**The M4 verification pass found a defect that had been green since M3 and one that
+was a stated capability with nothing behind it.** The architecture `fetch` rule passed
+`pattern.source` to a helper doing a literal substring match, so it searched for the
+text `(?<![\w.$])fetch\s*\(` — which appears in no source file. **Only
+`globalThis.fetch` was ever matched; a bare `await fetch(url)` was invisible to it.**
+That was the main form, and three documents had claimed it was proven able to fail. The
+`date` reducing shape was published in `design.md` D4 as one of eight shapes, and
+deleting it left all 291 tests green, because the one input where it fired also matched
+`phone` and `year` and the penalty cap hid the difference. Both are the same defect
+class as the eight before them, and the first is a **ninth instance** - worse than the
+others, because it predates the milestone that documented it. Six warnings were repaired
+with it, including a published test count that was arithmetically wrong (14 fixtures × 2
+generated tests is 28, not 26) and four `D4` shape descriptions that overstated their own
+reach. **307 tests across 18 files** after the repairs; no published confidence constant
+was changed.
 **M4's implementation found three defects in its own design before any of it was
 verified**, and all three are recorded in the change rather than quietly fixed:
 the phone-number reducing shape was **structurally incapable** of detecting a phone
@@ -278,15 +293,17 @@ M3 had just written. A check that does not exist cannot be falsified, so it has 
 be written before the pass, not after.
 
 | M3 | complete (archived) | `provider-layer` |
-| M4 | applying | `mail-parsing-engine` |
+| M4 | verifying (repairs merged into apply branch line) | `mail-parsing-engine` |
 | M5-M15 | not started | - |
 
 **OpenSpec lifecycle stage:** M0, the provider-role change, M1's foundation change,
 M2's `shared-domain-model`, and M3's `provider-layer` are all complete (propose ->
 apply -> verify -> sync -> archive). **One active change: `mail-parsing-engine`**, at
-apply. Task 8.11 - the independent vacuity check - was the step that surfaced the
+verify. Task 8.11 - the independent vacuity check - was the step that surfaced the
 defect above, and is ticked because the check was performed and it found something.
-M3's own verification pass found two more, so the task keeps earning its place.
+M3's own verification pass found two more, and **M4's verification pass found two
+CRITICAL and six warnings**, so the task keeps earning its place on a schedule that has
+now surfaced a defect in four consecutive milestones.
 
 **M4's falsification pass found two more, and both are the same failure in a new
 shape.** The first was the total-penalty cap test, which asserted that a candidate
@@ -654,7 +671,7 @@ verification-link detection
 message classification helpers
 ```
 
-**As implemented in M4** (verified 2026-10-02, `pnpm verify` exit 0, **141 tests** in
+**As implemented in M4** (verified 2026-10-02, `pnpm verify` exit 0, **149 tests** in
 the package): `extract.ts` (safe text plus each link's destination, visible text, and
 the wording around it), `detect-codes.ts`, `detect-links.ts`, `scoring.ts`, `analyse.ts`,
 and `fixtures/corpus.ts`. Detection is a **pure function of `Message.text`** - no
