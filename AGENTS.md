@@ -137,7 +137,7 @@ Pin versions when exact versions matter.
   Guerrilla Mail adapter — plus a provider manager, an injected transport seam, and
   one shared conformance suite both adapters pass. The contract has **no
   subscription method**, because no provider serves a push transport (five SSE paths
-  and two WebSocket paths were probed; none connected). **80 tests**, of which 24 are
+  and two WebSocket paths were probed; none connected). **88 tests**, of which 24 are
   the shared conformance suite run once per adapter. All are driven by recorded
   provider responses, so **no test contacts a live provider**. Its one workspace
   dependency is `@spectre-mail/core`.
@@ -166,15 +166,15 @@ Pin versions when exact versions matter.
   `pnpm typecheck`, which is a separate gate. There is still no extension build
   step — that is M8.
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running **142 tests across
-  12 files** via `pnpm test`: 54 in `packages/core`, 80 in `packages/providers`, and
-  8 architecture boundary assertions. `passWithNoTests` is **off** by design — a
+- Testing: Vitest `3.2.7` at the workspace root, verified running **150 tests across
+  13 files** via `pnpm test`: 54 in `packages/core`, 88 in `packages/providers`, and
+  8 architecture boundary assertions. `passWithNoTests` is **off** by design - a
   green run that inspects nothing is worse than no run. The `include` globs name
   `tests/architecture/**/*.test.ts` and `packages/*/src/**/*.test.ts` explicitly, so
   the root test command can never execute the spike harness. The package glob is
   deliberately package-shaped: a test placed at the repository root or under
   `tests/` outside `architecture/` is **silently skipped**, verified 2026-10-02 by
-  observing the collected count stay at 142 with such a file present. An
+  observing the collected count stay unchanged with such a file present. An
   undiscovered test reads as covered, so a test that must run at the root belongs in
   the architecture glob.
   Also installed: a disposable Node.js probe harness at `tests/provider-spike/`
@@ -808,7 +808,7 @@ Observed results, re-verified after M3 on 2026-10-02:
 pnpm typecheck     7 of 7 workspace projects run tsc --noEmit
 pnpm lint          exit 0
 pnpm format:check  All matched files use Prettier code style
-pnpm test          12 files, 142 tests passed
+pnpm test          13 files, 150 tests passed
 pnpm build         vite 7.3.6, dist emitted
 pnpm verify        exit 0
 ```

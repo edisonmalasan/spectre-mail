@@ -18,6 +18,26 @@
   absence is discoverable without invoking. Verify: a test asserts a missing
   operation is detectable and that requesting one yields an
   `UNSUPPORTED_OPERATION` error naming it.
+
+  > **THE BOX WAS TICKED BEFORE IT WAS TRUE.** The verification pass found this
+  > task's second half unimplemented: `supports()` answered the question, but
+  > invoking an absent optional method raised
+  > `TypeError: provider.destroyMailbox is not a function`. That is not a
+  > `SpectreError`, so no layer knowing only the closed vocabulary could catch,
+  > present, or recover from it, and it named an implementation detail rather than
+  > the requested operation.
+  >
+  > Repaired in `packages/providers/src/operations.ts`, which guards both optional
+  > operations and converts absence into `UNSUPPORTED_OPERATION` carrying the
+  > operation name. Six tests added. Proven load-bearing twice: removing the
+  > `supports()` check, and replacing the operation name with a wrong one, each
+  > produced a red suite naming the matching test.
+  >
+  > The guard consults `supports()` rather than testing for the property's
+  > presence. That is a deliberate choice, not an oversight: a provider that claims
+  > support while omitting the method is a defect in *that provider*, and catching
+  > it here would hide it behind a guard. The conformance suite is where a lying
+  > adapter is caught.
 - [x] 1.5 Define the shared conformance suite as an exported function taking an
   adapter factory, asserting only on normalized results. Verify: the suite
   compiles and fails when handed a deliberately non-conforming stub.
@@ -120,6 +140,58 @@
 - [x] 4.4 Prove the manager's assertions can fail by making the fallback silently
   masquerade as the primary and observing the suite go red, then restoring it.
   Verify: a non-zero exit naming the file.
+
+> **VERIFICATION PASS - found two requirement scenarios with no implementation.**
+>
+> The apply stage ticked every box, and reading the implementation against the delta
+> spec found two scenarios the tests did not actually cover. Both are now repaired.
+>
+> **1. CRITICAL - an unsupported operation was a `TypeError`, not a normalized
+> error.** Requirement *Optional capabilities are discoverable, not assumed*, second
+> scenario: when a caller invokes an operation the adapter does not implement, the
+> absence SHALL be reported as an unsupported operation and SHALL name the
+> operation. Nothing implemented that. Repaired; see task 1.4.
+>
+> **2. CRITICAL - "the provider layer does not persist anything" had no behavioural
+> test at all.** Its two scenarios require that an adapter retain no state between
+> calls and that a mailbox restored from storage work with nothing remembered. The
+> only coverage was a grep for a doc comment. Worse, the gap was *structural*: every
+> test in the package builds a **fresh adapter per call**, so an adapter that cached
+> the first mailbox's credentials would have passed all 80 tests, because the cache
+> would never be read by a test handing over a different mailbox.
+>
+> Two tests added, one per adapter, driving **one adapter instance** across two
+> mailboxes with different credentials and asserting each request carried its own
+> mailbox's credential. Both proven load-bearing by injecting a real cache
+> (`cachedSession ??= ...`) into each adapter: the new test failed in both cases.
+>
+> The first injection attempt was itself wrong - it assigned the token before
+> returning it, so behaviour was unchanged and the new test passed while a different
+> test failed. That was a defective mutation rather than a weak assertion, and it
+> was redone properly. A mutation that does not introduce the defect proves nothing
+> about the assertion it is meant to test.
+>
+> **Also found, and deliberately NOT repaired - recorded instead:**
+>
+> - `Mailbox.id` for Mail.tm is the absolute provider resource URL
+>   (`https://api.mail.tm/accounts/{id}`), and `MessageSummary.id` is the provider's
+>   message id, which a caller must supply to fetch. So a caller *can* distinguish
+>   the provider by reading a value, and provider identifiers *are* required by one
+>   call. This reads against the scenario "the provider's identifiers SHALL NOT be
+>   required by any caller" under *A provider response is translated before anything
+>   observes it*. It is not repaired here because `Mailbox.id` is M2's design and
+>   the deletion requirement (`docs/PROVIDERS.md` §2) depends on the adapter holding
+>   the provider's own resource URL. The real risk - a caller *parsing* that value -
+>   is not realised anywhere: nothing in the workspace reads `mailbox.id` except the
+>   adapter that created it. Recorded so it is a decision rather than an oversight.
+> - The requirement *A provider rejects the supplied credentials SHALL be reported
+>   as an authentication failure* is satisfied only where the condition is
+>   decidable. Mail.tm answers `401` for both a refused credential and a deleted
+>   mailbox, with the same body, so a bearer `401` reports `MAILBOX_EXPIRED` and
+>   only the token exchange reports `AUTH_FAILED`. The shared conformance suite
+>   accepts either code. **The delta's wording should be amended at sync** to
+>   distinguish a credential rejected at authentication time from an
+>   already-issued credential the provider no longer honours.
 
 ## 5. Boundary enforcement, documentation, and integrated verification
 

@@ -69,6 +69,28 @@ with an **empty subject**, and an HTML body under a declared plain-text content 
 The cost is stated rather than hidden: recordings mean the suite cannot notice a
 provider _changing_ a field name. Fixture refresh is a deliberate diff.
 
+**Optional operations are guarded, not merely optional.** `deleteMessage?` and
+`destroyMailbox?` stay genuinely optional so absence remains detectable via
+`supports()`. `operations.ts` is the only sanctioned way to invoke them, and it
+converts absence into `UNSUPPORTED_OPERATION` carrying the operation's name.
+
+That guard exists because of what happened without it. The verification pass found
+the requirement unimplemented: calling an absent optional method raised
+`TypeError: provider.destroyMailbox is not a function`. A `SpectreError` is a value a
+caller can branch on; a `TypeError` says "this program is broken", so no layer that
+knows only the closed error vocabulary can catch, present, or recover from it — and
+it named the implementation detail rather than the operation the caller asked for.
+
+**Adapters hold no state.** Every call takes the mailbox it operates on and derives
+the credential from it. This is asserted behaviourally, one test per adapter, by
+driving a single adapter instance across two mailboxes with different credentials
+and checking each request carried its own mailbox's credential.
+
+That test exists because the coverage was structurally absent: every other test in
+the package builds a **fresh adapter per call**, so an adapter caching the first
+mailbox's credentials would have passed all of them — the cache would never be read
+by a test handing over a different mailbox.
+
 ### The provider boundary
 
 `packages/providers` is the **only** place provider wire format may appear. No

@@ -23,13 +23,38 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor:** M3 - Provider Layer (**applying**, PR #18 on
-`feat/provider-adapters`). M2 completed its full lifecycle: propose PR #12, apply
-PR #13, verification repairs PR #14, sync PR #15, archive PR #16 (`49b1bfa`),
+**Roadmap cursor:** M3 - Provider Layer (**verifying**, apply merged as PR #18,
+`fe54b22`, on `feat/provider-adapters`; verification repairs in PR #19 on
+`fix/provider-operation-guard`). M2 completed its full lifecycle: propose PR #12,
+apply PR #13, verification repairs PR #14, sync PR #15, archive PR #16 (`49b1bfa`),
 archived at `openspec/changes/archive/2026-10-02-shared-domain-model/` with its
 delta promoted to `openspec/specs/shared-domain-model/spec.md`. M3's change is
-`provider-layer`, proposed in PR #17 (`7f20877`). M3 remains unverified, unsynced,
-and unarchived, and the site and the spike are untouched by it.
+`provider-layer`, proposed in PR #17 (`7f20877`). M3 remains unsynced and
+unarchived, and the site and the spike are untouched by it.
+
+**The M3 verification pass found two requirement scenarios with no implementation
+behind them, after apply had ticked every box.** Recorded because the pattern is
+the point: ticking a task is not the same as implementing its verification clause.
+
+1. **CRITICAL.** *Optional capabilities are discoverable, not assumed* requires an
+   unsupported operation to be reported as `UNSUPPORTED_OPERATION` naming the
+   operation. Nothing implemented it. Invoking `guerrilla.destroyMailbox(...)`
+   raised `TypeError: provider.destroyMailbox is not a function` - not a
+   `SpectreError`, so no layer knowing only the closed error vocabulary could
+   catch, present, or recover from it. Repaired by
+   `packages/providers/src/operations.ts`; proven load-bearing twice.
+2. **CRITICAL, and structurally invisible.** *The provider layer does not persist
+   anything* had **no behavioural test**. Every test in the package built a fresh
+   adapter per call, so an adapter that cached the first mailbox's credentials
+   would have passed all 80 tests - the cache would never be read by a test handing
+   over a different mailbox. Repaired with one test per adapter driving a single
+   adapter instance across two mailboxes; both proven load-bearing by injecting a
+   real cache into each adapter.
+
+   The first injection attempt was itself defective - it assigned the token before
+   returning it, so behaviour was unchanged and the new test passed while a
+   *different* test failed. A mutation that does not introduce the defect proves
+   nothing about the assertion it is meant to test.
 
 ### M3 decisions, recorded so M4 builds against them rather than re-deciding
 
@@ -82,7 +107,7 @@ force it to tell a user to check a credential they never entered. The plan also
 mapped a validation rejection to an unsupported operation, which would have been
 confidently false.
 
-**M3 findings recorded during apply:**
+**M3 findings, recorded during apply and during verification:**
 
 - **A fourth check narrower than its documented rule.** The boundary test's
   provider-adapter list held `MailTmProvider`, `GuerrillaMailProvider`, and
@@ -103,6 +128,22 @@ confidently false.
   `pnpm typecheck` fails if `subscribe` becomes a key of `MailProvider`.
 - **16 deliberate violations, all caught**, every file restored byte-identical:
   nine against boundary and contract rules, seven reverting a required behaviour.
+  One of the nine came back **green**, because the assertion did not yet exist. A
+  check that does not exist cannot be falsified, so it has to be written before the
+  pass rather than after it.
+- **Recorded rather than repaired, so it is a decision and not an oversight.**
+  `Mailbox.id` for Mail.tm is the absolute provider resource URL, and a message id
+  is the provider's own - so provider identifiers *are* required by one call, which
+  reads against the delta's "provider identifiers SHALL NOT be required by any
+  caller". Not repaired because `Mailbox.id` is M2's design and deletion depends on
+  the adapter holding the provider's own resource URL. The realised risk is a
+  caller *parsing* that value, and nothing in the workspace does.
+- **Recorded rather than repaired: the delta's auth wording needs amending at
+  sync.** "A provider rejects the supplied credentials SHALL be reported as an
+  authentication failure" holds only where the condition is decidable. Mail.tm
+  answers `401` for a refused credential *and* for a deleted mailbox, with the same
+  body, so a bearer `401` reports `MAILBOX_EXPIRED` and only the token exchange
+  reports `AUTH_FAILED`. The requirement must distinguish those two moments.
 
 **Still unverified after M3, and deliberately so:** the live MV3 host-permission
 check; whether Mail.tm's `1; w=60` is per-IP or per-account; whether Guerrilla
