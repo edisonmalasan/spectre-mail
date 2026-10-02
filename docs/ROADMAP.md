@@ -24,8 +24,18 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor:** M4 - Mail Parsing Engine (**proposing**, PR #22 on
-`docs/mail-parsing-engine-proposal`; change `mail-parsing-engine`).
+**Roadmap cursor:** M4 - Mail Parsing Engine (**applying**, PR #23 on
+`feat/mail-parsing`; change `mail-parsing-engine`).
+**M4's implementation found three defects in its own design before any of it was
+verified**, and all three are recorded in the change rather than quietly fixed:
+the phone-number reducing shape was **structurally incapable** of detecting a phone
+number and was penalising every 7- and 8-digit code instead; same-block association
+**could not rank the two message shapes the roadmap names** (a code in its own
+paragraph, a code beneath a heading), which forced a narrow widening recorded in
+`design.md` D3 and D8; and a link introduced by the sentence in the paragraph above it
+was **missed entirely**, which is how the password-reset fixture lost its most useful
+link. A fourteenth corpus fixture was added beyond the roadmap's thirteen because
+without it none of that was measured.
 **M3 completed its
 full lifecycle**: propose PR #17 (`7f20877`), apply PR #18 (`fe54b22`),
 verification repairs PR #19 (`ede63bb`), sync PR #20 (`ffdaa13`), archive PR #21,
@@ -268,17 +278,28 @@ M3 had just written. A check that does not exist cannot be falsified, so it has 
 be written before the pass, not after.
 
 | M3 | complete (archived) | `provider-layer` |
-| M4 | proposing | `mail-parsing-engine` |
+| M4 | applying | `mail-parsing-engine` |
 | M5-M15 | not started | - |
 
 **OpenSpec lifecycle stage:** M0, the provider-role change, M1's foundation change,
 M2's `shared-domain-model`, and M3's `provider-layer` are all complete (propose ->
 apply -> verify -> sync -> archive). **One active change: `mail-parsing-engine`**, at
-propose. Task 8.11 - the independent vacuity check - was the step that surfaced the
+apply. Task 8.11 - the independent vacuity check - was the step that surfaced the
 defect above, and is ticked because the check was performed and it found something.
 M3's own verification pass found two more, so the task keeps earning its place.
 
-**Next required change:** finish `provider-layer` (apply, verify, sync, archive).
+**M4's falsification pass found two more, and both are the same failure in a new
+shape.** The first was the total-penalty cap test, which asserted that a candidate
+matching three reducing shapes scores the same as one matching two. With the cap
+deleted, both scores fell through zero and clamped to the same floor, so **the equality
+still held and the suite stayed green** - the assertion survived deletion of the exact
+thing it was written to pin down. Every earlier instance in this repository was a rule
+failing to cover a case; this one was a case covered by a comparison that could not tell
+the right reason for equality from a wrong one. The second was the newsletter corpus
+expectation, rewritten during apply because it demanded a result the parser is forbidden
+from producing.
+
+**Next required change:** finish `mail-parsing-engine` (verify, sync, archive).
 
 **M1 as built, for the next milestone's benefit:**
 
@@ -632,6 +653,29 @@ OTP detection
 verification-link detection
 message classification helpers
 ```
+
+**As implemented in M4** (verified 2026-10-02, `pnpm verify` exit 0, **141 tests** in
+the package): `extract.ts` (safe text plus each link's destination, visible text, and
+the wording around it), `detect-codes.ts`, `detect-links.ts`, `scoring.ts`, `analyse.ts`,
+and `fixtures/corpus.ts`. Detection is a **pure function of `Message.text`** - no
+network, no clock, no AI, so it is fully verifiable offline.
+
+Three findings from M4 that change what a reader should assume, all recorded in the
+change:
+
+- **The corpus is authored, not captured.** This repository has never received
+  verification mail from any service. Every fixture carries a `synthetic: true` field
+  and a note saying so; the two named after services carry an explicit statement that
+  no mail from that service was received. All addresses use `.example`/`.test`.
+- **No detection is reported as certain.** The maximum is `0.85` for a code and `0.70`
+  for a link, by construction rather than by clamp alone.
+- **A reducing shape is a penalty, never an exclusion.** A copyright year, an order
+  number, and a price are all still *returned*, ranked last. A newsletter therefore
+  yields one low-ranked candidate rather than none, and the requirement was amended
+  during apply because it had demanded the impossible.
+
+**No client consumes this package yet**, so nothing user-visible has changed. `apps/web`
+still renders a plain status page and `apps/extension` has no manifest.
 
 #### `packages/storage`
 

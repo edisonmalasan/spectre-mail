@@ -20,7 +20,8 @@ on. See [Current status](#current-status).
 | M1 — Monorepo foundation          | complete and archived                 |
 | M2 — Shared domain model          | complete and archived                 |
 | M3 — Provider layer               | complete and archived                 |
-| M4—M15                            | not started                           |
+| M4 — Mail parsing engine          | implementing                          |
+| M5—M15                            | not started                           |
 
 | Capability spec          | State |
 | ------------------------ | ----- |
@@ -51,6 +52,26 @@ either provider's current behaviour.
 
 It is still a capability rather than a feature. **No client consumes it yet**, so
 nothing a user can see exercises any of it.
+
+`packages/mail-parser` turns a message body into **readable text plus ranked
+detections** — one-time codes and verification links. It is a pure function of
+`Message.text`: no network, no clock, no AI, so the same message always yields the
+same answer. That matters for a product that tells a user "this is your code", and
+it is why the milestone was verifiable without contacting a provider.
+
+It **never renders anything and never opens a link.** There is no markup field to
+misuse, and reading a message has no side effect. Nothing it reports is ever
+presented as certain — the evidence is wording, and wording is a signal, not proof.
+
+Its 141 tests are driven by a 14-message corpus that is **written, not captured**:
+this repository has never received verification mail from any service, so every
+fixture says so, and the ones named after services say so explicitly. The corpus
+deliberately includes misleading mail — newsletters, order confirmations full of
+numbers that are not codes — because a suite of only verification messages cannot
+measure a false-positive rate. It establishes how this parser handles mail it was
+authored against, and **nothing about any real service's mail.**
+
+Also still a capability rather than a feature: **no client consumes it yet.**
 
 ### The one thing you should know
 

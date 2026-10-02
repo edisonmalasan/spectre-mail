@@ -124,6 +124,66 @@ use a provider is a client concern, not a reason to omit the adapter — the
 extension needs Mail.tm, so the website's single-provider setup must not shape the
 shared package.
 
+### The message parsing layer
+
+`packages/mail-parser` is a **pure function of `Message.text`**: safe text
+extraction, one-time-code detection, and verification-link detection. It has no
+network, no clock, and no AI, and no client consumes it yet. Three properties of
+it are architecture, not implementation detail:
+
+**The seam is exactly `Message.text`, and there is no markup field to misuse.**
+`shared-domain-model` deliberately gives `Message` one text field and no markup
+field, because Guerrilla Mail was measured returning an HTML body under a declared
+`content_type: "text"` (`docs/PROVIDERS.md` §3). So M4 does not receive "an HTML
+document" or "a clean body" — it receives a string that may be either, and must
+produce something readable and detectable from both. A consumer therefore cannot
+reach for raw markup even by mistake, and no code in the package consults a declared
+content type, because there is none to consult.
+
+**Reading a message has no side effect, and that is enforced twice.** The package
+must never gain a network call: detection reads a message a provider already
+delivered, so a request inside it would mean parsing causes an effect — the opposite
+of what the milestone promises. `tests/architecture/boundaries.test.ts` asserts no
+module in the package reaches the global `fetch` (comments stripped first, or the
+rule fires on its own documentation), and `fixtures/corpus.test.ts` proves **zero
+requests by observation** with an instrumented transport. Neither substitutes for
+the other: a source scan cannot see a resolver obtained indirectly, and an
+instrumented transport cannot name the offending line.
+
+The structural rule is one named escape hatch, not a general I/O audit. It matches
+`fetch` and does **not** check `XMLHttpRequest`, `WebSocket`, `EventSource`, or a
+dynamic import. That limit is stated in the rule itself so a reader does not assume
+more than it checks.
+
+**Detection reads wording and never the address.** A link's score is raised by its
+anchor text and the surrounding wording, and by nothing in the URL's host, path, or
+query — a large share of links in ordinary mail carry verification-shaped words in
+their addresses for reasons unrelated to verification. Non-web schemes are rejected
+rather than down-ranked, because a `javascript:` destination is not a weak
+verification link; it is not a link to follow.
+
+Two properties are load-bearing for later milestones and easy to break:
+
+- **A reducing numeric shape is a penalty, never an exclusion.** A price, an order
+  number, a tracking number, a postal code, a phone number, a date, or a year are all
+  still **returned**, ranked last. A real order confirmation can contain a 6-digit
+  number that genuinely is a one-time code, so a hard exclusion would silently delete
+  it — the one failure mode this product cannot have. A consequence worth stating: a
+  newsletter yields **one low-ranked candidate**, its copyright year, not zero
+  candidates.
+- **No detection is ever reported as certain.** The maximum is `0.85` for a code and
+  `0.70` for a link, by construction (published arithmetic) rather than by clamp
+  alone. `shared-domain-model` permits `1` because `0..1` is the right _range_; it
+  says nothing about certainty being earned, and wording is a signal, not proof.
+
+**There is no threshold in the parser.** Every candidate that survives shape
+filtering is returned whatever its confidence, because where to cut off is a product
+decision for whoever has a user in front of them, and a wrong constant here silently
+deletes real codes. Links are the one exception, and it is a **gate** rather than a
+cut-off: a link whose wording names nothing is an ordinary link rather than a weak
+verification link, so no score is computed for it and none is discarded. There is no
+constant in it to tune.
+
 ---
 
 ## Applications
@@ -268,6 +328,26 @@ in prose that it has no subscription method, and a rule that cannot tell a
 declaration from a comment about that declaration is measuring the wrong thing. Fixed
 by stripping comments before matching, not by rewording the comment until the rule
 went quiet.
+
+**The `fetch` rule was widened at M4 to cover `packages/mail-parser`**, for a stronger
+reason than the provider layer's: that package has no transport seam at all and must
+never acquire one, since detection reads a message a provider already delivered. The
+widening is proven able to fail — a `fetch` call introduced into the package makes the
+rule exit non-zero naming the file and line.
+
+**An eighth instance of the same defect class, found by falsification rather than by
+reading.** M4's penalty-cap test asserted that a candidate matching three reducing
+shapes scores the same as one matching two, which is the cap working. With
+`MAX_TOTAL_PENALTY` deleted, **both scores fell through zero and clamped to the same
+`0.05` floor — so the equality still held and the suite stayed green.** The assertion
+survived deletion of the exact thing it was written to pin down. It now asserts the
+published arithmetic directly, and the mutant is caught.
+
+It is a sharper instance than the previous seven, and worth isolating: **an assertion
+comparing two outputs of the same function can pass for a reason that has nothing to
+do with the rule it names.** Every earlier instance was a rule failing to cover a case.
+This one was a case covered by a comparison that could not distinguish the right reason
+for equality from a wrong one.
 
 **Scope of the field-name check.** It matches a fixed list of names measured from
 live responses. It is a **tripwire, not a proof of absence**, and it can fire on

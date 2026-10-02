@@ -24,57 +24,34 @@ remain preserved during development.
 
 
 
-[PROJECT_NAME] is [PROJECT_DESCRIPTION].
+**SpectreMail** is a temporary-email product: a disposable address you can read
+without leaving the page or the signup flow you were on, delivered as a website and a
+browser extension over one shared provider abstraction.
 
+This is a **greenfield** project, so there is no legacy implementation, no reference
+oracle, and no migration sequence. What exists instead is a **measured** foundation:
+the M0 spike probed `api.mail.tm` and `api.guerrillamail.com` live and recorded what
+they actually do, and every architectural rule below is a consequence of a recorded
+observation rather than of an assumption about how such an API ought to behave.
 
+**There is no product yet.** M0–M4 are complete; no client has a mailbox feature, and
+nothing a user can see exercises any of the code in this repository. Every acceptance
+claim below is therefore a claim about a function, not about a user's experience.
 
-[Describe the current implementation, existing system, or starting point.]
+The current state, in dependency order:
 
+- A provider capability layer (`packages/providers`) behind one `MailProvider`
+  contract, with two measured adapters and a conformance suite driven entirely by
+  recorded responses, so **no test contacts a live provider**.
+- A normalized domain model (`packages/core`) that both adapters and every client
+  agree on, holding **no** provider wire format.
+- A pure message-parsing package (`packages/mail-parser`) that turns `Message.text`
+  into readable text plus ranked one-time-code and verification-link detections, with
+  **no network, no clock, and no AI**.
 
-
-[Describe the intended architecture, migration path, or target state.]
-
-
-
-<!--
-
-Example for a migration / reconstruction project:
-
-
-
-The existing [LEGACY_IMPLEMENTATION] is the reference implementation,
-
-behavioral oracle, protocol specification, data corpus, content source, and
-
-asset archive.
-
-
-
-The migration path is:
-
-
-
-    [LEGACY / CURRENT STATE]
-
-        →
-
-    [INTERMEDIATE / COMPATIBILITY STATE]
-
-        →
-
-    [TARGET STATE]
-
-
-
-Do not treat the legacy repository as disposable code.
-
-
-
-Remove or adapt this paragraph when the project is not a migration,
-
-reconstruction, preservation, or brownfield project.
-
--->
+The target state is two clients (website, extension) over that shared core, with
+storage behind a `SpectreStorage` contract (M5–M6), the extension build in M8, and the
+product's user-facing work in M10 onward.
 
 
 
@@ -141,6 +118,26 @@ Pin versions when exact versions matter.
   the shared conformance suite run once per adapter. All are driven by recorded
   provider responses, so **no test contacts a live provider**. Its one workspace
   dependency is `@spectre-mail/core`.
+- Message parsing: `packages/mail-parser` has real behaviour since M4. It is a
+  **pure function of `Message.text`** - safe text extraction, one-time code detection,
+  and verification-link detection - with **no network, no clock, and no AI**, which is
+  what makes the whole milestone verifiable without contacting a provider.
+  **141 tests** across 5 files: 23 extraction, 30 codes, 30 links, 10 composition, and
+  48 driving a 14-fixture corpus end to end (26 of those generated, two per fixture).
+  The corpus is **authored, not captured**: this repository has never received
+  verification mail from any service, so every fixture carries a `synthetic: true`
+  field, the two named after services carry an explicit statement that no mail from
+  that service was received, and every address uses a reserved `.example`/`.test`
+  domain. It proves **nothing about any real service's mail**, and it deliberately
+  includes misleading messages, because a corpus of only verification mail cannot
+  measure a false-positive rate.
+  Two properties are worth knowing before changing any number here: a reducing shape
+  is a **penalty, never an exclusion** (a copyright year is still returned, ranked
+  last), and **no detection is ever reported as certain** (maximum `0.85` for a code,
+  `0.70` for a link, by construction rather than by clamp alone).
+  It must never gain a network call; `tests/architecture/boundaries.test.ts` asserts no
+  module in it reaches the global `fetch`, and `corpus.test.ts` proves zero requests by
+  observation with an instrumented transport. **No client consumes it yet.**
 
 - Backend / server: none. Intentionally `$0` paid backend infrastructure; see
   `docs/PROVIDERS.md` for why a SpectreMail-operated proxy is not a permitted
@@ -166,9 +163,10 @@ Pin versions when exact versions matter.
   `pnpm typecheck`, which is a separate gate. There is still no extension build
   step — that is M8.
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running **150 tests across
-  13 files** via `pnpm test`: 54 in `packages/core`, 88 in `packages/providers`, and
-  8 architecture boundary assertions. `passWithNoTests` is **off** by design - a
+- Testing: Vitest `3.2.7` at the workspace root, verified running **291 tests across
+  18 files** via `pnpm test`: 54 in `packages/core`, 88 in `packages/providers`,
+  **141 in `packages/mail-parser`**, and 8 architecture boundary assertions.
+  `passWithNoTests` is **off** by design - a
   green run that inspects nothing is worse than no run. The `include` globs name
   `tests/architecture/**/*.test.ts` and `packages/*/src/**/*.test.ts` explicitly, so
   the root test command can never execute the spike harness. The package glob is
@@ -377,25 +375,17 @@ Remove only rules that genuinely do not apply.
 
 
 
-- Follow the project's primary architectural sequence: ****[ARCHITECTURAL SEQUENCE / PRINCIPLE]****.
-
-- Keep the existing/reference implementation operational until its required behavior has verified replacements when performing migration or replacement work.
+- Follow the project's primary architectural sequence: **provider adapter → shared domain model → parser → storage → client**, in that order, because each layer is only useful once the one below it exists and is verified. Do not build a layer ahead of the one it consumes.
 
 - Do not rewrite multiple major system boundaries simultaneously unless the approved change explicitly requires it.
 
-- `[CLIENT / CONSUMER]` code must depend on `[ABSTRACTION / SERVICE INTERFACE]`, never directly on `[LEGACY / LOW-LEVEL IMPLEMENTATION DETAIL]`.
+- Client code must depend on the shared abstraction, never directly on a provider adapter or a low-level wire format.
 
-- Build `[INTERMEDIATE / COMPATIBILITY IMPLEMENTATION]` before `[TARGET IMPLEMENTATION]` when staged replacement is required.
+- Separate a definition from the state derived from it: a `MailProvider` capability list describes what a provider offers, while `supports()` is the runtime query a caller uses to read it.
 
-- Preserve externally meaningful IDs; modern storage may add internal IDs but must retain `[LEGACY / EXTERNAL ID FIELD]` where compatibility requires it.
+- Standard HTTPS/JSON is the default for ordinary request/response APIs. Add WebSockets or another real-time transport only for genuinely real-time behavior — and only after the transport is **measured to work**, since Mail.tm advertises SSE and serves none.
 
-- Separate static definitions from runtime/player/entity state where applicable, e.g. `[DefinitionType]` vs `[InstanceType]`.
-
-- Production server actions are authoritative when the architecture is server-authoritative: clients send intent, never trusted resource/XP/HP/result deltas.
-
-- Standard HTTPS/JSON is the default for ordinary request/response APIs. Add WebSockets or another real-time transport only for genuinely real-time behavior.
-
-- Archived/reference assets or runtimes may remain under preservation paths but must never silently become modern runtime dependencies.
+- Reference material may live outside the runtime, but it must never silently become a runtime dependency. Concretely: `tests/provider-spike/` is disposable research and is **deliberately not a workspace member**, so it can never be imported by application code. `tests/architecture/boundaries.test.ts` asserts no workspace file references it.
 
 - Keep transport, domain logic, persistence, and presentation boundaries explicit.
 
@@ -560,29 +550,16 @@ the spike is outside the workspace and so is not covered by them.
 
 <!--
 
-Optional project/runtime installation prerequisite:
+Optional project/runtime installation prerequisite.
 
 
 
-[TOOL / RUNTIME NAME AND VERSION]
-
-
-
-```bash
-
-[VERIFIED INSTALL COMMAND]
-
-```
-
-
-
-Verified [DATE]: [EXACT VERIFICATION RESULT].
-
-
-
-Document unusual PATH behavior, executable paths, OS requirements, or other
-
-important setup constraints here.
+Removed: SpectreMail has no prerequisite beyond the toolchain documented above
+(Windows 11, Node.js v26.10.0, pnpm 12.6.0). There is no database, no container
+runtime, no OS-level package, and no cloud CLI in the path to any gate in this
+repository. Playwright's Chromium download is a prerequisite of the **disposable**
+spike only, is already listed as its own verified step, and is deliberately outside
+the workspace so a contributor who never runs it needs nothing.
 
 -->
 
@@ -802,13 +779,13 @@ These are the six commands the roadmap's M1 acceptance criteria name, plus
 `pnpm verify`, which runs typecheck, lint, format check, test, and build in
 sequence. All exited `0`.
 
-Observed results, re-verified after M3 on 2026-10-02:
+Observed results, re-verified after M4 on 2026-10-02:
 
 ```text
 pnpm typecheck     7 of 7 workspace projects run tsc --noEmit
 pnpm lint          exit 0
 pnpm format:check  All matched files use Prettier code style
-pnpm test          13 files, 150 tests passed
+pnpm test          18 files, 291 tests passed
 pnpm build         vite 7.3.6, dist emitted
 pnpm verify        exit 0
 ```
@@ -979,7 +956,7 @@ Add language/framework-specific rules when needed.
 
 - Keep scenes/components/modules focused; do not create giant global managers.
 
-- Limit global/autoload/singleton services to genuine cross-cutting concerns such as `[SERVICE 1]`, `[SERVICE 2]`, `[SERVICE 3]`, `[SERVICE 4]`, `[SERVICE 5]`, and `[SERVICE 6]`.
+- Limit module-level singletons and mutable global state to genuine cross-cutting concerns, and document each one. In this repository the rule is enforced by behaviour rather than by review: `packages/mail-parser` is required to be a pure function of its input, and `analyse.test.ts` proves it by parsing the same body in between two others and asserting the results are unchanged. `packages/providers` adapters are required to hold no state between calls, asserted one test per adapter by driving a single instance across two mailboxes with different credentials.
 
 - Match the existing formatter/linter conventions when they are already established.
 
@@ -1081,7 +1058,7 @@ destroyed merely because replacements exist.
 
 - Do not modify CI/CD, deployment, infrastructure, security, or repository governance unless the active task requires it.
 
-- Do not touch `[PROJECT-SPECIFIC PROTECTED PATHS / FILES]` unless the active task explicitly requires it.
+- Do not touch these without the active task explicitly requiring it: `.agents/skills/` (generated), `.github/workflows/` (CI), `docs/PROVIDERS.md` (the recorded measurement every provider decision cites), and anything under `openspec/changes/archive/`.
 
 
 
@@ -1125,85 +1102,31 @@ destroyed merely because replacements exist.
 
 
 
-## Migration order
+## Delivery order
 
+SpectreMail has **no migration sequence**: it is a greenfield build, so there is no
+legacy system being replaced and no staged compatibility layer to construct. The
+phasing that exists is delivery phasing, and it is owned by docs/ROADMAP.md, not by
+this file.
 
+The one rule worth restating here, because it is the one most likely to be broken by
+an agent trying to be efficient:
 
-<!--
+    Take the earliest incomplete milestone in docs/ROADMAP.md.
+        -> finish it through its full OpenSpec lifecycle
+        -> then take the next one.
 
-Keep this section only when the project has an intentional migration,
+Do not begin M6's storage contract because M5's is half done, and do not add the
+extension manifest early because the roadmap schedules it at M8. A milestone is
+established only by the scope its own OpenSpec change allows; shipping a feature ahead
+of its milestone produces code no requirement describes and no verification pass will
+check.
 
-reconstruction, modernization, or phased replacement sequence.
-
-
-
-Replace the placeholders with the actual project migration order.
-
-Delete this section only when the project genuinely has no phased sequence.
-
--->
-
-
-
-Unless an approved OpenSpec change intentionally requires otherwise:
-
-
-
-    [PHASE / DOMAIN 1]
-
-        ↓
-
-    [PHASE / DOMAIN 2]
-
-        ↓
-
-    [PHASE / DOMAIN 3]
-
-        ↓
-
-    [PHASE / DOMAIN 4]
-
-        ↓
-
-    [PHASE / DOMAIN 5]
-
-        ↓
-
-    [PHASE / DOMAIN 6]
-
-        ↓
-
-    [PHASE / DOMAIN 7]
-
-        ↓
-
-    [PHASE / DOMAIN 8]
-
-        ↓
-
-    [PHASE / DOMAIN 9]
-
-        ↓
-
-    [PHASE / DOMAIN 10]
-
-        ↓
-
-    [PHASE / DOMAIN 11]
-
-        ↓
-
-    [PHASE / DOMAIN 12]
-
-
-
-The first major target is `[FIRST MAJOR TARGET / MILESTONE]`, not `[LATER OR NON-PRIORITY INFRASTRUCTURE WORK]`.
-
-
+The roadmap's Project Status block is the cursor. It is a progress ledger rather than
+a source of behavioural truth — openspec/specs/ is that — so reconcile it against
+Git, OpenSpec, and the repository before trusting a value written in a previous session.
 
 ---
-
-
 
 ## Git / PR workflow
 
@@ -1781,7 +1704,7 @@ Before modifying an existing capability:
 
 - Inspect its implementation.
 
-- Search `[CORE IMPLEMENTATION FILES / MODULES / ROUTES / CONFIGURATION / STORAGE / ASSETS]` as applicable.
+- Search the implementation surfaces that matter: `packages/*/src/` for shared code, `apps/*/src/` for clients, `tests/architecture/boundaries.test.ts` for the enforced boundaries, and `docs/PROVIDERS.md` before any provider-shaped change.
 
 - Read the relevant OpenSpec spec/change.
 
@@ -1877,55 +1800,41 @@ OpenSpec owns feature requirements and change artifacts. This file owns durable 
 
 
 
-## Reconstruction workflow
+## Implementation workflow
 
+Adapted from the migration/reconstruction template, as that template instructs for
+greenfield projects. SpectreMail has no reference implementation to reconstruct, but
+it does have a hard verification discipline that this preserves.
 
+For each feature or milestone slice:
 
-<!--
+    1. Inspect the current implementation and the related OpenSpec artifacts.
 
-Keep this section for migrations, reconstructions, compatibility projects,
+    2. Identify the interfaces, state, and dependencies involved.
 
-rewrites, preservation projects, or staged replacement work.
+    3. Locate behavioural evidence. For provider work this means recorded responses
+       and docs/PROVIDERS.md; for parsing work it means the authored corpus. If no
+       evidence exists, say so in the change rather than inventing it.
 
+    4. Read or create the OpenSpec change before writing code.
 
+    5. Implement the smallest complete behaviour.
 
-For ordinary greenfield projects, rename this section to "Implementation
+    6. Add or update tests with the implementation, not after it.
 
-workflow" and adapt the steps without removing verification discipline.
+    7. Run the falsification pass: prove each new assertion can fail, and prove the
+       conforming case still passes.
 
--->
+    8. Run every workspace gate and record what it proves and what it does not.
 
+    9. Update the roadmap's Project Status and the documentation in AGENTS.md,
+       README.md, and docs/ with observed counts only.
 
+    10. Inspect the diff and report the checks actually run.
 
-For each migrated/reconstructed/replaced feature:
-
-
-
-    1. Inspect the existing/reference implementation and related resources.
-
-    2. Identify interfaces/endpoints/state/dependencies involved.
-
-    3. Capture or locate reference fixtures/evidence when applicable.
-
-    4. Read/create the OpenSpec change.
-
-    5. Implement the smallest complete behavior.
-
-    6. Add/update tests.
-
-    7. Replay/compare against reference behavior when parity matters.
-
-    8. Perform visual/runtime verification when relevant.
-
-    9. Update migration/project status and documentation.
-
-    10. Inspect diff and report checks actually run.
-
-
-
-Do not mark an existing/reference feature replaced until parity has been verified or an approved spec explicitly changes its behavior.
-
-
+Do not declare a milestone complete until its exit criteria are met, its full
+OpenSpec lifecycle has run, and the verification pass has compared the
+implementation against the change's artifacts rather than against the ticked boxes.
 
 ---
 
