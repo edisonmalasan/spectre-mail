@@ -102,10 +102,89 @@ const PROVIDER_FIELD_NAMES = [
 const PROVIDER_ADAPTER_IDENTIFIERS = [
   "createMailTmAdapter",
   "createGuerrillaAdapter",
-  "createFetchTransport",
   "runProviderConformance",
-  "createProviderManager",
 ];
+
+/**
+ * Identifiers a client is *expected* to call, and which files may call them.
+ *
+ * These were in `PROVIDER_ADAPTER_IDENTIFIERS` at M3 and are not adapters; see the
+ * note below for why that mattered.
+ */
+const PROVIDER_COMPOSITION_SEAMS = ["createProviderManager", "createFetchTransport"] as const;
+
+/**
+ * Identifiers a client is *expected* to call, and the files allowed to call them.
+ *
+ * ## Why these are not in the list above
+ *
+ * The rule this list feeds is named "confines provider adapters to
+ * `packages/providers`". At M3 it also forbade `createProviderManager` and
+ * `createFetchTransport` outside the package, which is **broader than the
+ * requirement it claimed to enforce** — the twelfth recorded instance of that
+ * defect class, and the first where being *too broad* rather than too narrow made
+ * the approved architecture unusable:
+ *
+ * - A client cannot compose a provider manager without `createProviderManager`, so
+ *   forbidding it left `MailProvider` and `ProviderManager` with no way to be
+ *   instantiated outside the package that declares them. The abstraction was
+ *   defined and unreachable at the same time.
+ * - A browser cannot turn `fetch` into a `Transport` without `createFetchTransport`.
+ *
+ * Both are **references to a package's public API**, which is what a public API is
+ * for. Confinement means an adapter may not be *implemented* or *re-exported*
+ * outside the package, and may not be *named* except where a client is entitled to
+ * choose its own providers.
+ *
+ * ## What replaces the blanket ban
+ *
+ * A named, **file-scoped** allowance instead, which is tighter than the old rule's
+ * file scope even though its identifier scope is wider.
+ *
+ * Two different entitlements, because two different jobs:
+ *
+ *   name an *adapter*      a client's provider-configuration module, because
+ *                          choosing which providers it can reach is that module's
+ *                          entire purpose; plus test files, for the reason below.
+ *   name the *seam*        a client's provider-configuration and transport modules,
+ *                          and `packages/mailbox`, which composes a manager on a
+ *                          client's behalf but does not decide which providers
+ *                          exist - reachability is a property of the host.
+ *
+ * **Test files are exempt from the adapter half**, for the same reason this file is
+ * exempt from the rule that names its own identifiers: a check that asserts a
+ * name's absence has to be able to name it. A positive control has to drive a real
+ * adapter, or it is not a control. Tests are not shipped runtime code, and the
+ * wire-format rule above already takes exactly this position.
+ *
+ * ## Its stated limit
+ *
+ * The allowance is by **file path**, and this rule can only see paths. Renaming
+ * `provider-config.ts` would need this list edited; nothing else in the repository
+ * depends on the name. It also **cannot tell a definition from a call** — the
+ * adapter-shaped pattern matches both — so in an allowed file, *minting* an adapter
+ * goes unchecked here as well as *calling* one. Neither is verified *why* a file
+ * holds the adapter: a client that reached for Mail.tm anyway would pass this rule
+ * and be caught by `website-client`'s one-provider requirement instead. These are
+ * real limits, stated rather than papered over.
+ */
+const PROVIDER_SEAM_ALLOWED_FILES = [
+  /^apps\/[^/]+\/src\/provider-config\.ts$/,
+  /^apps\/[^/]+\/src\/transport\.ts$/,
+  /^packages\/mailbox\/src\//,
+  /^(?:apps|packages)\/[^/]+\/src\/[^/]*\.test\.tsx?$/,
+] as const;
+
+/**
+ * The narrower of the two: only a client's provider configuration, and test files.
+ *
+ * `packages/mailbox` composes a session but must not name an adapter. It is handed
+ * providers; deciding which providers exist is not its to make.
+ */
+const PROVIDER_ADAPTER_ALLOWED_FILES = [
+  /^apps\/[^/]+\/src\/provider-config\.ts$/,
+  /^(?:apps|packages)\/[^/]+\/src\/[^/]*\.test\.tsx?$/,
+] as const;
 
 /**
  * Any identifier shaped like an adapter factory or contract implementation.
@@ -314,6 +393,26 @@ function collectFetchViolations(repoPath: string, contents: string): string[] {
 }
 
 /**
+ * A UI framework reached by an import specifier.
+ *
+ * Matches the specifier's first path segment, so `react/jsx-runtime` and
+ * `react-dom/client` are caught as readily as the bare package, and
+ * `@spectre-mail/mail-parser` is not caught merely for containing the letters.
+ */
+const FRAMEWORK_IMPORT_PATTERN =
+  /(?:from\s+|import\s*\(\s*|require\s*\(\s*)["'](react|react-dom|preact|solid-js|vue|svelte)(\/[^"']*)?["']/g;
+
+/**
+ * Any way a client can turn a string into markup.
+ *
+ * `innerHTML`, `outerHTML`, and the legacy `document.write` are included because a
+ * client that used one of them would have the same problem as `dangerouslySetInnerHTML`
+ * while looking nothing like it.
+ */
+const MARKUP_ESCAPE_PATTERN =
+  /dangerouslySetInnerHTML|\.(?:inner|outer)HTML\s*=|insertAdjacentHTML|document\.write\s*\(/g;
+
+/**
  * Workspace member globs, with comments stripped.
  *
  * Comments are stripped because `pnpm-workspace.yaml` documents the spike's
@@ -481,6 +580,132 @@ describe("architecture boundaries", () => {
     expect(violations).toEqual([]);
   });
 
+  it("keeps the mailbox session layer free of a framework and a DOM", () => {
+    // Task 1.6 and 5.1. `packages/mailbox` exists so two clients can share one
+    // implementation, and it can only do that if it depends on neither React nor a
+    // DOM. The website needs this package; the extension, scheduled for M8, needs it
+    // too, and a package that had picked up `react` would force the extension to
+    // either ship React or rewrite the shared layer.
+    //
+    // **This rule is a backstop, not the primary enforcement.** The package's own
+    // `tsconfig.json` sets `"lib": ["ES2023"]` with no `"DOM"`, so `document`,
+    // `window`, and `navigator` fail to *compile*. The compiler is the real boundary
+    // and this scan cannot strengthen it - which is why the rule is stated as
+    // supplementary rather than as the guarantee.
+    //
+    // **Its stated limit:** it matches import *specifiers* only. A framework reached
+    // through a global, through a dynamic `import()` with a computed specifier, or
+    // through a re-exported copy of it elsewhere, would pass this scan. It also
+    // covers `packages/mailbox` only - it is not a repository-wide "no framework"
+    // rule, and `apps/web` is expected to use React.
+    const mailboxDir = join(PACKAGES_DIR, "mailbox");
+    const violations: string[] = [];
+
+    for (const file of collectSourceFiles(mailboxDir)) {
+      const contents = stripComments(readFileSync(file, "utf8"));
+      for (const hit of findPatternOccurrences(contents, FRAMEWORK_IMPORT_PATTERN)) {
+        violations.push(`${toRepoPath(file)} ${hit} (imports a UI framework)`);
+      }
+    }
+
+    expect(violations).toEqual([]);
+  });
+
+  it("stays quiet on the word framework in a comment", () => {
+    // The negative control for the rule above, and the reason this file has a
+    // comment-stripping helper at all. `packages/mailbox`'s own module
+    // documentation explains at length what it does not depend on, and the first
+    // version of the rule read raw text and fired on exactly that. A rule that
+    // cannot tell a declaration from a comment about that declaration is measuring
+    // the wrong thing - which has happened three times in this repository.
+    const scanned = stripComments(join(PACKAGES_DIR, "mailbox", "src", "session.ts"));
+
+    // The comment stripped above certainly names React; the stripped source must not.
+    expect(readFileSync(join(PACKAGES_DIR, "mailbox", "src", "session.ts"), "utf8")).toMatch(
+      /react/i,
+    );
+    expect(scanned).not.toMatch(/react/i);
+  });
+
+  it("keeps a markup escape hatch out of every client", () => {
+    // An address, a subject, and a message body are all provider-supplied strings.
+    // Rendering one as markup is how a mailbox becomes an injection vector, and it
+    // is the one thing `website-client` forbids outright.
+    //
+    // Comments are stripped, for the reason given above: `apps/web/src/Address.tsx`
+    // documents *why* it has no escape hatch, by name, and the first version of this
+    // rule fired on that sentence. Fixed by stripping, not by rewording - rewording
+    // would have deleted the explanation the next reader needs.
+    const violations: string[] = [];
+
+    for (const file of collectSourceFiles(APPS_DIR)) {
+      const contents = stripComments(readFileSync(file, "utf8"));
+      for (const hit of findPatternOccurrences(contents, MARKUP_ESCAPE_PATTERN)) {
+        violations.push(`${toRepoPath(file)} ${hit} (renders untrusted content as markup)`);
+      }
+    }
+
+    expect(violations).toEqual([]);
+  });
+
+  it("collects the client's own tests rather than skipping them", () => {
+    // The root Vitest `include` globs `apps/` as of M5 slice 1, and before it did
+    // not. An app test placed under a glob that is not listed is **silently
+    // skipped** - and a skipped test reads as covered. That is the exact failure the
+    // package-shaped package glob was designed to prevent, reintroduced one
+    // directory over.
+    //
+    // This resolves the configured globs against the real test files rather than
+    // asserting that a literal string is present. Narrowing the glob, deleting the
+    // entry, or moving the test file each break it; a comment saying the entry is
+    // there breaks none of them.
+    const config = readFileSync(join(REPO_ROOT, "vitest.config.ts"), "utf8");
+    const includeBlock = config.match(/include:\s*\[([^\]]*)\]/);
+    expect(includeBlock).not.toBeNull();
+
+    const patterns = [...(includeBlock?.[1] ?? "").matchAll(/"([^"]+)"/g)].map(
+      (match) => match[1] as string,
+    );
+    expect(patterns.length).toBeGreaterThan(0);
+
+    /**
+     * Compile one of the glob forms this repository actually uses.
+     *
+     * A double star followed by a separator means "zero or more directories", so
+     * the package glob matches a test directly inside `src` as well as one nested
+     * deeper. Treating a double star as a plain "anything" would demand at least
+     * one separator and report every test as uncovered - the failure mode of a
+     * matcher stricter than the glob it is checking, which would read as a real
+     * coverage gap. (The literal globs are not written here: a double star next to
+     * a slash ends this comment.)
+     */
+    const toMatcher = (pattern: string): RegExp => {
+      const ANY_DIRS = "\u0001";
+      const ANY_CHARS = "\u0002";
+      const body = pattern
+        .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+        .replace(/\*\*\//g, ANY_DIRS)
+        .replace(/\*\*/g, ANY_CHARS)
+        .replace(/\*/g, "[^/]*")
+        .replace(new RegExp(ANY_DIRS, "g"), "(?:.*/)?")
+        .replace(new RegExp(ANY_CHARS, "g"), ".*");
+      return new RegExp(`^${body}$`);
+    };
+    const matchers = patterns.map(toMatcher);
+
+    const appTests = collectSourceFiles(APPS_DIR).filter((file) => /\.test\.tsx?$/.test(file));
+
+    // A precondition, so the assertions below cannot pass vacuously by finding no
+    // files at all.
+    expect(appTests.length).toBeGreaterThan(0);
+
+    const uncovered = appTests
+      .filter((file) => !matchers.some((matcher) => matcher.test(toRepoPath(file))))
+      .map((file) => toRepoPath(file));
+
+    expect(uncovered).toEqual([]);
+  });
+
   it("confines provider adapters to packages/providers", () => {
     const providersDir = join(PACKAGES_DIR, "providers");
     const violations: string[] = [];
@@ -490,20 +715,54 @@ describe("architecture boundaries", () => {
     // root-level module and a module under `tests/` could both name an adapter
     // and the test still passed. The requirement is that *no file outside the
     // package* references one.
+    //
+    // **Comments are stripped first.** They were not, at M3, and the rule fired on
+    // its own code: `packages/mailbox`'s explanation of what it deliberately does
+    // not do named `createProviderManager`, and the suite went red on a sentence
+    // rather than on a declaration. That is the third time in this repository a
+    // check has fired on its own documentation, and it is fixed by teaching the
+    // rule to tell a declaration from a comment about that declaration — not by
+    // rewording the documentation until the rule went quiet. Rewording would have
+    // deleted the reason the reader needed.
     for (const file of collectSourceFiles(REPO_ROOT)) {
       if (file.startsWith(providersDir)) continue;
 
       // This file necessarily contains the identifiers as string literals.
       if (file === __filename) continue;
 
-      const contents = readFileSync(file, "utf8");
+      const repoPath = toRepoPath(file);
+      const contents = stripComments(readFileSync(file, "utf8"));
+      const seamAllowed = PROVIDER_SEAM_ALLOWED_FILES.some((pattern) => pattern.test(repoPath));
+      const adapterAllowed = PROVIDER_ADAPTER_ALLOWED_FILES.some((pattern) =>
+        pattern.test(repoPath),
+      );
+
       for (const identifier of PROVIDER_ADAPTER_IDENTIFIERS) {
-        if (contents.includes(identifier)) {
-          violations.push(`${toRepoPath(file)} references ${identifier}`);
+        if (contents.includes(identifier) && !adapterAllowed) {
+          violations.push(`${repoPath} references ${identifier}`);
         }
       }
       for (const match of contents.matchAll(PROVIDER_ADAPTER_PATTERN)) {
-        violations.push(`${toRepoPath(file)} defines adapter-shaped identifier ${match[0]}`);
+        // Subject to the same allowance, because this pattern cannot tell a
+        // **definition** from a **call**: `const a = createGuerrillaAdapter(...)`
+        // and `export const b = createGuerrillaAdapter(...)` are the same text. In
+        // an allowed file, minting an adapter therefore goes unchecked here — see
+        // the stated limit below.
+        if (!adapterAllowed) {
+          violations.push(`${repoPath} defines adapter-shaped identifier ${match[0]}`);
+        }
+      }
+
+      // The composition seams are callable outside the package, but only from the
+      // files whose job is to do so. See the note above for why this exists and
+      // what it cannot check.
+      for (const identifier of PROVIDER_COMPOSITION_SEAMS) {
+        if (contents.includes(identifier) && !seamAllowed) {
+          violations.push(
+            `${repoPath} references ${identifier}, which is allowed only in a client's ` +
+              `provider-config.ts, transport.ts, or packages/mailbox`,
+          );
+        }
       }
     }
 

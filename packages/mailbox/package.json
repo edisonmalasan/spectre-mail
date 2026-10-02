@@ -1,0 +1,17 @@
+{
+  "version": "0.0.0",
+  "name": "@spectre-mail/mailbox",
+  "description": "Framework-free mailbox session orchestration: create, replace, and describe a mailbox through the provider abstraction.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@spectre-mail/core": "workspace:*",
+    "@spectre-mail/providers": "workspace:*"
+  },
+  "private": true
+}
