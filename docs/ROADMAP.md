@@ -24,8 +24,25 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor:** M4 - Mail Parsing Engine (**verifying**, apply PR #23 (`7742545`)
-merged; verification repairs on `fix/m4-verification`).
+**Roadmap cursor:** M5 - Storage Contracts (not yet proposed).
+**M4 completed its
+full lifecycle**: propose PR #22 (`ef56f33`), apply PR #23 (`7742545`), verification
+repairs PR #24 (`8260cef`), sync PR #25 (`6c9c1e2`), archive PR #26, archived at
+`openspec/changes/archive/2026-10-02-mail-parsing-engine/` with its delta promoted to
+`openspec/specs/mail-parsing/spec.md` - **9 requirements, 31 scenarios** - of which
+**three scenarios were added by the verification pass** because it found real
+requirement gaps rather than merely implementation defects.
+
+**The archived delta and the promoted spec therefore differ, and the difference was
+measured rather than assumed.** Extracting from the first `### Requirement:` in each
+file and comparing: **9 requirements in both, 28 scenarios in the archived delta against
+31 in the promoted spec**. The three extra are the verification pass's. They were
+written into the promoted spec at sync rather than back into the change's delta,
+because the change was already applied and its delta is the record of what it
+originally proposed. So `openspec/specs/` is the source of truth for what is
+**required**, and the archived delta is the record of what the change **asked for** -
+a real gap, and one a later reader should read as "the verification pass strengthened
+this" rather than "the archive lost something".
 **The M4 verification pass found a defect that had been green since M3 and one that
 was a stated capability with nothing behind it.** The architecture `fetch` rule passed
 `pattern.source` to a helper doing a literal substring match, so it searched for the
@@ -293,14 +310,12 @@ M3 had just written. A check that does not exist cannot be falsified, so it has 
 be written before the pass, not after.
 
 | M3 | complete (archived) | `provider-layer` |
-| M4 | verifying -> synced | `mail-parsing-engine` |
+| M4 | **complete (archived)** | `mail-parsing-engine` |
 | M5-M15 | not started | - |
 
 **OpenSpec lifecycle stage:** M0, the provider-role change, M1's foundation change,
-M2's `shared-domain-model`, and M3's `provider-layer` are all complete (propose ->
-apply -> verify -> sync -> archive). **One active change: `mail-parsing-engine`**, now
-**synced** - its delta is promoted to `openspec/specs/mail-parsing/spec.md` with **9
-requirements and 31 scenarios**, of which three were added by the verification pass.
+M2's `shared-domain-model`, M3's `provider-layer`, and **M4's `mail-parsing-engine`
+are all complete (propose -> apply -> verify -> sync -> archive)**. **No active change.**
 Task 8.11 - the independent vacuity check - was the step that surfaced the
 defect above, and is ticked because the check was performed and it found something.
 M3's own verification pass found two more, and **M4's verification pass found two
