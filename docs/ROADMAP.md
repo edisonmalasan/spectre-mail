@@ -23,13 +23,12 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor:** M2 - Shared Domain Model (**complete and archived**). Full
-lifecycle: propose PR #12, apply PR #13 (`0bbc4ea`), verification repairs PR #14
-(`e050095`), sync PR #15 (`96d4d10`), archive PR #16. Archived at
-`openspec/changes/archive/2026-10-02-shared-domain-model/`; the delta is promoted to
-`openspec/specs/shared-domain-model/spec.md` (9 requirements, 23 scenarios).
-There are **no active changes**. The cursor advances to **M3 - Provider Layer**,
-which is the next eligible objective.
+**Roadmap cursor:** M3 - Provider Layer (**proposing**). M2 completed its full
+lifecycle: propose PR #12, apply PR #13, verification repairs PR #14, sync PR #15,
+archive PR #16 (`49b1bfa`), archived at
+`openspec/changes/archive/2026-10-02-shared-domain-model/` with its delta promoted
+to `openspec/specs/shared-domain-model/spec.md`. M3's change is `provider-layer`.
+The site and the spike are untouched by it so far - it is planning artifacts only.
 
 **Verification found a gate that was failing and being recorded as passing.** On
 Windows - the environment `AGENTS.md` declares supported - `pnpm format:check`
@@ -135,7 +134,7 @@ active changes remain.** Task 8.11 - the independent vacuity check - was the ste
 that surfaced the defect above, and is ticked because the check was performed and
 it found something.
 
-**Next required change:** **M3 - Provider Layer.** `shared-domain-model` is complete, verified, synced, and archived, so no change remains active.
+**Next required change:** finish `provider-layer` (apply, verify, sync, archive).
 
 **M1 as built, for the next milestone's benefit:**
 
