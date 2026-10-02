@@ -24,7 +24,19 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor:** M5 - Website Core MVP (not yet proposed).
+**Roadmap cursor:** M5 - Website Core MVP (**proposing**, PR #28 on
+`docs/mailbox-session-layer-proposal`; change `mailbox-session-layer`).
+**M5 is being delivered as a sequence of bounded changes rather than one**, and the
+first settles where client-side orchestration lives. The roadmap's shared-package
+list has no home for it: it assigns "mailbox lifecycle" and "mailbox manager" to
+`packages/core`, but `shared-domain-model`'s approved purpose states that capability
+describes "the model and its invariants only" and excludes lifecycle behaviour. A
+roadmap is a plan; an approved spec is a contract; where they disagree the contract
+wins. So the behaviour goes in a **new framework-free `packages/mailbox`** rather
+than widening `packages/core` from a type surface into a runtime one, and rather
+than being written inside `apps/web` where M8's extension would have to rewrite it.
+This change also **amends this roadmap's own shared-package list**, in the same
+change, rather than leaving the document to disagree with the tree.
 *Corrected 2026-10-02:* an earlier revision of this line named the next milestone
 "Storage Contracts". That was wrong, and it is worth recording why, because it is the
 same failure this repository keeps meeting in a different costume — **naming a
@@ -320,7 +332,7 @@ be written before the pass, not after.
 
 | M3 | complete (archived) | `provider-layer` |
 | M4 | **complete (archived)** | `mail-parsing-engine` |
-| M5 | next (not proposed) | - |
+| M5 | proposing (slice 1 of N) | `mailbox-session-layer` |
 | M6-M15 | not started | - |
 
 **OpenSpec lifecycle stage:** M0, the provider-role change, M1's foundation change,
