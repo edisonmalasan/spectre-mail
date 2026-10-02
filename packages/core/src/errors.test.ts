@@ -127,6 +127,67 @@ describe("SpectreError", () => {
     expect(isSpectreError({ code: "429", provider: "mailtm", description: "x" })).toBe(false);
   });
 
+  // --- M2 verification pass -------------------------------------------------
+  // Each of these admitted `true` before the guard was made sound. A type guard
+  // that admits values its own type forbids is worse than no guard at all, because
+  // the compiler then promises a field that is not there.
+
+  it("rejects a MESSAGE_NOT_FOUND with no messageId", () => {
+    // MESSAGE_NOT_FOUND requires messageId, so a caller narrowing on the code could
+    // read a field that does not exist.
+    const missing = {
+      code: NormalizedErrorCode.MESSAGE_NOT_FOUND,
+      provider: "mailtm",
+      description: "no such message",
+    };
+
+    expect(isSpectreError(missing)).toBe(false);
+  });
+
+  it("rejects an UNSUPPORTED_OPERATION with no operation", () => {
+    const missing = {
+      code: NormalizedErrorCode.UNSUPPORTED_OPERATION,
+      provider: "mailtm",
+      description: "not offered",
+    };
+
+    expect(isSpectreError(missing)).toBe(false);
+  });
+
+  it("rejects a rateLimit that is not a string", () => {
+    // The advertised header is evidence, and evidence stored as a number is
+    // corruption rather than a value worth keeping.
+    expect(
+      isSpectreError({
+        code: NormalizedErrorCode.RATE_LIMITED,
+        provider: "mailtm",
+        description: "slow down",
+        rateLimit: 42,
+      }),
+    ).toBe(false);
+
+    expect(
+      isSpectreError({
+        code: NormalizedErrorCode.RATE_LIMITED,
+        provider: "mailtm",
+        description: "slow down",
+        rateLimit: "1; w=60",
+      }),
+    ).toBe(true);
+  });
+
+  it("rejects an error naming a provider the model does not define", () => {
+    // The provider set is closed. An error naming an unknown provider must not be
+    // admitted as a SpectreError, or it would be attributed to a provider we do
+    // not have.
+    expect(
+      isSpectreError({
+        code: NormalizedErrorCode.AUTH_FAILED,
+        provider: "protonmail",
+        description: "nope",
+      }),
+    ).toBe(false);
+  });
   it("rejects values that are not errors", () => {
     expect(isSpectreError(null)).toBe(false);
     expect(isSpectreError("AUTH_FAILED")).toBe(false);

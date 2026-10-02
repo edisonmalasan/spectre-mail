@@ -783,7 +783,7 @@ passes the architecture boundary assertions, and that the website builds.
 
 They do **not** establish any product behaviour. As of M2 there is a domain model
 but still no provider adapter, no storage, and no mailbox feature, so no test can
-assert product behaviour. The 48 unit tests in `packages/core` assert type and
+assert product behaviour. The 54 unit tests in `packages/core` assert type and
 construction invariants, not user-visible outcomes. Boundary assertions are not
 coverage of a product that does not exist.
 

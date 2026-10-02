@@ -161,5 +161,52 @@ the violating file, then removing it. Temporary files are untracked and removed 
 
 ### Gates actually run
 
-`pnpm verify` (typecheck, lint, format check, test, build) exited 0;
-7 test files, 55 tests; all 7 workspace projects type check.
+At the end of the apply stage, `pnpm verify` (typecheck, lint, format
+check, test, build) exited 0 with 7 test files and 55 tests. That count is
+superseded by the 61 below, which is the state after the repairs.
+
+### Independent verification pass (post-apply, branch `fix/m2-verification-repairs`)
+
+A separate pass compared the implementation against this delta rather than trusting
+the apply stage. It found three real defects. All three are recorded here because
+the pattern matters more than any single fix: **two of them were green tests and a
+type guard doing less than they appeared to.**
+
+**CRITICAL - `isSpectreError` was an unsound type guard.** It declares
+`value is SpectreError`, but checked only the discriminant, the provider's stringness,
+and the description. It accepted a `MESSAGE_NOT_FOUND` with no `messageId`, an
+`UNSUPPORTED_OPERATION` with no `operation`, a numeric `rateLimit`, and a provider
+named `"protonmail"`. Every one of those is a value the type forbids, so every one
+would have surfaced later as `undefined` where the compiler had promised a `string`.
+Repaired to check each variant's own requirements and to reject an unknown provider.
+
+**CRITICAL - `isMailbox` did not validate `expiresAt`.** It accepted a stored record
+whose expiry was the string `"in seven days"`, as well as `NaN` and `Infinity`.
+`id` and `createdAt` were checked, so this was a specific omission rather than
+general laxness - and it is precisely the fabrication this model exists to prevent.
+Repaired, with absence still valid because absence is the normal case.
+
+**WARNING - a test was proven incapable of failing.** `credentials.test.ts` carried a
+test named "contains no provider wire field name" that stringified its own fixtures
+and asserted the result held no provider field name. The fixtures were defined two
+lines above with the normalized names, so the assertion held no matter what the
+shipped module did. Proven by injecting a real wire field name into
+`credentials.ts` and observing all six tests in the file still pass.
+
+It was then **"fixed" and proven still vacuous.** The replacement asserted against the
+module's runtime surface, on the reasoning that wire format in a *type* is erased at
+runtime. That reasoning was wrong in practice: the fixtures never pass through the
+module, so the runtime assertion had nothing new to observe. Re-injecting the field
+proved it again. The test was deleted rather than kept, because a false green is
+worse than no test, and the rule is genuinely enforced by the boundary test reading
+real source. The reason is now documented in `credentials.test.ts` where the obvious
+test would otherwise be re-added.
+
+**Repairs proven load-bearing.** For each repair the old behaviour was restored and
+the suite observed going red - the reverse of proving a new test fails, which
+establishes nothing. Four of four confirmed: per-variant error fields, the
+unknown-provider check, the `rateLimit` type check, and the `expiresAt` validation.
+A positive control confirms a well-formed error is still accepted.
+
+Gates after repair: `pnpm verify` exited 0, 7 files, 61 tests, all 7 projects type
+check. Every changed file verified LF.

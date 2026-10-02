@@ -14,6 +14,7 @@
  * @module
  */
 
+import { isProviderId } from "./provider";
 import type { ProviderId } from "./provider";
 
 /**
@@ -144,28 +145,61 @@ export type SpectreError =
 /**
  * Whether `value` is a {@link SpectreError}.
  *
- * Narrow enough to gate the boundary where provider failures enter the model, and
- * deliberately shallow: it checks the discriminant and the fields every variant
- * guarantees, not the per-code extras. A code-specific guarantee is enforced by
- * the variant that carries it.
+ * **A type guard is a promise, and this one has to be kept.** It declares
+ * `value is SpectreError`, so every caller afterwards may read `messageId` on a
+ * `MESSAGE_NOT_FOUND` or `operation` on an `UNSUPPORTED_OPERATION` and have the
+ * compiler agree the field is there. The M2 verification pass proved the first
+ * version of this function was unsound: it checked the discriminant, the provider,
+ * and the description, but not the fields each individual variant *requires*. It
+ * happily accepted a `MESSAGE_NOT_FOUND` with no `messageId`, an
+ * `UNSUPPORTED_OPERATION` with no `operation`, a numeric `rateLimit`, and a
+ * provider named `"protonmail"`. Every one of those is a value the type forbids,
+ * so every one would have surfaced later as `undefined` where a `string` was
+ * promised.
+ *
+ * So it now checks each variant's own requirements. The optional `cause` is
+ * deliberately still unvalidated: it is `unknown`, so there is nothing to check,
+ * and its presence carries no per-code guarantee.
  */
 export function isSpectreError(value: unknown): value is SpectreError {
   if (typeof value !== "object" || value === null) {
     return false;
   }
 
-  const candidate = value as Partial<SpectreError>;
+  const candidate = value as Record<string, unknown>;
 
-  if (!isNormalizedErrorCode(candidate.code)) {
+  const code = candidate["code"];
+  if (!isNormalizedErrorCode(code)) {
     return false;
   }
-  if (typeof candidate.provider !== "string") {
+
+  // An unknown provider is a real condition and must not pass as a known one.
+  if (!isProviderId(candidate["provider"])) {
     return false;
   }
-  // NETWORK_ERROR is the one code where the underlying cause is mandatory.
-  if (candidate.code === NormalizedErrorCode.NETWORK_ERROR) {
+
+  // Optional `rateLimit` is a string when present; a number here is corruption.
+  if (candidate["rateLimit"] !== undefined && typeof candidate["rateLimit"] !== "string") {
+    return false;
+  }
+
+  if (code === NormalizedErrorCode.NETWORK_ERROR) {
+    // The one code whose whole content is the underlying cause.
     return "cause" in candidate;
   }
 
-  return typeof candidate.description === "string";
+  if (typeof candidate["description"] !== "string") {
+    return false;
+  }
+
+  // Fields each variant requires beyond the shared ones.
+  if (code === NormalizedErrorCode.MESSAGE_NOT_FOUND) {
+    return typeof candidate["messageId"] === "string";
+  }
+
+  if (code === NormalizedErrorCode.UNSUPPORTED_OPERATION) {
+    return typeof candidate["operation"] === "string";
+  }
+
+  return true;
 }

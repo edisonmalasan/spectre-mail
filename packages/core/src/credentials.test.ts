@@ -8,9 +8,24 @@ import {
 import type { GuerrillaCredentials, MailTmCredentials, ProviderCredentials } from "./credentials";
 
 /**
- * Fixtures use SpectreMail's own field names. They deliberately never use a
- * provider's wire spelling, so that a future "helpful" rename cannot slip in here
- * unnoticed and quietly reintroduce wire format into the model.
+ * Fixtures use SpectreMail's own field names.
+ *
+ * **There is deliberately no test here asserting that.** This file carried one for
+ * a while - stringifying the fixtures below and asserting the result held no
+ * provider field name - and it was proven incapable of failing. Injecting a real
+ * wire field name into `packages/core/src/credentials.ts` left all six tests in
+ * this file passing, both as originally written and after an attempt to "fix" it:
+ * the fixtures are constructed here, with the normalized names, so the assertion
+ * held no matter what the shipped module did.
+ *
+ * Wire format in a *type* is erased at runtime, so no runtime assertion in this
+ * file could catch it. The rule is genuinely enforced by
+ * `tests/architecture/boundaries.test.ts`, which reads real source across every
+ * workspace package except `packages/providers`. That test was widened to reach
+ * `packages/core` during M2 for exactly this reason.
+ *
+ * Recorded as a note because the natural instinct on reading this file is to add
+ * the obvious test back, and the obvious test is the one that proves nothing.
  */
 const mailTm: MailTmCredentials = {
   provider: "mailtm",
@@ -47,14 +62,6 @@ describe("ProviderCredentials", () => {
     // token rather than at the provider that was selected.
     expect(() => assertMailTmCredentials(guerrilla)).toThrow(/guerrilla/);
     expect(() => assertMailTmCredentials(guerrilla)).toThrow(/Mail\.tm/);
-  });
-
-  it("contains no provider wire field name", () => {
-    // Guards the normalization at the point where it matters. `sid_token` is the
-    // measured Guerrilla field; `token` is Mail.tm's. Neither belongs in core.
-    const source = JSON.stringify({ mailTm, guerrilla });
-    expect(source).not.toContain("sid_token");
-    expect(source).not.toContain("ratelimit-policy");
   });
 
   it("keeps every variant reachable through the union", () => {

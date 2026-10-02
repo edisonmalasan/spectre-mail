@@ -93,6 +93,22 @@ export function isMailbox(value: unknown): value is Mailbox {
     return false;
   }
 
+  // An expiry, when present, must be a usable number.
+  //
+  // Added by the M2 verification pass, which proved this guard accepted a stored
+  // record whose `expiresAt` was the string `"in seven days"`. That is precisely
+  // the fabrication this model exists to prevent: `expiresAt` exists only for a
+  // value a provider actually reported, and a corrupt or hand-edited record must
+  // not be able to smuggle a human-readable duration in where an instant belongs.
+  // Absence is still perfectly valid - it is the normal case - so only a present
+  // value is checked.
+  if (
+    candidate.expiresAt !== undefined &&
+    (typeof candidate.expiresAt !== "number" || !Number.isFinite(candidate.expiresAt))
+  ) {
+    return false;
+  }
+
   const credentials = candidate.credentials;
   if (typeof credentials !== "object" || credentials === null) {
     return false;
