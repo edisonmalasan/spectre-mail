@@ -19,7 +19,8 @@ on. See [Current status](#current-status).
 | M0 — Provider compatibility spike | complete (gate satisfied — see below) |
 | M1 — Monorepo foundation          | complete and archived                 |
 | M2 — Shared domain model          | complete and archived                 |
-| M3—M15                            | not started                           |
+| M3 — Provider layer               | complete and archived                 |
+| M4—M15                            | not started                           |
 
 | Capability spec          | State |
 | ------------------------ | ----- |
@@ -27,17 +28,29 @@ on. See [Current status](#current-status).
 | `monorepo-foundation`    | live  |
 | `build-and-verification` | live  |
 | `shared-domain-model`    | live  |
+| `provider-adapters`      | live  |
 
-The last three were promoted at the sync stage of the `monorepo-foundation` and `shared-domain-model` changes.
+`provider-adapters` was promoted at the sync stage of the `provider-layer` change.
 
 The website currently renders a plain status page. It has **no mailbox feature**,
 no provider call, and no styling. That is still the correct state and it is not a
 placeholder pretending to be software.
 
-`packages/core` now holds SpectreMail's **normalized domain model** — mailbox, message,
+`packages/core` holds SpectreMail's **normalized domain model** — mailbox, message,
 credentials, verification code, verification link, and a closed set of normalized
 error codes. It is real, tested code, and it deliberately contains **no provider wire
-format and no runtime behaviour**: there is still no provider adapter, no `MailProvider` contract, and nothing that talks to a network.
+format and no runtime behaviour**: a provider's field name does not appear anywhere
+in it.
+
+`packages/providers` holds the **`MailProvider` contract** and its two adapters —
+Mail.tm and Guerrilla Mail — plus one shared conformance suite both must pass with
+no per-provider exemption. It is real, tested code, and **no test in it contacts a
+live provider**: every test replays recorded provider responses, so the suite
+establishes this repository's mapping of a measured wire format and nothing about
+either provider's current behaviour.
+
+It is still a capability rather than a feature. **No client consumes it yet**, so
+nothing a user can see exercises any of it.
 
 ### The one thing you should know
 
@@ -57,8 +70,10 @@ not a preference:
 | Website   | Guerrilla Mail only                      | Mail.tm is unreachable from a web page. No fallback in V1.          |
 | Extension | Mail.tm primary, Guerrilla Mail fallback | A Chromium extension holds host permissions, so both are reachable. |
 
-Provider availability is **per client**, not global. Both providers are still built
-in `packages/providers`.
+Provider availability is **per client**, not global. Both adapters are built in
+`packages/providers`, and a client is configured with the providers its own runtime
+can actually reach — a manager holding one provider does not pretend a fallback
+exists.
 
 ---
 
@@ -81,8 +96,10 @@ Five shared packages, each with one responsibility:
 | `@spectre-mail/ui`          | Reusable product UI and design tokens                                                                       |
 
 The boundaries are enforced by a test, not just documented. `pnpm test` fails if a
-package imports an app, if a file under `apps/` contains a provider JSON field
-name, or if a provider adapter identifier appears outside `packages/providers`.
+package imports an app, if a file outside `packages/providers` contains a provider
+JSON field name, if a provider adapter identifier or adapter-shaped identifier
+appears outside `packages/providers`, or if any module in `packages/providers`
+reaches the global `fetch` instead of its injected transport.
 
 Full detail, including why each rule exists: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 

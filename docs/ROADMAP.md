@@ -24,18 +24,22 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor:** M3 - Provider Layer (**syncing**, PR #20 on
-`docs/provider-adapters-spec-sync`). Apply merged as PR #18 (`fe54b22`) and
-verification repairs as PR #19 (`ede63bb`). M2 completed its full lifecycle:
-propose PR #12,
-apply PR #13, verification repairs PR #14, sync PR #15, archive PR #16 (`49b1bfa`),
-archived at `openspec/changes/archive/2026-10-02-shared-domain-model/` with its
-delta promoted to `openspec/specs/shared-domain-model/spec.md`. M3's change is
-`provider-layer`, proposed in PR #17 (`7f20877`). Its delta is promoted to
-`openspec/specs/provider-adapters/spec.md` - 12 requirements, 30 scenarios - with
-**three scenarios amended during sync** after the implementation revealed the
-original wording to be unsatisfiable. M3 remains unarchived, and the site and the
-spike are untouched by it.
+**Roadmap cursor:** M4 - Mail Parsing Engine (**not started**). **M3 completed its
+full lifecycle**: propose PR #17 (`7f20877`), apply PR #18 (`fe54b22`),
+verification repairs PR #19 (`ede63bb`), sync PR #20 (`ffdaa13`), archive PR #21,
+archived at `openspec/changes/archive/2026-10-02-provider-layer/` with its delta
+promoted to `openspec/specs/provider-adapters/spec.md` - 12 requirements,
+30 scenarios - and **three of those scenarios amended during sync** after the
+implementation revealed the original wording to be unsatisfiable.
+
+M2's lifecycle was propose PR #12, apply PR #13, verification repairs PR #14, sync
+PR #15, archive PR #16 (`49b1bfa`), archived at
+`openspec/changes/archive/2026-10-02-shared-domain-model/`.
+
+M3 added a capability, not a feature. **No client consumes `packages/providers`**, so
+the site and the spike were untouched by it and no test can assert a user-visible
+outcome. `openspec validate --specs --strict` reports **5 passed, 0 failed**, and
+**no active OpenSpec change remains**.
 
 **The M3 verification pass found two requirement scenarios with no implementation
 behind them, after apply had ticked every box.** Recorded because the pattern is
@@ -261,14 +265,16 @@ above). And the very first M3 falsification run came back **green** after adding
 M3 had just written. A check that does not exist cannot be falsified, so it has to
 be written before the pass, not after.
 
-| M3 | applying | `provider-layer` |
+| M3 | complete (archived) | `provider-layer` |
 | M4-M15 | not started | - |
 
 **OpenSpec lifecycle stage:** M0, the provider-role change, M1's foundation change,
-and M2's `shared-domain-model` are all complete (propose -> apply -> verify -> sync
--> archive). **One active change: `provider-layer`**, at apply. Task 8.11 - the
-independent vacuity check - was the step that surfaced the defect above, and is
-ticked because the check was performed and it found something.
+M2's `shared-domain-model`, and M3's `provider-layer` are all complete (propose ->
+apply -> verify -> sync -> archive). **No active change remains**, so the next
+milestone begins with a fresh proposal for M4. Task 8.11 - the independent vacuity
+check - was the step that surfaced the defect above, and is ticked because the check
+was performed and it found something. M3's own verification pass found two more, so
+the task keeps earning its place.
 
 **Next required change:** finish `provider-layer` (apply, verify, sync, archive).
 
