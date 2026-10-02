@@ -23,14 +23,13 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor:** M2 - Shared Domain Model (**implementing**). M1 completed its
-full lifecycle: propose PR #7, apply PR #8 (`5ad51d7`), verification repairs PR #9
-(`41da7b2`), sync PR #10 (`f69ab38`), archive PR #11. M1 is archived at
-`openspec/changes/archive/2026-10-02-monorepo-foundation/`. M2's change is
-`shared-domain-model`, proposed as PR #12, applied as PR #13, verification repairs as
-PR #14, synced as PR #15. Its delta is promoted to
+**Roadmap cursor:** M2 - Shared Domain Model (**complete and archived**). Full
+lifecycle: propose PR #12, apply PR #13 (`0bbc4ea`), verification repairs PR #14
+(`e050095`), sync PR #15 (`96d4d10`), archive PR #16. Archived at
+`openspec/changes/archive/2026-10-02-shared-domain-model/`; the delta is promoted to
 `openspec/specs/shared-domain-model/spec.md` (9 requirements, 23 scenarios).
-Only archive remains.
+There are **no active changes**. The cursor advances to **M3 - Provider Layer**,
+which is the next eligible objective.
 
 **Verification found a gate that was failing and being recorded as passing.** On
 Windows - the environment `AGENTS.md` declares supported - `pnpm format:check`
@@ -86,7 +85,7 @@ and M0's `m0-provider-spike` is archived at
 | M0 Provider Compatibility Spike | **archived** | Real external delivery observed on **both** providers. Provider roles decided. Long-run expiry still unverified (no provider exposes a TTL in its API). Gate satisfied. |
 | Provider-role specification | **archived** | Documentation and specification only. No product code. `provider-abstraction` is a live capability spec: 9 requirements, 18 scenarios. |
 | M1 Monorepo Foundation | **archived** | Change `monorepo-foundation` archived as `2026-10-02-monorepo-foundation` (PRs #7-#11). Structure and tooling only: no product behaviour, no extension build, no visual design. A verification pass found a failing format gate that was being recorded as passing; repaired and proven from a clean clone. Three live capability specs. |
-| M2 Shared Domain Model | **implementing** | First milestone to add product code. Adds a **Vitest** include entry for package tests, deliberately not a **workspace** glob change - that separation is what keeps the M0 spike structurally unimportable, and it was re-proven after the change. 48 unit tests in `packages/core`; 7 boundary assertions still pass. |
+| M2 Shared Domain Model | **archived** | First milestone to add product code. Adds a **Vitest** include entry for package tests, deliberately not a **workspace** glob change - that separation is what keeps the M0 spike structurally unimportable, and it was re-proven after the change. 54 unit tests in `packages/core`; 7 boundary assertions. |
 
 **M2 design decisions, recorded so M3 builds against them rather than re-deciding:**
 
@@ -136,7 +135,7 @@ active changes remain.** Task 8.11 - the independent vacuity check - was the ste
 that surfaced the defect above, and is ticked because the check was performed and
 it found something.
 
-**Next required change:** finish `shared-domain-model` (verify, sync, archive), then M3 - Provider Layer.
+**Next required change:** **M3 - Provider Layer.** `shared-domain-model` is complete, verified, synced, and archived, so no change remains active.
 
 **M1 as built, for the next milestone's benefit:**
 
