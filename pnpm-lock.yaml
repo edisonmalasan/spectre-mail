@@ -226,7 +226,11 @@ importers:
 
   packages/core: {}
 
-  packages/mail-parser: {}
+  packages/mail-parser:
+    dependencies:
+      '@spectre-mail/core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/providers:
     dependencies:

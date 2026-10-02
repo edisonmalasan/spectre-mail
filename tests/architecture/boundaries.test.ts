@@ -397,28 +397,51 @@ describe("architecture boundaries", () => {
     expect(violations).toEqual([]);
   });
 
-  it("keeps a module-level fetch out of the provider package", () => {
+  it("keeps a module-level fetch out of the provider and parser packages", () => {
     // The transport seam is what lets the conformance suite run without a provider.
     // A module-level `fetch` call anywhere in the package would bypass it, and the
     // suite would then contact a live provider — turning a third party's
     // availability into this repository's CI status.
+    //
+    // `mail-parser` is covered for a different and stronger reason: it has no network
+    // seam at all, and it must never acquire one. Detection reads a message a provider
+    // already delivered; a request inside it would mean parsing a message causes a
+    // side effect, which is the opposite of what the milestone promises. That promise
+    // is *also* proven by observation in `fixtures/corpus.test.ts` — this rule is the
+    // cheap structural check that names the offending line, and the instrumented
+    // transport is the expensive behavioural one. Neither substitutes for the other: a
+    // source scan cannot see a resolver obtained indirectly, and an instrumented
+    // transport cannot tell a maintainer which line to change.
+    //
+    // **Scope limit, stated so a reader does not assume more than it checks:** this rule
+    // matches `fetch` and nothing else. It does not check `XMLHttpRequest`,
+    // `WebSocket`, `EventSource`, `import()`, a dynamic import of a client, or a
+    // package that reaches the network through some other global. It is one named
+    // escape hatch, not a general I/O audit.
     const violations: string[] = [];
 
-    for (const file of collectSourceFiles(join(PACKAGES_DIR, "providers"))) {
-      if (file.endsWith(".test.ts")) continue;
+    for (const packageName of ["providers", "mail-parser"]) {
+      for (const file of collectSourceFiles(join(PACKAGES_DIR, packageName))) {
+        if (file.endsWith(".test.ts")) continue;
 
-      const contents = readFileSync(file, "utf8");
-      const code = stripComments(contents);
+        const contents = readFileSync(file, "utf8");
+        const code = stripComments(contents);
 
-      for (const hit of findOccurrences(code, "globalThis.fetch")) {
-        violations.push(`${toRepoPath(file)} ${hit}`);
-      }
-      // A bare `fetch(` is a global reference. `createFetchTransport` receives
-      // `fetch` as a *parameter* and never calls it, and a local helper may reuse the
-      // name — so the global forms are matched rather than the bare identifier.
-      for (const pattern of [/(?<![\w.$])fetch\s*\(/g, /window\.fetch\s*\(/g]) {
-        for (const hit of findOccurrences(code, pattern.source)) {
-          violations.push(`${toRepoPath(file)} ${hit} (bare fetch reference)`);
+        for (const hit of findOccurrences(code, "globalThis.fetch")) {
+          violations.push(`${toRepoPath(file)} ${hit}`);
+        }
+        // A bare `fetch(` is a global reference. `createFetchTransport` receives
+        // `fetch` as a *parameter* and never calls it, and a local helper may reuse the
+        // name — so the global forms are matched rather than the bare identifier.
+        //
+        // Comments are stripped before this runs, and that is load-bearing rather than
+        // cosmetic: two rules in this file previously fired on their own
+        // documentation, because a rule that cannot tell a declaration from a comment
+        // about that declaration is measuring the wrong thing.
+        for (const pattern of [/(?<![\w.$])fetch\s*\(/g, /window\.fetch\s*\(/g]) {
+          for (const hit of findOccurrences(code, pattern.source)) {
+            violations.push(`${toRepoPath(file)} ${hit} (bare fetch reference)`);
+          }
         }
       }
     }

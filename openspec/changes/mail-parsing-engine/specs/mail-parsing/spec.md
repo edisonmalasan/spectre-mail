@@ -162,6 +162,44 @@ verification-shaped words for reasons that have nothing to do with verification.
 - **WHEN** verification links are detected
 - **THEN** none of them SHALL be reported as a verification link
 
+**Note, recorded during apply.** This scenario is the reason `design.md` D6 was amended
+to scope itself to code candidates. D6 requires that no threshold discards a candidate
+whose confidence is low, which read as applying to links too — and this scenario
+requires that an ordinary link is *not reported at all*. Both cannot hold unless the
+link case is a gate rather than a cut-off.
+
+It is a gate, and specifically not a threshold, because there is no constant in it. The
+roadmap defines a verification link by the wording around it, so a link whose wording
+names nothing is an ordinary link rather than a weak verification link. No score is
+computed for it and therefore none is discarded. The distinction matters because a
+threshold that discards a wrongly-computed score is a tuning risk, and this has no score
+to tune.
+
+#### Scenario: A link is introduced by the paragraph above it
+
+- **GIVEN** a message containing a link that is the only content of its own block, and a
+  preceding block whose wording asks the reader to verify, confirm, activate,
+  authenticate, validate, or sign in
+- **WHEN** verification links are detected
+- **THEN** that link SHALL be reported
+- **AND** a link that is **not** the only content of its own block SHALL NOT be reported on
+  the strength of the paragraph above alone
+
+**Note, recorded during apply.** Added because the very common template puts the
+introducing sentence in its own paragraph and the button in the next one, which makes
+them different blocks. The password-reset fixture is exactly that: "Or confirm the reset
+from this device:" above a link reading "Reset password", whose own text names no
+verification wording. Under the rule as first proposed the link was not reported at all,
+and a password reset is the single most useful link such a message contains.
+
+The second clause is the narrowing, and it is what keeps the rule from reporting an
+unsubscribe link sitting under a verification sentence. The asymmetry with code
+detection is deliberate: a code candidate borrows the block above only when its own
+block is nothing but the code, while a link borrows only when it is the only content of
+its block. `detect-links.test.ts` records the case where the window cannot tell the
+difference — a link followed by more of its own sentence — as a stated limit rather than
+leaving the rule's reach wider than its documentation admits.
+
 ### Requirement: No detection is reported as certain
 
 No detection SHALL be reported with a confidence of certainty, however strong the
@@ -239,8 +277,40 @@ because every candidate in it would be a true one.
 
 - **WHEN** the corpus is inspected
 - **THEN** it SHALL contain a transactional confirmation carrying numbers that are not
-  codes, and ordinary bulk mail carrying none
+  codes, and ordinary bulk mail in which no digit run is a code
 - **AND** each such fixture SHALL state what it is expected to yield
+- **AND** for a fixture containing no true code, no reported candidate SHALL score at or
+  above what a true code scores for equivalent wording
+
+#### Scenario: A fixture's expectation is stated as an exact ordered list
+
+- **WHEN** a fixture states its expectation
+- **THEN** it SHALL state the expected candidates in report order, not as an unordered
+  set
+- **AND** it SHALL state the numbers it genuinely yields rather than the numbers it would
+  be preferable to yield
+
+**Note, recorded during apply.** This scenario was added because the wording above it was
+**unsatisfiable as first written**. It required that a bulk-mail fixture carry "none" —
+no candidates at all — and the implementation cannot honour that. A newsletter's only
+digit run is its copyright year, and a year is one of the *reducing* shapes rather than
+an excluding one, so `2026` is returned, ranked last. Honouring the original wording
+would have required the parser to drop a digit run, which the same specification forbids
+in the "Every plausible candidate is surfaced" requirement.
+
+So the requirement is now the property that is actually true and actually worth holding:
+**in a fixture with no true code, nothing ranks as high as a true code does.** That is
+the false-positive measurement, and unlike a count of zero it is achievable without
+lying about the parser. The corpus states `["2026"]` for the newsletter, and
+`corpus.test.ts` asserts both that the year is last and that it scores below a real code.
+
+**This is the sixth recorded instance of a check narrower than the rule it documented**
+(this milestone's seventh, counting the phone shape recorded in `design.md` D4). The
+lesson is unchanged and worth restating because the recurrence is the point: a
+requirement that describes an outcome no honest implementation can produce gets satisfied
+by making the implementation dishonest, or by quietly dropping the requirement. Neither
+is acceptable, and the fix is to rewrite the requirement to the property that is both
+true and valuable.
 
 #### Scenario: A fixture's expectation changes
 
@@ -248,3 +318,18 @@ because every candidate in it would be a true one.
 - **THEN** the fixture's stated expectation SHALL be updated in the same change
 - **AND** a difference between the two SHALL be visible in a review rather than
   discovered later as a silent discrepancy
+
+#### Scenario: A fixture is shaped like a named service's mail
+
+- **WHEN** a fixture is named for a service
+- **THEN** it SHALL carry a field declaring it synthetic
+- **AND** its note SHALL state that this repository has never received mail from that
+  service
+- **AND** a fixture SHALL NOT reference a resolvable host
+
+**Note, recorded during apply.** Added because the two `-style-` fixtures name real
+services, and a fixture named `github-style-verification` invites a future maintainer to
+read it as a capture. M0 received a provider welcome message and one maintainer-sent
+message; it received no verification mail from any service, so nothing in the corpus has
+provenance, and the naming is the thing that could be misread. The check is on a field
+rather than a comment because a comment can be deleted without a failing test.
