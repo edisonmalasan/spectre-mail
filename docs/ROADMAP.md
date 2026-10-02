@@ -24,14 +24,15 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor:** M5 - Website Core MVP. **Slice 1 is complete and archived**
-(change `mailbox-session-layer`; PRs #28–#32: propose, apply, verify, sync,
-archive). **Slice 2 has been implemented and independently verified** as
-`inbox-polling` (change open on `feat/inbox-polling`; PR #33 was the proposal).
-`openspec validate --specs --strict` reports **8 passed, 0 failed** — slice 2's delta
-is not yet synced, so none of its 7 + 5 requirements appear there yet.
+**Roadmap cursor:** M5 - Website Core MVP. **Slices 1 and 2 are complete and archived**
+(`mailbox-session-layer`, PRs #28–#32; `inbox-polling`, PRs #33–#37: propose, apply,
+verify, sync, archive). `openspec status` reports **no active changes** and
+`openspec validate --specs --strict` reports **8 passed, 0 failed**. The promoted
+capabilities now hold **`mailbox-session` at 14 requirements / 32 scenarios** and
+**`website-client` at 12 / 27** — slice 2 contributed 7 + 18 and 5 + 12.
+**Next: M5 slice 3, opening a message.**
 
-**Slice 2's state as of 2026-10-03, and the two numbers a later session should trust
+**Slice 2's numbers as of 2026-10-03, and the two a later session should trust
 first.** The workspace runs **474 tests across 24 files**, of which **31 are
 architecture boundary assertions**: 54 in `packages/core`, 89 in `packages/providers`,
 149 in `packages/mail-parser`, **94 in `packages/mailbox`**, **57 in `apps/web`** (54
@@ -164,8 +165,8 @@ exit 0.** (Those were slice 1's figures. The workspace now runs **474 tests acro
 files** with **31** boundary assertions — see the Project Status cursor above.)
 **Still not established:** that a real browser reaches Guerrilla Mail. Every provider
 interaction in every test replays a recording.
-**Remaining slices of M5:** inbox with polling, message view, then history, provider
-selector, theme, and clear-data.
+**Remaining slices of M5:** message view (next), then history, provider selector,
+theme, and clear-data. The inbox with polling was slice 2.
 *Corrected 2026-10-02:* an earlier revision of this line named the next milestone
 "Storage Contracts". That was wrong, and it is worth recording why, because it is the
 same failure this repository keeps meeting in a different costume — **naming a
@@ -462,7 +463,7 @@ be written before the pass, not after.
 
 | M3 | complete (archived) | `provider-layer` |
 | M4 | **complete (archived)** | `mail-parsing-engine` |
-| M5 | **in progress** - slice 1 complete (archived), slice 2 proposing | `mailbox-session-layer` (slice 1), `inbox-polling` (slice 2) |
+| M5 | **in progress** - slices 1 and 2 complete (archived); slice 3 next | `mailbox-session-layer` (slice 1), `inbox-polling` (slice 2) |
 | M6-M15 | not started | - |
 
 **OpenSpec lifecycle stage:** M0, the provider-role change, M1's foundation change,
