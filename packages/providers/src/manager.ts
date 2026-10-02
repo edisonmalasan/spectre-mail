@@ -68,17 +68,39 @@ export function createProviderManager(providers: readonly MailProvider[]): Provi
 
     async createMailbox(): Promise<Mailbox> {
       const failures: string[] = [];
+      let lastCause: unknown;
 
       for (const provider of providers) {
         try {
           return await provider.createMailbox();
         } catch (cause) {
-          // Every provider is tried, including when there is only one, so the
-          // recorded failure is the provider's own rather than a wrapper's. With a
-          // single provider this loop runs once and the throw below is the
-          // original error, unaltered.
+          lastCause = cause;
           failures.push(`${provider.id}: ${describe(cause)}`);
         }
+      }
+
+      // **With one configured provider, the failure is rethrown as it was.**
+      //
+      // This was the documented intent all along - the comment this replaces said
+      // "the throw below is the original error, unaltered" - and the code did not
+      // do it. Every failure was funnelled into a composed `Error` whose message
+      // embedded each provider's failure as text, so a `SpectreError`'s `code`
+      // survived nowhere. The existing test, named "preserves a single provider's
+      // failure as the cause it was", asserted only that a description *substring*
+      // survived, so it stayed green while the code was destroyed.
+      //
+      // It matters because the code is the part a client cannot reconstruct. The
+      // message is prose; `RATE_LIMITED` versus `PROVIDER_UNAVAILABLE` versus
+      // `AUTH_FAILED` decides whether a user is told to wait, told the service is
+      // down, or told to try again later. A caller handed only the wrapper would
+      // have to recover it by parsing that prose, which is the one recovery this
+      // architecture forbids outright.
+      //
+      // With more than one provider the composed error stays, because there the
+      // composed report genuinely is the answer: it names each provider that
+      // failed, which no single provider's error can.
+      if (providers.length === 1) {
+        throw lastCause;
       }
 
       throw new Error(

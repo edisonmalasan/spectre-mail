@@ -24,11 +24,15 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor:** M5 - Website Core MVP (**proposing**, PR #28 on
-`docs/mailbox-session-layer-proposal`; change `mailbox-session-layer`).
+**Roadmap cursor:** M5 - Website Core MVP (**applying**, branch `feat/mailbox-session`,
+change `mailbox-session-layer`; proposed by PR #28). **Slice 1 of M5 applied** —
+`packages/mailbox` created, and `apps/web` now creates a mailbox and renders its
+address. Tasks 1.1–5.5 are ticked; **task 5.6, the independent verification pass, is
+deliberately not ticked**, because ticking a task box from the implementer's own
+recollection is exactly the failure this repository records repeatedly.
 **M5 is being delivered as a sequence of bounded changes rather than one**, and the
 first settles where client-side orchestration lives. The roadmap's shared-package
-list has no home for it: it assigns "mailbox lifecycle" and "mailbox manager" to
+list had no home for it: it assigned "mailbox lifecycle" and "mailbox manager" to
 `packages/core`, but `shared-domain-model`'s approved purpose states that capability
 describes "the model and its invariants only" and excludes lifecycle behaviour. A
 roadmap is a plan; an approved spec is a contract; where they disagree the contract
@@ -37,6 +41,26 @@ than widening `packages/core` from a type surface into a runtime one, and rather
 than being written inside `apps/web` where M8's extension would have to rewrite it.
 This change also **amends this roadmap's own shared-package list**, in the same
 change, rather than leaving the document to disagree with the tree.
+**Two architecture-rule defects were found while applying it, and both are recorded in
+the change's `design.md` as D9 and D10.** The provider manager destroyed a single
+provider's failure `code` by re-wrapping it in an `Error` whose message carried the
+code only as prose, and a test asserting a *substring* stayed green while it did —
+rethrow the original failure object when exactly one provider is configured. The
+adapter-confinement rule was **broader than its stated intent**, forbidding
+`createProviderManager` and `createFetchTransport` outside `packages/providers` and so
+leaving `MailProvider` impossible to instantiate outside its own package; it was
+re-scoped to separate *implementing/re-exporting* an adapter from *naming* one, and it
+**fired on its own documentation**, the third time in this repository that has
+happened — fixed by stripping comments before matching, not by rewording the prose
+until the rule went quiet.
+**Falsification:** 38 mutation attempts, 31 recorded `CAUGHT` with the intended test
+named, every file restored byte-identical. Two real gaps were found that way (a
+vacuous mutual-exclusion assertion in the website's state test, and a first fix for
+it that was itself wrong), 5 were faults in the harness rather than findings, and a
+dead branch in `normalize` was found by inspection rather than by the pass — the
+record in `design.md` does not credit the pass with it.
+**Remaining slices of M5:** inbox with polling, message view, then history, provider
+selector, theme, and clear-data.
 *Corrected 2026-10-02:* an earlier revision of this line named the next milestone
 "Storage Contracts". That was wrong, and it is worth recording why, because it is the
 same failure this repository keeps meeting in a different costume — **naming a
@@ -78,7 +102,8 @@ others, because it predates the milestone that documented it. Six warnings were 
 with it, including a published test count that was arithmetically wrong (14 fixtures × 2
 generated tests is 28, not 26) and four `D4` shape descriptions that overstated their own
 reach. **307 tests across 18 files** after the repairs; no published confidence constant
-was changed.
+was changed. (That figure was M4's. The workspace now runs **365 tests across 21 files**
+— see the Project Status cursor below.)
 **M4's implementation found three defects in its own design before any of it was
 verified**, and all three are recorded in the change rather than quietly fixed:
 the phone-number reducing shape was **structurally incapable** of detecting a phone
@@ -685,18 +710,47 @@ Shared packages must never import from `apps/web` or `apps/extension`.
 
 #### `packages/core`
 
-Owns normalized product logic:
+Owns the normalized domain model and its invariants:
 
 ```text
-mailbox lifecycle
-provider selection
-provider health
-mailbox manager
-message normalization
-error normalization
-expiration logic
-shared types
+normalized mailbox / message / credentials types
+normalized error codes
+credential construction
 ```
+
+**Amended at M5 slice 1.** This list previously read "mailbox lifecycle", "provider
+selection", "provider health", "mailbox manager", and "expiration logic". Those are
+**runtime behaviour**, and `shared-domain-model`'s approved Purpose states this
+capability describes "the model and its invariants only". Where a plan and an approved
+spec disagree, the spec wins — so the behaviour moved to `packages/mailbox` below
+rather than widening `core` from a type surface into a runtime one. This amendment is
+made in the same change that moved the behaviour, so the roadmap does not sit here
+disagreeing with the tree.
+
+#### `packages/mailbox`
+
+Owns client-side orchestration over the shared model. Added at M5 slice 1.
+
+```text
+mailbox session lifecycle (open / replace / retry)
+provider health reporting
+creation-failure normalization
+```
+
+It is **framework-free and DOM-free by compiler, not by convention**: its
+`tsconfig.json` sets `lib: ["ES2023"]` with no `"DOM"`, so `window`, `document`, and
+`navigator` fail to compile there. Placing it outside `apps/web` is what keeps M8's
+extension from becoming a rewrite.
+
+As implemented (verified 2026-10-02, `pnpm verify` exit 0, **33 tests**): the session
+state is an immutable discriminated union — `creating`, `ready`, `failed` — rather
+than a mailbox plus a loading flag, because those two can disagree and a
+disagreement is a rendering bug no unit test writes itself. It performs **no request
+of its own** (asserted by a recording transport, with a positive control that drives
+the same operations through the real Guerrilla adapter so the zero is a measurement),
+holds **no persistence** (M6) and **no polling** (the next slice), and **never invents
+a mailbox lifetime** — no provider reports one in any API response and none was
+measured live.
 
 #### `packages/providers`
 
@@ -739,8 +793,11 @@ change:
   yields one low-ranked candidate rather than none, and the requirement was amended
   during apply because it had demanded the impossible.
 
-**No client consumes this package yet**, so nothing user-visible has changed. `apps/web`
-still renders a plain status page and `apps/extension` has no manifest.
+**No client consumes this package yet** — nothing user-visible depends on the parser.
+That changed at M5 slice 1 in the other direction: `apps/web` now creates a mailbox
+and renders its address, consuming `providers` and `mailbox`. The parser still has no
+consumer, because reading a message is a later slice. `apps/extension` has no
+manifest.
 
 #### `packages/storage`
 

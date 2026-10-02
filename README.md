@@ -37,9 +37,16 @@ on. See [Current status](#current-status).
 `mail-parsing` at the sync stage of the `mail-parsing-engine` change — 9 requirements
 and 31 scenarios, three of which were added by its verification pass.
 
-The website currently renders a plain status page. It has **no mailbox feature**,
-no provider call, and no styling. That is still the correct state and it is not a
-placeholder pretending to be software.
+The website **creates a mailbox and renders its address.** That is the first thing in
+this repository a user can see work. It has **no inbox, no styling, and no
+persistence** — a reload discards the mailbox, because storage is M6. The absence of
+styling is a decision rather than an omission: M7 owns the visual design, so markup
+written now would be markup M7 rewrites.
+
+Nothing has yet been verified against the **live** Guerrilla Mail API from a
+browser. The website's 20 tests render against a stub provider or a recording
+transport, which establishes that the page composes the abstraction correctly and
+says nothing about whether a real browser reaches that provider successfully.
 
 `packages/core` holds SpectreMail's **normalized domain model** — mailbox, message,
 credentials, verification code, verification link, and a closed set of normalized
@@ -54,8 +61,10 @@ live provider**: every test replays recorded provider responses, so the suite
 establishes this repository's mapping of a measured wire format and nothing about
 either provider's current behaviour.
 
-It is still a capability rather than a feature. **No client consumes it yet**, so
-nothing a user can see exercises any of it.
+The website now consumes it, through **one provider only** — Guerrilla Mail, chosen
+for the measured CORS reason below. Mail.tm is deliberately _not_ configured for the
+website; it remains reachable from the extension, where host permissions make it
+legally and technically reachable.
 
 `packages/mail-parser` turns a message body into **readable text plus ranked
 detections** — one-time codes and verification links. It is a pure function of
@@ -110,21 +119,31 @@ apps/web  ────────┐
 apps/extension ───┘
 ```
 
-Five shared packages, each with one responsibility:
+Six shared packages, each with one responsibility:
 
-| Package                     | Owns                                                                                                        |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `@spectre-mail/core`        | Mailbox lifecycle, provider selection and health, message and error normalization, expiration, shared types |
-| `@spectre-mail/providers`   | The Mail.tm and Guerrilla Mail adapters — the only place provider code may live                             |
-| `@spectre-mail/mail-parser` | Safe text extraction, OTP detection, verification-link detection                                            |
-| `@spectre-mail/storage`     | The `SpectreStorage` contract, the web IndexedDB adapter, the extension storage adapter                     |
-| `@spectre-mail/ui`          | Reusable product UI and design tokens                                                                       |
+| Package                     | Owns                                                                                                      |
+| --------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `@spectre-mail/core`        | The normalized domain model and its invariants — mailbox, message, credentials, closed error codes, types |
+| `@spectre-mail/providers`   | The Mail.tm and Guerrilla Mail adapters — the only place provider code may live                           |
+| `@spectre-mail/mail-parser` | Safe text extraction, OTP detection, verification-link detection                                          |
+| `@spectre-mail/mailbox`     | The mailbox session: opening, replacing, retrying, and reporting provider health                          |
+| `@spectre-mail/storage`     | The `SpectreStorage` contract, the web IndexedDB adapter, the extension storage adapter                   |
+| `@spectre-mail/ui`          | Reusable product UI and design tokens                                                                     |
 
-The boundaries are enforced by a test, not just documented. `pnpm test` fails if a
-package imports an app, if a file outside `packages/providers` contains a provider
-JSON field name, if a provider adapter identifier or adapter-shaped identifier
-appears outside `packages/providers`, or if any module in `packages/providers`
-reaches the global `fetch` instead of its injected transport.
+`packages/mailbox` is **framework-free and DOM-free by compiler rather than by
+convention**: its `tsconfig.json` sets `lib: ["ES2023"]` with no `"DOM"`, so `window`,
+`document`, and `navigator` fail to compile there. That is why placing the session
+outside `apps/web` is not premature abstraction — it is what keeps the extension from
+becoming a rewrite.
+
+The boundaries are enforced by a test, not just documented — **20 assertions** in
+`pnpm test`. They fail if a package imports an app, if a file outside
+`packages/providers` contains a provider JSON field name, if a provider adapter is
+implemented or re-exported outside `packages/providers`, if a module in
+`packages/mail-parser` or `packages/mailbox` reaches the global `fetch` instead of
+its injected transport, if `apps/` inserts untrusted values as markup, and if a
+client test is not actually collected by the test runner. Each rule states its own
+limits in the source, and each was proven able to fail.
 
 Full detail, including why each rule exists: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
@@ -134,12 +153,13 @@ Full detail, including why each rule exists: [`docs/ARCHITECTURE.md`](docs/ARCHI
 
 ```text
 apps/
-  web/                 Vite + React website client (no mailbox feature yet)
+  web/                 Vite + React website client — creates a mailbox, shows its address
   extension/           placeholder — no manifest, no service worker
 packages/
-  core/                normalized product logic
+  core/                normalized domain model
   providers/           provider adapters
   mail-parser/         message content interpretation
+  mailbox/             the mailbox session
   storage/             persistence contracts and adapters
   ui/                  reusable product UI
 docs/
@@ -197,18 +217,18 @@ committed fact; see [`.gitattributes`](.gitattributes). The lesson is recorded
 here rather than quietly dropped: **a green CI run is not evidence that a gate
 works on your machine.**
 
-| Command                              | What it proves                                                        | What it does **not** prove                                                                         |
-| ------------------------------------ | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `pnpm install`                       | The workspace resolves and installs from the committed lockfile.      | Anything about providers or product behaviour.                                                     |
-| `pnpm typecheck`                     | All 7 workspace projects type check under the shared strict config.   | That the types are useful — there is no domain model yet.                                          |
-| `pnpm lint`                          | ESLint passes.                                                        | Type correctness; `pnpm typecheck` owns that.                                                      |
-| `pnpm format:check`                  | Prettier passes on the files this repository governs.                 | That historical documents are formatted; those are deliberately excluded.                          |
-| `pnpm test`                          | 16 architecture boundary assertions pass.                             | Product behaviour. There is none yet, and no product test exists.                                  |
-| `pnpm build`                         | The website builds with Vite.                                         | That packages emit anything — they are consumed as TypeScript source, so there is nothing to emit. |
-| `pnpm dev:web`                       | The website dev server starts and serves the app on `127.0.0.1:5173`. | Any mailbox, provider, or storage behaviour.                                                       |
-| `pnpm spike:selftest`                | The M0 harness records outcomes correctly and writes its artifacts.   | Anything about real providers — it issues zero network requests.                                   |
-| `pnpm verify`                        | typecheck + lint + format + test + build all pass in sequence.        | Anything beyond those five gates.                                                                  |
-| `openspec validate --specs --strict` | The live capability specs are internally consistent.                  | That the implementation matches them.                                                              |
+| Command                              | What it proves                                                                 | What it does **not** prove                                                                         |
+| ------------------------------------ | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| `pnpm install`                       | The workspace resolves and installs from the committed lockfile.               | Anything about providers or product behaviour.                                                     |
+| `pnpm typecheck`                     | All 8 workspace projects type check under the shared strict config.            | That the types are useful — that is what the tests are for.                                        |
+| `pnpm lint`                          | ESLint passes.                                                                 | Type correctness; `pnpm typecheck` owns that.                                                      |
+| `pnpm format:check`                  | Prettier passes on the files this repository governs.                          | That historical documents are formatted; those are deliberately excluded.                          |
+| `pnpm test`                          | 365 tests across 21 files pass, including 20 architecture boundary assertions. | Product behaviour against a **live** provider. Every provider test replays recorded responses.     |
+| `pnpm build`                         | The website builds with Vite.                                                  | That packages emit anything — they are consumed as TypeScript source, so there is nothing to emit. |
+| `pnpm dev:web`                       | The website dev server starts and serves the app on `127.0.0.1:5173`.          | That a real browser can reach Guerrilla Mail. No live browser run has been made.                   |
+| `pnpm spike:selftest`                | The M0 harness records outcomes correctly and writes its artifacts.            | Anything about real providers — it issues zero network requests.                                   |
+| `pnpm verify`                        | typecheck + lint + format + test + build all pass in sequence.                 | Anything beyond those five gates.                                                                  |
+| `openspec validate --specs --strict` | The live capability specs are internally consistent.                           | That the implementation matches them.                                                              |
 
 ### What M0 established
 

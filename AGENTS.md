@@ -97,11 +97,14 @@ Pin versions when exact versions matter.
 
 - Runtime(s): Node.js `v26.10.0` (verified).
 
-- Frontend / client: `apps/web` exists as a working Vite + React site that renders a
-  plain status page. It has **no mailbox feature, no provider call, and no styling** —
-  that is still the correct state, not an unfinished screen. `apps/extension` remains an
-  empty placeholder. Visual design work starts at M7 under the approved Spectral Swiss
-  Utility direction.
+- Frontend / client: `apps/web` creates a mailbox and renders its address, reached
+  through the shared session layer and **one** provider — Guerrilla Mail, for the
+  measured CORS reason in `apps/web/src/provider-config.ts`. It has **no inbox, no
+  styling, and no persistence**: a reload discards the mailbox, because storage is
+  M6. Styling is absent by decision, not by omission; M7 owns it under the approved
+  Spectral Swiss Utility direction, and markup written now would be markup M7
+  rewrites. `apps/extension` remains an empty placeholder. Visual design work starts
+  at M7.
 
 - Shared domain model: `packages/core` has real content since M2. It defines the
   normalized `Mailbox`, `MessageSummary`, `Message`, `VerificationCode`,
@@ -118,7 +121,7 @@ Pin versions when exact versions matter.
   Guerrilla Mail adapter — plus a provider manager, an injected transport seam, and
   one shared conformance suite both adapters pass. The contract has **no
   subscription method**, because no provider serves a push transport (five SSE paths
-  and two WebSocket paths were probed; none connected). **88 tests**, of which 24 are
+  and two WebSocket paths were probed; none connected). **89 tests**, of which 24 are
   the shared conformance suite run once per adapter. All are driven by recorded
   provider responses, so **no test contacts a live provider**. Its one workspace
   dependency is `@spectre-mail/core`.
@@ -143,6 +146,23 @@ Pin versions when exact versions matter.
   It must never gain a network call; `tests/architecture/boundaries.test.ts` asserts no
   module in it reaches the global `fetch`, and `corpus.test.ts` proves zero requests by
   observation with an instrumented transport. **No client consumes it yet.**
+
+- Client orchestration: `packages/mailbox` has real behaviour since M5 slice 1. It is
+  the **fourth shared package**, and it exists because the roadmap's shared-package
+  list assigns "mailbox lifecycle" to `packages/core` while `shared-domain-model`'s
+  approved Purpose states that package describes "the model and its invariants only"
+  and excludes lifecycle behaviour. A roadmap sentence cannot amend an approved spec,
+  so a new package took the behaviour and `docs/ROADMAP.md`'s list was amended to
+  match. It is **framework-free and DOM-free by compiler, not by convention**: its
+  `tsconfig.json` sets `lib: ["ES2023"]` with no `"DOM"`, so `document`, `window`,
+  and `navigator` fail to *compile*. That is the enforcement; the architecture scan
+  for framework imports is a supplementary backstop which states its own limits.
+  **33 tests**, all driven by stub providers or the real Guerrilla adapter over a
+  recording transport — no test contacts a provider, and no test needs a browser.
+  It is consumed by the website now and by the extension at M8; placing it outside
+  `apps/web` is what keeps that from becoming a rewrite.
+  It holds **no persistence and no polling** — storage is M6 and polling is the next
+  slice — and it never invents a mailbox lifetime.
 
 - Backend / server: none. Intentionally `$0` paid backend infrastructure; see
   `docs/PROVIDERS.md` for why a SpectreMail-operated proxy is not a permitted
@@ -170,18 +190,31 @@ Pin versions when exact versions matter.
   `pnpm typecheck`, which is a separate gate. There is still no extension build
   step — that is M8.
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running **307 tests across
-  18 files** via `pnpm test`: 54 in `packages/core`, 88 in `packages/providers`,
-  **149 in `packages/mail-parser`**, and 16 architecture boundary assertions.
+- Testing: Vitest `3.2.7` at the workspace root, verified running **365 tests across
+  21 files** via `pnpm test` (2026-10-02): 54 in `packages/core`, 89 in
+  `packages/providers`, **149 in `packages/mail-parser`**, **33 in `packages/mailbox`**,
+  **20 in `apps/web`** (17 rendering, 3 provider configuration), and **20 architecture
+  boundary assertions**.
   `passWithNoTests` is **off** by design - a
   green run that inspects nothing is worse than no run. The `include` globs name
-  `tests/architecture/**/*.test.ts` and `packages/*/src/**/*.test.ts` explicitly, so
+  `tests/architecture/**/*.test.ts`, `packages/*/src/**/*.test.ts`,
+  `apps/*/src/**/*.test.ts`, and `apps/*/src/**/*.test.tsx` explicitly, so
   the root test command can never execute the spike harness. The package glob is
   deliberately package-shaped: a test placed at the repository root or under
   `tests/` outside `architecture/` is **silently skipped**, verified 2026-10-02 by
   observing the collected count stay unchanged with such a file present. An
   undiscovered test reads as covered, so a test that must run at the root belongs in
   the architecture glob.
+  **The `apps/` globs were missing until M5 slice 1**, which reintroduced that exact
+  failure one directory over: a client test was silently skipped, which reads as
+  covered. The collection is now asserted — `boundaries.test.ts` resolves the
+  configured globs against the real test files, so narrowing the list reports the
+  uncovered file rather than passing. The global `environment` stays `"node"`; a
+  client test opts into jsdom with a per-file `@vitest-environment jsdom` docblock,
+  because setting jsdom globally would hand `packages/mailbox` a DOM its own
+  `tsconfig` exists to withhold. `jsdom` `30.1.1` and `@testing-library/react`
+  `16.3.3` are `apps/web` **dev** dependencies, added only because a requirement
+  about what is *rendered* cannot be verified without a DOM.
   Also installed: a disposable Node.js probe harness at `tests/provider-spike/`
   (`node:test`-free, hand-rolled, self-tested at `pnpm spike:selftest`, 16/16
   passing). Playwright `1.63.0` is a **spike-only** dev dependency, outside the
@@ -489,8 +522,13 @@ returned HTTP 200 serving the application, and `/src/main.tsx` was confirmed to
 return Vite-transformed JSX, so the server really serves the app rather than a
 static shell.
 
-The website renders a plain status page. It has **no mailbox feature, no provider
-call, and no styling** — that is the correct M1 state, not an unfinished screen.
+The website creates a mailbox and renders its address. It has **no inbox, no
+styling, and no persistence** — a reload discards the mailbox, because storage is M6.
+Those are the slice's stated limits, not an unfinished screen. The page's provider
+configuration is reachable and testable without a network
+(`apps/web/src/provider-config.test.ts`), but **nothing has been verified against the
+live Guerrilla Mail API from a browser**, so no claim is made about what a real page
+does on a real network.
 There is still no extension build step; `pnpm dev:extension` does not exist and
 must not be documented until M8 creates it.
 
@@ -820,13 +858,14 @@ These are the six commands the roadmap's M1 acceptance criteria name, plus
 `pnpm verify`, which runs typecheck, lint, format check, test, and build in
 sequence. All exited `0`.
 
-Observed results, re-verified after the M4 verification repair on 2026-10-02:
+Observed results, re-verified after the M4 verification repair and again after the
+M5 slice 1 apply stage, both on 2026-10-02:
 
 ```text
-pnpm typecheck     7 of 7 workspace projects run tsc --noEmit
+pnpm typecheck     8 of 8 workspace projects run tsc --noEmit
 pnpm lint          exit 0
 pnpm format:check  All matched files use Prettier code style
-pnpm test          18 files, 307 tests passed
+pnpm test          21 files, 365 tests passed
 pnpm build         vite 7.3.6, dist emitted
 pnpm verify        exit 0
 ```
@@ -841,8 +880,11 @@ the **live** service. Every test in `packages/providers` runs from **recorded**
 responses, so the suite proves this repository's mapping of a provider's wire format
 and nothing about the provider's current behaviour. A provider renaming a field
 would leave this suite green. Fixture refresh against `docs/PROVIDERS.md` is a
-deliberate diff, not something CI does. Nor is there a mailbox feature yet: no
-client consumes this package, so no test can assert a user-visible outcome.
+deliberate diff, not something CI does. The same limit now applies to the client:
+`apps/web`'s 20 tests render against a **stub provider** or a recording transport,
+so they prove the page composes the abstraction correctly and say **nothing** about
+whether a real browser reaches Guerrilla Mail successfully. No live browser run has
+been made, and none is claimed.
 
 Three specific limitations worth not misreading:
 
@@ -851,7 +893,7 @@ Three specific limitations worth not misreading:
   established by `pnpm typecheck`, which is a separate gate. Do not read a
   successful `pnpm build` as "the packages compiled".
 - **`pnpm test` is non-vacuous by construction, and that was verified.** Each of
-  the seven assertions was proven able to fail by deliberately introducing the
+  the M1 assertions was proven able to fail by deliberately introducing the
   violation and observing a non-zero exit: a package importing an app, a provider
   field name under `apps/`, a provider adapter identifier outside
   `packages/providers`, a workspace reference to the spike, and the spike added as
@@ -863,6 +905,22 @@ Three specific limitations worth not misreading:
   scoped to `packages/` and `apps/` so a root-level or `tests/` module could name
   an adapter freely. Both widened cases were then proven to fail. An assertion that
   passes for the wrong reason is not a passing assertion.
+- **The count is now 20 boundary assertions, and M5 slice 1 added four.** The
+  adapter-confinement rule was **re-scoped**, which is the first recorded instance of
+  an assertion being *broader* than its documented rule rather than narrower: it also
+  forbade `createProviderManager` and `createFetchTransport` outside
+  `packages/providers`, which left `MailProvider` and `ProviderManager` with no way
+  to be instantiated outside the package declaring them. The rule now separates two
+  entitlements — naming an *adapter* (a client's `provider-config.ts`, plus test
+  files) and naming the *composition seam* (that module, `transport.ts`, and
+  `packages/mailbox`) — and **strips comments before matching**, because it had been
+  reading raw text and fired on `packages/mailbox`'s own explanation of what it
+  deliberately does not do. That is the **third** time a check here has fired on its
+  own documentation; it was fixed by stripping comments, not by rewording the prose
+  until the rule went quiet. New rules: no framework import in `packages/mailbox`,
+  no markup escape hatch under `apps/`, and an assertion that client tests are
+  **collected** rather than silently skipped. Each was falsified, and each rule
+  states its own limits in its own comment.
 - **`pnpm test` proved a third check of that same shape was vacuous, and the fix
   was to delete the gap rather than to add an exemption.** The adapter-identifier
   rule listed `MailTmProvider`, `GuerrillaMailProvider`, and `SpectreMailProvider`

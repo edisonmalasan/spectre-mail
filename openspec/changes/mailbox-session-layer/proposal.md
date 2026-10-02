@@ -75,5 +75,20 @@ M8 when the extension needs the same behaviour.
 - **`tests/architecture/boundaries.test.ts`** must be widened to cover the new
   package, including a rule that `packages/mailbox` imports no framework. That
   widening is itself a falsification target.
-- **Not affected:** `packages/core`, `packages/mail-parser`, both adapters, the M0
-  spike, CI, and `docs/PROVIDERS.md`.
+- **`packages/providers` — one surgical fix, added during apply.** The provider
+  manager destroys the normalized error `code` when exactly one provider is
+  configured: it throws a composed `Error` whose message embeds each failure as
+  text, and the `code` survives nowhere. Its own comment already claims "the
+  original error, unaltered", and its own test is named *"preserves a single
+  provider's failure as the cause it was"* while asserting only that a description
+  substring survives. So the code was destroyed and the suite stayed green — the
+  same defect class this repository has recorded nine times, found here for the
+  eleventh. `mailbox-session`'s "a failure is reported as a normalized code" cannot
+  be met without it, and the alternative recovery would be parsing a message
+  string for a code, which the architecture rules forbid outright. **No approved
+  requirement changes**: `provider-adapters`' single-provider scenario requires that
+  no failover be attempted and that the limitation stay recorded, and rethrowing
+  the provider's own failure satisfies both.
+- **Not affected:** `packages/core`, `packages/mail-parser`, both **adapters**, the
+  M0 spike, CI, and `docs/PROVIDERS.md`. The manager is not an adapter, and its
+  provider mapping is untouched.

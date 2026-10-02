@@ -9,7 +9,7 @@
  */
 
 import { NormalizedErrorCode } from "@spectre-mail/core";
-import type { Mailbox, SpectreError } from "@spectre-mail/core";
+import type { Mailbox, ProviderId, SpectreError } from "@spectre-mail/core";
 import { describe, expect, it } from "vitest";
 
 import type { MailProvider } from "./contract";
@@ -106,12 +106,14 @@ describe("createProviderManager", () => {
 
     const error = await capture(() => manager.createMailbox());
 
-    // Both names present, so a reader can tell which providers are actually out
-    // rather than guessing from "something went wrong".
-    expect(error.message).toContain("mailtm");
-    expect(error.message).toContain("guerrilla");
-    expect(error.message).toContain("RATE_LIMITED");
-    expect(error.message).toContain("PROVIDER_UNAVAILABLE");
+    // With more than one provider the composed wrapper stays, because there the
+    // composed report genuinely is the answer: it names each provider that failed,
+    // which no single provider's own failure can.
+    const message = messageOf(error);
+    expect(message).toContain("mailtm");
+    expect(message).toContain("guerrilla");
+    expect(message).toContain("RATE_LIMITED");
+    expect(message).toContain("PROVIDER_UNAVAILABLE");
   });
 
   it("attempts no fallback when only one provider is configured", async () => {
@@ -119,7 +121,7 @@ describe("createProviderManager", () => {
     const only = scriptedProvider("guerrilla", {
       create: () => {
         attempts += 1;
-        return Promise.reject(throttled());
+        return Promise.reject(throttled("guerrilla"));
       },
     });
 
@@ -129,19 +131,54 @@ describe("createProviderManager", () => {
     // redundancy; a manager that reported otherwise would present a known limitation
     // as a fallback path.
     expect(attempts).toBe(1);
-    expect(error.message).toContain("guerrilla");
+
+    // And the failure that surfaces is the provider's own, naming the provider that
+    // produced it rather than a wrapper describing the attempt.
+    expect((error as SpectreError).provider).toBe("guerrilla");
   });
 
   it("preserves a single provider's failure as the cause it was", async () => {
     const only = scriptedProvider("guerrilla", {
-      create: () => Promise.reject(throttled()),
+      create: () => Promise.reject(throttled("guerrilla")),
     });
 
     const error = await capture(() => createProviderManager([only]).createMailbox());
 
-    // The throttle's own description survives into the report, so a client can tell
-    // the user to come back rather than only that creation failed.
-    expect(error.message).toContain("try again");
+    // The throttle's own description survives, so a client can tell the user to
+    // come back rather than only that creation failed.
+    expect(messageOf(error)).toContain("try again");
+
+    // **And so does the normalized `code`**, which is the part a client cannot
+    // reconstruct from prose. This assertion is what the previous version of this
+    // test was missing: it checked the message and passed while the manager was
+    // throwing a composed wrapper that destroyed `code` entirely.
+    // `RATE_LIMITED` versus `PROVIDER_UNAVAILABLE` versus `AUTH_FAILED` is what
+    // decides whether a user is told to wait, told the service is down, or told to
+    // come back later.
+    expect((error as SpectreError).code).toBe(NormalizedErrorCode.RATE_LIMITED);
+  });
+
+  it("rethrows the provider's own failure object for a single provider", async () => {
+    const original = throttled("guerrilla");
+    const only = scriptedProvider("guerrilla", {
+      create: () => Promise.reject(original),
+    });
+
+    const error = await capture(() => createProviderManager([only]).createMailbox());
+
+    // Identity, not just shape. Asserting the fields would pass for a copy, and a
+    // copy built by the manager is precisely the wrapper this forbids - a copy can
+    // drop `rateLimit` and nothing in the field assertions would notice.
+    expect(error).toBe(original);
+
+    // Narrowed rather than cast: `rateLimit` exists only on the rate-limited
+    // variant, so reading it off the union without narrowing is the error the
+    // discriminated type exists to prevent.
+    const narrowed = error as Extract<
+      SpectreError,
+      { readonly code: typeof NormalizedErrorCode.RATE_LIMITED }
+    >;
+    expect(narrowed.rateLimit).toBe("1; w=60");
   });
 
   it("routes an existing mailbox to the provider that created it", async () => {
@@ -184,8 +221,9 @@ describe("createProviderManager", () => {
 
     // Serving a Mail.tm mailbox with a Guerrilla adapter would authenticate with the
     // wrong credentials. Better to name the mismatch than to attempt it.
-    expect(error.message).toContain("mailtm");
-    expect(error.message).toContain("guerrilla");
+    const message = messageOf(error);
+    expect(message).toContain("mailtm");
+    expect(message).toContain("guerrilla");
   });
 
   it("exposes its providers in preference order", () => {
@@ -199,10 +237,10 @@ describe("createProviderManager", () => {
   });
 });
 
-function throttled(): SpectreError {
+function throttled(provider: ProviderId = "mailtm"): SpectreError {
   return {
     code: NormalizedErrorCode.RATE_LIMITED,
-    provider: "mailtm",
+    provider,
     description: "Rate limited; try again in 60 seconds.",
     rateLimit: "1; w=60",
   };
@@ -216,14 +254,35 @@ function unreachable(): SpectreError {
   };
 }
 
-async function capture(operation: () => Promise<unknown>): Promise<Error> {
+/**
+ * Await `operation` and return whatever it threw.
+ *
+ * Returns `unknown`, not `Error`, and that is the correction this file needed.
+ * A `SpectreError` is a **plain discriminated object, not an `Error` subclass** -
+ * deliberately, so narrowing by `code` gives a consumer exactly the fields that
+ * code guarantees. This helper used to be typed `Promise<Error>` and rethrew
+ * anything that was not an `Error`, so it could not return a `SpectreError` at
+ * all. Every test here was therefore written against the assumption that the
+ * manager always throws an `Error`, and that assumption is what let the manager
+ * wrap a single provider's failure and destroy its `code` while the suite stayed
+ * green.
+ *
+ * `conformance.ts` has its own correctly-typed equivalent using `isSpectreError`.
+ */
+async function capture(operation: () => Promise<unknown>): Promise<unknown> {
   try {
     await operation();
-    throw new Error("expected the operation to fail");
   } catch (cause) {
-    if (cause instanceof Error) {
-      return cause;
-    }
-    throw cause;
+    return cause;
   }
+  throw new Error("expected the operation to fail");
+}
+
+/** The failure's prose, whether it arrived as an `Error` or as a `SpectreError`. */
+function messageOf(thrown: unknown): string {
+  if (thrown instanceof Error) {
+    return thrown.message;
+  }
+  const description = (thrown as { description?: unknown }).description;
+  return typeof description === "string" ? description : String(thrown);
 }

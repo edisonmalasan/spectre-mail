@@ -33,13 +33,47 @@ depend on packages, never the reverse.
 
 ## Packages
 
-| Package                     | Owns                                                                                                                                                                       | Must never contain                                               |
-| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `@spectre-mail/core`        | Mailbox lifecycle, provider selection, provider health, the mailbox manager, message and error normalization, expiration logic, shared domain types                        | Provider wire format; any HTTP call to a provider                |
-| `@spectre-mail/providers`   | The `MailProvider` contract, the Mail.tm adapter, the Guerrilla Mail adapter, the shared conformance suite, the provider manager, any future SpectreMail-operated provider | Business logic that belongs in `core`; presentation; any storage |
-| `@spectre-mail/mail-parser` | Safe text extraction, OTP detection, verification-link detection, message classification                                                                                   | Anything that renders markup; provider field names               |
-| `@spectre-mail/storage`     | The `SpectreStorage` interface, the web IndexedDB adapter, the extension storage adapter                                                                                   | Provider wire format; assumptions specific to one client         |
-| `@spectre-mail/ui`          | Reusable product UI and design tokens                                                                                                                                      | Marketing-only website sections                                  |
+| Package                     | Owns                                                                                                                                                                       | Must never contain                                                     |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `@spectre-mail/core`        | The normalized domain model and its invariants — mailbox, message, credentials, the closed set of normalized error codes, shared types                                     | Provider wire format; any HTTP call to a provider; lifecycle behaviour |
+| `@spectre-mail/providers`   | The `MailProvider` contract, the Mail.tm adapter, the Guerrilla Mail adapter, the shared conformance suite, the provider manager, any future SpectreMail-operated provider | Business logic that belongs in `core`; presentation; any storage       |
+| `@spectre-mail/mail-parser` | Safe text extraction, OTP detection, verification-link detection, message classification                                                                                   | Anything that renders markup; provider field names                     |
+| `@spectre-mail/mailbox`     | The mailbox session — opening, replacing, retrying, provider health — as state values a client renders                                                                     | Any framework; any DOM; any storage; any request of its own            |
+| `@spectre-mail/storage`     | The `SpectreStorage` interface, the web IndexedDB adapter, the extension storage adapter                                                                                   | Provider wire format; assumptions specific to one client               |
+| `@spectre-mail/ui`          | Reusable product UI and design tokens                                                                                                                                      | Marketing-only website sections                                        |
+
+### The session layer
+
+`packages/mailbox` exists because **two sources disagreed**, and the conflict was
+resolved against the approved specification rather than the plan. `docs/ROADMAP.md`'s
+shared-package list assigned "mailbox lifecycle" and "mailbox manager" to
+`packages/core`; the approved `shared-domain-model` Purpose says that package
+describes "the model and its invariants only", and excludes lifecycle behaviour. A
+roadmap sentence cannot amend an approved specification, so the behaviour moved to a
+new package and the roadmap's list was amended to match.
+
+**The boundary is enforced by the compiler, not by convention.** Its `tsconfig.json`
+sets `lib: ["ES2023"]` with no `"DOM"` entry, so `window`, `document`, and
+`navigator` fail to _compile_ in that package. A framework import would also fail
+typecheck, and `tests/architecture/boundaries.test.ts` scans for one as a
+supplementary backstop — but the backstop is the weaker of the two, because a `tsconfig`
+cannot be forgotten in a file but a scanning rule can be outrun by syntax it did not
+anticipate. That ordering is deliberate: the strongest available enforcement comes
+first, and the weaker one exists only as a backstop with its own limits stated in its
+own comment.
+
+**The session holds no state that outlives it and no reference to itself.** Its state
+is an immutable discriminated union — `creating`, `ready` with a mailbox, `failed`
+with a normalized code — rather than a mailbox plus a loading flag, because those two
+can disagree, and a disagreement is a rendering bug no unit test writes itself. Every
+variant is `readonly` and holds no reference to the session that produced it, so a
+client may render a state long after the session that made it is gone.
+
+**It performs no request of its own.** Every call goes through the injected
+`ProviderManager`; `packages/mailbox`'s own suite asserts zero requests against a
+recording transport, and a positive control drives the same two operations straight
+through the real Guerrilla adapter over that same transport so the zero is a
+measurement rather than an inert assertion.
 
 ### The provider layer
 
@@ -197,6 +231,23 @@ it out of the website rather than build infrastructure to route around it.
 
 The dev server binds loopback only.
 
+**The website holds no provider logic.** Its provider choice is a constant in
+`apps/web/src/provider-config.ts`, composing the shared `ProviderManager` over
+Guerrilla Mail alone and a `fetch` transport built by the shared factory. The three
+files that may name an adapter or a composition seam are that module, `transport.ts`,
+and `packages/mailbox`; `tests/architecture/boundaries.test.ts` enforces it by path,
+strips comments before matching, and states its own limits in its own source — it
+cannot tell a definition from a call, so it verifies _where_ an adapter may be named,
+never _why_. A client that reached for Mail.tm anyway would pass that rule and be
+caught by the `website-client` one-provider requirement instead.
+
+**It creates a mailbox and renders its address, with no inbox, no styling, and no
+persistence.** A reload discards the mailbox because storage is M6. The absence of
+styling is a decision, not an omission: M7 owns the visual design, and markup written
+before it would be markup M7 rewrites. There is also **no mailbox expiry countdown**,
+because no provider returns a lifetime in any API response and none was measured live
+— an elapsed guess is not an expiry signal.
+
 ### `apps/extension`
 
 A placeholder. It has **no** `manifest.json`, no service worker, and no build step.
@@ -294,17 +345,26 @@ with "No inputs were found".
 
 ## Enforcement
 
-`tests/architecture/boundaries.test.ts` asserts:
+`tests/architecture/boundaries.test.ts` asserts **20** things:
 
 - the packages and apps the roadmap specifies exist;
 - the workspace declares exactly `apps/*` and `packages/*`;
 - the spike is outside the workspace **and** still exists;
-- no package imports an app;
+- no package imports an app, including a dynamic `import("…")` or a bare side-effect
+  `import "…"`;
 - no workspace source file outside `packages/providers` contains a measured provider
   JSON field name;
-- provider adapter identifiers appear only in `packages/providers`, including any
-  identifier _shaped_ like an adapter factory;
-- no module in `packages/providers` reaches the global `fetch`;
+- a provider adapter is neither implemented nor re-exported outside
+  `packages/providers`, and is named only in a client's `provider-config.ts` or a test
+  file;
+- the composition seams (`createProviderManager`, `createFetchTransport`) are named
+  only in a client's `provider-config.ts` or `transport.ts`, in `packages/mailbox`,
+  or in a test file;
+- no module in `packages/providers` or `packages/mail-parser` reaches the global
+  `fetch`;
+- `packages/mailbox` imports no framework;
+- no file under `apps/` reaches for a markup escape hatch;
+- every client test file is actually **collected** by the configured globs;
 - no workspace file references the spike.
 
 Each check was proven able to fail by deliberately introducing the violation and
@@ -348,6 +408,35 @@ comparing two outputs of the same function can pass for a reason that has nothin
 do with the rule it names.** Every earlier instance was a rule failing to cover a case.
 This one was a case covered by a comparison that could not distinguish the right reason
 for equality from a wrong one.
+
+**A ninth and tenth instance of the same defect class, both found at M5 and pointing
+in opposite directions.** The adapter-confinement rule was **broader** than its
+documented intent — it also forbade `createProviderManager` and
+`createFetchTransport` outside `packages/providers`, which made `MailProvider` and
+`ProviderManager` impossible to instantiate outside the package declaring them, and
+made a browser unable to turn `fetch` into a `Transport` at all. Both are references
+to a package's public API, which is what a public API is for. Confinement means an
+adapter may not be _implemented_ or _re-exported_ outside the package, and may not be
+_named_ outside the files entitled to choose providers. The rule now separates the
+two entitlements, and states its limits in its own source: it is by path and cannot
+tell a definition from a call.
+
+Worse, that rule **fired on its own documentation** — the third time in this
+repository that has happened. `packages/mailbox` explains in prose what it
+deliberately does not do, and the scan read that sentence as a declaration. Fixed by
+stripping comments before matching, **not** by rewording the prose until the rule went
+quiet; rewording would have deleted the reason the next reader needs. The same
+stripping fixed a second instance found the same day, where `Address.tsx` documents
+`dangerouslySetInnerHTML` by name.
+
+**The client-test collection check exists because a client test was silently
+skipped.** The root Vitest `include` globs named `tests/architecture` and
+`packages/*/src` but **not** `apps/*/src`, so `apps/web`'s tests never ran — and an
+undiscovered test reads as covered. The globs are now named explicitly, and the
+check resolves them against the real test files so narrowing the list **reports** the
+uncovered file rather than passing. The global `environment` stays `"node"`: a client
+test opts into jsdom per file, because setting jsdom globally would hand
+`packages/mailbox` a DOM its own `tsconfig` exists to withhold.
 
 **Scope of the field-name check.** It matches a fixed list of names measured from
 live responses. It is a **tripwire, not a proof of absence**, and it can fire on
@@ -403,10 +492,13 @@ provider so the two are never interchangeable, and their field names are
 SpectreMail's own rather than the provider's. Nothing in `packages/core` names a
 provider's response field, and `tests/architecture/` now enforces that.
 
-What the model deliberately does **not** contain yet: any `MailProvider` contract,
-any provider adapter, any mailbox lifecycle or expiry evaluation, and any mapping
-from a provider's HTTP response onto the normalized error codes. Those need a
-provider that has actually been observed, which is the next milestone's job.
+What the model deliberately does **not** contain: any `MailProvider` contract, any
+provider adapter, any mailbox lifecycle or expiry evaluation, and any mapping from a
+provider's HTTP response onto the normalized error codes. The contract and the
+adapters are in `packages/providers`; the lifecycle is in `packages/mailbox`. Neither
+belongs here, because this package describes **the model and its invariants only** —
+that sentence is its approved Purpose, and it is why the roadmap's assignment of
+"mailbox lifecycle" to `core` was amended rather than followed.
 
 ---
 
