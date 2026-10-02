@@ -149,10 +149,24 @@ success — rejected, because the address must be visible before any interaction
 
 **Decision.** `packages/mailbox`'s tests run against a **stub** provider that
 implements `MailProvider`, plus a recording transport for the one path that must
-prove it performs no request of its own. `apps/web` gets no unit test in this
-slice, because testing React output would require a DOM and the architecture
-assertion — that no provider field name and no adapter identifier appears under
-`apps/` — is what actually protects the boundary.
+prove it performs no request of its own. The website is verified against a stub
+provider and jsdom, never a browser.
+
+**Amendment at the verification pass (2026-10-02).** The second sentence of this
+decision originally read "`apps/web` gets no unit test in this slice, because testing
+React output would require a DOM". That was wrong twice over: a per-file
+`@vitest-environment jsdom` docblock is all a DOM-requiring test needs, and leaving
+the client untested would have meant the requirement about what is **rendered** had
+no evidence at all. `apps/web` now has **33 tests**. The original reasoning survives
+only as the record of why that was a mistake.
+
+**Why this is honest rather than convenient.** It establishes the session layer
+composes the abstraction correctly, and that the page renders three distinct states
+from three distinct session states. It establishes nothing about Guerrilla Mail.
+The recorded responses in `packages/providers` are the only evidence about the
+provider, and they are recordings. The first live address this page produces will
+be the first live exercise of the website path, and it is not something this test
+suite can predict.
 
 **Why this is honest rather than convenient.** It establishes the session layer
 composes the abstraction correctly. It establishes nothing about Guerrilla Mail.
@@ -173,12 +187,13 @@ website states that the lifetime is unknown and does not claim recovery. M6 adds
 persistence. The gap is real and is in `website-client`'s Purpose rather than
 hidden in this file.
 
-**[No DOM test for the website]** → Mitigated by making the boundary the
-assertion rather than the render. A DOM test would verify that React renders the
-strings it was given, which is not where the risk in this slice is. The risk that
-remains — that the states are not distinct or not labelled — is addressed by the
-`website-client` scenarios being written as observable content, and it is called
-out here as **not** machine-verified in this slice.
+**[No DOM test for the website]** → **Withdrawn by the verification pass.** This risk
+was accepted on the reasoning that "a DOM test would verify that React renders the
+strings it was given, which is not where the risk in this slice is". That reasoning
+was wrong, and the requirement it was meant to cover — that each state renders as
+distinct labelled content — is precisely a claim about what React renders.
+`apps/web` now has **33 tests** against jsdom, including every failure code and the
+reload scenario. The risk is no longer mitigated by arguing; it is measured.
 
 **[`packages/mailbox` is a fourth shared package the roadmap did not name]** →
 Recorded in D1. The roadmap's shared-package list is a plan and this change amends
@@ -316,6 +331,31 @@ suite went red on transform, proving nothing about the assertion it was meant to
 falsify. Each was corrected and re-run to `CAUGHT`. The remaining 2 of the 7 were the
 same real gap as defect 1, attempted twice before the assertion was fixed.
 
+### The verification pass's own mutations
+
+A **second** harness run, after the repairs below, aimed at every assertion the
+repairs added or changed. **21 attempts, 19 `CAUGHT`, every file restored
+byte-identical.** The 2 that were not `CAUGHT` are recorded rather than dropped, and
+both are explained rather than waved at:
+
+- **`explain()`'s `default` branch made reachable instead of exhaustive.** Replacing
+  `assertNever(failure)` with a returned string changed nothing observable, and
+  nothing could observe it: the switch is exhaustive over a closed union, so an
+  unhandled code is a **compile** error. There is no runtime input that reaches the
+  branch, so no runtime test can detect its removal. **The exhaustiveness is the
+  compiler's guarantee, and a test cannot substitute for it** — this one is not a gap
+  in the suite, it is a limit on what a test could ever establish here.
+- **A declared-but-unread module cache.** The mutation added `let cached` and never
+  used it, so it was a no-op. The same defect with the delivery half included —
+  reading `cached` on the next mount — was `CAUGHT`, and that is the case that counts.
+
+Two earlier `NOT-CAUGHT` results were faults in the mutations rather than in the
+suite, and both were re-authored: one replaced `MAILBOX_EXPIRED`'s message with a
+string that is not actually `PROVIDER_UNAVAILABLE`'s, so it created a seventh distinct
+message instead of a duplicate (the re-authored version is `CAUGHT`); the other read
+an undeclared variable, which is a compile error and would have turned the suite red
+for a reason unrelated to the assertion.
+
 **One further defect was found by inspection, not by this pass**, and is recorded
 separately so the pass is not credited with it: a dead branch in `normalize`. Its
 `providerFailures` fallback read `failures.length > 0 ? failures : providers.map(…)`,
@@ -337,6 +377,17 @@ Every group of absence assertions has a control proving the thing can appear:
 | No time value without a reported expiry | A mailbox with `expiresAt` renders one, attributed to the provider |
 | The recorder can observe a request | See row one — a non-zero baseline is required before comparing to it |
 | The client tests are collected | The glob is resolved against the real test files, so narrowing it reports `uncovered` rather than asserting a literal |
+| The framework rule fires | **One probe per import form** — static, bare side-effect, scoped subpath, dynamic, `require`, re-export, single quotes — plus a negative probe whose package name merely contains the letters |
+| The storage rule fires | One probe per spelling: `localStorage`, `sessionStorage`, `document.cookie`, `location`, `navigator` |
+| The packages are all collected too | The rule asserts a precondition on the **spread** of what it found, so a version checking only `apps/` cannot satisfy it |
+| The no-DOM claim holds at runtime | The globals are read reflectively and asserted absent, and `navigator` is asserted **present** to pin the Node behaviour the storage rule exists to compensate for |
+
+**Two of these controls exist because a single control proved nothing.** The
+framework rule shipped with one control — `import * as React from "react"` — which it
+matched, so it was green while a bare `import "react";` passed unnoticed. That is the
+**fifteenth** instance of a check narrower than the rule it documented, and the
+**fourth** in this change. One control per *form* is the only version that covers the
+rule, because a control proves the form its author happened to think of.
 
 ### What this pass does not establish
 

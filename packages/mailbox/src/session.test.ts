@@ -12,6 +12,7 @@
 import { NormalizedErrorCode } from "@spectre-mail/core";
 import type { Mailbox } from "@spectre-mail/core";
 import { createGuerrillaAdapter, createProviderManager } from "@spectre-mail/providers";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { createMailboxSession, isCreating, isFailed, isReady } from "./index";
@@ -25,6 +26,58 @@ import {
 } from "./test-support";
 
 describe("createMailboxSession", () => {
+  it("runs with no DOM available, which is the environment the package targets", () => {
+    // `mailbox-session`'s "The package is imported without a browser" scenario: the
+    // suite SHALL pass in an environment with no DOM and no rendering framework.
+    //
+    // **The environment was a claim rather than a test until now.** The package's
+    // own suite is plain Node — `vitest.config.ts` sets the global `environment` to
+    // `"node"` precisely so this package is not handed a DOM — but nothing asserted
+    // it, so the guarantee rested on a config value with no check attached. If the
+    // global environment were ever switched to `jsdom`, every test here would still
+    // pass, and the package would quietly acquire a DOM it is meant not to have.
+    //
+    // This asserts the ambient globals directly rather than trusting the config: a
+    // jsdom default would make each of these defined.
+    //
+    // **And the node-only claim is the one the compiler does not make.** Measured name
+    // by name on 2026-10-02: this package's `lib: ["ES2023"]` rejects `window`,
+    // `document`, and `location` at *compile* time, and rejects nothing else that
+    // matters here. It does **not** reject `navigator`, `localStorage`, or
+    // `sessionStorage`, which `@types/node` declares — and Node v26.10.0 additionally
+    // defines `navigator` and `sessionStorage` on `globalThis` at runtime. So "no
+    // DOM" and "no storage" are two separate properties here, and only the first is
+    // enforced by the compiler.
+    //
+    // The globals are read reflectively rather than referenced, because a **runtime**
+    // claim needs a runtime check and a direct property access could not be written
+    // at all: this package's `lib: ["ES2023"]` rejects `globalThis.document` at
+    // compile time, which is the primary enforcement and is not available here.
+    // `Reflect.get` reaches a global the type system does not declare.
+    for (const name of ["document", "window", "location", "indexedDB", "caches", "history"]) {
+      expect(Reflect.get(globalThis, name), `${name} should not exist here`).toBeUndefined();
+    }
+
+    // **Node is not empty, and that is precisely why the boundary rule exists.**
+    // Measured on Node v26.10.0 while writing this assertion: `navigator` is defined
+    // on `globalThis` as an object, and `sessionStorage` is defined experimentally.
+    // `@types/node` declares both, so they *compile* here and they *exist* at runtime.
+    // Nothing about the absence of a DOM prevents this package from reaching for
+    // either — the compiler will not stop it and the environment will not either.
+    //
+    // The only thing that stops it is the explicit rule in
+    // `tests/architecture/boundaries.test.ts`. So the absence of a DOM is **not** by
+    // itself a no-storage guarantee, and this assertion says so rather than implying
+    // that it is.
+    //
+    // (`localStorage` and `sessionStorage` are deliberately *not* read here: Node
+    // emits an `ExperimentalWarning` on access without `--localstorage-file`, and a
+    // test that printed that warning on every run would be a test people learn to
+    // ignore. Their absence is not asserted; their use in this package is forbidden
+    // by rule instead, which is the check that does not need the global.)
+    expect(Reflect.get(globalThis, "navigator"), "Node provides navigator").toBeTypeOf("object");
+  });
+
   describe("the state it reports", () => {
     it("starts as creating, and says so rather than inventing a mailbox", () => {
       const session = createMailboxSession(createProviderManager([stubProvider("guerrilla")]));
@@ -35,7 +88,7 @@ describe("createMailboxSession", () => {
       expect(isFailed(session.current())).toBe(false);
     });
 
-    it("carries no field belonging to another variant", () => {
+    it("carries no field belonging to another variant", async () => {
       const session = createMailboxSession(createProviderManager([stubProvider("guerrilla")]));
 
       // A `ready` state must not also carry a `failure`, and a `failed` state must
@@ -45,9 +98,24 @@ describe("createMailboxSession", () => {
       const ready = session.open();
       expect(Object.keys(session.current())).toEqual(["kind"]);
 
-      return ready.then(() => {
-        expect(Object.keys(session.current()).sort()).toEqual(["kind", "mailbox"]);
-      });
+      await ready;
+      expect(Object.keys(session.current()).sort()).toEqual(["kind", "mailbox"]);
+
+      // **The `failed` variant's key set was never checked.** This test asserted
+      // two of the three variants and a *different* test elsewhere asserted
+      // `"mailbox" in state` for the third, so task 1.2's "no state carries a field
+      // belonging to another variant" was never actually established for the variant
+      // where it would matter most — the one a client is most tempted to read a
+      // mailbox off. Asserting the exact key set closes it: a `failed` state with a
+      // `mailbox` key fails here whatever else is true about it.
+      const failing = createMailboxSession(
+        createProviderManager([stubProvider("guerrilla", { failWith: unreachable() })]),
+      );
+      await failing.open();
+
+      const failedKeys = Object.keys(failing.current()).sort();
+      expect(failedKeys).toEqual(["failure", "kind"]);
+      expect(failedKeys).not.toContain("mailbox");
     });
 
     it("narrows each variant through its own helper", async () => {
@@ -451,10 +519,37 @@ describe("createMailboxSession", () => {
     });
 
     it("cannot be given a transport at all", () => {
-      // The absence is the guarantee. `createMailboxSession`'s only parameter is a
-      // manager, so there is no parameter through which a transport could be
-      // supplied - this assertion documents that and would fail to compile if a
-      // second parameter were added.
+      // The absence is the guarantee: there is no parameter through which a
+      // transport could be supplied.
+      //
+      // **`Function.length` is not enough on its own, and this comment previously
+      // claimed otherwise.** It counts parameters only up to the first one with a
+      // default, so a second *defaulted* parameter — `transport: unknown = undefined`
+      // — left `length` at 1 and this assertion green, with the full 365-test suite
+      // green alongside it. The previous version of this comment said a second
+      // parameter "would fail to compile", which is not true either: a defaulted
+      // one compiles fine.
+      //
+      // So the seam is checked by *reading the signature* rather than by measuring
+      // its arity. A defaulted parameter is still a parameter, and a source check
+      // sees it. The arity assertion is kept alongside as a cheap second signal,
+      // not as the guarantee it used to be described as.
+      const source = readFileSync(new URL("./session.ts", import.meta.url), "utf8");
+      const declaration = source.match(/export function createMailboxSession\(([^)]*)\)/);
+      expect(declaration).not.toBeNull();
+
+      // One parameter, and it is the manager. A `Transport` in this parameter list
+      // is the exact shape of the defect this guards.
+      const parameters = (declaration?.[1] ?? "")
+        .split(",")
+        .map((parameter) => parameter.trim())
+        .filter((parameter) => parameter.length > 0);
+      expect(parameters).toHaveLength(1);
+      expect(parameters[0]).toContain("manager");
+      expect(parameters[0]).not.toMatch(/transport/i);
+
+      // And the declaration really is one-parameter, so the check above is not
+      // reading a comment or a second overload.
       expect(createMailboxSession).toHaveLength(1);
     });
   });

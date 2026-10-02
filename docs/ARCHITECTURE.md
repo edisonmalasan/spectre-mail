@@ -54,13 +54,39 @@ new package and the roadmap's list was amended to match.
 
 **The boundary is enforced by the compiler, not by convention.** Its `tsconfig.json`
 sets `lib: ["ES2023"]` with no `"DOM"` entry, so `window`, `document`, and
-`navigator` fail to _compile_ in that package. A framework import would also fail
+`location` fail to _compile_ in that package. A framework import would also fail
 typecheck, and `tests/architecture/boundaries.test.ts` scans for one as a
 supplementary backstop — but the backstop is the weaker of the two, because a `tsconfig`
 cannot be forgotten in a file but a scanning rule can be outrun by syntax it did not
 anticipate. That ordering is deliberate: the strongest available enforcement comes
 first, and the weaker one exists only as a backstop with its own limits stated in its
 own comment.
+
+**What the compiler does _not_ block, measured rather than assumed.** Five documents
+in this repository said that the missing `DOM` lib stopped `navigator` too. It does
+not. Probing `tsc` name by name on 2026-10-02:
+
+| Name                             | Compiles in `packages/mailbox`? | Exists on Node v26 `globalThis`?  |
+| -------------------------------- | ------------------------------- | --------------------------------- |
+| `window`                         | rejected                        | no                                |
+| `document`                       | rejected                        | no                                |
+| `location`                       | rejected                        | no                                |
+| `indexedDB`, `caches`, `history` | rejected                        | no                                |
+| `navigator`                      | **compiles**                    | **yes** (an object)               |
+| `sessionStorage`                 | **compiles**                    | **yes** (experimental)            |
+| `localStorage`                   | **compiles**                    | yes, behind `--localstorage-file` |
+
+`@types/node` declares the last three, and `"types": []` was tried and does not
+exclude them. The consequence is that **"no DOM" and "no storage" are two separate
+properties here, and only the first is enforced by the compiler.** A session layer
+that quietly persisted itself through `localStorage` would have compiled, typechecked,
+linted, and passed every other rule. So the storage half is held by its own scan,
+which is the _only_ thing holding it and says so in its own comment.
+
+That table is also why the no-DOM test reads the globals **reflectively**
+(`Reflect.get(globalThis, name)`) rather than referencing them: `globalThis.document`
+does not even compile in that package, which is the enforcement, and a runtime claim
+needs a runtime check that a type error can never provide.
 
 **The session holds no state that outlives it and no reference to itself.** Its state
 is an immutable discriminated union — `creating`, `ready` with a mailbox, `failed`
@@ -345,7 +371,7 @@ with "No inputs were found".
 
 ## Enforcement
 
-`tests/architecture/boundaries.test.ts` asserts **20** things:
+`tests/architecture/boundaries.test.ts` asserts **23** things:
 
 - the packages and apps the roadmap specifies exist;
 - the workspace declares exactly `apps/*` and `packages/*`;
@@ -358,14 +384,23 @@ with "No inputs were found".
   `packages/providers`, and is named only in a client's `provider-config.ts` or a test
   file;
 - the composition seams (`createProviderManager`, `createFetchTransport`) are named
-  only in a client's `provider-config.ts` or `transport.ts`, in `packages/mailbox`,
-  or in a test file;
+  only in a client's `provider-config.ts` or `transport.ts` or in a test file;
 - no module in `packages/providers` or `packages/mail-parser` reaches the global
   `fetch`;
-- `packages/mailbox` imports no framework;
+- `packages/mailbox` imports no framework, **in any of the four import forms**;
+- `packages/mailbox` reaches no global store, cookie jar, or URL;
 - no file under `apps/` reaches for a markup escape hatch;
-- every client test file is actually **collected** by the configured globs;
+- **every** test file this repository ships is actually **collected** by the
+  configured globs — packages as well as apps;
 - no workspace file references the spike.
+
+Five of those carry their own **positive controls**, because a rule with no control
+cannot be shown to fire and a rule with one control proves only the form its author
+thought of: the `fetch` rule is driven end to end through a temporary module; the
+framework rule runs one probe per import form plus a negative case; the storage rule
+runs one probe per spelling; and the test-collection rule asserts a precondition on
+the **spread** of what it found, so a version that checked only one root cannot
+satisfy it.
 
 Each check was proven able to fail by deliberately introducing the violation and
 observing a non-zero exit. An empty suite was also proven to exit 1:
