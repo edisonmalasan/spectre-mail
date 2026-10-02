@@ -101,6 +101,53 @@ recording transport, and a positive control drives the same two operations strai
 through the real Guerrilla adapter over that same transport so the zero is a
 measurement rather than an inert assertion.
 
+**That zero was asserted for `open` and `health` only until M5 slice 2, and the gap it
+left is worth naming.** Slice 2 added a polling loop to this package — a loop is
+exactly the code whose temptation is to reach for `fetch` — and neither half of the
+guarantee followed it: the behavioural test never drove a listing, and the
+global-`fetch` scan pointed at `packages/providers` and `packages/mail-parser` only.
+A `fetch` introduced into `inbox.ts` would have turned nothing red, **while
+`inbox.ts`'s own module comment claimed the rule "now covers these modules too."** Both
+halves are now extended: the scan covers this package with a positive control per
+fetch form, and the behavioural test drives `checkInbox()` plus one turn of the
+scheduled loop.
+
+**Driving it needed a recording transport that can succeed.** The original transport
+answers every request with a bare `503`, which is correct for a test whose session never
+opens — every operation fails the same way, so the request counts line up. But **a
+session with no mailbox has nothing to poll**, so its `checkInbox` legitimately makes no
+request and a test asserting "no request of its own" would have passed for the wrong
+reason. The helper now takes an optional responder, and the answers name provider wire
+fields — which is why they live in the `.test.ts` that uses them and **not** in
+`test-support.ts`, which the wire-format rule scans like any other shipped source and
+which correctly caught them when they were first written there.
+
+**The polling cadence is the product's own, and it is declared as such rather than
+implied to be a measurement.** `cadence.ts` exports `INBOX_POLL_PROMPT_MS` (5s, while
+a mailbox's contents are changing), a doubling per unchanged check, and
+`INBOX_POLL_CEILING_MS` (30s). No provider limit was measured for the only provider a
+browser page can reach: `docs/PROVIDERS.md` records Mail.tm's `GET /messages` at
+`30; w=60` **measured unauthenticated only**, and Mail.tm is unreachable from a web
+page in any case, while Guerrilla publishes nothing and none was measured. So:
+
+- a limit a provider **does** declare is honoured as a **floor** the cadence never
+  schedules beneath, read conservatively from the `w=` window alone — an unrecognised
+  string yields no floor rather than a guessed one, and `w=0` yields none either;
+- a **throttled listing stops the loop** rather than backing off, because
+  `provider-abstraction` requires throttling be surfaced rather than silently retried;
+  the way back is a caller's own `checkInbox()`, which is visible by construction;
+- **that floor survives replacing the mailbox**, since a provider's statement is about
+  the provider and not about one mailbox — conservative rather than convenient, and
+  invisible unless a test says so;
+- the **website displays no interval at all**. A figure on screen would be an
+  invention presented as a measurement. A provider's own verbatim statement _is_ shown,
+  attributed to the provider and with its scope disclaimed, because suppressing
+  evidence the page received would mean inventing a limit in its place.
+
+**None of this has been run against a live provider.** The cadence is asserted by
+reading the delay the scheduler was asked for, which proves the arithmetic this
+repository performs and nothing about any provider's tolerance for it.
+
 ### The provider layer
 
 `packages/providers` holds the `MailProvider` contract and the two adapters that
@@ -371,7 +418,7 @@ with "No inputs were found".
 
 ## Enforcement
 
-`tests/architecture/boundaries.test.ts` asserts **23** things:
+`tests/architecture/boundaries.test.ts` asserts **31** things:
 
 - the packages and apps the roadmap specifies exist;
 - the workspace declares exactly `apps/*` and `packages/*`;
@@ -385,22 +432,33 @@ with "No inputs were found".
   file;
 - the composition seams (`createProviderManager`, `createFetchTransport`) are named
   only in a client's `provider-config.ts` or `transport.ts` or in a test file;
-- no module in `packages/providers` or `packages/mail-parser` reaches the global
-  `fetch`;
+- no module in `packages/providers`, `packages/mail-parser`, **or `packages/mailbox`**
+  reaches the global `fetch`;
 - `packages/mailbox` imports no framework, **in any of the four import forms**;
 - `packages/mailbox` reaches no global store, cookie jar, or URL;
+- no module in `packages/mailbox` reaches a clock or timer global, in **any of seven
+  spellings** (`Date.now`, `Date.parse`, `new Date`, `performance.now`, `setTimeout`,
+  `setInterval`, `setImmediate`), with three negative controls for names that merely
+  look like clocks;
+- `packages/mail-parser` is imported only by `packages/mailbox`;
 - no file under `apps/` reaches for a markup escape hatch;
 - **every** test file this repository ships is actually **collected** by the
   configured globs — packages as well as apps;
 - no workspace file references the spike.
 
-Five of those carry their own **positive controls**, because a rule with no control
+**Six of those carry their own positive controls**, because a rule with no control
 cannot be shown to fire and a rule with one control proves only the form its author
-thought of: the `fetch` rule is driven end to end through a temporary module; the
-framework rule runs one probe per import form plus a negative case; the storage rule
-runs one probe per spelling; and the test-collection rule asserts a precondition on
-the **spread** of what it found, so a version that checked only one root cannot
-satisfy it.
+thought of: the `fetch` rule is driven end to end through a temporary module written
+into each scanned package, **one probe per fetch form**; the framework rule runs one
+probe per import form plus a negative case; the clock rule runs one probe per spelling
+plus three negatives; the storage rule runs one probe per spelling **through the same
+`scanPackageWithProbe` path as the others**, because the first version wrote its probe
+and then read that one file directly, proving the pattern fires and proving nothing
+about whether the rule's file discovery would find it; the parser-direction rule's
+control writes a probe into `apps/web`, since the interesting violation is in a client
+and every package-only scan in the file would have missed it; and the test-collection
+rule asserts a precondition on the **spread** of what it found, so a version that
+checked only one root cannot satisfy it.
 
 Each check was proven able to fail by deliberately introducing the violation and
 observing a non-zero exit. An empty suite was also proven to exit 1:
@@ -429,6 +487,14 @@ reason than the provider layer's: that package has no transport seam at all and 
 never acquire one, since detection reads a message a provider already delivered. The
 widening is proven able to fail — a `fetch` call introduced into the package makes the
 rule exit non-zero naming the file and line.
+
+**It was widened again at M5 slice 2, and the reason is the sharpest instance of the
+gap pattern in this file so far.** The rule enumerated the packages that _could
+plausibly want a transport_, and slice 2 added a polling loop to a third — which is
+exactly the code whose temptation is `fetch`. The scan did not follow, the behavioural
+test that counts requests never drove a listing, and `inbox.ts`'s module comment
+claimed the rule "now covers these modules too". **A comment asserting an enforcement
+that did not exist is worse than no comment**, because it stops the next reader looking.
 
 **An eighth instance of the same defect class, found by falsification rather than by
 reading.** M4's penalty-cap test asserted that a candidate matching three reducing
@@ -530,7 +596,8 @@ provider's response field, and `tests/architecture/` now enforces that.
 What the model deliberately does **not** contain: any `MailProvider` contract, any
 provider adapter, any mailbox lifecycle or expiry evaluation, and any mapping from a
 provider's HTTP response onto the normalized error codes. The contract and the
-adapters are in `packages/providers`; the lifecycle is in `packages/mailbox`. Neither
+adapters are in `packages/providers`; the lifecycle and the polling loop are in
+`packages/mailbox`. Neither
 belongs here, because this package describes **the model and its invariants only** —
 that sentence is its approved Purpose, and it is why the roadmap's assignment of
 "mailbox lifecycle" to `core` was amended rather than followed.
