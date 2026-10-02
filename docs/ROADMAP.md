@@ -26,9 +26,57 @@
 
 **Roadmap cursor:** M5 - Website Core MVP. **Slice 1 is complete and archived**
 (change `mailbox-session-layer`; PRs #28–#32: propose, apply, verify, sync,
-archive). **Slice 2 is now proposing**, as `inbox-polling` — the inbox, polled.
-`openspec status` reports no active *completed* change and slice 2's change is open
-for review. `openspec validate --specs --strict` reports **8 passed, 0 failed**.
+archive). **Slice 2 has been implemented and independently verified** as
+`inbox-polling` (change open on `feat/inbox-polling`; PR #33 was the proposal).
+`openspec validate --specs --strict` reports **8 passed, 0 failed** — slice 2's delta
+is not yet synced, so none of its 7 + 5 requirements appear there yet.
+
+**Slice 2's state as of 2026-10-03, and the two numbers a later session should trust
+first.** The workspace runs **474 tests across 24 files**, of which **31 are
+architecture boundary assertions**: 54 in `packages/core`, 89 in `packages/providers`,
+149 in `packages/mail-parser`, **94 in `packages/mailbox`**, **57 in `apps/web`** (54
+rendering, 3 provider configuration), 31 boundary. `pnpm verify` exits 0. The website
+now lists a mailbox's messages and polls it; it has **no styling, no persistence, and
+no message view** — a reload still discards the mailbox, because storage is M6 and
+opening a message is slice 3.
+
+**Two criticals came out of slice 2's independent verification pass, and both are worth
+more than the features.** First, **`pnpm typecheck` was red while `pnpm test` was green
+at 469/469** — a `SpectreError` fixture omitted a required `cause`, and Vitest does not
+typecheck, so the suite passed and tasks 5.7 and 6.1 sat ticked while the repository's
+own aggregate gate was failing. Second, **the global-`fetch` rule never covered
+`packages/mailbox`**: it scanned the two packages that could plausibly want a
+transport, and slice 2 added a polling loop to a third, which is precisely the code
+whose temptation is to reach for `fetch` directly — while `inbox.ts`'s own module
+comment claimed the rule "now covers these modules too". The rule now covers the
+package, with a positive control **per fetch form**, and the behavioural half of the
+same requirement was extended to drive `checkInbox()` and one turn of the loop over a
+recording transport. That transport had to be taught to answer with a real mailbox
+first: a session that never opened has nothing to poll, so the "no request of its own"
+assertion would have passed for the wrong reason.
+
+**The falsification pass: 39 mutations, 35 caught on the first run, 4 not caught, all
+four repaired and re-verified.** One of the four is the finding most worth carrying
+forward, because it is not a test gap at all: a scheduled callback that captured the
+mailbox instead of reading it at fire time is **not** a defect, because `reset` both
+cancels the pending schedule and clears the field — removing either guard alone leaves
+the other, and only removing both let a discarded mailbox be listed. The code comment
+was rewritten to say exactly that rather than to credit a single mechanism. The other
+three were genuine gaps: a cadence test whose four listings had lengths 2, 3, 2, 2, so a
+comparison of *length* reached the same verdict as a comparison of *identity* and
+passed holding the very defect it was written for; a listener test whose scenario
+`Set` iteration is **defined** to tolerate, so it exercised nothing; and a view that
+could have dropped the messages a previous check learned with nothing to catch it.
+
+**Two delta clauses were amended rather than reinterpreted, and that is a first for
+this roadmap.** `mailbox-session` required the caller to "state exactly what time it is
+at every step", which assumed a `now()` that D2's scheduler-only seam removed; and
+`website-client` forbade showing any "provider rate", which contradicted the *other*
+delta's requirement that a provider's limit statement be reported verbatim — and the
+implementation does show `1; w=60`. Both were narrowed to what the implementation can
+defend, with the reason written into the delta itself and a new test asserting the
+distinction directly: the provider's statement appears, attributed and with its scope
+disclaimed, while the no-duration assertions still hold on that very page.
 
 **Slice 1's sync added no scenario to either capability — 7 requirements and 29
 scenarios in, 29 out** — and that is the point worth recording: its verification
@@ -111,7 +159,9 @@ their reasons in `design.md` — one is statically unreachable and is the compil
 guarantee rather than a test's, and one was a no-op mutation. Two earlier
 `NOT-CAUGHT` results were faults in the mutations and were re-authored.
 
-**Result: 382 tests across 21 files, 23 boundary assertions, `pnpm verify` exit 0.**
+**Result for slice 1: 382 tests across 21 files, 23 boundary assertions, `pnpm verify`
+exit 0.** (Those were slice 1's figures. The workspace now runs **474 tests across 24
+files** with **31** boundary assertions — see the Project Status cursor above.)
 **Still not established:** that a real browser reaches Guerrilla Mail. Every provider
 interaction in every test replays a recording.
 **Remaining slices of M5:** inbox with polling, message view, then history, provider
@@ -157,8 +207,8 @@ others, because it predates the milestone that documented it. Six warnings were 
 with it, including a published test count that was arithmetically wrong (14 fixtures × 2
 generated tests is 28, not 26) and four `D4` shape descriptions that overstated their own
 reach. **307 tests across 18 files** after the repairs; no published confidence constant
-was changed. (That figure was M4's. The workspace now runs **382 tests across 21 files**
-— see the Project Status cursor below.)
+was changed. (That figure was M4's. The workspace now runs **474 tests across 24 files**
+— see the Project Status cursor above.)
 **M4's implementation found three defects in its own design before any of it was
 verified**, and all three are recorded in the change rather than quietly fixed:
 the phone-number reducing shape was **structurally incapable** of detecting a phone
@@ -788,12 +838,14 @@ disagreeing with the tree.
 
 #### `packages/mailbox`
 
-Owns client-side orchestration over the shared model. Added at M5 slice 1.
+Owns client-side orchestration over the shared model. Added at M5 slice 1; polling and
+per-message verdicts added at slice 2.
 
 ```text
 mailbox session lifecycle (open / replace / retry)
 provider health reporting
 creation-failure normalization
+inbox polling — adaptive cadence, throttle handling, per-message verdicts
 ```
 
 It is **framework-free and DOM-free by compiler, not by convention**: its

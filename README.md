@@ -37,16 +37,27 @@ on. See [Current status](#current-status).
 `mail-parsing` at the sync stage of the `mail-parsing-engine` change — 9 requirements
 and 31 scenarios, three of which were added by its verification pass.
 
-The website **creates a mailbox and renders its address.** That is the first thing in
-this repository a user can see work. It has **no inbox, no styling, and no
-persistence** — a reload discards the mailbox, because storage is M6. The absence of
-styling is a decision rather than an omission: M7 owns the visual design, so markup
-written now would be markup M7 rewrites.
+The website **creates a mailbox, renders its address, and lists that mailbox's
+messages while polling for new ones.** That is what a user can see work. It still has
+**no message view, no styling, and no persistence** — a reload discards the mailbox,
+because storage is M6, and opening a message is the next slice. The absence of styling
+is a decision rather than an omission: M7 owns the visual design, so markup written
+now would be markup M7 rewrites.
+
+**The polling interval is this product's own choice and the page says so by showing no
+number.** No provider limit was measured for the only provider a browser can reach —
+`docs/PROVIDERS.md` records Mail.tm's `30; w=60` **measured unauthenticated only**,
+and Mail.tm is unreachable from a web page at all — so a figure on screen would be an
+invention presented as a measurement. A limit a provider _does_ declare is honoured as
+a floor rather than turned into a schedule, a throttled listing stops the loop rather
+than retrying quietly, and polling stops when nothing is displaying the page.
 
 Nothing has yet been verified against the **live** Guerrilla Mail API from a
-browser. The website's 33 tests render against a stub provider or a recording
+browser. The website's 57 tests render against a stub provider or a recording
 transport, which establishes that the page composes the abstraction correctly and
-says nothing about whether a real browser reaches that provider successfully.
+says nothing about whether a real browser reaches that provider successfully — and the
+polling cadence has never been exercised against a live provider at all, so nothing
+here establishes how a real provider responds to a page asking every five seconds.
 
 `packages/core` holds SpectreMail's **normalized domain model** — mailbox, message,
 credentials, verification code, verification link, and a closed set of normalized
@@ -238,7 +249,7 @@ works on your machine.**
 | `pnpm typecheck`                     | All 8 workspace projects type check under the shared strict config.            | That the types are useful — that is what the tests are for.                                        |
 | `pnpm lint`                          | ESLint passes.                                                                 | Type correctness; `pnpm typecheck` owns that.                                                      |
 | `pnpm format:check`                  | Prettier passes on the files this repository governs.                          | That historical documents are formatted; those are deliberately excluded.                          |
-| `pnpm test`                          | 382 tests across 21 files pass, including 23 architecture boundary assertions. | Product behaviour against a **live** provider. Every provider test replays recorded responses.     |
+| `pnpm test`                          | 474 tests across 24 files pass, including 31 architecture boundary assertions. | Product behaviour against a **live** provider. Every provider test replays recorded responses.     |
 | `pnpm build`                         | The website builds with Vite.                                                  | That packages emit anything — they are consumed as TypeScript source, so there is nothing to emit. |
 | `pnpm dev:web`                       | The website dev server starts and serves the app on `127.0.0.1:5173`.          | That a real browser can reach Guerrilla Mail. No live browser run has been made.                   |
 | `pnpm spike:selftest`                | The M0 harness records outcomes correctly and writes its artifacts.            | Anything about real providers — it issues zero network requests.                                   |

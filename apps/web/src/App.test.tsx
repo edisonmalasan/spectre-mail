@@ -21,6 +21,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { NormalizedErrorCode } from "@spectre-mail/core";
 import type { Mailbox, SpectreError } from "@spectre-mail/core";
 import { createMailboxSession } from "@spectre-mail/mailbox";
+import type { MailboxScheduler } from "@spectre-mail/mailbox";
 import { createProviderManager } from "@spectre-mail/providers";
 import type { MailProvider } from "@spectre-mail/providers";
 
@@ -80,8 +81,36 @@ function refuses(error: SpectreError): Promise<Mailbox> {
   return Promise.reject(error);
 }
 
-function sessionOver(provider: MailProvider) {
-  return createMailboxSession(createProviderManager([provider]));
+/**
+ * A scheduler that records what it was asked for and runs nothing.
+ *
+ * **Used everywhere in this file on purpose.** A real timer would mean a page under
+ * test silently continued to poll after the assertion finished, and the only symptom
+ * would be a provider call arriving at some unrelated moment. Recording the delays
+ * also lets the visibility test assert what the page asked the session to do without
+ * waiting for it.
+ */
+function inertScheduler(): MailboxScheduler & { readonly scheduled: readonly number[] } {
+  const delays: number[] = [];
+
+  return {
+    // A copy on every read, so a test that captures it before an action and compares
+    // it after is not holding a live array the action appends to.
+    get scheduled(): readonly number[] {
+      return [...delays];
+    },
+    // The callback is deliberately not stored and never called. Kept as a named
+    // parameter rather than omitted so the signature still matches `schedule`'s.
+    schedule(afterMs, run) {
+      void run;
+      delays.push(afterMs);
+      return () => undefined;
+    },
+  };
+}
+
+function sessionOver(provider: MailProvider, scheduler: MailboxScheduler = inertScheduler()) {
+  return createMailboxSession(createProviderManager([provider]), scheduler);
 }
 
 /** Every character of visible text on the page. */
@@ -624,13 +653,21 @@ describe("the website", () => {
       expect(text).not.toMatch(/no mailbox feature/i);
       expect(text).not.toMatch(/it has no mailbox/i);
 
+      // **Slice 2 retired the "no inbox" claim, and this assertion is what notices.**
+      // It was the one line that failed when the inbox arrived, which is the property
+      // the whole test is for: a page that kept saying it has no inbox while showing
+      // one is contradicting itself, and a test that only asserted the *present*
+      // claims would have passed over it.
+      expect(text).not.toMatch(/no inbox/i);
+
       // Statements that are still true are kept.
       expect(text).toMatch(/no backend/i);
       expect(text).toMatch(/never (relays|proxies)/i);
 
       // And the limitations that are true are stated, including the ones that are
-      // unflattering.
-      expect(text).toMatch(/no inbox/i);
+      // unflattering. The unreadable-one is the slice-2 version of "no inbox": the page
+      // can list a mailbox but still cannot open a message.
+      expect(text).toMatch(/cannot open a message/i);
       expect(text).toMatch(/reload discards/i);
       expect(text).toContain("Guerrilla Mail and nothing else");
     });

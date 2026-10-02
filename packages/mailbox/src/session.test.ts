@@ -16,9 +16,11 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { createMailboxSession, isCreating, isFailed, isReady } from "./index";
+import type { SessionState } from "./index";
 import {
   FIXED_NOW,
   makeMailbox,
+  manualScheduler,
   recordingTransport,
   stubProvider,
   throttled,
@@ -80,7 +82,10 @@ describe("createMailboxSession", () => {
 
   describe("the state it reports", () => {
     it("starts as creating, and says so rather than inventing a mailbox", () => {
-      const session = createMailboxSession(createProviderManager([stubProvider("guerrilla")]));
+      const session = createMailboxSession(
+        createProviderManager([stubProvider("guerrilla")]),
+        manualScheduler(),
+      );
 
       expect(session.current()).toEqual({ kind: "creating" });
       expect(isCreating(session.current())).toBe(true);
@@ -89,7 +94,10 @@ describe("createMailboxSession", () => {
     });
 
     it("carries no field belonging to another variant", async () => {
-      const session = createMailboxSession(createProviderManager([stubProvider("guerrilla")]));
+      const session = createMailboxSession(
+        createProviderManager([stubProvider("guerrilla")]),
+        manualScheduler(),
+      );
 
       // A `ready` state must not also carry a `failure`, and a `failed` state must
       // not carry a `mailbox`. A union built as three loose shapes would pass every
@@ -99,7 +107,12 @@ describe("createMailboxSession", () => {
       expect(Object.keys(session.current())).toEqual(["kind"]);
 
       await ready;
-      expect(Object.keys(session.current()).sort()).toEqual(["kind", "mailbox"]);
+      // Three keys now, not two: `inbox` arrived with slice 2 and belongs to `ready`
+      // and only to `ready`, which is what the next assertion is for. Written as an
+      // exact set rather than a subset so that a `failure` key appearing here - the
+      // original defect this test exists for - cannot pass by being unmentioned.
+      expect(Object.keys(session.current()).sort()).toEqual(["inbox", "kind", "mailbox"]);
+      expect(Object.keys(session.current())).not.toContain("failure");
 
       // **The `failed` variant's key set was never checked.** This test asserted
       // two of the three variants and a *different* test elsewhere asserted
@@ -110,6 +123,7 @@ describe("createMailboxSession", () => {
       // `mailbox` key fails here whatever else is true about it.
       const failing = createMailboxSession(
         createProviderManager([stubProvider("guerrilla", { failWith: unreachable() })]),
+        manualScheduler(),
       );
       await failing.open();
 
@@ -119,7 +133,10 @@ describe("createMailboxSession", () => {
     });
 
     it("narrows each variant through its own helper", async () => {
-      const session = createMailboxSession(createProviderManager([stubProvider("guerrilla")]));
+      const session = createMailboxSession(
+        createProviderManager([stubProvider("guerrilla")]),
+        manualScheduler(),
+      );
 
       const state = await session.open();
 
@@ -133,7 +150,7 @@ describe("createMailboxSession", () => {
     it("reports the mailbox the manager returned, unchanged", async () => {
       const supplied = makeMailbox("guerrilla-1");
       const provider = stubProvider("guerrilla", { mailbox: supplied });
-      const session = createMailboxSession(createProviderManager([provider]));
+      const session = createMailboxSession(createProviderManager([provider]), manualScheduler());
 
       const state = await session.open();
 
@@ -148,6 +165,7 @@ describe("createMailboxSession", () => {
     it("reports a failure rather than a mailbox when creation fails", async () => {
       const session = createMailboxSession(
         createProviderManager([stubProvider("guerrilla", { failWith: unreachable() })]),
+        manualScheduler(),
       );
 
       const state = await session.open();
@@ -182,6 +200,7 @@ describe("createMailboxSession", () => {
     ])("reports %s as its own code, not a generic one", async (expected, failure) => {
       const session = createMailboxSession(
         createProviderManager([stubProvider("guerrilla", { failWith: failure })]),
+        manualScheduler(),
       );
 
       const state = await session.open();
@@ -196,6 +215,7 @@ describe("createMailboxSession", () => {
     it("keeps the provider's own description", async () => {
       const session = createMailboxSession(
         createProviderManager([stubProvider("guerrilla", { failWith: throttled() })]),
+        manualScheduler(),
       );
 
       const state = await session.open();
@@ -208,7 +228,7 @@ describe("createMailboxSession", () => {
   describe("replacing the mailbox", () => {
     it("returns a new state and leaves the previous one unchanged", async () => {
       const provider = stubProvider("guerrilla");
-      const session = createMailboxSession(createProviderManager([provider]));
+      const session = createMailboxSession(createProviderManager([provider]), manualScheduler());
 
       const first = await session.open();
       const second = await session.replace();
@@ -227,7 +247,7 @@ describe("createMailboxSession", () => {
 
     it("reaches the provider once per replacement", async () => {
       const provider = stubProvider("guerrilla");
-      const session = createMailboxSession(createProviderManager([provider]));
+      const session = createMailboxSession(createProviderManager([provider]), manualScheduler());
 
       await session.open();
       await session.replace();
@@ -243,6 +263,7 @@ describe("createMailboxSession", () => {
         createProviderManager([
           stubProvider("guerrilla", { health: { provider: "guerrilla", status: "unavailable" } }),
         ]),
+        manualScheduler(),
       );
 
       const health = await session.health();
@@ -257,6 +278,7 @@ describe("createMailboxSession", () => {
             health: { provider: "guerrilla", status: "throttled", rateLimit: "1; w=60" },
           }),
         ]),
+        manualScheduler(),
       );
 
       const health = await session.health();
@@ -274,6 +296,7 @@ describe("createMailboxSession", () => {
         createProviderManager([
           stubProvider("guerrilla", { health: { provider: "guerrilla", status } }),
         ]),
+        manualScheduler(),
       );
 
       expect((await session.health()).status).toBe(status);
@@ -290,7 +313,10 @@ describe("createMailboxSession", () => {
       const fallback = stubProvider("mailtm", {
         health: { provider: "mailtm", status: "unavailable" },
       });
-      const session = createMailboxSession(createProviderManager([primary, fallback]));
+      const session = createMailboxSession(
+        createProviderManager([primary, fallback]),
+        manualScheduler(),
+      );
 
       const health = await session.health();
 
@@ -305,7 +331,10 @@ describe("createMailboxSession", () => {
     it("asks the owning provider once a mailbox exists", async () => {
       const primary = stubProvider("guerrilla");
       const fallback = stubProvider("mailtm");
-      const session = createMailboxSession(createProviderManager([primary, fallback]));
+      const session = createMailboxSession(
+        createProviderManager([primary, fallback]),
+        manualScheduler(),
+      );
 
       await session.open();
       await session.health();
@@ -317,15 +346,22 @@ describe("createMailboxSession", () => {
 
   describe("which providers a client offers", () => {
     it("offers only what it was configured with", async () => {
-      const session = createMailboxSession(createProviderManager([stubProvider("guerrilla")]));
+      const session = createMailboxSession(
+        createProviderManager([stubProvider("guerrilla")]),
+        manualScheduler(),
+      );
 
       expect(session.providers.map((provider) => provider.id)).toEqual(["guerrilla"]);
     });
 
     it("keeps two clients' configurations apart", async () => {
-      const website = createMailboxSession(createProviderManager([stubProvider("guerrilla")]));
+      const website = createMailboxSession(
+        createProviderManager([stubProvider("guerrilla")]),
+        manualScheduler(),
+      );
       const extension = createMailboxSession(
         createProviderManager([stubProvider("mailtm"), stubProvider("guerrilla")]),
+        manualScheduler(),
       );
 
       await website.open();
@@ -339,7 +375,7 @@ describe("createMailboxSession", () => {
 
     it("never probes a provider it was not given", async () => {
       const configured = stubProvider("guerrilla");
-      const session = createMailboxSession(createProviderManager([configured]));
+      const session = createMailboxSession(createProviderManager([configured]), manualScheduler());
 
       await session.open();
 
@@ -353,7 +389,10 @@ describe("createMailboxSession", () => {
     it("routes a call to the provider the mailbox names", async () => {
       const primary = stubProvider("mailtm");
       const fallback = stubProvider("guerrilla");
-      const session = createMailboxSession(createProviderManager([primary, fallback]));
+      const session = createMailboxSession(
+        createProviderManager([primary, fallback]),
+        manualScheduler(),
+      );
 
       const state = await session.open();
       if (!isReady(state)) throw new Error("expected a ready state");
@@ -362,7 +401,10 @@ describe("createMailboxSession", () => {
     });
 
     it("refuses a mailbox from a provider it was not configured with", () => {
-      const session = createMailboxSession(createProviderManager([stubProvider("guerrilla")]));
+      const session = createMailboxSession(
+        createProviderManager([stubProvider("guerrilla")]),
+        manualScheduler(),
+      );
       const foreign: Mailbox = makeMailbox("mailtm-1", "mailtm");
 
       // The mismatch must be *reported*, not silently substituted. Serving a Mail.tm
@@ -376,7 +418,7 @@ describe("createMailboxSession", () => {
   describe("failures that stay specific", () => {
     it("never retries a throttled failure on its own", async () => {
       const provider = stubProvider("guerrilla", { failWith: throttled() });
-      const session = createMailboxSession(createProviderManager([provider]));
+      const session = createMailboxSession(createProviderManager([provider]), manualScheduler());
 
       await session.open();
       await session.open();
@@ -390,6 +432,7 @@ describe("createMailboxSession", () => {
     it("surfaces one provider's own failure rather than a wrapper", async () => {
       const session = createMailboxSession(
         createProviderManager([stubProvider("guerrilla", { failWith: throttled() })]),
+        manualScheduler(),
       );
 
       const state = await session.open();
@@ -413,6 +456,7 @@ describe("createMailboxSession", () => {
           stubProvider("mailtm", { failWith: throttled("mailtm") }),
           stubProvider("guerrilla", { failWith: unreachable("guerrilla") }),
         ]),
+        manualScheduler(),
       );
 
       const state = await session.open();
@@ -448,6 +492,7 @@ describe("createMailboxSession", () => {
           stubProvider("mailtm", { failWith: throttled("mailtm") }),
           stubProvider("guerrilla", { failWith: unreachable("guerrilla") }),
         ]),
+        manualScheduler(),
       );
 
       const state = await session.open();
@@ -476,6 +521,7 @@ describe("createMailboxSession", () => {
               Promise.reject(new Error("Rate limited; try again in 60 seconds.")),
           },
         ]),
+        manualScheduler(),
       );
 
       const state = await session.open();
@@ -504,7 +550,7 @@ describe("createMailboxSession", () => {
       expect(directRequests.length).toBeGreaterThan(0);
 
       recorder.reset();
-      const session = createMailboxSession(createProviderManager([adapter]));
+      const session = createMailboxSession(createProviderManager([adapter]), manualScheduler());
       await session.open();
       await session.health().catch(() => undefined);
 
@@ -515,6 +561,81 @@ describe("createMailboxSession", () => {
 
       // And the same requests, to the same origins, in the same order - so the
       // session is not reaching somewhere the adapter would not have.
+      expect(recorder.requests).toEqual(directRequests);
+    });
+
+    /**
+     * How a recorded request is answered, so the polling path can be driven.
+     *
+     * **These bodies name provider wire fields, and they are in a test file for that
+     * reason.** The first draft put them in `test-support.ts`, which the
+     * wire-format rule scans like any other shipped source - the rule exempts
+     * `.test.ts` because a test has to be able to name what it exercises, and
+     * `test-support.ts` is not one. It caught them, correctly.
+     *
+     * Recorded shapes, not invented ones: these are the fields
+     * `packages/providers` reads out of a Guerrilla `get_email_address` response and
+     * out of an empty fetch. The empty list is also *meaningful* - a bare `{ list: [] }`
+     * is what a measured Guerrilla answer means for a session it no longer
+     * recognises, so the adapter refuses it, and the test lets it.
+     */
+    function guerrillaAnswer(url: string): {
+      status: number;
+      headers: Record<string, string>;
+      body: string;
+    } {
+      return url.includes("f=get_email_address")
+        ? {
+            status: 200,
+            headers: {},
+            body: JSON.stringify({
+              email_addr: "recorder@mail.example",
+              sid_token: "token-recorded",
+            }),
+          }
+        : { status: 200, headers: {}, body: JSON.stringify({ list: [] }) };
+    }
+
+    it("adds no request of its own to what the provider makes while polling", async () => {
+      // **The polling path, which the test above did not reach.** It drove `open` and
+      // `health` only, so the entire loop added by slice 2 was invisible to the count -
+      // and the boundary scan that would otherwise have covered it was pointed at two
+      // other packages. Found by the independent verification pass: a `fetch` inside
+      // `createInboxTracker` turned no assertion red.
+      //
+      // The same shape as the test above, over the operations the loop performs, with
+      // the same positive control first - a recording transport that recorded nothing
+      // would make every assertion here pass.
+      const recorder = recordingTransport({ respond: guerrillaAnswer });
+      const adapter = createGuerrillaAdapter({
+        transport: recorder.transport,
+        now: () => FIXED_NOW,
+      });
+      const scheduler = manualScheduler();
+
+      // The same three operations straight through the adapter: create, list, list.
+      // A recorded response that creates a real mailbox, because **a session that never
+      // opened has nothing to poll** - its `checkInbox` would legitimately make no
+      // request and the assertion below would pass for the wrong reason.
+      const mailbox = await adapter.createMailbox();
+      // Each list is refused by the adapter — a bare `{ list: [] }` is what a measured
+      // Guerrilla answer means for a session it no longer recognises, and refusing it
+      // is that adapter's job. **The request is what this test counts**, and it was
+      // made either way; letting the rejection escape would only stop the test before
+      // it compared anything.
+      await adapter.listMessages(mailbox).catch(() => undefined);
+      await adapter.listMessages(mailbox).catch(() => undefined);
+      const directRequests = recorder.requests;
+      expect(directRequests).toHaveLength(3);
+
+      recorder.reset();
+      const session = createMailboxSession(createProviderManager([adapter]), scheduler);
+      await session.open();
+      await session.checkInbox();
+      // And one turn of the loop, so the *scheduled* path is covered as well as the
+      // caller-driven one. `manualScheduler`-style driving: the test decides when.
+      await scheduler.run();
+
       expect(recorder.requests).toEqual(directRequests);
     });
 
@@ -534,23 +655,38 @@ describe("createMailboxSession", () => {
       // its arity. A defaulted parameter is still a parameter, and a source check
       // sees it. The arity assertion is kept alongside as a cheap second signal,
       // not as the guarantee it used to be described as.
+      //
+      // **Now two parameters, and the second one is guarded the same way.** Polling
+      // arrived in slice 2 and a scheduler is a genuine second parameter - but it is
+      // the same class of hazard, so the rule widens rather than the check relaxing:
+      // a `Transport` is refused in *either* position, and the scheduler may not be
+      // defaulted either. A default would reach for the global `setTimeout`, which
+      // `@types/node` declares in exactly the way this package's missing `DOM` lib
+      // fails to stop, so a default would be a path that only ever runs in a browser.
       const source = readFileSync(new URL("./session.ts", import.meta.url), "utf8");
       const declaration = source.match(/export function createMailboxSession\(([^)]*)\)/);
       expect(declaration).not.toBeNull();
 
-      // One parameter, and it is the manager. A `Transport` in this parameter list
-      // is the exact shape of the defect this guards.
+      // The manager, then the scheduler, and nothing else. A `Transport` anywhere in
+      // this parameter list is the exact shape of the defect this guards.
       const parameters = (declaration?.[1] ?? "")
         .split(",")
         .map((parameter) => parameter.trim())
         .filter((parameter) => parameter.length > 0);
-      expect(parameters).toHaveLength(1);
+      expect(parameters).toHaveLength(2);
       expect(parameters[0]).toContain("manager");
-      expect(parameters[0]).not.toMatch(/transport/i);
+      expect(parameters[1]).toContain("scheduler");
+      expect(declaration?.[1] ?? "").not.toMatch(/transport/i);
 
-      // And the declaration really is one-parameter, so the check above is not
+      // Neither may be defaulted. `Function.length` would not notice, and the
+      // signature check would not either unless it said so out loud.
+      for (const parameter of parameters) {
+        expect(parameter).not.toMatch(/=/);
+      }
+
+      // And the declaration really is two-parameter, so the check above is not
       // reading a comment or a second overload.
-      expect(createMailboxSession).toHaveLength(1);
+      expect(createMailboxSession).toHaveLength(2);
     });
   });
 
@@ -568,7 +704,7 @@ describe("createMailboxSession", () => {
         },
       };
 
-      const state = await createMailboxSession(empty).open();
+      const state = await createMailboxSession(empty, manualScheduler()).open();
 
       expect(isFailed(state)).toBe(true);
       if (!isFailed(state)) throw new Error("expected a failed state");
@@ -588,7 +724,132 @@ describe("createMailboxSession", () => {
       // synchronously. Asserting with `expect(fn).toThrow` here would pass on a
       // promise that never settled, which is why the earlier version of this
       // assertion was written that way and failed for the wrong reason.
-      await expect(createMailboxSession(empty).health()).rejects.toThrow(/no provider configured/i);
+      await expect(createMailboxSession(empty, manualScheduler()).health()).rejects.toThrow(
+        /no provider configured/i,
+      );
+    });
+  });
+
+  /**
+   * `subscribe` arrived with polling and is what makes a moving session renderable.
+   *
+   * **These four tests did not exist when the method was written.** The website's
+   * binding was the only caller, so the contract was exercised only through a
+   * component that happened to need it - which would not have caught a defect that
+   * only some callers hit. The third is the sharpest of them and is written for the
+   * exact reason it is here.
+   */
+  describe("being told what changed", () => {
+    /** A session over a stub, plus every state a listener was handed. */
+    function observed() {
+      const scheduler = manualScheduler();
+      const session = createMailboxSession(
+        createProviderManager([stubProvider("guerrilla")]),
+        scheduler,
+      );
+      const seen: SessionState[] = [];
+      const stop = session.subscribe((next) => seen.push(next));
+      return { session, scheduler, seen, stop };
+    }
+
+    it("tells a new subscriber what the session holds right now", () => {
+      const { seen } = observed();
+
+      // Without this, a subscriber that arrived after the state had already moved would
+      // render one transition behind for as long as it lived.
+      expect(seen).toEqual([{ kind: "creating" }]);
+    });
+
+    it("tells a subscriber about the move into checking, before the provider answers", async () => {
+      const { session, seen } = observed();
+      await session.open();
+
+      seen.length = 0;
+      const pending = session.checkInbox();
+      // Read **synchronously**, before awaiting: the whole point of the transition is
+      // that it happens while the request is still in flight, so a test that awaited
+      // first would never see it.
+      expect(seen.map((state) => (isReady(state) ? state.inbox.kind : state.kind))).toEqual([
+        "checking",
+      ]);
+
+      await pending;
+    });
+
+    it("keeps telling the other listeners when one unsubscribes itself", async () => {
+      // React unsubscribes on every effect cleanup, from inside the notification, and
+      // Set iteration is defined to tolerate removing the entry currently being
+      // visited — so this assertion is **not** what the copy-on-iterate is for. It is
+      // kept because a subscriber that vanishes mid-notification is the shape of the
+      // hazard, and a future edit that swapped the copy for something else should have
+      // to think about this test rather than discover it in production.
+      const scheduler = manualScheduler();
+      const session = createMailboxSession(
+        createProviderManager([stubProvider("guerrilla")]),
+        scheduler,
+      );
+
+      const second: string[] = [];
+      let stopFirst = (): void => undefined;
+      const first = session.subscribe(() => {
+        stopFirst();
+      });
+      session.subscribe((next) => second.push(next.kind));
+      stopFirst = first;
+
+      await session.open();
+
+      expect(second.length).toBeGreaterThan(0);
+    });
+
+    it("does not call a listener that subscribed during the notification it is in", async () => {
+      // **This is what the copy is actually for.** Iterating the live `Set` means an
+      // entry added during the loop is visited by that same loop — so a listener that
+      // subscribes another is called twice for one notification: once re-entrantly
+      // from inside the loop, and once from `subscribe`'s own delivery of the current
+      // state.
+      //
+      // This is reachable from React, where a `setState` in one subscriber can mount a
+      // component whose effect subscribes. Whether React flushes that synchronously
+      // depends on the version and the update's priority; that it *can* is enough, and
+      // a `Set` iterator's treatment of entries added mid-loop is not something to
+      // leave to chance.
+      //
+      // **The subscription happens on the second notification, not the first.** The
+      // first version of this test subscribed from inside `subscribe`'s own immediate
+      // delivery — which is not inside any `setState` loop — so no loop was running and
+      // the mutation it was written for did nothing at all. The counter is what puts
+      // the subscription inside a notification.
+      const scheduler = manualScheduler();
+      const session = createMailboxSession(
+        createProviderManager([stubProvider("guerrilla")]),
+        scheduler,
+      );
+
+      const late: string[] = [];
+      let notifications = 0;
+      session.subscribe(() => {
+        notifications += 1;
+        if (notifications !== 2) return;
+        session.subscribe((next) => late.push(next.kind));
+      });
+
+      await session.open();
+
+      // Exactly two: the delivery `subscribe` makes on the way in, and the transition
+      // to `ready` that follows it. The `creating` transition itself is *not* among
+      // them, because the subscription happened during it — which is the whole point.
+      expect(late).toEqual(["creating", "ready"]);
+    });
+
+    it("stops telling a listener once it has unsubscribed", async () => {
+      const { session, seen, stop } = observed();
+
+      stop();
+      seen.length = 0;
+      await session.open();
+
+      expect(seen).toEqual([]);
     });
   });
 });

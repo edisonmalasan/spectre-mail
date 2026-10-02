@@ -97,13 +97,18 @@ Pin versions when exact versions matter.
 
 - Runtime(s): Node.js `v26.10.0` (verified).
 
-- Frontend / client: `apps/web` creates a mailbox and renders its address, reached
-  through the shared session layer and **one** provider — Guerrilla Mail, for the
-  measured CORS reason in `apps/web/src/provider-config.ts`. It has **no inbox, no
-  styling, and no persistence**: a reload discards the mailbox, because storage is
-  M6. Styling is absent by decision, not by omission; M7 owns it under the approved
-  Spectral Swiss Utility direction, and markup written now would be markup M7
-  rewrites. `apps/extension` remains an empty placeholder. Visual design work starts
+- Frontend / client: `apps/web` creates a mailbox, renders its address, and lists that
+  mailbox's messages while polling for new ones, reached through the shared session
+  layer and **one** provider — Guerrilla Mail, for the measured CORS reason in
+  `apps/web/src/provider-config.ts`. It has **no message view, no styling, and no
+  persistence**: a reload discards the mailbox, because storage is M6, and opening a
+  message is M5 slice 3. Styling is absent by decision, not by omission; M7 owns it
+  under the approved Spectral Swiss Utility direction, and markup written now would be
+  markup M7 rewrites. The page deliberately displays **no polling interval** — the
+  cadence is the product's own choice and no provider limit was measured for this
+  provider, so a figure on screen would be an invention presented as a measurement;
+  a provider's own verbatim limit statement *is* shown, attributed, with its scope
+  disclaimed. `apps/extension` remains an empty placeholder. Visual design work starts
   at M7.
 
 - Shared domain model: `packages/core` has real content since M2. It defines the
@@ -165,12 +170,24 @@ Pin versions when exact versions matter.
   enforces; a separate boundary rule forbids the second and states that it is the
   only thing doing so. The architecture scan for framework imports is likewise a
   supplementary backstop which states its own limits.
-  **34 tests**, all driven by stub providers or the real Guerrilla adapter over a
+  **94 tests**, all driven by stub providers or the real Guerrilla adapter over a
   recording transport — no test contacts a provider, and no test needs a browser.
   It is consumed by the website now and by the extension at M8; placing it outside
   `apps/web` is what keeps that from becoming a rewrite.
-  It holds **no persistence and no polling** — storage is M6 and polling is the next
-  slice — and it never invents a mailbox lifetime.
+  **M5 slice 2 gave it polling**, and the numbers in that cadence are the **product's
+  own and are defended as such**: 5s while a mailbox's contents are changing, doubling
+  per unchanged check, capped at 30s, declared in `cadence.ts` as exported constants
+  with the reasoning attached. No provider limit was measured for the only provider a
+  browser can reach — `docs/PROVIDERS.md` records Mail.tm's `30; w=60` **measured
+  unauthenticated only** and Mail.tm is unreachable from a web page at all, while
+  Guerrilla publishes nothing. So a limit a provider *does* declare is honoured as a
+  **floor** rather than parsed into a schedule, a throttled listing **stops the loop**
+  rather than retrying quietly, and the client must not call `destroy()` on unmount
+  because React StrictMode would then never poll again.
+  It holds **no persistence** — storage is M6 — and it never invents a mailbox
+  lifetime. **The cadence has never been exercised against a live provider**, and the
+  website has **never been run in a real browser**; every assertion about either is
+  about this repository's own logic.
 
 - Backend / server: none. Intentionally `$0` paid backend infrastructure; see
   `docs/PROVIDERS.md` for why a SpectreMail-operated proxy is not a permitted
@@ -198,11 +215,11 @@ Pin versions when exact versions matter.
   `pnpm typecheck`, which is a separate gate. There is still no extension build
   step — that is M8.
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running **382 tests across
-  21 files** via `pnpm test` (2026-10-02, re-verified after the M5 slice 1
-  verification repairs): 54 in `packages/core`, 89 in `packages/providers`, **149 in
-  `packages/mail-parser`**, **34 in `packages/mailbox`**, **33 in `apps/web`** (30
-  rendering, 3 provider configuration), and **23 architecture boundary assertions**.
+- Testing: Vitest `3.2.7` at the workspace root, verified running **474 tests across
+  24 files** via `pnpm test` (2026-10-03, after the M5 slice 2 verification repairs):
+  54 in `packages/core`, 89 in `packages/providers`, **149 in `packages/mail-parser`**,
+  **94 in `packages/mailbox`**, **57 in `apps/web`** (54 rendering, 3 provider
+  configuration), and **31 architecture boundary assertions**.
   `passWithNoTests` is **off** by design - a
   green run that inspects nothing is worse than no run. The `include` globs name
   `tests/architecture/**/*.test.ts`, `packages/*/src/**/*.test.ts`,
@@ -530,13 +547,18 @@ returned HTTP 200 serving the application, and `/src/main.tsx` was confirmed to
 return Vite-transformed JSX, so the server really serves the app rather than a
 static shell.
 
-The website creates a mailbox and renders its address. It has **no inbox, no
-styling, and no persistence** — a reload discards the mailbox, because storage is M6.
-Those are the slice's stated limits, not an unfinished screen. The page's provider
-configuration is reachable and testable without a network
+The website creates a mailbox, renders its address, and lists that mailbox's messages
+while polling for new ones. It has **no message view, no styling, and no
+persistence** — a reload discards the mailbox, because storage is M6, and opening a
+message is slice 3. Those are the slices' stated limits, not an unfinished screen. The
+page's provider configuration is reachable and testable without a network
 (`apps/web/src/provider-config.test.ts`), but **nothing has been verified against the
 live Guerrilla Mail API from a browser**, so no claim is made about what a real page
-does on a real network.
+does on a real network — and in particular **no claim is made about how a real
+provider responds to being polled every five seconds**, because that has never been
+run. The polling loop is asserted by reading the delay the scheduler was asked for,
+which proves the cadence this repository computes and nothing about a provider's
+tolerance.
 There is still no extension build step; `pnpm dev:extension` does not exist and
 must not be documented until M8 creates it.
 
@@ -867,14 +889,14 @@ These are the six commands the roadmap's M1 acceptance criteria name, plus
 sequence. All exited `0`.
 
 Observed results, re-verified after the M4 verification repair, again after the
-M5 slice 1 apply stage, and again after its independent verification repairs, all on
-2026-10-02:
+M5 slice 1 apply stage, again after its independent verification repairs (all on
+2026-10-02), and again after the M5 slice 2 verification repairs on 2026-10-03:
 
 ```text
 pnpm typecheck     8 of 8 workspace projects run tsc --noEmit
 pnpm lint          exit 0
 pnpm format:check  All matched files use Prettier code style
-pnpm test          21 files, 382 tests passed
+pnpm test          24 files, 474 tests passed
 pnpm build         vite 7.3.6, dist emitted
 pnpm verify        exit 0
 ```
@@ -890,12 +912,23 @@ responses, so the suite proves this repository's mapping of a provider's wire fo
 and nothing about the provider's current behaviour. A provider renaming a field
 would leave this suite green. Fixture refresh against `docs/PROVIDERS.md` is a
 deliberate diff, not something CI does. The same limit now applies to the client:
-`apps/web`'s 33 tests render against a **stub provider** or a recording transport,
+`apps/web`'s 57 tests render against a **stub provider** or a recording transport,
 so they prove the page composes the abstraction correctly and say **nothing** about
 whether a real browser reaches Guerrilla Mail successfully. No live browser run has
-been made, and none is claimed.
+been made, and none is claimed. **Nor has the polling cadence ever run against a
+live provider**: `packages/mailbox`'s cadence assertions read the delay the scheduler
+was asked for, and nothing in this repository has observed what a real provider does
+when a real page polls it every five seconds.
 
-Three specific limitations worth not misreading:
+**`pnpm test` and `pnpm typecheck` catch different defects, and this repository has
+now been bitten by that in both directions.** Vitest does not typecheck, so a
+`SpectreError` fixture missing a required `cause` left the suite green at 469/469
+while `pnpm typecheck` exited 1 — and tasks were ticked in the meantime. Conversely,
+`tsc` cannot see a vacuous assertion, a rule narrower than its documented rule, or a
+comment describing behaviour that is not there. **Neither gate is a substitute for
+the other, and "the tests pass" is not a claim about the types.**
+
+Four specific limitations worth not misreading:
 
 - **`pnpm build` builds the website only.** Shared packages are consumed as
   TypeScript source, so there is nothing to emit for them. Package correctness is

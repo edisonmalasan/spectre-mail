@@ -22,19 +22,39 @@
  *
  * - **No framework, no DOM, no storage, no network.** The package's `tsconfig`
  *   sets `lib: ["ES2023"]` with no `DOM`, so a browser global fails to compile —
- *   the compiler enforces the boundary, not only the source scan in
+ *   the compiler enforces that half of the boundary, not only the source scan in
  *   `tests/architecture/boundaries.test.ts`. It reads no storage, no cookie, and
  *   nothing from the URL.
+ * - **No clock of its own.** `MailboxScheduler` is injected and is the only thing
+ *   about time this package knows. It does **not** stop a timer global the same way
+ *   the missing `DOM` lib stops a DOM one: `@types/node` declares `setTimeout`,
+ *   `Date`, and `performance` in exactly the way it declares `navigator`, which
+ *   slice 1's verification pass measured compiling here. A rule in the boundary
+ *   scan holds that half, and the rules file says so.
  * - **No state between calls.** Every operation returns a new immutable
  *   `SessionState`; nothing is mutated in place.
- * - **No parsing.** Turning a message into readable text and detections is
- *   `@spectre-mail/mail-parser`'s job, and it stays there.
- * - **No polling.** There is no push transport to subscribe to — five SSE paths
- *   and two WebSocket paths were probed and none connected — so the cadence
- *   belongs to the client, which is the only layer that knows whether a tab is
- *   visible.
  * - **No provider selection of its own.** Which providers exist is the client's
  *   decision, because reachability is a property of the host environment.
+ *
+ * ## Polling, since slice 2
+ *
+ * The package polls, because there is no push transport to subscribe to — five SSE
+ * paths and two WebSocket paths were probed and none connected. Two consequences
+ * are worth knowing before changing anything here:
+ *
+ * - **The cadence is the product's own number.** `docs/PROVIDERS.md` records
+ *   Mail.tm's `30; w=60` *measured unauthenticated only*, and Mail.tm is
+ *   unreachable from a web page in any case; Guerrilla Mail, the only provider a
+ *   browser page can reach, publishes no limit and none was measured. So the
+ *   intervals in `cadence.ts` are ours, and a provider's own statement is treated
+ *   as a floor the cadence never schedules beneath.
+ * - **A throttled listing stops the loop** rather than backing off. Retrying
+ *   invisibly is the silent retry `provider-abstraction` forbids, so the caller is
+ *   given the failure and decides.
+ *
+ * The parser is reached in exactly one direction — this package calls
+ * `@spectre-mail/mail-parser`, and no client calls the parser directly — and the
+ * boundary scan asserts that direction rather than trusting it.
  *
  * The package is consumed **as TypeScript source** (see its `exports`), so it has
  * no build step. Its correctness is established by `pnpm typecheck` and
@@ -44,10 +64,28 @@
  * @module
  */
 
+export { INBOX_POLL_CEILING_MS, INBOX_POLL_PROMPT_MS, nextDelay } from "./cadence";
+export type { Cancel, MailboxScheduler } from "./clock";
 export { createMailboxSession } from "./session";
 export type { MailboxSession } from "./session";
 
-export { isCreating, isFailed, isReady } from "./state";
-export type { ProviderFailure, SessionFailure, SessionState } from "./state";
+export {
+  isCreating,
+  isFailed,
+  isInboxCheckFailed,
+  isInboxChecked,
+  isInboxChecking,
+  isInboxNotStarted,
+  isReady,
+  verdictFor,
+} from "./state";
+export type {
+  InboxListing,
+  InboxState,
+  MessageVerdict,
+  ProviderFailure,
+  SessionFailure,
+  SessionState,
+} from "./state";
 
 export type { ProviderHealth } from "./state";
