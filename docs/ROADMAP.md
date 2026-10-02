@@ -23,12 +23,11 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor:** M1 - Monorepo Foundation (**complete and archived**). Propose
-merged as PR #7, apply as PR #8 (`5ad51d7`), verification repairs as PR #9
-(`41da7b2`), sync as PR #10 (`f69ab38`), archive as PR #11. The change is
-archived at `openspec/changes/archive/2026-10-02-monorepo-foundation/` and there
-are **no active changes**. The cursor advances to **M2 - Shared Domain Model**,
-which is the next eligible objective.
+**Roadmap cursor:** M2 - Shared Domain Model (**implementing**). M1 completed its
+full lifecycle: propose PR #7, apply PR #8 (`5ad51d7`), verification repairs PR #9
+(`41da7b2`), sync PR #10 (`f69ab38`), archive PR #11. M1 is archived at
+`openspec/changes/archive/2026-10-02-monorepo-foundation/`. M2's change is
+`shared-domain-model`, proposed and merged as PR #12; apply is in progress.
 
 **Verification found a gate that was failing and being recorded as passing.** On
 Windows - the environment `AGENTS.md` declares supported - `pnpm format:check`
@@ -84,7 +83,48 @@ and M0's `m0-provider-spike` is archived at
 | M0 Provider Compatibility Spike | **archived** | Real external delivery observed on **both** providers. Provider roles decided. Long-run expiry still unverified (no provider exposes a TTL in its API). Gate satisfied. |
 | Provider-role specification | **archived** | Documentation and specification only. No product code. `provider-abstraction` is a live capability spec: 9 requirements, 18 scenarios. |
 | M1 Monorepo Foundation | **archived** | Change `monorepo-foundation` archived as `2026-10-02-monorepo-foundation` (PRs #7-#11). Structure and tooling only: no product behaviour, no extension build, no visual design. A verification pass found a failing format gate that was being recorded as passing; repaired and proven from a clean clone. Three live capability specs. |
-| M2 Shared Domain Model | **next** | First milestone to add product code. Adds `tests/` to the **vitest** include glob deliberately - never to the **workspace** globs. |
+| M2 Shared Domain Model | **implementing** | First milestone to add product code. Adds a **Vitest** include entry for package tests, deliberately not a **workspace** glob change - that separation is what keeps the M0 spike structurally unimportable, and it was re-proven after the change. 48 unit tests in `packages/core`; 7 boundary assertions still pass. |
+
+**M2 design decisions, recorded so M3 builds against them rather than re-deciding:**
+
+1. `Mailbox` stays **monomorphic**. The roadmap's shape carries both `provider`
+   and `credentials` with nothing correlating them, and M3's contract reads
+   credentials off the mailbox. Agreement is enforced at a single construction entry
+   point that derives `provider` from the credential discriminant. Making
+   `Mailbox` generic was rejected: it would force a type parameter through M3's
+   provider contract, storage, and every React prop to buy a correlation available
+   once at construction.
+2. Credentials are **discriminated and normalised**: `accountId`/`accessToken`
+   and `sessionId`, never a provider's own field name.
+3. `expiresAt` is retained but **observed-only**. No provider reports a mailbox
+   lifetime in any API response, so absence is the normal case and the field must
+   never be computed.
+4. `confidence` stays a plain `number` with a specified `0..1` range, validated
+   where a detection enters the model. Branding it now would buy nothing observable
+   while nothing produces these values.
+5. Required message fields **may be empty strings**; absence stays distinguishable
+   from emptiness.
+
+**M2 falsification found two checks that were green while not doing their job.**
+
+1. The provider-wire-format scan was scoped to `apps/` only, so `packages/core` - the
+   package whose entire purpose is to be free of it - was uncovered. Scope widened to
+   every workspace package except `packages/providers` and `*.test.ts`. The widened
+   scan immediately caught one real violation, a comment in `packages/mail-parser`
+   quoting a provider field name; the comment was reworded rather than the rule
+   narrowed.
+2. `MailboxProviderAgreement` rejected a mismatched literal as designed - and also
+   rejected every well-formed mailbox, resolving to `never`. The cause is structural:
+   a non-generic `Mailbox` stores credentials as the whole union, and a union never
+   `extends` a single provider literal. The first falsification run looked green
+   because the bad literal *was* rejected, for the wrong reason. Replaced by a generic
+   `AssertProviderAgreement<T>` with distribution suppressed, and the negative proof was
+   re-run with a **positive control** added - four negative cases cannot distinguish a
+   strict assertion from a useless one.
+
+That is now three times this repository has produced a check narrower or broader than
+the rule it documented. The habit it produces is the point: prove each assertion can
+fail, and prove the correct case still passes.
 | M3-M15 | not started | - |
 
 **OpenSpec lifecycle stage:** M0, the provider-role change, and M1's foundation
@@ -93,7 +133,7 @@ active changes remain.** Task 8.11 - the independent vacuity check - was the ste
 that surfaced the defect above, and is ticked because the check was performed and
 it found something.
 
-**Next required change:** **M2 - Shared Domain Model.**
+**Next required change:** finish `shared-domain-model` (verify, sync, archive), then M3 - Provider Layer.
 
 **M1 as built, for the next milestone's benefit:**
 

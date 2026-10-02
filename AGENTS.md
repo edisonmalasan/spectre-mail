@@ -118,9 +118,17 @@ Pin versions when exact versions matter.
 
 - Frontend / client: `apps/web` exists as a working Vite + React site that renders a
   plain status page. It has **no mailbox feature, no provider call, and no styling** —
-  that is the correct M1 state, not an unfinished screen. `apps/extension` is an empty
-  placeholder. Visual design work starts at M7 under the approved Spectral Swiss
+  that is still the correct state, not an unfinished screen. `apps/extension` remains an
+  empty placeholder. Visual design work starts at M7 under the approved Spectral Swiss
   Utility direction.
+
+- Shared domain model: `packages/core` has real content since M2. It defines the
+  normalized `Mailbox`, `MessageSummary`, `Message`, `VerificationCode`,
+  `VerificationLink`, and discriminated `ProviderCredentials` types, plus the
+  closed set of normalized error codes. It contains **no provider wire format and no
+  runtime behaviour**: no adapter, no `MailProvider` contract, no mailbox lifecycle,
+  no expiry evaluation, and no HTTP. It is consumed as TypeScript source and has no
+  dependencies.
 
 - Backend / server: none. Intentionally `$0` paid backend infrastructure; see
   `docs/PROVIDERS.md` for why a SpectreMail-operated proxy is not a permitted
@@ -773,10 +781,11 @@ These commands establish that the workspace is internally consistent: every
 package and app type checks under the shared strict config, lints, is formatted,
 passes the architecture boundary assertions, and that the website builds.
 
-They do **not** establish any product behaviour. There is no domain model, no
-provider adapter, no storage, and no mailbox feature yet, so no test here can
-assert any. Seven boundary assertions are not coverage of a product that does not
-exist.
+They do **not** establish any product behaviour. As of M2 there is a domain model
+but still no provider adapter, no storage, and no mailbox feature, so no test can
+assert product behaviour. The 48 unit tests in `packages/core` assert type and
+construction invariants, not user-visible outcomes. Boundary assertions are not
+coverage of a product that does not exist.
 
 Three specific limitations worth not misreading:
 

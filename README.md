@@ -14,23 +14,30 @@ on. See [Current status](#current-status).
 
 ## Current status
 
-| Milestone                         | State                                         |
-| --------------------------------- | --------------------------------------------- |
-| M0 — Provider compatibility spike | complete (gate satisfied — see below)         |
-| M1 — Monorepo foundation          | implementation complete, verification pending |
-| M2–M15                            | not started                                   |
+| Milestone                         | State                                 |
+| --------------------------------- | ------------------------------------- |
+| M0 — Provider compatibility spike | complete (gate satisfied — see below) |
+| M1 — Monorepo foundation          | complete and archived                 |
+| M2 — Shared domain model          | implementing                          |
+| M3—M15                            | not started                           |
 
-| Capability spec          | State |
-| ------------------------ | ----- |
-| `provider-abstraction`   | live  |
-| `monorepo-foundation`    | live  |
-| `build-and-verification` | live  |
+| Capability spec          | State                               |
+| ------------------------ | ----------------------------------- |
+| `provider-abstraction`   | live                                |
+| `monorepo-foundation`    | live                                |
+| `build-and-verification` | live                                |
+| `shared-domain-model`    | pending sync (in the active change) |
 
-The last two were promoted from the `monorepo-foundation` change at its sync stage.
+The first three were promoted from the `monorepo-foundation` change at its sync stage. `shared-domain-model` is specified in the active change and is promoted at its own sync.
 
 The website currently renders a plain status page. It has **no mailbox feature**,
-no provider call, and no styling. That is the correct state for M1 and it is not a
+no provider call, and no styling. That is still the correct state and it is not a
 placeholder pretending to be software.
+
+`packages/core` now holds SpectreMail's **normalized domain model** — mailbox, message,
+credentials, verification code, verification link, and a closed set of normalized
+error codes. It is real, tested code, and it deliberately contains **no provider wire
+format and no runtime behaviour**: there is still no provider adapter, no `MailProvider` contract, and nothing that talks to a network.
 
 ### The one thing you should know
 
