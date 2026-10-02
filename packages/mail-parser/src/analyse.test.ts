@@ -41,6 +41,25 @@ describe("the composed result equals the steps applied in sequence", () => {
     expect(result.codes.map((code) => code.value)).toEqual(["8421"]);
   });
 
+  it("finds a code hidden behind HTML entities as a detection, not just as text", () => {
+    // The spec scenario has two clauses: the readable text SHALL contain the decoded
+    // characters, **and** a detection spanning those characters SHALL be found. Only
+    // the first was asserted. `extract.test.ts` proved the decoder runs, which is not
+    // the same claim — a parser could decode perfectly and then match digits against
+    // the still-encoded source, and every existing test would stay green.
+    //
+    // Each digit is a separate reference here, so a decoder that handled only
+    // `&#NN;` and not `&#xNN;`, or decoded all of them into one block, would fail this
+    // rather than pass it by accident. "Your code is" names no verification keyword by
+    // design, so 0.6 is the sole-candidate boost on its own — there is no wording
+    // contribution masking whether the digits were found.
+    const body = "<p>Your code is &#x31;&#x34;&#x39;&#x32;&#x30;</p>";
+    const result = analyseMessage(body);
+
+    expect(result.readable).toBe("Your code is 14920");
+    expect(result.codes).toEqual([{ value: "14920", confidence: 0.6 }]);
+  });
+
   it("finds both a code and a link in one message", () => {
     const result = analyseMessage(
       "<p>Your verification code is 483920</p>" +
