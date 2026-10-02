@@ -24,7 +24,16 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor:** M5 - Storage Contracts (not yet proposed).
+**Roadmap cursor:** M5 - Website Core MVP (not yet proposed).
+*Corrected 2026-10-02:* an earlier revision of this line named the next milestone
+"Storage Contracts". That was wrong, and it is worth recording why, because it is the
+same failure this repository keeps meeting in a different costume — **naming a
+milestone from the layer it felt should come next rather than from the roadmap.**
+IndexedDB storage is **M6** ("Website Hardening"), and M5 is the first user-facing
+experience: auto-created mailbox, address shown, copy, receive, open, read the OTP.
+Storage arrives a milestone later because M5's mailbox history is in-memory, which is
+a real limitation and is stated in the M5 acceptance criteria rather than designed
+around here.
 **M4 completed its
 full lifecycle**: propose PR #22 (`ef56f33`), apply PR #23 (`7742545`), verification
 repairs PR #24 (`8260cef`), sync PR #25 (`6c9c1e2`), archive PR #26, archived at
@@ -311,7 +320,8 @@ be written before the pass, not after.
 
 | M3 | complete (archived) | `provider-layer` |
 | M4 | **complete (archived)** | `mail-parsing-engine` |
-| M5-M15 | not started | - |
+| M5 | next (not proposed) | - |
+| M6-M15 | not started | - |
 
 **OpenSpec lifecycle stage:** M0, the provider-role change, M1's foundation change,
 M2's `shared-domain-model`, M3's `provider-layer`, and **M4's `mail-parsing-engine`
@@ -360,7 +370,9 @@ from producing.
   conformance suite with **no per-provider exemption** - an exemption is the
   mechanism by which a conformance suite quietly stops meaning anything.
 - The remaining placeholder packages contain no behaviour and no stub exports:
-  storage (M5/M6) and UI (M7+). Exactly as the roadmap schedules them.
+  storage (M6) and UI (M7+). Exactly as the roadmap schedules them. **M5 is Website
+  Core MVP and contains no storage package** — it is the first user-facing milestone
+  and its mailbox history is in-memory by design of the milestone ordering.
 - The architecture boundaries are enforced by `tests/architecture/boundaries.test.ts`,
   not merely documented. Each assertion was proven able to fail. **Any new code
   must keep it passing** - in particular, no provider JSON field name may appear

@@ -49,9 +49,13 @@ The current state, in dependency order:
   into readable text plus ranked one-time-code and verification-link detections, with
   **no network, no clock, and no AI**.
 
-The target state is two clients (website, extension) over that shared core, with
-storage behind a `SpectreStorage` contract (M5–M6), the extension build in M8, and the
-product's user-facing work in M10 onward.
+The target state is two clients (website, extension) over that shared core. The
+roadmap's next milestone is **M5, Website Core MVP** — the first user-facing experience.
+Storage behind a shared `SpectreStorage` contract is **M6**, the extension build is M8,
+and the verification workflow (notifications, OTP copy/fill) is M10. Those numbers come
+from `docs/ROADMAP.md` and must be read from there, not recalled: an earlier draft of
+this file put storage at "M5–M6", which named a milestone from the layer it felt should
+come next rather than the one the roadmap schedules.
 
 
 
@@ -145,8 +149,10 @@ Pin versions when exact versions matter.
   workaround for Mail.tm.
 
 - Database / storage: none yet. Roadmap target is IndexedDB in the web client and
-  extension storage in the extension, behind a shared `SpectreStorage` contract
-  (milestones M5–M6).
+  extension storage in the extension, behind a shared `SpectreStorage` contract —
+  milestone **M6**, not M5. M5's mailbox history is in-memory, which is a real
+  limitation the M5 acceptance criteria state rather than one this file designs
+  around.
 
 - ORM / data access: none yet.
 
