@@ -21,14 +21,14 @@ on. See [Current status](#current-status).
 | M2 — Shared domain model          | implementing                          |
 | M3—M15                            | not started                           |
 
-| Capability spec          | State                               |
-| ------------------------ | ----------------------------------- |
-| `provider-abstraction`   | live                                |
-| `monorepo-foundation`    | live                                |
-| `build-and-verification` | live                                |
-| `shared-domain-model`    | pending sync (in the active change) |
+| Capability spec          | State |
+| ------------------------ | ----- |
+| `provider-abstraction`   | live  |
+| `monorepo-foundation`    | live  |
+| `build-and-verification` | live  |
+| `shared-domain-model`    | live  |
 
-The first three were promoted from the `monorepo-foundation` change at its sync stage. `shared-domain-model` is specified in the active change and is promoted at its own sync.
+The last three were promoted at the sync stage of the `monorepo-foundation` and `shared-domain-model` changes.
 
 The website currently renders a plain status page. It has **no mailbox feature**,
 no provider call, and no styling. That is still the correct state and it is not a
