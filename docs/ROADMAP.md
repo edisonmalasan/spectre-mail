@@ -24,19 +24,27 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor:** M5 - Website Core MVP (**verified, awaiting archive**; branch
-`docs/mailbox-session-spec-sync`, change `mailbox-session-layer`; proposed by PR #28,
-applied by PR #29, verified by PR #30). **Slice 1 of M5 is complete.** The two new
-capabilities `mailbox-session` and `website-client` are now in `openspec/specs/`
-(8 specs, `openspec validate --specs --strict`: 8 passed, 0 failed). **The sync added
-no scenario to either capability — 7 requirements and 29 scenarios in, 29 out** — and
-that is the point worth recording: the verification pass found eleven defects and
-every one of them was in a *test*, a *rule*, or a *document*. The contract it was
-checking turned out to be sound. A sync that had to change a requirement would have
-meant the pass had missed something, and the mechanical delta-to-spec comparison
-(script kept outside the repository) is what establishes that nothing was quietly
-dropped in the merge.
+**Roadmap cursor:** M5 - Website Core MVP. **Slice 1 is complete and archived**
+(branch `chore/archive-mailbox-session-layer`, change `mailbox-session-layer`;
+proposed by PR #28, applied by PR #29, verified by PR #30, synced by PR #31).
+`openspec status` reports **no active change**, which is the correct end state for a
+finished slice, and `openspec validate --specs --strict` reports **8 passed, 0
+failed** — the two new capabilities `mailbox-session` and `website-client` are in
+`openspec/specs/`, which is where the requirements now live.
+
+**The sync added no scenario to either capability — 7 requirements and 29 scenarios
+in, 29 out** — and that is the point worth recording: the verification pass found
+eleven defects and every one of them was in a *test*, a *rule*, or a *document*. The
+contract it was checking turned out to be sound. A sync that had to change a
+requirement would have meant the pass had missed something, and a mechanical
+delta-to-spec comparison (script kept outside the repository) is what establishes
+that nothing was quietly dropped in the manual merge.
 Tasks 1.1–5.6 are all ticked, the last on the rule that a task box is not evidence.
+
+**Next eligible objective: M5 slice 2 — the inbox, with polling.** Slice 1 settles
+where client orchestration lives and shows an address; slice 2 is what makes a
+temporary mailbox worth having, and it is the first slice that must decide a
+polling policy.
 **M5 is being delivered as a sequence of bounded changes rather than one**, and the
 first settles where client-side orchestration lives. The roadmap's shared-package
 list had no home for it: it assigned "mailbox lifecycle" and "mailbox manager" to
@@ -399,13 +407,17 @@ be written before the pass, not after.
 
 | M3 | complete (archived) | `provider-layer` |
 | M4 | **complete (archived)** | `mail-parsing-engine` |
-| M5 | proposing (slice 1 of N) | `mailbox-session-layer` |
+| M5 | **in progress** - slice 1 of 4 complete (archived), slice 2 next | `mailbox-session-layer` (slice 1) |
 | M6-M15 | not started | - |
 
 **OpenSpec lifecycle stage:** M0, the provider-role change, M1's foundation change,
-M2's `shared-domain-model`, M3's `provider-layer`, and **M4's `mail-parsing-engine`
-are all complete (propose -> apply -> verify -> sync -> archive)**. **No active change.**
-Task 8.11 - the independent vacuity check - was the step that surfaced the
+M2's `shared-domain-model`, M3's `provider-layer`, M4's `mail-parsing-engine`, and
+**M5 slice 1's `mailbox-session-layer` are all complete (propose -> apply -> verify
+-> sync -> archive)**. `mailbox-session-layer` was archived at
+`openspec/changes/archive/2026-10-02-mailbox-session-layer/` with its two promoted
+specs already written by the sync stage, so the archive ran with `--skip-specs` -
+running it without that flag would have applied the same requirements twice.
+**No active change.** Task 8.11 - the independent vacuity check - was the step that surfaced the
 defect above, and is ticked because the check was performed and it found something.
 M3's own verification pass found two more, and **M4's verification pass found two
 CRITICAL and six warnings**, so the task keeps earning its place on a schedule that has
