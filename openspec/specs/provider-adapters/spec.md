@@ -1,4 +1,4 @@
-# Spec Delta
+# provider-adapters Specification
 
 ## Purpose
 
@@ -7,7 +7,7 @@ reached through, the two adapters that implement it, how a provider's failures
 become SpectreMail's closed error vocabulary, and the conformance suite that any
 adapter — present or future — must pass.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Every provider is reached through one contract
 

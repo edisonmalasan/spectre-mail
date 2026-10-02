@@ -18,19 +18,24 @@
 > source of truth — `openspec/specs/` and the active OpenSpec change artifacts are.
 > Reconcile this block against Git and OpenSpec before trusting it in a later session.
 >
-> `openspec/specs/` holds one capability, `provider-abstraction`, promoted from
-> `provider-role-decision` at archive. M0's own capability spec was archived with
+> `openspec/specs/` holds four capabilities: `provider-abstraction` (promoted from
+> `provider-role-decision`), `monorepo-foundation` (M1), `shared-domain-model`
+> (M2), and `provider-adapters` (M3). M0's own capability spec was archived with
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor:** M3 - Provider Layer (**verifying**, apply merged as PR #18,
-`fe54b22`, on `feat/provider-adapters`; verification repairs in PR #19 on
-`fix/provider-operation-guard`). M2 completed its full lifecycle: propose PR #12,
+**Roadmap cursor:** M3 - Provider Layer (**syncing**, PR #20 on
+`docs/provider-adapters-spec-sync`). Apply merged as PR #18 (`fe54b22`) and
+verification repairs as PR #19 (`ede63bb`). M2 completed its full lifecycle:
+propose PR #12,
 apply PR #13, verification repairs PR #14, sync PR #15, archive PR #16 (`49b1bfa`),
 archived at `openspec/changes/archive/2026-10-02-shared-domain-model/` with its
 delta promoted to `openspec/specs/shared-domain-model/spec.md`. M3's change is
-`provider-layer`, proposed in PR #17 (`7f20877`). M3 remains unsynced and
-unarchived, and the site and the spike are untouched by it.
+`provider-layer`, proposed in PR #17 (`7f20877`). Its delta is promoted to
+`openspec/specs/provider-adapters/spec.md` - 12 requirements, 30 scenarios - with
+**three scenarios amended during sync** after the implementation revealed the
+original wording to be unsatisfiable. M3 remains unarchived, and the site and the
+spike are untouched by it.
 
 **The M3 verification pass found two requirement scenarios with no implementation
 behind them, after apply had ticked every box.** Recorded because the pattern is
