@@ -84,14 +84,32 @@ selectable throughout.
 
 ### Requirement: The website's inbox states no cadence it cannot support
 
-The website SHALL NOT display a polling interval, a refresh countdown, or a claim
-about how often it is permitted to check. Where the website tells the user that
-checking happens, it SHALL describe the behaviour rather than quote a rate.
+The website SHALL NOT display a polling interval, a refresh countdown, or a claim about
+how often **SpectreMail chose** to check or what it believes it is permitted to check.
+Where the website tells the user that checking happens, it SHALL describe the behaviour
+rather than quote a rate.
+
+A provider's own rate-limit statement, quoted verbatim and attributed to the provider,
+is **not** such a claim and is not forbidden here: it is evidence the website received
+rather than a number SpectreMail picked, and suppressing it would mean inventing a
+plausible limit in its place. What the website SHALL NOT do is attach a scope to such a
+statement — a window it read from the provider's header is a floor the product applies
+to itself, not a permission the provider granted.
+
+**Amended during the M5 slice 2 verification pass.** This clause originally forbade any
+display of a "provider rate", and the implementation displays a provider's verbatim
+`ratelimit-policy` statement beside the throttling annotation. That is a genuine
+conflict between two clauses of this change as originally written — `mailbox-session`
+requires the statement be reported verbatim and unparsed — and it was resolved by
+narrowing this clause to the numbers the *product* chooses, rather than by dropping a
+statement a user needs in order to understand why their mailbox stopped updating. The
+resolution is recorded here because a spec that has been quietly reinterpreted is
+worse than one that was amended.
 
 #### Scenario: The inbox is on screen
 
 - **WHEN** the inbox is displayed
-- **THEN** no interval, countdown, or provider rate SHALL be shown
+- **THEN** no interval, countdown, or rate SpectreMail chose SHALL be shown
 - **AND** the checking behaviour SHALL be described without a number
 
 ### Requirement: The mailbox is checked again when the page is looked at

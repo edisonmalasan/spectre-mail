@@ -61,10 +61,20 @@ and no pretend generality.
 **Consequence.** The session grows a lifecycle, which D2 predicted. That is paid
 deliberately rather than inherited by accident, and the destructor is explicit.
 
-### D2 — The clock is injected as a narrow pair, not a general time service
+### D2 — The scheduler is injected, and the seam is narrower than planned
 
-**Decision.** The session is constructed with `now(): number` and
-`schedule(afterMs, run): Cancel`. Nothing else about time is reachable through it.
+**Decision.** The session is constructed with `schedule(afterMs, run): Cancel` and
+nothing else. **Narrowed at the apply stage, 2026-10-03, from the `now(): number` +
+`schedule` pair proposed here.** Nothing in this slice labels a moment in time —
+`website-client` explicitly forbids showing a countdown or an interval — so a
+`checkedAt` would have been carried through four layers to reach no reader, and a
+`now` with no caller is a capability nobody exercises.
+
+That is not the only reason. `provider-abstraction` forbids inferring a mailbox
+lifetime from elapsed time, and a clock handed to a package that holds state is the
+standing invitation to do exactly that. Handing over only what is needed removes the
+invitation instead of relying on review to decline it. **If a later slice needs to
+label a moment, add `now` then, with a caller that wants it.**
 
 **Alternatives.** Reusing `Date.now` and `setTimeout` and testing with fake timers —
 rejected, because a package whose only proof is that Vitest can mock a global is a
@@ -94,16 +104,40 @@ provider-sanctioned would be a number this repository cannot defend.
 
 ### D4 — A rate-limit statement is a floor, never a schedule
 
-**Decision.** When a response carries `Retry-After` or a `ratelimit-policy`, the
-delay it states is a **minimum**, applied verbatim; the cadence never schedules
-sooner. A refused request is surfaced and **not** retried.
+**Decision.** When the provider states a rate limit, the delay it states is a
+**minimum**, applied verbatim; the cadence never schedules sooner. A refused request
+is surfaced and **not** retried.
 
-**Alternatives.** Parsing `w=60` into a per-window budget and dividing the cadence
-by it — rejected, twice over: `30; w=60` does not state its scope, and a rule that
-recomputes a schedule from provider prose is the class of rule
-`packages/mailbox`'s `normalize` explicitly refuses to write. Auto-retrying on a
-declared delay — rejected: `provider-abstraction` requires throttling be surfaced,
-and a retry the user cannot see is a silent retry.
+**Where the statement arrives, and why that settles the contract question.** Both
+adapters attach `rateLimit` to a `SpectreError` on `429` and nowhere else, and
+`listMessages` returns `MessageSummary[]` — no headers. So the statement surfaces
+**with the refusal**, which is also the only moment it matters: a provider that
+accepts a request has not stated a limit, and one that refuses has. The alternative
+was widening `listMessages` to return response headers, and that is rejected: it
+changes the provider contract this slice explicitly promised not to touch, in order
+to obtain a statement that arrives anyway on the only path where it changes
+behaviour.
+
+**`Retry-After` has no reader, and that is recorded rather than anticipated.**
+Neither adapter surfaces it and it was never measured from either provider, so
+writing a parser for it would be code no test could exercise against anything real.
+If a provider is observed sending it, that is the moment to add the reader — and
+the requirement is already written in terms of "a retry delay" rather than one
+header name.
+
+**Reading a delay out of the statement, and refusing to read a scope out of it.**
+`1; w=60` is a documented machine header with a small grammar, not prose, so the
+window is read as a floor: wait at least one window before the next request. What is
+*not* read is what the limit is counted per — `30; w=60` does not say "per IP", and
+a page showing a number derived from it would be presenting an inference as a
+measurement. The value reaches the client verbatim and is never re-parsed there.
+
+**Alternatives.** Parsing `w=60` into a per-window budget and dividing the cadence by
+it — rejected, twice over: `30; w=60` does not state its scope, and a rule that
+recomputes a schedule from provider prose is the class of rule `packages/mailbox`'s
+`normalize` explicitly refuses to write. Auto-retrying on a declared delay —
+rejected: `provider-abstraction` requires throttling be surfaced, and a retry the
+user cannot see is a silent retry.
 
 ### D5 — The analysis is cached by message id, inside the session
 

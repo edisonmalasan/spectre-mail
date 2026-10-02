@@ -32,8 +32,19 @@ continue polling a mailbox it no longer holds.
 
 The session SHALL poll promptly while a mailbox's contents are changing and SHALL
 reduce its frequency while they are not, up to a stated ceiling. It SHALL return to
-the prompt interval as soon as anything changes. The session SHALL state the
-interval it is using and SHALL NOT present it as a rate the provider permits.
+the prompt interval as soon as anything changes. The session SHALL declare the
+interval it is using as a named, exported value, SHALL hand that interval to the
+caller's scheduler rather than choosing it silently, and SHALL NOT present it as a
+rate the provider permits.
+
+**Amended during the M5 slice 2 verification pass.** The clause originally read "SHALL
+state the interval it is using", which is ambiguous between *stating it to its caller*
+and *showing it to the user*. Those are different requirements, and they point in
+opposite directions: `website-client` forbids the page displaying any interval at all.
+The implementation states it in the first sense — the interval is an exported constant
+whose rationale is documented, and the session passes it to the caller's scheduler —
+and the amended wording above names both halves rather than leaving a reader to guess
+which one was meant.
 
 **Note, recorded during proposal.** No provider limit was measured for the provider
 this website can reach: `docs/PROVIDERS.md` records Mail.tm's `GET /messages` at
@@ -165,9 +176,20 @@ injected clock is what actually does it.
 
 #### Scenario: The session runs with no real time passing
 
-- **WHEN** the session is driven by a caller supplying the clock
+- **WHEN** the session is driven by a caller supplying the scheduler
 - **THEN** it SHALL schedule and observe intervals without waiting for them
-- **AND** the caller SHALL be able to state exactly what time it is at every step
+- **AND** the caller SHALL determine every instant of the sequence: the session asks
+  what time it is not at all, so the caller states what has elapsed by choosing when
+  to honour each scheduled delay
+
+**Amended during the M5 slice 2 verification pass.** The second clause originally read
+"the caller SHALL be able to state exactly what time it is at every step", which
+assumed the seam carried `now()`. `design.md`'s D2 records the narrowing to a
+scheduler-only seam, so the session holds no notion of the current instant and there is
+nothing for the caller to state. The amended wording keeps the requirement's actual
+intent — the caller controls the sequence completely — and states it in terms the
+implementation has. This is the one clause in the delta that a reader following D2
+could not have predicted, so the reason is recorded rather than left implicit.
 
 #### Scenario: The session reaches for a timer of its own
 
