@@ -32,6 +32,17 @@ import type { MessageVerdict } from "@spectre-mail/mailbox";
 export interface InboxRowProps {
   readonly message: MessageSummary;
   readonly verdict: MessageVerdict;
+  /**
+   * Open this message.
+   *
+   * **Required, because a row that looks openable and is not would be worse than one
+   * that does not pretend.** Slice 2 shipped rows with no control at all and said so in
+   * prose, which was honest while it was true. Now that a message can be opened, a row
+   * without this callback would render identically to one that can be opened and simply
+   * do nothing — the exact failure the previous slice avoided by declining to look
+   * clickable.
+   */
+  readonly onOpen: () => void;
 }
 
 /**
@@ -57,11 +68,27 @@ function unreadWording(message: MessageSummary): string {
   return "Unread state not reported";
 }
 
-export function InboxRow({ message, verdict }: InboxRowProps) {
+export function InboxRow({ message, verdict, onOpen }: InboxRowProps) {
   const marking = MARKING[verdict.kind];
 
   return (
-    <article aria-label={message.subject === "" ? "Message with no subject" : message.subject}>
+    // **A `<button>`, not an `<article>` with a click handler.**
+    //
+    // A row that opens a message is a control, and a control the keyboard cannot reach
+    // is not one. A `div` with `onClick` would be operable with a mouse and
+    // unreachable by Tab, silent to a screen reader as a control, and given no role —
+    // so it would render identically to a real button while behaving like nothing at
+    // all for anyone not using a mouse. There is no router here, so there is no link
+    // to be honest about either; `design.md` D5 records why.
+    //
+    // The accessible name carries the subject, so a list of buttons is navigable by
+    // their subjects rather than by their position.
+    <button
+      type="button"
+      aria-label={accessibleName(message, verdict)}
+      onClick={onOpen}
+      data-testid="inbox-row-open"
+    >
       <p data-testid="inbox-row-sender">
         {message.from === "" ? "No sender reported" : message.from}
       </p>
@@ -86,6 +113,20 @@ export function InboxRow({ message, verdict }: InboxRowProps) {
       <p data-testid="inbox-row-unread">{unreadWording(message)}</p>
 
       {marking !== "" && <p data-testid="inbox-row-verdict">{marking}</p>}
-    </article>
+    </button>
   );
+}
+
+/**
+ * The row's accessible name.
+ *
+ * **The marking is part of it, and that is deliberate.** Two messages with the same
+ * subject from the same sender are otherwise indistinguishable in a list of buttons, and
+ * the one carrying the code is the one the user came for — so a screen reader listing
+ * the inbox should say which each is without the user opening either.
+ */
+function accessibleName(message: MessageSummary, verdict: MessageVerdict): string {
+  const subject = message.subject === "" ? "Message with no subject" : message.subject;
+  const marking = MARKING[verdict.kind];
+  return marking === "" ? `Open ${subject}` : `Open ${subject}. ${marking}`;
 }

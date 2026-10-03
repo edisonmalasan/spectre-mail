@@ -41,6 +41,10 @@ export interface MailboxSessionBinding {
   readonly replace: () => void;
   /** Ask for the mailbox's messages now. What the inbox's own retry calls. */
   readonly checkInbox: () => void;
+  /** Open a message from the inbox. User-initiated: a row is a button. */
+  readonly openMessage: (messageId: string) => void;
+  /** Close whatever is open. What the message view's return control calls. */
+  readonly closeMessage: () => void;
 }
 
 export function useMailboxSession(session: MailboxSession): MailboxSessionBinding {
@@ -54,7 +58,14 @@ export function useMailboxSession(session: MailboxSession): MailboxSessionBindin
     // own result is deliberately not used: the session reports every transition
     // through `subscribe`, and setting state here as well would deliver the same
     // value twice.
-    setState({ kind: "creating" });
+    // **`opened: { kind: "none" }` rather than leaving it out, and that is the point of
+    // `SessionState` carrying the field on `creating`.** A previous version pushed
+    // `{ kind: "creating" }` with no opened state at all, which the compiler rejected —
+    // correctly, because it is the exact rendering bug the field exists to prevent: the
+    // client would have shown the previous mailbox's open message beside "creating your
+    // address". The `creating` state has to say what is open as loudly as `ready` does,
+    // because a client rendering either reads one field.
+    setState({ kind: "creating", opened: { kind: "none" } });
     void operation();
   }, []);
 
@@ -68,6 +79,22 @@ export function useMailboxSession(session: MailboxSession): MailboxSessionBindin
 
   const checkInbox = useCallback(() => {
     void session.checkInbox();
+  }, [session]);
+
+  // **Deliberately not awaiting.** The session publishes `opening` before it asks the
+  // provider and `opened` when the read lands, both through `subscribe`, so this
+  // binding's state updates on its own. Awaiting here and setting state from the result
+  // would deliver the same value twice - the mistake the module note already records
+  // for `run`.
+  const openMessage = useCallback(
+    (messageId: string) => {
+      void session.openMessage(messageId);
+    },
+    [session],
+  );
+
+  const closeMessage = useCallback(() => {
+    session.closeMessage();
   }, [session]);
 
   useEffect(() => {
@@ -107,5 +134,5 @@ export function useMailboxSession(session: MailboxSession): MailboxSessionBindin
     void session.checkInbox();
   }, [session, mailboxId]);
 
-  return { state, retry, replace, checkInbox };
+  return { state, retry, replace, checkInbox, openMessage, closeMessage };
 }

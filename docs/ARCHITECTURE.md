@@ -148,6 +148,59 @@ page in any case, while Guerrilla publishes nothing and none was measured. So:
 reading the delay the scheduler was asked for, which proves the arithmetic this
 repository performs and nothing about any provider's tolerance for it.
 
+## The opened message, and the request it saves
+
+M5 slice 3 gave this package ownership of which message is open: `SessionState`
+carries `opened` on **both** `ready` and `creating`, and `opened.ts` owns the
+transition — `none`, `opening`, `opened`, `openFailed`. The ownership is in the
+session rather than the client because an id is provider-scoped, so carrying one
+across a mailbox replacement would show the previous mailbox's mail beside the new
+mailbox's address. That is the same id-scoping hazard the inbox tracker's `reset`
+already documents, applied to the selection.
+
+**The design decision worth knowing is retention, and it saves a request.** The inbox's
+verdict pass already reads every message body to decide whether it is worth
+displaying. That analysis is retained, so **clicking an already-read message issues no
+provider request at all** — detection is deterministic, so a second read of a message
+already in memory has no correctness benefit and would cost one request against a
+provider whose tolerance for the existing cadence has never been measured. The zero is
+asserted over a recording transport **with a positive control first**, which performs
+the same open for a message with no retained reading and asserts the transport _did_
+record a request. A control that issued nothing would make the zero inert, which is
+the shape of check this repository has been caught by before.
+
+**Three rules around that retention, each with its own reason.** It is pruned to the
+ids of the current listing on each successful check, because a message the provider no
+longer lists is not coming back — but **not** after a _failed_ listing, which taught
+it nothing, and pruning against a listing never received would shed readings for a
+mailbox the product merely failed to ask. The inbox's **verdict** for a departed
+message survives pruning, because the verdict map is sticky and only the expensive
+part is shed. And an id absent from the listing is refused locally with
+`MESSAGE_NOT_FOUND` and **no request**: the session cannot know that an id belongs to
+the mailbox it holds, so asking the provider about a message it never reported would
+be a request made on a guess.
+
+**A failed read is retried, and is never reported as `opened` with nothing in it.**
+The retention is keyed by id and a failure is not cached, so a second attempt reads
+again; and `openFailed` is a distinct state carrying the id and a `SessionFailure`,
+because rendering an unreadable message as opened-and-empty is the one false claim
+that costs a user the thing they came for. A failure also means the page must never
+say the message holds no code, which is asserted directly.
+
+**`opening` is published before the provider answers, and exactly once.** The read is
+in flight for real, so a view that shows nothing in the meantime would read as an
+empty message. This is where the slice's one implementation defect was found: the
+tracker's `onChange` wrapped its own publisher in a **second** `setState`, so every
+subscriber was told the same thing twice on every opened-state change and a React
+client re-rendered per notification. Nothing that asked only _what_ was reported could
+see it — only an assertion about _how often_ did, which is why that count is now
+asserted rather than inferred.
+
+**None of this has run against a live provider either, and none of it has run in a
+browser.** Every assertion above is over a stub provider or a recording transport, and
+**no live browser run of the website has ever been made** — the component that renders
+this state has been seen by jsdom and by nothing else.
+
 ### The provider layer
 
 `packages/providers` holds the `MailProvider` contract and the two adapters that
@@ -314,10 +367,29 @@ cannot tell a definition from a call, so it verifies _where_ an adapter may be n
 never _why_. A client that reached for Mail.tm anyway would pass that rule and be
 caught by the `website-client` one-provider requirement instead.
 
-**It creates a mailbox and renders its address, with no inbox, no styling, and no
-persistence.** A reload discards the mailbox because storage is M6. The absence of
-styling is a decision, not an omission: M7 owns the visual design, and markup written
-before it would be markup M7 rewrites. There is also **no mailbox expiry countdown**,
+**It creates a mailbox, renders its address, lists that mailbox's messages while
+polling, and opens one — with no styling and no persistence.** (The "no inbox" this
+sentence carried was stale from slice 1 and was not corrected when slice 2 landed.) A
+reload discards the mailbox because storage is M6. The absence of styling is a
+decision, not an omission: M7 owns the visual design, and markup written before it
+would be markup M7 rewrites.
+
+**Opening a message displays what was found and acts on none of it.** Two boundary
+rules hold that rather than a code review. One fails the build if a client copies a
+**code**, because copying an OTP is M10's verification workflow; copying the **mailbox
+address** stays legal, because the roadmap's own acceptance criteria require it and a
+rule broad enough to forbid it was the mistake that scoped the narrower one. The other
+fails the build if a detected URL becomes an `href` — the only way a detected URL
+becomes followable in JSX — so links render as text with their host visible.
+
+**Both rules were found to be narrower than what they document.** `clipboard.write([new
+ClipboardItem(...)])` matched neither pattern the rule held, so a whole family of the
+standard API was invisible; and a word-bounded `code` cannot match `otpCode` or
+`foundCode`, so it answered `false` on exactly the names a developer would most
+plausibly use. Each now has a control per form, and the limits that remain are stated
+in the rule's own source rather than implied: an identifier spelled `secret` is still
+not caught, and neither is a `select()` followed by the user pressing Ctrl+C, which
+reaches no clipboard API and is indistinguishable from selecting the mailbox address. There is also **no mailbox expiry countdown**,
 because no provider returns a lifetime in any API response and none was measured live
 — an elapsed guess is not an expiry signal.
 
@@ -596,7 +668,7 @@ provider's response field, and `tests/architecture/` now enforces that.
 What the model deliberately does **not** contain: any `MailProvider` contract, any
 provider adapter, any mailbox lifecycle or expiry evaluation, and any mapping from a
 provider's HTTP response onto the normalized error codes. The contract and the
-adapters are in `packages/providers`; the lifecycle and the polling loop are in
+adapters are in `packages/providers`; the lifecycle, the polling loop, and the opened message are in
 `packages/mailbox`. Neither
 belongs here, because this package describes **the model and its invariants only** —
 that sentence is its approved Purpose, and it is why the roadmap's assignment of

@@ -20,13 +20,14 @@
 
 import { analyseMessage } from "@spectre-mail/mail-parser";
 import type { MessageAnalysis } from "@spectre-mail/mail-parser";
-import { isSpectreError, NormalizedErrorCode } from "@spectre-mail/core";
-import type { Mailbox, Message, MessageSummary, SpectreError } from "@spectre-mail/core";
+import { NormalizedErrorCode } from "@spectre-mail/core";
+import type { Mailbox, Message, MessageSummary } from "@spectre-mail/core";
 import type { MailProvider } from "@spectre-mail/providers";
 
 import { nextDelay } from "./cadence";
 import type { MailboxScheduler } from "./clock";
-import type { InboxListing, InboxState, MessageVerdict, SessionFailure } from "./state";
+import { toSessionFailure } from "./failure";
+import type { InboxListing, InboxState, MessageVerdict } from "./state";
 
 /** How the tracker reaches the provider that owns a mailbox. */
 export interface InboxTrackerOptions {
@@ -47,6 +48,27 @@ export interface InboxTrackerOptions {
    * page that says it is checking and one that looks frozen.
    */
   readonly onChange?: (state: InboxState) => void;
+  /**
+   * Called once per newly read message, with what the read found.
+   *
+   * **This is the only reason the opened-message tracker can serve a message without
+   * asking the provider again**, so the read here and the reading there cannot drift
+   * apart: one read, two consumers.
+   *
+   * A callback rather than a dependency on `opened.ts`, so this module never learns that
+   * a retention exists. That matters for the reason `providerFor` is injected too — the
+   * inbox tracker holds no reference to what consumes it, and either of them can be
+   * built and tested without the other.
+   */
+  readonly onRead?: (summary: MessageSummary, analysis: MessageAnalysis) => void;
+  /**
+   * Called after a successful listing, with the summaries it reported.
+   *
+   * **Only ever called on success**, which is what makes the retention's pruning honest:
+   * a failed listing learned nothing about which messages exist, so pruning against it
+   * would shed readings for a mailbox the product merely failed to ask.
+   */
+  readonly onListed?: (summaries: readonly MessageSummary[]) => void;
 }
 
 export interface InboxTracker {
@@ -85,7 +107,7 @@ export interface InboxTracker {
 }
 
 export function createInboxTracker(options: InboxTrackerOptions): InboxTracker {
-  const { providerFor, scheduler, onChange } = options;
+  const { providerFor, scheduler, onChange, onRead, onListed } = options;
 
   let state: InboxState = { kind: "notStarted" };
   let verdicts = new Map<string, MessageVerdict>();
@@ -220,6 +242,11 @@ export function createInboxTracker(options: InboxTrackerOptions): InboxTracker {
     const listing: InboxListing = { messages: summaries, verdicts: new Map(verdicts) };
     lastListing = listing;
 
+    // **Pruned to this listing, and only this listing.** A failed check returns above
+    // without reaching here, so a mailbox the product merely failed to ask keeps every
+    // reading it had.
+    onListed?.(summaries);
+
     return publish({ kind: "checked", listing });
   }
 
@@ -242,7 +269,15 @@ export function createInboxTracker(options: InboxTrackerOptions): InboxTracker {
       return { kind: "undetermined" };
     }
 
-    return verdictFrom(analyseMessage(message.text));
+    const analysis = analyseMessage(message.text);
+
+    // **Handed on, and the body is not.** The read above already happened and its
+    // result already holds everything the message view will ever show, so throwing the
+    // readable text away here and re-fetching it on a click would spend a provider
+    // request to recompute a known answer.
+    onRead?.(summary, analysis);
+
+    return verdictFrom(analysis);
   }
 
   /**
@@ -276,7 +311,7 @@ export function createInboxTracker(options: InboxTrackerOptions): InboxTracker {
    * struggling provider is asked.
    */
   function refusalOf(cause: unknown, provider: MailProvider): InboxState {
-    const failure = toFailure(cause, provider.id);
+    const failure = toSessionFailure(cause, provider.id);
     const listing: InboxListing = {
       // The last thing actually learned, not an empty list. Blanking a user's inbox
       // because one request failed destroys information the product still has, in
@@ -367,39 +402,6 @@ export function createInboxTracker(options: InboxTrackerOptions): InboxTracker {
       destroyed = true;
       clearPending();
     },
-  };
-}
-
-/**
- * Normalize whatever the provider threw.
- *
- * A listing failure is a condition of the inbox rather than a session failure, so it
- * reuses the same normalized shape rather than inventing a second error vocabulary
- * for the same condition.
- *
- * **`isSpectreError` decides the code, exactly as `session.normalize` does.** The
- * first version of this function duck-typed it — `typeof cause.code === "string"` — so
- * any object with a `code` property had its string accepted as a `NormalizedErrorCode`.
- * Nothing produces such a value today, but the consequence is not hypothetical: the
- * client's `explain()` ends in `assertNever`, which **throws while rendering**, so a
- * throwable with an off-enum `code` would take the page down rather than showing
- * something a user could read. One definition of what may be trusted is worth more
- * here than a second, more permissive one.
- */
-function toFailure(cause: unknown, provider: string): SessionFailure {
-  const trusted = isSpectreError(cause)
-    ? (cause as SpectreError & { readonly rateLimit?: string })
-    : undefined;
-
-  const code = trusted?.code ?? NormalizedErrorCode.UNKNOWN_PROVIDER_ERROR;
-  const description =
-    trusted?.description ?? (cause instanceof Error ? cause.message : String(cause));
-
-  return {
-    code,
-    description,
-    providerFailures: [{ provider, code, description }],
-    ...(trusted?.rateLimit === undefined ? {} : { rateLimit: trusted.rateLimit }),
   };
 }
 

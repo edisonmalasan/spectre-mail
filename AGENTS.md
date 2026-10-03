@@ -97,12 +97,12 @@ Pin versions when exact versions matter.
 
 - Runtime(s): Node.js `v26.10.0` (verified).
 
-- Frontend / client: `apps/web` creates a mailbox, renders its address, and lists that
-  mailbox's messages while polling for new ones, reached through the shared session
-  layer and **one** provider — Guerrilla Mail, for the measured CORS reason in
-  `apps/web/src/provider-config.ts`. It has **no message view, no styling, and no
-  persistence**: a reload discards the mailbox, because storage is M6, and opening a
-  message is M5 slice 3. Styling is absent by decision, not by omission; M7 owns it
+- Frontend / client: `apps/web` creates a mailbox, renders its address, lists that
+  mailbox's messages while polling for new ones, and opens one, reached through the
+  shared session layer and **one** provider — Guerrilla Mail, for the measured CORS
+  reason in `apps/web/src/provider-config.ts`. It has **no styling and no
+  persistence**: a reload discards the mailbox, because storage is M6. Styling is
+  absent by decision, not by omission; M7 owns it
   under the approved Spectral Swiss Utility direction, and markup written now would be
   markup M7 rewrites. The page deliberately displays **no polling interval** — the
   cadence is the product's own choice and no provider limit was measured for this
@@ -110,6 +110,14 @@ Pin versions when exact versions matter.
   a provider's own verbatim limit statement *is* shown, attributed, with its scope
   disclaimed. `apps/extension` remains an empty placeholder. Visual design work starts
   at M7.
+  **Opening a message displays what was found and acts on none of it.** `MessageView`
+  renders the sender, subject, arrival time, readable text, the codes in the parser's
+  rank order, and each link as text with its host visible. There is no copy control
+  for a code and no `href` on a detected URL — **copying an OTP is M10**, and
+  `AGENTS.md` is the authority for that, not the roadmap's acceptance list. Copying
+  the **mailbox address** stays legal and a boundary rule says so. Confidence is
+  never rendered as a number, and an unreadable message says so and offers a retry
+  rather than reporting that it holds no code.
 
 - Shared domain model: `packages/core` has real content since M2. It defines the
   normalized `Mailbox`, `MessageSummary`, `Message`, `VerificationCode`,
@@ -170,7 +178,7 @@ Pin versions when exact versions matter.
   enforces; a separate boundary rule forbids the second and states that it is the
   only thing doing so. The architecture scan for framework imports is likewise a
   supplementary backstop which states its own limits.
-  **94 tests**, all driven by stub providers or the real Guerrilla adapter over a
+  **134 tests**, all driven by stub providers or the real Guerrilla adapter over a
   recording transport — no test contacts a provider, and no test needs a browser.
   It is consumed by the website now and by the extension at M8; placing it outside
   `apps/web` is what keeps that from becoming a rewrite.
@@ -188,6 +196,18 @@ Pin versions when exact versions matter.
   lifetime. **The cadence has never been exercised against a live provider**, and the
   website has **never been run in a real browser**; every assertion about either is
   about this repository's own logic.
+  **M5 slice 3 gave it ownership of the opened message**, in `opened.ts` and a
+  `SessionState.opened` on both `ready` and `creating`. The design decision worth
+  knowing is retention: the analysis the inbox's verdict pass already produced is
+  **retained**, so clicking an already-read message costs **no** provider request.
+  That is asserted over a recording transport with a positive control that does
+  issue a request, so the zero is a measurement and not an inert assertion. Retention
+  is pruned to the current listing — **except after a failed listing**, which taught
+  it nothing and must not shed a reading. An id absent from the listing is refused
+  locally with `MESSAGE_NOT_FOUND` and **no request at all**, because asking a
+  provider about a message it never reported would be a request made on a guess. A
+  failed read is retried on the next attempt rather than served from a cached failure,
+  and it is **never** reported as `opened` with nothing found.
 
 - Backend / server: none. Intentionally `$0` paid backend infrastructure; see
   `docs/PROVIDERS.md` for why a SpectreMail-operated proxy is not a permitted
@@ -215,11 +235,11 @@ Pin versions when exact versions matter.
   `pnpm typecheck`, which is a separate gate. There is still no extension build
   step — that is M8.
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running **474 tests across
-  24 files** via `pnpm test` (2026-10-03, after the M5 slice 2 verification repairs):
+- Testing: Vitest `3.2.7` at the workspace root, verified running **537 tests across
+  26 files** via `pnpm test` (2026-10-03, after the M5 slice 3 verification repairs):
   54 in `packages/core`, 89 in `packages/providers`, **149 in `packages/mail-parser`**,
-  **94 in `packages/mailbox`**, **57 in `apps/web`** (54 rendering, 3 provider
-  configuration), and **31 architecture boundary assertions**.
+  **134 in `packages/mailbox`**, **74 in `apps/web`** (71 rendering, 3 provider
+  configuration), and **37 architecture boundary assertions**.
   `passWithNoTests` is **off** by design - a
   green run that inspects nothing is worse than no run. The `include` globs name
   `tests/architecture/**/*.test.ts`, `packages/*/src/**/*.test.ts`,
@@ -547,10 +567,10 @@ returned HTTP 200 serving the application, and `/src/main.tsx` was confirmed to
 return Vite-transformed JSX, so the server really serves the app rather than a
 static shell.
 
-The website creates a mailbox, renders its address, and lists that mailbox's messages
-while polling for new ones. It has **no message view, no styling, and no
-persistence** — a reload discards the mailbox, because storage is M6, and opening a
-message is slice 3. Those are the slices' stated limits, not an unfinished screen. The
+The website creates a mailbox, renders its address, lists that mailbox's messages
+while polling for new ones, and opens one. It has **no styling and no
+persistence** — a reload discards the mailbox, because storage is M6. Those are the
+slices' stated limits, not an unfinished screen. The
 page's provider configuration is reachable and testable without a network
 (`apps/web/src/provider-config.test.ts`), but **nothing has been verified against the
 live Guerrilla Mail API from a browser**, so no claim is made about what a real page
@@ -890,13 +910,14 @@ sequence. All exited `0`.
 
 Observed results, re-verified after the M4 verification repair, again after the
 M5 slice 1 apply stage, again after its independent verification repairs (all on
-2026-10-02), and again after the M5 slice 2 verification repairs on 2026-10-03:
+2026-10-02), after the M5 slice 2 verification repairs, and again after the M5 slice 3
+verification repairs, all on 2026-10-03:
 
 ```text
 pnpm typecheck     8 of 8 workspace projects run tsc --noEmit
 pnpm lint          exit 0
 pnpm format:check  All matched files use Prettier code style
-pnpm test          24 files, 474 tests passed
+pnpm test          26 files, 537 tests passed
 pnpm build         vite 7.3.6, dist emitted
 pnpm verify        exit 0
 ```
@@ -911,11 +932,13 @@ the **live** service. Every test in `packages/providers` runs from **recorded**
 responses, so the suite proves this repository's mapping of a provider's wire format
 and nothing about the provider's current behaviour. A provider renaming a field
 would leave this suite green. Fixture refresh against `docs/PROVIDERS.md` is a
-deliberate diff, not something CI does. The same limit now applies to the client:
-`apps/web`'s 57 tests render against a **stub provider** or a recording transport,
-so they prove the page composes the abstraction correctly and say **nothing** about
-whether a real browser reaches Guerrilla Mail successfully. No live browser run has
-been made, and none is claimed. **Nor has the polling cadence ever run against a
+deliberate diff, not something CI does. The same limit now applies to the client, and
+it has **widened** since slice 2: `apps/web`'s 74 tests render against a **stub
+provider** or a recording transport, so they prove the page composes the abstraction
+correctly and say **nothing** about whether a real browser reaches Guerrilla Mail
+successfully. **No live browser run has ever been made**, so every component in the
+website — including `MessageView`, added at slice 3 — has been seen by jsdom and by
+nothing else. **Nor has the polling cadence ever run against a
 live provider**: `packages/mailbox`'s cadence assertions read the delay the scheduler
 was asked for, and nothing in this repository has observed what a real provider does
 when a real page polls it every five seconds.

@@ -19,9 +19,16 @@
  *   how often — no provider limit was measured for the only provider a browser page
  *   can reach, so any figure would be an invention presented as a measurement.
  * - **A reload discards the mailbox.** Nothing is persisted; that is M6.
- * - **Opening a message is not implemented.** Rows show what a message carries, not
- *   its body; that is the next slice, and a row that looks like it can be opened but
- *   cannot would be worse than one that does not pretend.
+ * - **Opening a message shows it; it does not act on it.** A message's readable text,
+ *   its one-time code candidates, and its verification links are displayed. There is no
+ *   copy control and no link that follows itself: copying a code and opening a link are
+ *   the verification workflow, scheduled at M10, and following a link because a message
+ *   was rendered would be a side effect of reading someone's mail. `design.md` D4
+ *   records why, including the conflict between this roadmap's M5 acceptance criteria
+ *   and `AGENTS.md`'s assignment of OTP copy to M10.
+ * - **No confidence number is shown for a detection.** The parser produces a judgement
+ *   traceable to a published rule, not a probability, and a bare `0.85` would be read
+ *   as an 85% chance of being right.
  * - No backend is involved, and SpectreMail never proxies a provider API.
  *
  * ## Each state is distinct in words, not in colour
@@ -36,16 +43,29 @@
 import { useState } from "react";
 
 import { createMailboxSession } from "@spectre-mail/mailbox";
-import type { MailboxSession } from "@spectre-mail/mailbox";
+import type { MailboxSession, OpenedMessageState } from "@spectre-mail/mailbox";
 
 import { Address } from "./Address";
 import { Inbox } from "./Inbox";
 import { MailboxFailure } from "./MailboxFailure";
 import { MailboxLifetime } from "./MailboxLifetime";
+import { MessageView } from "./MessageView";
 import { createWebsiteProviderManager } from "./provider-config";
 import { webScheduler } from "./scheduler";
 import { useInboxVisibility } from "./useInboxVisibility";
 import { useMailboxSession } from "./useMailboxSession";
+
+/**
+ * The id of whatever is open, or `null` when nothing is.
+ *
+ * **Extracted rather than read three times at the call site**, because the three
+ * consumers must agree: a retry that re-opened a *different* message than the one that
+ * failed would report a fresh failure against a row the user never touched, and reading
+ * the id inline three times is three chances to write one of them wrongly.
+ */
+function openedMessageId(opened: OpenedMessageState): string | null {
+  return opened.kind === "opening" || opened.kind === "openFailed" ? opened.messageId : null;
+}
 
 export interface AppProps {
   /**
@@ -68,7 +88,8 @@ export function App({ session }: AppProps = {}) {
     createMailboxSession(createWebsiteProviderManager(), webScheduler),
   );
   const active = session ?? ownSession;
-  const { state, retry, replace, checkInbox } = useMailboxSession(active);
+  const { state, retry, replace, checkInbox, openMessage, closeMessage } =
+    useMailboxSession(active);
 
   useInboxVisibility(active);
 
@@ -95,7 +116,26 @@ export function App({ session }: AppProps = {}) {
           <MailboxLifetime mailbox={state.mailbox} />
           {/* Rendered above the inbox, and always: an address the user has to scroll
               to find after a failed check is an address they will assume is gone. */}
-          <Inbox inbox={state.inbox} onCheck={checkInbox} />
+          <Inbox inbox={state.inbox} onCheck={checkInbox} onOpenMessage={openMessage} />
+          {/* The message view sits *after* the inbox rather than replacing it. A user
+              who opened a message to read one code and finds their list gone has to
+              come back to find it again, and the inbox is what tells them the message
+              arrived at all. Both on screen also means the "back" control has somewhere
+              real to go back to. */}
+          <MessageView
+            opened={state.opened}
+            onClose={closeMessage}
+            onRetry={() => {
+              // **The id is read here, from the state this render already has.** It used
+              // to be handed to `MessageView` as a prop, on the strength of a comment
+              // promising "a test asserting a retry carries the right id" — and no such
+              // test existed. The independent verification pass found the span it fed had
+              // exactly one reader: the span itself. So the prop and the hidden element
+              // are gone, and this closure is the only place an id is needed.
+              const id = openedMessageId(state.opened);
+              if (id !== null) openMessage(id);
+            }}
+          />
           <button type="button" onClick={replace}>
             Replace address
           </button>
@@ -109,7 +149,13 @@ export function App({ session }: AppProps = {}) {
         <ul>
           <li>It reaches Guerrilla Mail and nothing else.</li>
           <li>It lists what is in the address, and marks mail that carries a code or a link.</li>
-          <li>It cannot open a message yet, so a message body is not shown here.</li>
+          <li>
+            It can open a message and show its text, the codes it found, and the links it found.
+          </li>
+          <li>
+            It does not copy codes or follow links for you. Those are the verification workflow,
+            which this page does not do yet.
+          </li>
           <li>A reload discards this address. SpectreMail stores nothing on your device yet.</li>
           <li>
             No server is involved. SpectreMail operates no backend and never relays a provider

@@ -39,6 +39,11 @@ import { createProviderManager } from "@spectre-mail/providers";
 import type { MailProvider } from "@spectre-mail/providers";
 
 import { App } from "./App";
+import { applyJsdomSuiteBudget } from "./jsdom-suite-budget";
+// **Applied at module scope, once.** See `jsdom-suite-budget.ts`: this file's own
+// "clears the annotation once a later listing succeeds" was one of the two assertions
+// that timed out in the eight-run record, at 247ms measured in isolation.
+applyJsdomSuiteBudget();
 
 afterEach(cleanup);
 

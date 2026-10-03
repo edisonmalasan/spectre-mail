@@ -29,21 +29,79 @@
 verify, sync, archive). `openspec validate --specs --strict` reports **8 passed, 0
 failed**. The promoted capabilities now hold **`mailbox-session` at 14 requirements /
 32 scenarios** and **`website-client` at 12 / 27** — slice 2 contributed 7 + 18 and
-5 + 12.
-**Slice 3 is now proposing**, as `message-view` — opening a message.
+5 + 12, and those are the counts **as promoted**: slice 3's deltas are not in
+`openspec/specs/` yet.
+**Slice 3 (`message-view`) is applying and verified** on `feat/message-view`; its sync
+and archive stages are their own branches, as every stage has been.
 
 *Corrected 2026-10-03:* the archive commit recorded slice 2's PRs as #33–#37. There
 were four of them, #33–#36. A range written from a plan rather than from
 `gh pr list` is still a claim, and claims need checking.
 
-**Slice 2's numbers as of 2026-10-03, and the two a later session should trust
-first.** The workspace runs **474 tests across 24 files**, of which **31 are
+**Slice 3's numbers as of 2026-10-03, and the ones a later session should trust
+first.** The workspace runs **537 tests across 26 files**, of which **37 are
 architecture boundary assertions**: 54 in `packages/core`, 89 in `packages/providers`,
-149 in `packages/mail-parser`, **94 in `packages/mailbox`**, **57 in `apps/web`** (54
-rendering, 3 provider configuration), 31 boundary. `pnpm verify` exits 0. The website
-now lists a mailbox's messages and polls it; it has **no styling, no persistence, and
-no message view** — a reload still discards the mailbox, because storage is M6 and
-opening a message is slice 3.
+149 in `packages/mail-parser`, **134 in `packages/mailbox`**, **74 in `apps/web`** (71
+rendering, 3 provider configuration), 37 boundary. `pnpm verify` exits 0. The website
+now lists a mailbox's messages, polls it, **and opens one**; it has **no styling and
+no persistence** — a reload still discards the mailbox, because storage is M6.
+
+**Slice 3, and the three things it is actually evidence for.** The website now opens a
+message: `MessageView` renders the sender, subject, arrival time, readable text, the
+codes in the parser's own rank order, and each detected link as text with its host
+visible. Three limits are properties of the slice rather than omissions, and each is
+enforced rather than merely intended — a boundary rule fails the build if a client
+copies a **code**, and a separate rule fails it if a detected URL becomes an `href`.
+Copying the **mailbox address** stays legal, because the roadmap's own acceptance
+criteria require it, and a rule broad enough to forbid it was the mistake that scoped
+this one. Confidence is never rendered as a number. And a message that could not be
+read says exactly that, offers a retry, and **never** says it holds no code — the one
+false claim that costs a user the thing they came for.
+
+**The falsification pass: 40 mutations across three harnesses, 40 matched, 0 unmatched,
+and every mutated file restored byte-identical.** Round 3 exists because a repair is
+the least trustworthy code in a change — written late, in response to a finding. Two
+of the four things the harness surfaced were **defects in the implementation**, not
+gaps in a test. The first was found by a test written for a different reason: the
+opened tracker's `onChange` wrapped its own publisher in a second `setState`, so every
+subscriber was told the same thing **twice** on every opened-state change, and a React
+client re-rendered per notification. The second was `B2` reporting NOT CAUGHT, and the
+gap was real — nothing asserted that an open message survives a poll tick.
+
+**The verification pass found eight defects, and they are worth more than the slice.**
+Two are this repository's recurring shape in new clothing. The "acts on a finding"
+boundary rule was **narrower** than the requirement in two ways:
+`clipboard.write([new ClipboardItem(...)])` matched neither of its two patterns, so a
+whole family of the standard API was invisible, and a word-bounded `code` cannot match
+`otpCode` or `foundCode`, so the pattern answered `false` on exactly the names a
+developer would most plausibly use. And the listing-failure test **asserted no premise
+at all** — deleting its failure fixture left it green, because a second listing
+serving the same message sheds nothing either way, so it could not tell the rule it
+names from a neighbour sharing its fixture. The per-form controls for two rules were
+loops that stop at the first failure, so a rule broken three ways produced one name;
+they now gather every missed form and assert the set empty.
+
+**One check was invalid rather than narrow.** The clause for the new interface member
+asked for a stub lacking it to fail to compile. The first attempt deleted the member and
+read `tsc`'s output for the name: **zero** errors, because removing a member cannot
+break the class that still implements it, and the name was found in the implementation
+instead. It is now a bidirectional `@ts-expect-error`, whose control makes the member
+optional and requires `tsc` to report the directive going unused. `pnpm test` cannot see
+that assertion at all, which is precisely why the clause named `tsc`.
+
+**Surfaced, not absorbed.** `new Date(receivedAt).toISOString()` throws a `RangeError`
+on a non-finite `receivedAt`. It arrived with slice 2, its honest home is `core`, which
+owns the field, and fixing it here would widen the change past its scope — so it is
+recorded rather than taken.
+
+**Two claims about this slice that are not claims about the product.** The component
+has **never been seen by anything but jsdom** — **no live browser run of the website
+has ever been made** — and the `opened` state is asserted over a stub provider or a
+recording transport, so nothing here says what a real provider does when a real page
+opens a real message. The polling cadence still has **never run against a live
+provider**. And `pnpm test` is not a claim about types: a hand-written
+`SessionFailure` carrying a `provider` field, where the real type carries
+`providerFailures` as a list, left the suite green and failed `pnpm typecheck`.
 
 **Two criticals came out of slice 2's independent verification pass, and both are worth
 more than the features.** First, **`pnpm typecheck` was red while `pnpm test` was green
@@ -165,12 +223,20 @@ guarantee rather than a test's, and one was a no-op mutation. Two earlier
 `NOT-CAUGHT` results were faults in the mutations and were re-authored.
 
 **Result for slice 1: 382 tests across 21 files, 23 boundary assertions, `pnpm verify`
-exit 0.** (Those were slice 1's figures. The workspace now runs **474 tests across 24
-files** with **31** boundary assertions — see the Project Status cursor above.)
-**Still not established:** that a real browser reaches Guerrilla Mail. Every provider
-interaction in every test replays a recording.
-**Remaining slices of M5:** message view (next), then history, provider selector,
-theme, and clear-data. The inbox with polling was slice 2.
+exit 0.** (Those were slice 1's figures. The workspace now runs **537 tests across 26
+files** with **37** boundary assertions — see the Project Status cursor above.)
+**Still not established, as of slice 3:** that a real browser reaches Guerrilla Mail.
+**No live browser run of the website has ever been made** — every component in it has
+been seen by jsdom and by nothing else, including `MessageView`. Every provider
+interaction in every test replays a recording, so nothing here says what a real
+provider does when a real page opens a real message. The polling cadence has **never
+run against a live provider**. And `pnpm test` is not a claim about types — this
+repository has been bitten in both directions, and slice 3 was no exception.
+**Remaining slices of M5:** history, provider selector, theme, and clear-data. The
+inbox with polling was slice 2 and the message view was slice 3.
+**No slice of M5 may begin until slice 3's sync and archive have merged** — the
+delivery order is the earliest incomplete milestone first, and M5 is still the
+earliest incomplete milestone.
 *Corrected 2026-10-02:* an earlier revision of this line named the next milestone
 "Storage Contracts". That was wrong, and it is worth recording why, because it is the
 same failure this repository keeps meeting in a different costume — **naming a
@@ -212,7 +278,7 @@ others, because it predates the milestone that documented it. Six warnings were 
 with it, including a published test count that was arithmetically wrong (14 fixtures × 2
 generated tests is 28, not 26) and four `D4` shape descriptions that overstated their own
 reach. **307 tests across 18 files** after the repairs; no published confidence constant
-was changed. (That figure was M4's. The workspace now runs **474 tests across 24 files**
+was changed. (That figure was M4's. The workspace now runs **537 tests across 26 files**
 — see the Project Status cursor above.)
 **M4's implementation found three defects in its own design before any of it was
 verified**, and all three are recorded in the change rather than quietly fixed:
@@ -467,16 +533,17 @@ be written before the pass, not after.
 
 | M3 | complete (archived) | `provider-layer` |
 | M4 | **complete (archived)** | `mail-parsing-engine` |
-| M5 | **in progress** - slices 1 and 2 complete (archived); slice 3 proposing | `mailbox-session-layer` (slice 1), `inbox-polling` (slice 2), `message-view` (slice 3) |
+| M5 | **in progress** - slices 1 and 2 complete (archived); slice 3 applying and verified, sync and archive to follow | `mailbox-session-layer` (slice 1), `inbox-polling` (slice 2), `message-view` (slice 3) |
 | M6-M15 | not started | - |
 
 **OpenSpec lifecycle stage:** M0, the provider-role change, M1's foundation change,
-M2's `shared-domain-model`, M3's `provider-layer`, M4's `mail-parsing-engine`, and
-**M5 slice 1's `mailbox-session-layer` are all complete (propose -> apply -> verify
--> sync -> archive)**. `mailbox-session-layer` was archived at
+M2's `shared-domain-model`, M3's `provider-layer`, M4's `mail-parsing-engine`, M5
+slice 1's `mailbox-session-layer` and slice 2's `inbox-polling` **are all complete
+(propose -> apply -> verify -> sync -> archive)**. `mailbox-session-layer` was archived at
 `openspec/changes/archive/2026-10-02-mailbox-session-layer/` with its two promoted
 specs already written by the sync stage, so the archive ran with `--skip-specs` -
-running it without that flag would have applied the same requirements twice.
+running it without that flag would have applied the same requirements twice. Slice 2's
+`inbox-polling` was archived the same way, and slice 3 will be too.
 **No active change.** Task 8.11 - the independent vacuity check - was the step that surfaced the
 defect above, and is ticked because the check was performed and it found something.
 M3's own verification pass found two more, and **M4's verification pass found two
@@ -874,7 +941,7 @@ than a mailbox plus a loading flag, because those two can disagree and a
 disagreement is a rendering bug no unit test writes itself. It performs **no request
 of its own** (asserted by a recording transport, with a positive control that drives
 the same operations through the real Guerrilla adapter so the zero is a measurement),
-holds **no persistence** (M6) and **no polling** (the next slice), and **never invents
+holds **no persistence** (M6), and **never invents
 a mailbox lifetime** — no provider reports one in any API response and none was
 measured live.
 
@@ -1683,7 +1750,7 @@ its own, and one line in particular is delivered elsewhere:
 | --- | --- |
 | `open SpectreMail`, `receive a working address` | M5 slice 1 — `mailbox-session-layer` (archived) |
 | `receive a real message` | M5 slice 2 — `inbox-polling` (archived) |
-| `find the OTP` | M5 slice 3 — `message-view` (proposing) |
+| `find the OTP` | M5 slice 3 — `message-view` (applied; sync and archive to follow) |
 | **`copy the OTP`** | **M10, the verification workflow** — see below |
 | `return to a recent mailbox` | M5's mailbox history slice, over M6's storage |
 | `clear local SpectreMail data` | M5's clear-data slice, over M6's storage |
