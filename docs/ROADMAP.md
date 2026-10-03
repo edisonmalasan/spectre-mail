@@ -25,12 +25,16 @@
 > landing it would create permanent spec debt for disposable scaffolding.
 
 **Roadmap cursor:** M5 - Website Core MVP. **Slices 1 and 2 are complete and archived**
-(`mailbox-session-layer`, PRs #28–#32; `inbox-polling`, PRs #33–#37: propose, apply,
-verify, sync, archive). `openspec status` reports **no active changes** and
-`openspec validate --specs --strict` reports **8 passed, 0 failed**. The promoted
-capabilities now hold **`mailbox-session` at 14 requirements / 32 scenarios** and
-**`website-client` at 12 / 27** — slice 2 contributed 7 + 18 and 5 + 12.
-**Next: M5 slice 3, opening a message.**
+(`mailbox-session-layer`, PRs #28–#32; `inbox-polling`, PRs #33–#36: propose, apply and
+verify, sync, archive). `openspec validate --specs --strict` reports **8 passed, 0
+failed**. The promoted capabilities now hold **`mailbox-session` at 14 requirements /
+32 scenarios** and **`website-client` at 12 / 27** — slice 2 contributed 7 + 18 and
+5 + 12.
+**Slice 3 is now proposing**, as `message-view` — opening a message.
+
+*Corrected 2026-10-03:* the archive commit recorded slice 2's PRs as #33–#37. There
+were four of them, #33–#36. A range written from a plan rather than from
+`gh pr list` is still a claim, and claims need checking.
 
 **Slice 2's numbers as of 2026-10-03, and the two a later session should trust
 first.** The workspace runs **474 tests across 24 files**, of which **31 are
@@ -463,7 +467,7 @@ be written before the pass, not after.
 
 | M3 | complete (archived) | `provider-layer` |
 | M4 | **complete (archived)** | `mail-parsing-engine` |
-| M5 | **in progress** - slices 1 and 2 complete (archived); slice 3 next | `mailbox-session-layer` (slice 1), `inbox-polling` (slice 2) |
+| M5 | **in progress** - slices 1 and 2 complete (archived); slice 3 proposing | `mailbox-session-layer` (slice 1), `inbox-polling` (slice 2), `message-view` (slice 3) |
 | M6-M15 | not started | - |
 
 **OpenSpec lifecycle stage:** M0, the provider-role change, M1's foundation change,
@@ -1670,6 +1674,31 @@ clear local SpectreMail data
 ```
 
 without registering for SpectreMail.
+
+**Which slice delivers each line, because this list names capabilities and not
+milestones.** A capability appearing here does not mean the milestone M5 delivers it on
+its own, and one line in particular is delivered elsewhere:
+
+| Line | Delivered by |
+| --- | --- |
+| `open SpectreMail`, `receive a working address` | M5 slice 1 — `mailbox-session-layer` (archived) |
+| `receive a real message` | M5 slice 2 — `inbox-polling` (archived) |
+| `find the OTP` | M5 slice 3 — `message-view` (proposing) |
+| **`copy the OTP`** | **M10, the verification workflow** — see below |
+| `return to a recent mailbox` | M5's mailbox history slice, over M6's storage |
+| `clear local SpectreMail data` | M5's clear-data slice, over M6's storage |
+
+**`copy the OTP` is M10's, and that is a decision rather than an oversight.**
+`AGENTS.md` assigns "OTP copy/fill" to the verification workflow, and M10's own "User
+actions" block lists `Copy code`, `Fill code`, and `Open verification link`. M5's
+message view **displays** the codes and links it found and acts on neither — no copy
+control, and no link that follows itself. The reasoning is in the `message-view`
+change's `design.md` D4, and the short form is that `AGENTS.md`'s sentence is a
+*correction* — the same file records an earlier draft of it naming a milestone from the
+layer that felt like it should come next rather than the one this roadmap schedules —
+and that deferring a capability needs no amendment while absorbing one would.
+**This list is deliberately left unedited**, because a plan's exit conditions are not
+amended from inside a slice; the table names the slice instead.
 
 ---
 
