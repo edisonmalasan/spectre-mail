@@ -92,6 +92,14 @@ still never run against a live provider, and `pnpm test` is still not a claim ab
 types — it went green here while `pnpm typecheck` failed on a `SpectreError` fixture
 missing a required `cause`.
 
+*Corrected 2026-10-04:* slice 4's propose commit message says the change has **19
+tasks across five groups**. It has **15** — 4, 3, 3, 3, 2 — verified by counting the
+checkboxes in `tasks.md` rather than by recalling the plan. That is the **fourth**
+recorded wrong count published by this repository, after three in earlier footers, and
+it is left uncorrected in place because the commit is merged and rewriting it would
+cost more than the record is worth. Counting a plan is still a claim, and this
+repository has now been wrong about one four times.
+
 **Slice 3, and the three things it is actually evidence for.** The website now opens a
 message: `MessageView` renders the sender, subject, arrival time, readable text, the
 codes in the parser's own rank order, and each detected link as text with its host
