@@ -34,9 +34,10 @@ the M0 spike probed `api.mail.tm` and `api.guerrillamail.com` live and recorded 
 they actually do, and every architectural rule below is a consequence of a recorded
 observation rather than of an assumption about how such an API ought to behave.
 
-**There is no product yet.** M0–M4 are complete; no client has a mailbox feature, and
-nothing a user can see exercises any of the code in this repository. Every acceptance
-claim below is therefore a claim about a function, not about a user's experience.
+**M0–M5 are complete and M6 is next, but no user has ever seen this product.** The
+website creates an address, lists what arrives in it, and opens a message; **no live
+browser run of it has ever been made**, so every acceptance claim below is a claim
+about a function and about jsdom, not about a user's experience.
 
 The current state, in dependency order:
 
@@ -48,14 +49,22 @@ The current state, in dependency order:
 - A pure message-parsing package (`packages/mail-parser`) that turns `Message.text`
   into readable text plus ranked one-time-code and verification-link detections, with
   **no network, no clock, and no AI**.
+- A mailbox lifecycle and polling layer (`packages/mailbox`) that both clients consume.
+- A website client (`apps/web`) that renders all of it, with no styling and no
+  persistence.
 
 The target state is two clients (website, extension) over that shared core. The
-roadmap's next milestone is **M5, Website Core MVP** — the first user-facing experience.
-Storage behind a shared `SpectreStorage` contract is **M6**, the extension build is M8,
-and the verification workflow (notifications, OTP copy/fill) is M10. Those numbers come
-from `docs/ROADMAP.md` and must be read from there, not recalled: an earlier draft of
-this file put storage at "M5–M6", which named a milestone from the layer it felt should
-come next rather than the one the roadmap schedules.
+roadmap's next milestone is **M6, Website Hardening** — storage behind a shared
+`SpectreStorage` contract, the privacy controls, and the error-state work. **M5 is
+complete in scope**: all four of its slices are archived, and the three acceptance
+lines it could not deliver itself (`copy the OTP`, `return to a recent mailbox`,
+`clear local SpectreMail data`) are M10's and M6's, as `docs/ROADMAP.md`'s table now
+records. Reading M5 as unfinished is what kept three blocked slices being selected;
+that correction is recorded in the roadmap's Project Status block. The extension build
+is M8 and the verification workflow (notifications, OTP copy/fill) is M10. Those
+numbers come from `docs/ROADMAP.md` and must be read from there, not recalled: an
+earlier draft of this file put storage at "M5–M6", which named a milestone from the
+layer it felt should come next rather than the one the roadmap schedules.
 
 
 
@@ -100,7 +109,17 @@ Pin versions when exact versions matter.
 - Frontend / client: `apps/web` creates a mailbox, renders its address, lists that
   mailbox's messages while polling for new ones, and opens one, reached through the
   shared session layer and **one** provider — Guerrilla Mail, for the measured CORS
-  reason in `apps/web/src/provider-config.ts`. It has **no styling and no
+  reason in `apps/web/src/provider-config.ts`. **That provider is configured by one
+  list, and the factory derives from it.** `WEBSITE_PROVIDER_IDS` is the single source,
+  the adapter registry beside it is typed `Record` over that list so an id with no
+  adapter does not compile, and a boundary rule fails the build if a client's exported
+  id list is never read as a value. Until M5 slice 4 the list documented an indirection
+  that did not exist, so this is a corrected claim rather than an inherited one.
+  **The website offers no provider selector, and `website-client` now requires that
+  absence rather than merely permitting it**: the page names the provider it reaches,
+  offers no control for choosing one, and does not describe the absence as missing or
+  forthcoming. A control over one reachable option cannot act. It has
+  **no styling and no
   persistence**: a reload discards the mailbox, because storage is M6. Styling is
   absent by decision, not by omission; M7 owns it
   under the approved Spectral Swiss Utility direction, and markup written now would be
@@ -235,11 +254,11 @@ Pin versions when exact versions matter.
   `pnpm typecheck`, which is a separate gate. There is still no extension build
   step — that is M8.
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running **537 tests across
-  26 files** via `pnpm test` (2026-10-03, after the M5 slice 3 verification repairs):
+- Testing: Vitest `3.2.7` at the workspace root, verified running **545 tests across
+  26 files** via `pnpm test` (2026-10-04, after the M5 slice 4 apply stage):
   54 in `packages/core`, 89 in `packages/providers`, **149 in `packages/mail-parser`**,
-  **134 in `packages/mailbox`**, **74 in `apps/web`** (71 rendering, 3 provider
-  configuration), and **37 architecture boundary assertions**.
+  **134 in `packages/mailbox`**, **77 in `apps/web`** (74 rendering, 3 provider
+  configuration), and **42 architecture boundary assertions**.
   `passWithNoTests` is **off** by design - a
   green run that inspects nothing is worse than no run. The `include` globs name
   `tests/architecture/**/*.test.ts`, `packages/*/src/**/*.test.ts`,
@@ -923,14 +942,15 @@ sequence. All exited `0`.
 
 Observed results, re-verified after the M4 verification repair, again after the
 M5 slice 1 apply stage, again after its independent verification repairs (all on
-2026-10-02), after the M5 slice 2 verification repairs, and again after the M5 slice 3
-verification repairs, all on 2026-10-03:
+2026-10-02), after the M5 slice 2 verification repairs, again after the M5 slice 3
+verification repairs, and again after the M5 slice 4 apply stage, all on 2026-10-03
+through 2026-10-04:
 
 ```text
 pnpm typecheck     8 of 8 workspace projects run tsc --noEmit
 pnpm lint          exit 0
 pnpm format:check  All matched files use Prettier code style
-pnpm test          26 files, 537 tests passed
+pnpm test          26 files, 545 tests passed
 pnpm build         vite 7.3.6, dist emitted
 pnpm verify        exit 0
 ```
@@ -946,7 +966,7 @@ responses, so the suite proves this repository's mapping of a provider's wire fo
 and nothing about the provider's current behaviour. A provider renaming a field
 would leave this suite green. Fixture refresh against `docs/PROVIDERS.md` is a
 deliberate diff, not something CI does. The same limit now applies to the client, and
-it has **widened** since slice 2: `apps/web`'s 74 tests render against a **stub
+it has **widened** since slice 2: `apps/web`'s 77 tests render against a **stub
 provider** or a recording transport, so they prove the page composes the abstraction
 correctly and say **nothing** about whether a real browser reaches Guerrilla Mail
 successfully. **No live browser run has ever been made**, so every component in the
@@ -983,7 +1003,7 @@ Four specific limitations worth not misreading:
   scoped to `packages/` and `apps/` so a root-level or `tests/` module could name
   an adapter freely. Both widened cases were then proven to fail. An assertion that
   passes for the wrong reason is not a passing assertion.
-- **The count is now 23 boundary assertions. M5 slice 1 added seven, and its
+- **The count is now 42 boundary assertions. M5 slice 1 added seven, and its
   independent verification pass found five defects in them.** The
   adapter-confinement rule was **re-scoped**, which is the first recorded instance of
   an assertion being *broader* than its documented rule rather than narrower: it also
@@ -1022,6 +1042,39 @@ Four specific limitations worth not misreading:
   - Two more: a **dead allowance** naming `packages/mailbox` for a seam it never calls
     (removed, since a list nothing exercises cannot fail), and `expectedPackages`
     omitting `mailbox` while being named for the roadmap's list.
+- **M5 slice 4 added five more, and one assertion in the client suite that shipped
+  with a defect found by the slice's own falsification pass.** The new rule requires a
+  client's exported provider-id list to be **read as a value**, not merely declared.
+  It exists because `apps/web`'s `WEBSITE_PROVIDER_IDS` documented itself as making
+  "adding a provider ... a visible edit to one list rather than a change spread across
+  call sites" while `createWebsiteProviderManager` never read it — so
+  `provider-abstraction`'s clause that adding a second provider "SHALL remain additive
+  through the abstraction" was true of the abstraction and **false of the client**.
+  The rule strips comments first, which inverts the earlier lesson rather than
+  repeating it: there, a comment had to be *ignored* so prose could not fail a rule;
+  here, prose must not be able to *satisfy* one, because a module that only describes
+  the coupling it lacks is exactly the defect. Controls are one per form and none is
+  gathered — the pre-change factory shape, a list named only in a comment, a
+  configuration declaring no list, and a positive control proving the declaration and
+  the `typeof` derivation are not violations.
+
+  The defect this slice authored is the **seventeenth** recorded instance of a check
+  narrower than its rule, and the first one this repository wrote and then caught. The
+  state-coverage test asserted `visibleText()` contained "Guerrilla Mail"; making that
+  line conditional on the `ready` state left the suite **green**, because the
+  `creating` state already says "Asking Guerrilla Mail for a new address" and the
+  `failed` state names the provider in its own explanation. Two of three assertions
+  were satisfied by unrelated text. Both now read the limits `region` by its
+  accessible name.
+
+  **The harness was wrong before the test was, and that is the part worth keeping.**
+  Its first mutation for that case opened a JSX paren without closing it, so the suite
+  failed to *collect* — and the harness reported "suite stayed GREEN", because it
+  looked for failing test titles and found none. A non-zero exit with no named failure
+  is now a distinct outcome rather than a pass, because counting a broken mutation as
+  a catch is how a dead case gets filed as coverage. 8 of 8 mutations are now caught by
+  the intended assertion, with restoration reported separately and verified by
+  SHA-256.
 - **`pnpm test` proved a third check of that same shape was vacuous, and the fix
   was to delete the gap rather than to add an exemption.** The adapter-identifier
   rule listed `MailTmProvider`, `GuerrillaMailProvider`, and `SpectreMailProvider`

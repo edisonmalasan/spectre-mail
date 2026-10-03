@@ -62,13 +62,35 @@ it could not advance, three times over. A cursor that cannot move is not a curso
 were four of them, #33–#36. A range written from a plan rather than from
 `gh pr list` is still a claim, and claims need checking.
 
-**Slice 3's numbers as of 2026-10-03, and the ones a later session should trust
-first.** The workspace runs **537 tests across 26 files**, of which **37 are
-architecture boundary assertions**: 54 in `packages/core`, 89 in `packages/providers`,
-149 in `packages/mail-parser`, **134 in `packages/mailbox`**, **74 in `apps/web`** (71
-rendering, 3 provider configuration), 37 boundary. `pnpm verify` exits 0. The website
+**Slice 3's numbers as of 2026-10-03, kept as that milestone's snapshot.** The
+workspace ran **537 tests across 26 files**, of which **37 were architecture boundary
+assertions**: 54 in `packages/core`, 89 in `packages/providers`, 149 in
+`packages/mail-parser`, **134 in `packages/mailbox`**, **74 in `apps/web`** (71
+rendering, 3 provider configuration), 37 boundary. The website
 now lists a mailbox's messages, polls it, **and opens one**; it has **no styling and
 no persistence** — a reload still discards the mailbox, because storage is M6.
+
+**Slice 4's numbers as of 2026-10-04, and these are the current ones.** The workspace
+runs **545 tests across 26 files**, of which **42 are architecture boundary
+assertions**: 54 in `packages/core`, 89 in `packages/providers`, 149 in
+`packages/mail-parser`, 134 in `packages/mailbox`, **77 in `apps/web`** (74 rendering,
+3 provider configuration), 42 boundary. `pnpm install`, `pnpm typecheck`, `pnpm lint`,
+`pnpm format:check`, `pnpm test`, `pnpm build`, and `pnpm verify` all exited 0, and
+`openspec validate provider-reachability --type change --strict` exited 0. The count is
+per-file summed from a JSON reporter rather than added by hand, after this roadmap
+published arithmetically-wrong totals three times.
+
+**What slice 4 is evidence for.** That a client's exported provider-id list is the
+configuration rather than documentation beside one, and that the website ships no
+provider selector **as a requirement** rather than by omission. Both are falsifiable:
+8 of 8 deliberate mutations were caught by the intended assertion, with every mutated
+file restored byte-identical by hash.
+
+**What slice 4 is still not evidence for.** No live browser run has been made, every
+provider interaction in every test still replays a recording, the polling cadence has
+still never run against a live provider, and `pnpm test` is still not a claim about
+types — it went green here while `pnpm typecheck` failed on a `SpectreError` fixture
+missing a required `cause`.
 
 **Slice 3, and the three things it is actually evidence for.** The website now opens a
 message: `MessageView` renders the sender, subject, arrival time, readable text, the
@@ -273,8 +295,8 @@ guarantee rather than a test's, and one was a no-op mutation. Two earlier
 `NOT-CAUGHT` results were faults in the mutations and were re-authored.
 
 **Result for slice 1: 382 tests across 21 files, 23 boundary assertions, `pnpm verify`
-exit 0.** (Those were slice 1's figures. The workspace now runs **537 tests across 26
-files** with **37** boundary assertions — see the Project Status cursor above.)
+exit 0.** (Those were slice 1's figures. The workspace now runs **545 tests across 26
+files** with **42** boundary assertions — see the Project Status cursor above.)
 **Still not established, as of slice 3:** that a real browser reaches Guerrilla Mail.
 **No live browser run of the website has ever been made** — every component in it has
 been seen by jsdom and by nothing else, including `MessageView`. Every provider
@@ -332,7 +354,7 @@ others, because it predates the milestone that documented it. Six warnings were 
 with it, including a published test count that was arithmetically wrong (14 fixtures × 2
 generated tests is 28, not 26) and four `D4` shape descriptions that overstated their own
 reach. **307 tests across 18 files** after the repairs; no published confidence constant
-was changed. (That figure was M4's. The workspace now runs **537 tests across 26 files**
+was changed. (That figure was M4's. The workspace now runs **545 tests across 26 files**
 — see the Project Status cursor above.)
 **M4's implementation found three defects in its own design before any of it was
 verified**, and all three are recorded in the change rather than quietly fixed:

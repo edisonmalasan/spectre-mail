@@ -357,15 +357,39 @@ it out of the website rather than build infrastructure to route around it.
 
 The dev server binds loopback only.
 
-**The website holds no provider logic.** Its provider choice is a constant in
-`apps/web/src/provider-config.ts`, composing the shared `ProviderManager` over
-Guerrilla Mail alone and a `fetch` transport built by the shared factory. The three
-files that may name an adapter or a composition seam are that module, `transport.ts`,
-and `packages/mailbox`; `tests/architecture/boundaries.test.ts` enforces it by path,
-strips comments before matching, and states its own limits in its own source — it
-cannot tell a definition from a call, so it verifies _where_ an adapter may be named,
-never _why_. A client that reached for Mail.tm anyway would pass that rule and be
-caught by the `website-client` one-provider requirement instead.
+**The website holds no provider logic.** Its provider choice is an exported list,
+`WEBSITE_PROVIDER_IDS`, in `apps/web/src/provider-config.ts`, composing the shared
+`ProviderManager` over Guerrilla Mail alone and a `fetch` transport built by the shared
+factory. The factory **derives its adapters from that list**, through a local registry
+typed `Record` over the list's ids, so the list is the configuration rather than
+documentation beside one and an id declared with no adapter beside it does not compile.
+The registry stays in the client: keyed by id, a shared one would let any client
+import an adapter it must not reach, and reachability is per client.
+
+The three files that may name an adapter or a composition seam are that module,
+`transport.ts`, and `packages/mailbox`; `tests/architecture/boundaries.test.ts`
+enforces it by path, strips comments before matching, and states its own limits in its
+own source — it cannot tell a definition from a call, so it verifies _where_ an adapter
+may be named, never _why_. A client that reached for Mail.tm anyway would pass that
+rule and be caught by the `website-client` one-provider requirement instead.
+
+**A client's exported provider-id list must be read as a value.** That is a second
+boundary rule, and it exists because the indirection above was documented for three
+slices before it was real. Its controls are one per form: the pre-change factory shape,
+a list named only in a comment, and a configuration declaring no list. It strips
+comments first, which inverts the lesson from the rule above — there a comment had to
+be _ignored_ so prose could not fail a rule; here prose must not be able to
+_satisfy_ one, since a module that only describes the coupling it lacks is the defect.
+Its stated limit is that it counts references and cannot prove a factory _derives_ from
+the list; the compile-time `Record` is the stronger guarantee, and neither substitutes
+for the other.
+
+**There is no provider selector, and that is a requirement.** `website-client` states
+that the website offers no control for choosing a provider, names the one it reaches,
+and does not describe the absence as missing or forthcoming. A `<select>` over a single
+reachable option cannot act, and an inert one would claim a choice exists and is
+unavailable — which is worse than saying nothing. The extension, whose host
+permissions do reach two providers, is where a selector belongs.
 
 **It creates a mailbox, renders its address, lists that mailbox's messages while
 polling, and opens one — with no styling and no persistence.** (The "no inbox" this
@@ -490,7 +514,7 @@ with "No inputs were found".
 
 ## Enforcement
 
-`tests/architecture/boundaries.test.ts` asserts **31** things:
+`tests/architecture/boundaries.test.ts` asserts **42** things:
 
 - the packages and apps the roadmap specifies exist;
 - the workspace declares exactly `apps/*` and `packages/*`;
@@ -516,6 +540,8 @@ with "No inputs were found".
 - no file under `apps/` reaches for a markup escape hatch;
 - **every** test file this repository ships is actually **collected** by the
   configured globs — packages as well as apps;
+- a client's exported provider-id list is **read as a value**, not merely declared, and
+  a configuration that declares none is caught;
 - no workspace file references the spike.
 
 **Six of those carry their own positive controls**, because a rule with no control
@@ -530,12 +556,33 @@ about whether the rule's file discovery would find it; the parser-direction rule
 control writes a probe into `apps/web`, since the interesting violation is in a client
 and every package-only scan in the file would have missed it; and the test-collection
 rule asserts a precondition on the **spread** of what it found, so a version that
-checked only one root cannot satisfy it.
+checked only one root cannot satisfy it. The provider-id rule adds a seventh group: one
+probe per form, and **no gathered list**, because a single fixture that trips a pattern
+of five alternatives proves only that the pattern fires and nothing about the other
+four. Its positive control matters just as much — the list's own declaration and the
+`typeof` derivation that builds the id union must **not** count as uses, or the rule
+would make the correct configuration unwritable.
 
 Each check was proven able to fail by deliberately introducing the violation and
 observing a non-zero exit. An empty suite was also proven to exit 1:
 `passWithNoTests` is left off, because a green run that inspects nothing is worse
 than no run at all.
+
+**The most recent instance is the one this repository wrote itself.** M5 slice 4's
+state-coverage test asserted the page's whole text contained "Guerrilla Mail"; making
+the line that names the provider conditional on the `ready` state left the suite green,
+because the `creating` state already says "Asking Guerrilla Mail for a new address" and
+the `failed` state names the provider in its own explanation. Two of its three
+assertions were satisfied by unrelated text. It now reads the limits `region` by its
+accessible name.
+
+That is the **seventeenth** recorded instance of a check narrower than the rule it
+documents, and the lesson recorded alongside it is about the harness rather than the
+test: the mutation was first written with an unbalanced JSX paren, so the suite failed
+to _collect_, and the harness reported "stayed green" because it looked for failing
+test titles and found none. A non-zero exit with no named failure is now a distinct
+outcome rather than a pass. Counting a broken mutation as a catch is how a dead case
+gets filed as coverage.
 
 **The adapter-identifier list was wrong until M3, and the test stayed green.** It
 held `MailTmProvider`, `GuerrillaMailProvider`, and `SpectreMailProvider` — **none of
