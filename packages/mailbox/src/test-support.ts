@@ -74,6 +74,21 @@ export interface StubMessages {
    */
   readonly listThrows?: unknown;
   /**
+   * What `getMessage` rejects with, when a read should fail.
+   *
+   * **Same shape and same reason as `listFailsWith`.** A message body is read by two
+   * callers - the inbox's verdict pass and the opened-message tracker - so a stub that
+   * could only fail a read permanently would make "the read failed and the next one
+   * succeeded" inexpressible, and that is the only shape in which a retry can be
+   * observed at all: a tracker that cached the earlier failure would pass a
+   * permanently-failing test by refusing forever.
+   *
+   * Counted per `getMessage` call across both callers, in order, with the last entry
+   * repeating. A test that wants a clean read after a failing one spells the queue
+   * `undefined` first.
+   */
+  readonly readFailsWith?: SpectreError | readonly (SpectreError | undefined)[];
+  /**
    * Swap the listing from one call to the next.
    *
    * Needed because a stub with a fixed listing can never show mail *arriving*, and
@@ -94,6 +109,16 @@ export interface StubProvider extends MailProvider {
   readonly healthCalls: number;
   /** How many times `listMessages` was called. */
   readonly listCalls: number;
+  /**
+   * How many times `getMessage` was called.
+   *
+   * Distinct from `reads.length`, which this is otherwise redundant with, because the
+   * assertions that matter are about **the count not growing** - and a count read from
+   * an array a later call appends to can be aliased into a comparison that passes
+   * whatever the answer. See the note on `RecordingTransport.requests` for the same
+   * mistake caught once already.
+   */
+  readonly readCalls: number;
   /** The message ids `getMessage` was asked for, in order. A copy on every read. */
   readonly reads: readonly string[];
   /**
@@ -184,6 +209,7 @@ export function stubProvider(id: ProviderId, options: StubOptions = {}): StubPro
   let createCalls = 0;
   let healthCalls = 0;
   let listCalls = 0;
+  let readCalls = 0;
 
   const messages = options.messages ?? {};
 
@@ -199,6 +225,9 @@ export function stubProvider(id: ProviderId, options: StubOptions = {}): StubPro
     },
     get listCalls() {
       return listCalls;
+    },
+    get readCalls() {
+      return readCalls;
     },
     get reads(): readonly string[] {
       return [...reads];
@@ -237,7 +266,12 @@ export function stubProvider(id: ProviderId, options: StubOptions = {}): StubPro
       return [...(messages.summaries ?? [])];
     },
     getMessage: async (mailbox, messageId) => {
+      readCalls += 1;
       reads.push(messageId);
+
+      const readFailure = refusalFor(messages.readFailsWith, readCalls);
+      if (readFailure !== undefined) throw readFailure;
+
       const body = messages.bodies?.[messageId];
       if (body === undefined) {
         throw new Error(`no body recorded for ${messageId}`);

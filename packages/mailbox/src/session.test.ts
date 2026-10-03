@@ -15,17 +15,60 @@ import { createGuerrillaAdapter, createProviderManager } from "@spectre-mail/pro
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-import { createMailboxSession, isCreating, isFailed, isReady } from "./index";
-import type { SessionState } from "./index";
+import { createMailboxSession, isCreating, isFailed, isReady, openedOf, verdictFor } from "./index";
+import type { MailboxSession, MessageVerdict, SessionState } from "./index";
 import {
+  BOTH_BODY,
+  CODE_BODY,
   FIXED_NOW,
   makeMailbox,
+  makeSummary,
   manualScheduler,
   recordingTransport,
   stubProvider,
   throttled,
   unreachable,
 } from "./test-support";
+import type { ManualScheduler, StubProvider } from "./test-support";
+
+/**
+ * Task 1.4's Verify clause, as a permanent assertion rather than a one-off observation.
+ *
+ * The clause reads "*an `InMemoryOpenedMessage`-free stub that lacks the member fails to
+ * typecheck, so the interface is genuinely required of an implementation rather than
+ * optional*". The first attempt at observing that was a falsification harness mutation
+ * that deleted the member from the interface and ran `tsc` — and it reported success
+ * with **zero compiler errors**, because removing a member from an interface cannot break
+ * the class that still implements it. The harness had looked for the member's *name* in
+ * the compiler's output and found it in the implementation instead. A check that passes
+ * for the wrong reason is worse than no check, so it was replaced by this:
+ *
+ * **`@ts-expect-error` is bidirectional.** The directive says "there is an error on this
+ * line"; if the member ever became optional, the assignment would become legal, the
+ * directive would be unused, and `pnpm typecheck` would fail **naming the unused
+ * directive**. So the assertion is load-bearing in both directions and is checked by a
+ * gate this repository already runs — Vitest cannot see it at all, which is precisely
+ * why the clause named `tsc`.
+ */
+describe("the session interface", () => {
+  it("requires the members that open and close a message", () => {
+    type WithoutOpenMessage = Omit<MailboxSession, "openMessage">;
+    type WithoutCloseMessage = Omit<MailboxSession, "closeMessage">;
+
+    // @ts-expect-error — `openMessage` is required, so a session without it is not one.
+    const cannotOpen: MailboxSession = null as unknown as WithoutOpenMessage;
+    // @ts-expect-error — and the same for closing one, which is a session with no way out.
+    const cannotClose: MailboxSession = null as unknown as WithoutCloseMessage;
+
+    // **Both casts are lies on purpose, and nothing here is asserted at runtime.** The
+    // claim lives entirely in the two directives above; this is the smallest runtime
+    // assertion that keeps them from being read as dead code. If either member were ever
+    // dropped from the interface *entirely*, `Omit` would silently succeed and the
+    // directives would fail — which is the other direction, and the reason this is worth
+    // having rather than a comment.
+    expect([cannotOpen, cannotClose]).toEqual([null, null]);
+  });
+});
 
 describe("createMailboxSession", () => {
   it("runs with no DOM available, which is the environment the package targets", () => {
@@ -87,8 +130,16 @@ describe("createMailboxSession", () => {
         manualScheduler(),
       );
 
-      expect(session.current()).toEqual({ kind: "creating" });
+      // **`opened: { kind: "none" }` from the very first state, and that is the claim
+      // being made.** Slice 3 added `opened` to `SessionState`, and the question this
+      // assertion answers is whether a session that has opened nothing says so from the
+      // moment it exists. A `creating` state with no `opened` field would be a state a
+      // client has to special-case, and it is the state a client renders *while a
+      // mailbox is being replaced* — which is exactly when the previous mailbox's
+      // message must already be gone from the screen.
+      expect(session.current()).toEqual({ kind: "creating", opened: { kind: "none" } });
       expect(isCreating(session.current())).toBe(true);
+      expect(openedOf(session.current())).toEqual({ kind: "none" });
       expect(isReady(session.current())).toBe(false);
       expect(isFailed(session.current())).toBe(false);
     });
@@ -104,14 +155,20 @@ describe("createMailboxSession", () => {
       // other test in this file and still let a client read `state.mailbox` off a
       // failure.
       const ready = session.open();
-      expect(Object.keys(session.current())).toEqual(["kind"]);
+      // `kind` and `opened`, not `kind` alone: `opened` belongs to `creating` and to
+      // `ready` and to neither `failed`, and the point of the whole assertion is that
+      // no variant carries a field from another. `opened` is spelled out rather than
+      // omitted so that adding it here cannot pass unnoticed.
+      expect(Object.keys(session.current()).sort()).toEqual(["kind", "opened"]);
+      expect(Object.keys(session.current())).not.toContain("mailbox");
 
       await ready;
-      // Three keys now, not two: `inbox` arrived with slice 2 and belongs to `ready`
-      // and only to `ready`, which is what the next assertion is for. Written as an
-      // exact set rather than a subset so that a `failure` key appearing here - the
-      // original defect this test exists for - cannot pass by being unmentioned.
-      expect(Object.keys(session.current()).sort()).toEqual(["inbox", "kind", "mailbox"]);
+      // Four keys now, not three: `inbox` arrived with slice 2 and `opened` with slice
+      // 3, and each belongs to `ready` and only to `ready`, which is what the next
+      // assertion is for. Written as an exact set rather than a subset so that a
+      // `failure` key appearing here - the original defect this test exists for -
+      // cannot pass by being unmentioned.
+      expect(Object.keys(session.current()).sort()).toEqual(["inbox", "kind", "mailbox", "opened"]);
       expect(Object.keys(session.current())).not.toContain("failure");
 
       // **The `failed` variant's key set was never checked.** This test asserted
@@ -639,6 +696,142 @@ describe("createMailboxSession", () => {
       expect(recorder.requests).toEqual(directRequests);
     });
 
+    /**
+     * How a recorded request is answered when the mailbox genuinely holds a message.
+     *
+     * **A second responder rather than a parameterised `guerrillaAnswer`.** The
+     * polling test above depends on the empty list — a bare `{ list: [] }` is what a
+     * measured Guerrilla answer means for a session it no longer recognises — so
+     * teaching that responder to return a message would have quietly removed the case
+     * that makes the adapter's refusal worth testing. Two responders, each shaped by
+     * what it is for.
+     *
+     * **A message leaves the listing by being replaced, not by the list emptying.**
+     * The first version of this responder answered a departure with `{ list: [] }`, and
+     * the adapter refused it — with `MAILBOX_EXPIRED`, and with a description that is
+     * the clearest statement in the codebase of why it refuses: an empty answer is not
+     * evidence that a mailbox is empty. So a departure is modelled as a different
+     * message arriving, which is what a departure looks like in a recording.
+     *
+     * Field names are the ones the adapter reads: `mail_id` as a **number**, because
+     * Guerrilla sends it as one and the adapter has a guard for the string form; a
+     * `mail_date`/`mail_time` pair rather than a timestamp, because the provider sends
+     * the day and the clock separately and no timezone.
+     */
+    function guerrillaMessageAnswer(url: string): {
+      status: number;
+      headers: Record<string, string>;
+      body: string;
+    } {
+      const member = (id: number) => ({
+        mail_id: id,
+        mail_from: `sender-${id}@mail.example`,
+        mail_subject: `Recorded subject ${id}`,
+        mail_date: "2026-09-02",
+        mail_time: "12:00:00",
+        mail_read: "1",
+      });
+
+      if (url.includes("f=get_email_address")) {
+        return {
+          status: 200,
+          headers: {},
+          body: JSON.stringify({
+            email_addr: "recorder@mail.example",
+            sid_token: "token-recorded",
+          }),
+        };
+      }
+      if (url.includes("f=check_email")) {
+        const ids = servedListings.shift() ?? [];
+        return {
+          status: 200,
+          headers: {},
+          // **`email_addr` is not decoration.** The adapter reads a listing without it
+          // as a dead session — `MAILBOX_EXPIRED` — because a provider that no longer
+          // recognises a session still echoes a token back and nothing else. A first
+          // draft of this responder omitted it and the failure surfaced as an expired
+          // mailbox rather than as the fixture mistake it was.
+          body: JSON.stringify({
+            email_addr: "recorder@mail.example",
+            list: ids.map((id) => member(id)),
+          }),
+        };
+      }
+      // `fetch_email` names the message it was asked for and answers with that one's
+      // body, so two messages in one mailbox are distinguishable and a control may
+      // read them in any order.
+      const asked = /email_id=(\d+)/.exec(url)?.[1];
+      const id = asked === undefined ? 0 : Number(asked);
+      return {
+        status: 200,
+        headers: {},
+        body: JSON.stringify({
+          list: [{ ...member(id), mail_body: CODE_BODY, content_type: "text" }],
+        }),
+      };
+    }
+
+    /** The message ids each successive `check_email` reports, in order. */
+    let servedListings: number[][] = [];
+
+    it("adds no request of its own to what the provider makes while opening", async () => {
+      // **The opened path, which neither of the two tests above reached.** They drove
+      // `open`, `health`, and the loop; slice 3 added a third path that reaches the
+      // provider, and a `fetch` inside `openMessage` would have turned no assertion
+      // red. Same shape as those two, and for the same reason: a recording transport
+      // that recorded nothing would make every assertion below pass.
+      //
+      // **The sequence makes the first message leave the listing and come back**, which
+      // is the only shape in which opening spends a request at all: the inbox's verdict
+      // for a message is sticky, so one that never left its reading is served from
+      // memory and this test would prove nothing about the fetched path.
+      const plan = [[1000001], [1000002], [1000001, 1000002]];
+      servedListings = plan.map((listing) => [...listing]);
+      const recorder = recordingTransport({ respond: guerrillaMessageAnswer });
+      const adapter = createGuerrillaAdapter({
+        transport: recorder.transport,
+        now: () => FIXED_NOW,
+      });
+      const scheduler = manualScheduler();
+
+      // ---- Positive control: the same operations straight through the adapter. -----
+      const mailbox = await adapter.createMailbox();
+      const firstListing = await adapter.listMessages(mailbox);
+      expect(firstListing).toHaveLength(1);
+      const messageId = firstListing[0]!.id;
+      await adapter.getMessage(mailbox, messageId); // the inbox's verdict
+      const secondListing = await adapter.listMessages(mailbox);
+      await adapter.getMessage(mailbox, secondListing[0]!.id); // the replacement's verdict
+      await adapter.listMessages(mailbox); // both listed again
+      await adapter.getMessage(mailbox, messageId); // opening the one that had been shed
+      const directRequests = recorder.requests;
+      // Seven: one create, three listings, and three reads.
+      expect(directRequests).toHaveLength(7);
+      expect(recorder.requests.filter((each) => each.includes("f=fetch_email"))).toHaveLength(3);
+
+      recorder.reset();
+      servedListings = plan.map((listing) => [...listing]);
+      const session = createMailboxSession(createProviderManager([adapter]), scheduler);
+      await session.open();
+      await session.checkInbox();
+      await session.checkInbox();
+      await session.checkInbox();
+
+      const opened = await session.openMessage(messageId);
+      expect(opened.kind).toBe("opened");
+
+      // **Equal, in order, to the same origins.** A session that reached anywhere the
+      // adapter would not have shows up here as an extra or a changed line, and one
+      // that issued a request of its own on top of the adapter's shows up as a longer
+      // list.
+      expect(recorder.requests).toEqual(directRequests);
+      // **Three** `fetch_email` requests: the inbox's two verdicts, and the one open
+      // that had to fetch. Stated so the equality above is not the only thing standing
+      // between this test and an implementation that silently did less.
+      expect(recorder.requests.filter((each) => each.includes("f=fetch_email"))).toHaveLength(3);
+    });
+
     it("cannot be given a transport at all", () => {
       // The absence is the guarantee: there is no parameter through which a
       // transport could be supplied.
@@ -757,7 +950,7 @@ describe("createMailboxSession", () => {
 
       // Without this, a subscriber that arrived after the state had already moved would
       // render one transition behind for as long as it lived.
-      expect(seen).toEqual([{ kind: "creating" }]);
+      expect(seen).toEqual([{ kind: "creating", opened: { kind: "none" } }]);
     });
 
     it("tells a subscriber about the move into checking, before the provider answers", async () => {
@@ -850,6 +1043,426 @@ describe("createMailboxSession", () => {
       await session.open();
 
       expect(seen).toEqual([]);
+    });
+  });
+
+  /**
+   * Slice 3: opening a message through the session.
+   *
+   * Every test here drives a stub provider, so none of it contacts a provider or needs
+   * a browser — and none of it says anything about how either measured provider behaves
+   * when a real page opens a real message. What it does say is that the wiring holds:
+   * the retention the inbox's read fills, the pruning the listing drives, the mailbox
+   * change that has to clear both, and the states a client reads.
+   */
+  describe("opening a message through the session", () => {
+    /** A ready session over one mailbox holding `summaries`, with `bodies`. */
+    function readySession(
+      provider: StubProvider,
+      scheduler: ManualScheduler,
+    ): Promise<MailboxSession> {
+      const session = createMailboxSession(createProviderManager([provider]), scheduler);
+      return session.open().then(() => session);
+    }
+
+    /** The verdict map of a checked or failed inbox, failing loudly if there is none. */
+    function inboxVerdicts(session: MailboxSession): ReadonlyMap<string, MessageVerdict> {
+      const state = session.current();
+      if (!isReady(state)) throw new Error(`expected a ready session, got ${state.kind}`);
+      const inbox = state.inbox;
+      if (inbox.kind !== "checked" && inbox.kind !== "checkFailed") {
+        throw new Error(`expected a listing, got ${inbox.kind}`);
+      }
+      return inbox.listing.verdicts;
+    }
+
+    it("reports nothing open before anything has been asked for", async () => {
+      const session = await readySession(stubProvider("guerrilla"), manualScheduler());
+
+      expect(openedOf(session.current())).toEqual({ kind: "none" });
+      // And on the state a client actually reads, not only through the helper — the
+      // helper could be reading a field the client does not have.
+      const state = session.current();
+      if (!isReady(state)) throw new Error(`expected ready, got ${state.kind}`);
+      expect(state.opened).toEqual({ kind: "none" });
+    });
+
+    it("reports that a message is being opened, before the provider answers", async () => {
+      // **Written because the requirement was verified one layer too low.**
+      //
+      // The `mailbox-session` delta says "*the session* SHALL report that the message is
+      // being opened before the provider has answered", and the only test of that was in
+      // `opened.test.ts`, asserting the *tracker's* own `onChange`. Nothing observed
+      // `opening` on `session.current()` or through `subscribe`. The two are separate
+      // code paths — the session republishes through `withOpened` — so a change there
+      // that stopped publishing the intermediate state would have left the suite green
+      // while a real user never saw "Reading this message…".
+      //
+      // Found by the independent verification pass. It is a *coverage* gap rather than a
+      // defect: the behaviour was correct, and this test is what makes it correct rather
+      // than merely correct today.
+      const summary = makeSummary("a", "mailbox");
+      const provider = stubProvider("guerrilla", {
+        messages: {
+          summaries: [summary],
+          bodies: { a: CODE_BODY },
+          // **The verdict pass fails, which is what leaves nothing retained.** A message
+          // the inbox read successfully is served from memory and takes the fast path,
+          // which deliberately publishes no `opening` — there is nothing to wait for. So
+          // reaching the path that *does* wait needs a message with no retained reading,
+          // and an unreadable one is the realistic way to get there: the user clicks retry.
+          //
+          // **Two entries, because the last one repeats.** A queue of `[unreachable()]`
+          // fails *every* read — which is the shape `readFailsWith` was built for, and why
+          // its own documentation says so. The retry here needs the second read to
+          // succeed, or this test would be about a message that never becomes readable and
+          // the `opening` transition would be the only thing worth asserting.
+          readFailsWith: [unreachable(), undefined],
+        },
+      });
+      const session = createMailboxSession(createProviderManager([provider]), manualScheduler());
+      const seen: SessionState[] = [];
+      session.subscribe((next) => seen.push(next));
+      await session.open();
+
+      await session.checkInbox();
+      // The premise, asserted: nothing was retained, so the open below must fetch.
+      expect(provider.reads).toEqual(["a"]);
+
+      /** The `opened` kind of each state a subscriber was told about. */
+      const openedKinds = (): string[] =>
+        seen.map((state) => (state.kind === "failed" ? "none" : state.opened.kind));
+
+      seen.length = 0;
+      const pending = session.openMessage("a");
+
+      // **Read synchronously, before awaiting.** The whole point of the transition is
+      // that it happens while the request is in flight; a test that awaited first would
+      // see only the settled state and pass for the wrong reason.
+      //
+      // **The count is half the assertion.** `["opening", "opening"]` is what this saw
+      // before `onChange` stopped wrapping `withOpened` in a second `setState`: one
+      // subscriber, told the same thing twice, because `withOpened` publishes and its
+      // caller published again. A React client re-rendered per notification, so this was
+      // a real defect rather than a cosmetic one — and it was invisible to every
+      // assertion that asked only *what* the session reported, never *how often*.
+      expect(openedKinds()).toEqual(["opening"]);
+      // And `current()` agrees with what the subscriber was told.
+      expect(openedOf(session.current())).toEqual({ kind: "opening", messageId: "a" });
+
+      const settled = await pending;
+      expect(settled.kind).toBe("opened");
+      // **One notification per change, end to end.**
+      expect(openedKinds()).toEqual(["opening", "opened"]);
+      // The retry is the second read of one body.
+      expect(provider.reads).toEqual(["a", "a"]);
+    });
+
+    it("opens a message the inbox already read, without a second read", async () => {
+      // **The one read, not two.** The inbox's verdict pass read this body to decide
+      // whether it carries a code; opening it must not spend a request to recompute an
+      // answer already in hand.
+      const summary = makeSummary("a", "mailbox");
+      const provider = stubProvider("guerrilla", {
+        messages: { summaries: [summary], bodies: { a: CODE_BODY } },
+      });
+      const session = await readySession(provider, manualScheduler());
+
+      await session.checkInbox();
+      // The verdict pass reads once. Nothing else has read anything.
+      expect(provider.reads).toEqual(["a"]);
+
+      const state = session.current();
+      if (!isReady(state)) throw new Error(`expected ready, got ${state.kind}`);
+      const opened = await session.openMessage("a");
+
+      expect(opened.kind).toBe("opened");
+      // **Asserted on the session's own state too**, because `openMessage` resolving
+      // with a message while `current()` still says `none` would be a client that
+      // renders nothing after a successful click.
+      const after = session.current();
+      if (!isReady(after)) throw new Error(`expected ready, got ${after.kind}`);
+      expect(after.opened.kind).toBe("opened");
+      expect(provider.reads).toEqual(["a"]);
+    });
+
+    it("keeps a message open across a later inbox check", async () => {
+      // **Written because a mutation proved nothing asserted this, and because the
+      // first version of this comment got the mechanism wrong.**
+      //
+      // Two republish paths exist when the inbox moves, and they are not the same:
+      //
+      // - `withInbox`, which reads `opened.state`, called only from `open()` — once
+      //   at the start of a replacement and once with its result.
+      // - the inbox tracker's `onChange`, `setState({ ...state, inbox: next })`, which
+      //   is what every poll tick goes through.
+      //
+      // A first draft of this test mutated `withInbox` to report `{ kind: "none" }`, on
+      // the reasoning that it is the function that publishes `opened`. That mutation
+      // turned no test red, and the reason is worth recording: **the poller does not
+      // go through `withInbox` at all.** The path that can actually drop an open message
+      // is the spread inside `onChange`, and it is right only because it spreads `state`
+      // rather than rebuilding the object, so `opened` rides along untouched. Rewrite it
+      // as an explicit literal and every tick would close the message on screen — with
+      // no provider error and no user action.
+      //
+      // So the mutation that matters targets `onChange`, and this test is what it lands
+      // on. It is the recorded sixth instance in this repository of a check narrower
+      // than the rule it documented, and the first found by aiming a mutation at a line
+      // rather than at a requirement — which is also how that mutation came to be aimed
+      // at the wrong line in the first place.
+      const summary = makeSummary("a", "mailbox");
+      const provider = stubProvider("guerrilla", {
+        messages: { summaries: [summary], bodies: { a: CODE_BODY } },
+      });
+      const session = await readySession(provider, manualScheduler());
+
+      await session.checkInbox();
+      const opened = await session.openMessage("a");
+      if (opened.kind !== "opened") throw new Error(`expected opened, got ${opened.kind}`);
+
+      // **A later successful check**, which is the path that republishes with the
+      // tracker's state — not a second open, which is a different code path entirely
+      // (`withOpened`) and would have passed either way.
+      await session.checkInbox();
+
+      const state = session.current();
+      if (!isReady(state)) throw new Error(`expected ready, got ${state.kind}`);
+      expect(state.opened.kind).toBe("opened");
+      if (state.opened.kind !== "opened") {
+        throw new Error(`expected opened, got ${state.opened.kind}`);
+      }
+      expect(state.opened.message.id).toBe(summary.id);
+
+      // **And the same through a scheduled turn**, because the loop calls the same
+      // republish on its own initiative — a caller-driven check and a scheduled one are
+      // the same assertion here, and saying so keeps the next change honest.
+      await session.checkInbox();
+      const scheduled = session.current();
+      if (!isReady(scheduled)) throw new Error(`expected ready, got ${scheduled.kind}`);
+      expect(scheduled.opened.kind).toBe("opened");
+    });
+
+    it("shows the codes and links the inbox already found", async () => {
+      const provider = stubProvider("guerrilla", {
+        messages: { summaries: [makeSummary("a", "mailbox")], bodies: { a: BOTH_BODY } },
+      });
+      const session = await readySession(provider, manualScheduler());
+
+      await session.checkInbox();
+      const opened = await session.openMessage("a");
+
+      if (opened.kind !== "opened") throw new Error(`expected opened, got ${opened.kind}`);
+      expect(opened.message.codes.map((code) => code.value)).toEqual(["492187"]);
+      expect(opened.message.links.map((link) => link.hostname)).toEqual(["verify.example"]);
+    });
+
+    it("refuses an identifier the mailbox does not list, and asks no provider", async () => {
+      const provider = stubProvider("guerrilla", {
+        messages: { summaries: [makeSummary("a", "mailbox")], bodies: { a: CODE_BODY } },
+      });
+      const session = await readySession(provider, manualScheduler());
+
+      await session.checkInbox();
+      const before = provider.readCalls;
+
+      const opened = await session.openMessage("not-a-message-here");
+
+      expect(opened.kind).toBe("openFailed");
+      expect(provider.readCalls).toBe(before);
+    });
+
+    it("clears what is open when the mailbox is replaced", async () => {
+      const summary = makeSummary("a", "mailbox");
+      const provider = stubProvider("guerrilla", {
+        messages: { summaries: [summary], bodies: { a: CODE_BODY } },
+      });
+      const session = await readySession(provider, manualScheduler());
+      await session.checkInbox();
+      await session.openMessage("a");
+
+      const before = session.current();
+      if (!isReady(before)) throw new Error(`expected ready, got ${before.kind}`);
+      expect(before.opened.kind).toBe("opened");
+      const readsBefore = provider.readCalls;
+
+      await session.open();
+
+      // **The hazard `design.md` D1 exists to prevent.** Message ids are
+      // provider-scoped, so the new mailbox could list a message with the same id and
+      // the previous mailbox's body would be shown beside it. One owner makes the
+      // mailbox change clear it for free; a client-held selection would have to
+      // remember, and `useMailboxSession` is a binding that deliberately holds no
+      // judgements of its own.
+      const after = session.current();
+      if (!isReady(after)) throw new Error(`expected ready, got ${after.kind}`);
+      expect(after.opened).toEqual({ kind: "none" });
+
+      // And the retention went with it: the same id on the new mailbox is read, not
+      // served from the previous mailbox's reading.
+      await session.checkInbox();
+      await session.openMessage("a");
+      expect(provider.readCalls).toBeGreaterThan(readsBefore);
+    });
+
+    it("says nothing is open while a replacement is being created", async () => {
+      const provider = stubProvider("guerrilla", {
+        messages: { summaries: [makeSummary("a", "mailbox")], bodies: { a: CODE_BODY } },
+      });
+      const session = await readySession(provider, manualScheduler());
+      await session.checkInbox();
+      await session.openMessage("a");
+
+      // **Mid-flight, not after.** The `creating` state is the one a client renders
+      // while the request is in the air, and it is exactly when the previous mailbox's
+      // message must already be off the screen — a user who watched the old message
+      // vanish a second after the button was pressed has seen a lie.
+      const pending = session.open();
+      const during = session.current();
+
+      expect(during.kind).toBe("creating");
+      expect(openedOf(during)).toEqual({ kind: "none" });
+
+      await pending;
+    });
+
+    it("closes whatever is open, on request", async () => {
+      const provider = stubProvider("guerrilla", {
+        messages: { summaries: [makeSummary("a", "mailbox")], bodies: { a: CODE_BODY } },
+      });
+      const session = await readySession(provider, manualScheduler());
+      await session.checkInbox();
+      await session.openMessage("a");
+
+      session.closeMessage();
+
+      const state = session.current();
+      if (!isReady(state)) throw new Error(`expected ready, got ${state.kind}`);
+      expect(state.opened).toEqual({ kind: "none" });
+    });
+
+    it("closes nothing that was never open, harmlessly", async () => {
+      const session = await readySession(stubProvider("guerrilla"), manualScheduler());
+
+      session.closeMessage();
+
+      // **Called on unmount by a page that never opened anything** — an effect
+      // cleanup does not know whether the user got as far as opening a message, and a
+      // second call must not throw or leave a state behind.
+      session.closeMessage();
+      expect(openedOf(session.current())).toEqual({ kind: "none" });
+    });
+
+    it("reads again once a message has left the listing and come back", async () => {
+      // **The one path where opening costs a request, and it is a deliberate one.**
+      // The inbox's verdict for a message is sticky — slice 2's requirement says it
+      // survives — so a message that leaves the listing and returns is *not* re-read
+      // for its verdict. Its retention was shed, though, because a body is neither
+      // cheap nor idempotent. Opening it therefore reads, which is the correct
+      // trade and is worth having a test that says so.
+      const a = makeSummary("a", "mailbox");
+      const provider = stubProvider("guerrilla", {
+        messages: {
+          summaries: [a],
+          bodies: { a: CODE_BODY },
+          listings: [[a], [], [a]],
+        },
+      });
+      const scheduler = manualScheduler();
+      const session = await readySession(provider, scheduler);
+
+      await session.checkInbox();
+      await session.openMessage("a");
+      expect(provider.reads).toEqual(["a"]);
+
+      // `a` leaves.
+      await session.checkInbox();
+      // And comes back. The verdict is already known, so this listing reads nothing.
+      await session.checkInbox();
+      expect(provider.reads).toEqual(["a"]);
+
+      const before = provider.readCalls;
+      const opened = await session.openMessage("a");
+
+      expect(opened.kind).toBe("opened");
+      expect(provider.readCalls).toBe(before + 1);
+    });
+
+    it("keeps a verdict for a message its reading has shed", async () => {
+      const a = makeSummary("a", "mailbox");
+      const provider = stubProvider("guerrilla", {
+        messages: { summaries: [a], bodies: { a: CODE_BODY }, listings: [[a], []] },
+      });
+      const session = await readySession(provider, manualScheduler());
+
+      await session.checkInbox();
+      expect(verdictFor(inboxVerdicts(session), "a")).toEqual({
+        kind: "carriesCode",
+      });
+
+      await session.checkInbox();
+
+      // **Asymmetric on purpose: the cheap half is kept, the expensive half is shed.**
+      // A verdict is one word and already the answer; a readable body is neither. If a
+      // future change sheds both, this fails — and if it keeps both, the
+      // request-count assertion in the previous test fails.
+      expect(verdictFor(inboxVerdicts(session), "a")).toEqual({
+        kind: "carriesCode",
+      });
+    });
+
+    it("keeps its readings when a listing fails, because it learned nothing", async () => {
+      // **Both of this fixture's details were wrong before the independent verification
+      // pass pointed at them, and the test still passed.** `listFailsWith` takes
+      // precedence over `listings` and its queue's last entry repeats, so
+      // `listings: [[a], []]` with `listFailsWith: [undefined, unreachable()]` means
+      // *listing one succeeds and listings two and three both fail* — the empty listing
+      // at index 1 was never served. The comments described the opposite sequence: the
+      // second check emptying the mailbox, the third failing.
+      //
+      // Worse, nothing asserted that the listing failed. Deleting `listFailsWith`
+      // entirely would have left every assertion here green, because a second listing
+      // serving `[a]` prunes to `[a]` and sheds nothing either way — so the test could
+      // not tell the rule it names from the rule that shares its fixture. The premise is
+      // now asserted, which is what makes the read count at the bottom mean anything.
+      const a = makeSummary("a", "mailbox");
+      const provider = stubProvider("guerrilla", {
+        messages: {
+          summaries: [a],
+          bodies: { a: CODE_BODY },
+          // **One listing entry, and it is served once.** The queue above succeeds on the
+          // first check and fails on every one after, which is the shape this test is
+          // about. There is no second `listings` entry because none is ever reached.
+          listings: [[a]],
+          listFailsWith: [undefined, unreachable()],
+        },
+      });
+      const session = await readySession(provider, manualScheduler());
+
+      await session.checkInbox();
+      // The verdict pass read the one message, and its analysis is what would be shed.
+      expect(provider.reads).toEqual(["a"]);
+
+      await session.checkInbox();
+
+      // **The premise, asserted.** Pruning against a listing that was never received
+      // would shed readings for a mailbox the product merely failed to ask.
+      const failed = session.current();
+      if (!isReady(failed)) throw new Error(`expected ready, got ${failed.kind}`);
+      expect(failed.inbox.kind).toBe("checkFailed");
+      if (failed.inbox.kind !== "checkFailed") {
+        throw new Error(`expected checkFailed, got ${failed.inbox.kind}`);
+      }
+      // **And the listing is still reported**, because a failed check learned nothing
+      // about what arrived — only that the product does not know right now.
+      expect(failed.inbox.listing.messages.map((each) => each.id)).toEqual([a.id]);
+
+      const before = provider.readCalls;
+      const opened = await session.openMessage("a");
+
+      // Served from the reading the failed check did not discard, with no request.
+      expect(opened.kind).toBe("opened");
+      expect(provider.readCalls).toBe(before);
     });
   });
 });

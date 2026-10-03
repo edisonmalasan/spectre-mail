@@ -56,6 +56,16 @@
  * `@spectre-mail/mail-parser`, and no client calls the parser directly — and the
  * boundary scan asserts that direction rather than trusting it.
  *
+ * ## Opening a message, since slice 3
+ *
+ * The inbox already reads every new arrival to decide its verdict, so a message the
+ * session has seen can be opened **without a provider request at all**. That retention
+ * is deliberately bounded to the current listing and holds only *readable* text — never
+ * the body as received, which is an HTML document in the one case that was measured. A
+ * client cannot reach the parser to do its own reading, so the projection here is the
+ * only way a client sees a message's contents, and a message view cannot become a
+ * second, differently-detecting implementation.
+ *
  * The package is consumed **as TypeScript source** (see its `exports`), so it has
  * no build step. Its correctness is established by `pnpm typecheck` and
  * `pnpm test`; a successful `pnpm build` builds the website only and says nothing
@@ -76,13 +86,20 @@ export {
   isInboxChecked,
   isInboxChecking,
   isInboxNotStarted,
+  isMessageOpenFailed,
+  isMessageOpened,
+  isMessageOpening,
+  isNoMessageOpen,
   isReady,
+  openedOf,
   verdictFor,
 } from "./state";
 export type {
   InboxListing,
   InboxState,
   MessageVerdict,
+  OpenedMessage,
+  OpenedMessageState,
   ProviderFailure,
   SessionFailure,
   SessionState,

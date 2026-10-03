@@ -14,7 +14,13 @@
  * @module
  */
 
-import type { Mailbox, MessageSummary, NormalizedErrorCode } from "@spectre-mail/core";
+import type {
+  Mailbox,
+  MessageSummary,
+  NormalizedErrorCode,
+  VerificationCode,
+  VerificationLink,
+} from "@spectre-mail/core";
 import type { ProviderHealth } from "@spectre-mail/providers";
 
 /**
@@ -124,48 +130,182 @@ export interface InboxListing {
 }
 
 export type SessionState =
-  | { readonly kind: "creating" }
-  | { readonly kind: "ready"; readonly mailbox: Mailbox; readonly inbox: InboxState }
+  | {
+      readonly kind: "creating";
+      /**
+       * The previously opened message, kept while a new mailbox is being created.
+       *
+       * **Present on `creating` and always `none`, and that is the whole reason it is
+       * here rather than only on `ready`.** A `SessionState` union whose `creating`
+       * variant carries no mailbox cannot also carry the fact that the previous
+       * mailbox's message was closed, so a client holding the old `ready` value
+       * through the transition would keep rendering the old message beside a "creating
+       * your address" heading. Both states have to say the same thing about what is
+       * open, or the address and the message it belonged to come apart on screen for
+       * exactly as long as the request takes.
+       */
+      readonly opened: OpenedMessageState;
+    }
+  | {
+      readonly kind: "ready";
+      readonly mailbox: Mailbox;
+      readonly inbox: InboxState;
+      readonly opened: OpenedMessageState;
+    }
   | { readonly kind: "failed"; readonly failure: SessionFailure };
 
+/**
+ * One opened message: what a listing row already shows, plus what is worth showing
+ * about the message itself.
+ *
+ * ## Why this is not the model's `Message`
+ *
+ * `Message.text` is documented as **the body as received**, and that body is an HTML
+ * document in the one case that was measured: Guerrilla Mail declared a plain-text
+ * content type and delivered an HTML body, and the real message arrived as raw HTML
+ * (`docs/PROVIDERS.md`, run `2026-10-01T18-08-41-251Z`). Overwriting that field with
+ * extracted readable text would make a field whose documented meaning is "the body as
+ * received" hold something else, and the mismatch would be invisible at every use.
+ *
+ * **The rename to `readable` is the safety property, not a naming preference.** There
+ * is deliberately no field here a renderer could mistake for markup to interpret, so
+ * rendering a message unsafely stops being a decision any call site is able to make.
+ * The raw body is dropped at the point of projection rather than retained and
+ * trusted.
+ *
+ * ## Why it extends `MessageSummary` rather than repeating it
+ *
+ * A listing row and an opened message show the same message fields, and duplicating
+ * them would let `MessageSummary` gain a field the row renders while this type quietly
+ * did not. The compiler then guarantees the two cannot drift, exactly as it does for
+ * `Message`.
+ */
+export interface OpenedMessage extends MessageSummary {
+  /**
+   * The message's visible content as plain text.
+   *
+   * Markup-free by construction: it comes from the parser's extraction, which produces
+   * text and reports anchors separately. The body as received is not retained anywhere.
+   */
+  readonly readable: string;
+  /** One-time code candidates, ranked, highest confidence first. Empty when none. */
+  readonly codes: readonly VerificationCode[];
+  /** Verification links, ranked. Empty when no link's wording names one. */
+  readonly links: readonly VerificationLink[];
+}
+
+/**
+ * What is open, right now.
+ *
+ * Four states rather than a selected id plus a result, for `InboxState`'s reason: an id
+ * and a result that disagree are both representable if they are two fields, and neither
+ * disagreement — a selected id with no message, a message with no id — is a state any
+ * client should have to handle.
+ *
+ * **`openFailed` is not `opened` with nothing in it.** That distinction is slice 2's
+ * `undetermined` discipline one level down, and it is the one false claim that costs a
+ * user the code they were waiting for: a view rendering an unreadable message as an
+ * opened message with no codes states that the product looked and found nothing, when
+ * in fact it never managed to look.
+ */
+export type OpenedMessageState =
+  | { readonly kind: "none" }
+  | { readonly kind: "opening"; readonly messageId: string }
+  | { readonly kind: "opened"; readonly message: OpenedMessage }
+  | {
+      readonly kind: "openFailed";
+      readonly messageId: string;
+      readonly failure: SessionFailure;
+    };
+
+/**
+ * The `creating` variant, extracted rather than restated.
+ *
+ * **A derived type, and that is the point.** These three helpers first wrote out their
+ * variants by hand, and adding `opened` to `creating` and `ready` broke them at compile
+ * time with "Property 'opened' is missing". The compiler caught it, which is the good
+ * outcome — but the fix is not to paste the field into two more places. Extracting the
+ * variants means a fourth field is added once, and a hand-written predicate that
+ * disagreed with the union would be a type error rather than a silently-wrong narrowing.
+ */
+type SessionCreating = Extract<SessionState, { readonly kind: "creating" }>;
+type SessionReady = Extract<SessionState, { readonly kind: "ready" }>;
+type SessionFailed = Extract<SessionState, { readonly kind: "failed" }>;
+
 /** Narrowing helpers, so a client reads as `isReady(state)` rather than a cast. */
-export function isCreating(state: SessionState): state is { readonly kind: "creating" } {
+export function isCreating(state: SessionState): state is SessionCreating {
   return state.kind === "creating";
 }
 
-export function isReady(
-  state: SessionState,
-): state is { readonly kind: "ready"; readonly mailbox: Mailbox; readonly inbox: InboxState } {
+export function isReady(state: SessionState): state is SessionReady {
   return state.kind === "ready";
 }
 
-export function isFailed(
-  state: SessionState,
-): state is { readonly kind: "failed"; readonly failure: SessionFailure } {
+export function isFailed(state: SessionState): state is SessionFailed {
   return state.kind === "failed";
 }
 
+/**
+ * The inbox and opened-message variants, likewise extracted.
+ *
+ * Same reason as the session's three. An earlier revision of `isInboxCheckFailed` spelled
+ * its variant out across five lines, so adding a field to `InboxState` would have been a
+ * five-line edit that the compiler *could* catch — but only if the author remembered to
+ * make it, and a forgotten edit here is a narrowing that claims a field exists when it
+ * does not.
+ */
+type InboxNotStarted = Extract<InboxState, { readonly kind: "notStarted" }>;
+type InboxChecking = Extract<InboxState, { readonly kind: "checking" }>;
+type InboxChecked = Extract<InboxState, { readonly kind: "checked" }>;
+type InboxCheckFailed = Extract<InboxState, { readonly kind: "checkFailed" }>;
+type OpenedNone = Extract<OpenedMessageState, { readonly kind: "none" }>;
+type OpenedOpening = Extract<OpenedMessageState, { readonly kind: "opening" }>;
+type OpenedOpened = Extract<OpenedMessageState, { readonly kind: "opened" }>;
+type OpenedOpenFailed = Extract<OpenedMessageState, { readonly kind: "openFailed" }>;
+
 /** Narrowing helpers for the inbox, matching the session's. */
-export function isInboxNotStarted(state: InboxState): state is { readonly kind: "notStarted" } {
+export function isInboxNotStarted(state: InboxState): state is InboxNotStarted {
   return state.kind === "notStarted";
 }
 
-export function isInboxChecking(state: InboxState): state is { readonly kind: "checking" } {
+export function isInboxChecking(state: InboxState): state is InboxChecking {
   return state.kind === "checking";
 }
 
-export function isInboxChecked(
-  state: InboxState,
-): state is { readonly kind: "checked"; readonly listing: InboxListing } {
+export function isInboxChecked(state: InboxState): state is InboxChecked {
   return state.kind === "checked";
 }
 
-export function isInboxCheckFailed(state: InboxState): state is {
-  readonly kind: "checkFailed";
-  readonly listing: InboxListing;
-  readonly failure: SessionFailure;
-} {
+export function isInboxCheckFailed(state: InboxState): state is InboxCheckFailed {
   return state.kind === "checkFailed";
+}
+
+/** Narrowing helpers for the opened message, matching the session's and inbox's. */
+export function isNoMessageOpen(state: OpenedMessageState): state is OpenedNone {
+  return state.kind === "none";
+}
+
+export function isMessageOpening(state: OpenedMessageState): state is OpenedOpening {
+  return state.kind === "opening";
+}
+
+export function isMessageOpened(state: OpenedMessageState): state is OpenedOpened {
+  return state.kind === "opened";
+}
+
+export function isMessageOpenFailed(state: OpenedMessageState): state is OpenedOpenFailed {
+  return state.kind === "openFailed";
+}
+
+/**
+ * What is open, for any session state.
+ *
+ * **`failed` reports `none`, and that is a claim rather than a default.** A mailbox
+ * that could not be created has no messages, so it has nothing open; reporting
+ * something else would let a client keep showing a message beside a creation failure.
+ */
+export function openedOf(state: SessionState): OpenedMessageState {
+  return state.kind === "failed" ? { kind: "none" } : state.opened;
 }
 
 /**

@@ -20,8 +20,9 @@ import type { MailProvider, ProviderHealth, ProviderManager } from "@spectre-mai
 
 import type { MailboxScheduler } from "./clock";
 import { createInboxTracker } from "./inbox";
-import type { InboxState } from "./state";
-import type { SessionFailure, SessionState } from "./state";
+import { createOpenedMessages } from "./opened";
+import type { InboxState, OpenedMessageState, SessionState } from "./state";
+import type { SessionFailure } from "./state";
 
 /** What a client can ask of a session. */
 export interface MailboxSession {
@@ -73,6 +74,33 @@ export interface MailboxSession {
    * cost against an unknown budget.
    */
   reportInboxVisible(visible: boolean): void;
+
+  /**
+   * Open one of the current mailbox's messages.
+   *
+   * **A message the session already read for the inbox's verdict is served without a
+   * request.** Detection is deterministic, so re-reading it would spend a provider
+   * request to recompute an answer already in hand, against a provider whose tolerance
+   * for the existing polling cadence has never been measured. A message with no retained
+   * reading is fetched, and an identifier the mailbox does not list is refused locally
+   * without contacting anything.
+   *
+   * The `opening` transition is published before the provider is asked, so a client can
+   * say it is reading rather than look frozen — but not on the retained path, where
+   * there is nothing to wait for.
+   */
+  openMessage(messageId: string): Promise<OpenedMessageState>;
+
+  /**
+   * Close whatever is open.
+   *
+   * Exists because the session owns what is open (`design.md` D1): a selection is a
+   * provider-scoped message id, and letting the client hold one would mean the client
+   * had to remember to drop it when the mailbox is replaced — which is the exact hazard
+   * the inbox's verdict cache is documented as guarding against. One owner makes the
+   * mailbox change clear it for free.
+   */
+  closeMessage(): void;
 
   /**
    * Stop polling and release the scheduler.
@@ -138,9 +166,33 @@ export function createMailboxSession(
   manager: ProviderManager,
   scheduler: MailboxScheduler,
 ): MailboxSession {
-  let state: SessionState = { kind: "creating" };
+  let state: SessionState = { kind: "creating", opened: { kind: "none" } };
 
   const listeners = new Set<(next: SessionState) => void>();
+
+  const opened = createOpenedMessages({
+    providerFor: (mailbox) => manager.providerFor(mailbox),
+    // Read at call time rather than captured, so the refusal in `open` is against the
+    // latest listing and the retained fast path is available at all. The inbox is
+    // declared below, so this closure runs after both trackers exist.
+    listedSummaries: () =>
+      inbox.state.kind === "checked" || inbox.state.kind === "checkFailed"
+        ? inbox.state.listing.messages
+        : [],
+    // **One notification per change, not two.** `withOpened` already publishes — it
+    // ends in `setState` — so wrapping its result in a second `setState` here notified
+    // every subscriber twice for every opened-state change, with the same value both
+    // times. A React client re-rendered on each one, and a subscriber counting
+    // transitions saw two `opening`s for a single read.
+    //
+    // This was found by a test written for a different reason (task 1.3's clause, which
+    // asks whether the session reports `opening` before the provider answers), when its
+    // synchronous read of the notification log saw `["opening", "opening"]`. Compare the
+    // inbox tracker's `onChange` below, which calls `setState` once.
+    onChange: (next) => {
+      withOpened(state, next);
+    },
+  });
 
   const inbox = createInboxTracker({
     providerFor: (mailbox) => manager.providerFor(mailbox),
@@ -152,6 +204,13 @@ export function createMailboxSession(
     onChange: (next) => {
       if (state.kind === "ready") setState({ ...state, inbox: next });
     },
+    // **One read, two consumers.** The inbox tracker reads a new arrival to decide its
+    // verdict and hands the same analysis to the opened tracker, which is what lets a
+    // message the session already knows be opened without a second request.
+    onRead: (summary, analysis) => opened.retain(summary, analysis),
+    // Pruned only on a successful listing, so a mailbox the product merely failed to
+    // ask keeps every reading it had.
+    onListed: (summaries) => opened.pruneTo(summaries.map((summary) => summary.id)),
   });
 
   /**
@@ -170,7 +229,41 @@ export function createMailboxSession(
 
   /** Republish the session so it carries the tracker's latest inbox, and notify. */
   function withInbox(next: SessionState): SessionState {
-    return setState(next.kind === "ready" ? { ...next, inbox: inbox.state } : next);
+    return setState(
+      next.kind === "ready"
+        ? { ...next, inbox: inbox.state, opened: opened.state }
+        : next.kind === "creating"
+          ? { ...next, opened: opened.state }
+          : next,
+    );
+  }
+
+  /**
+   * Republish with a new opened-message state, and notify.
+   *
+   * **Every non-failed state carries `opened`, so none of the three branches can skip
+   * it in the payload.** That is what keeps the address and the message it belonged to
+   * from coming apart on screen: `creating` says nothing is open as loudly as `ready`
+   * does, and a client rendering either has a single field to read.
+   *
+   * **What the `failed` branch still does, stated rather than implied.** It returns
+   * `current` unchanged, but it reaches that through `setState`, so a subscriber is
+   * notified with an identical value. That is deliberate - removing it would mean
+   * deciding a `failed` session should go silent, which is a different claim from the
+   * one this function makes. It is close to unreachable: a `failed` state can only
+   * follow `createOnce`, which runs after `opened.reset()`, and `reset` publishes only
+   * when the reported state actually changes. The comment previously claimed the
+   * branches were about the payload, which was true, and a reader took that as being
+   * about the notification too.
+   */
+  function withOpened(current: SessionState, next: OpenedMessageState): SessionState {
+    return setState(
+      current.kind === "ready"
+        ? { ...current, opened: next }
+        : current.kind === "creating"
+          ? { ...current, opened: next }
+          : current,
+    );
   }
 
   const session: MailboxSession = {
@@ -193,7 +286,14 @@ export function createMailboxSession(
 
     async open() {
       inbox.reset();
-      withInbox({ kind: "creating" });
+      // **Both reset together, and `creating` picks the state up from the tracker.**
+      // An opened message is a provider-scoped id, so carrying one across a mailbox
+      // change would show the previous mailbox's mail beside the new mailbox's address
+      // — the id-scoping hazard the inbox's `reset` documents, applied to the
+      // selection. `withInbox` reads `opened.state` rather than being handed a literal,
+      // so the two cannot disagree about whether anything is open.
+      opened.reset();
+      withInbox({ kind: "creating", opened: opened.state });
       return withInbox(await createOnce(manager));
     },
 
@@ -221,8 +321,17 @@ export function createMailboxSession(
       inbox.setVisible(visible);
     },
 
+    openMessage(messageId) {
+      return opened.open(mailboxOf(state), messageId);
+    },
+
+    closeMessage() {
+      opened.reset();
+    },
+
     destroy() {
       inbox.destroy();
+      opened.destroy();
     },
   };
 
@@ -238,7 +347,7 @@ export function createMailboxSession(
 async function createOnce(manager: ProviderManager): Promise<SessionState> {
   try {
     const mailbox = await manager.createMailbox();
-    return { kind: "ready", mailbox, inbox: { kind: "notStarted" } };
+    return { kind: "ready", mailbox, inbox: { kind: "notStarted" }, opened: { kind: "none" } };
   } catch (cause) {
     return { kind: "failed", failure: normalize(cause, manager.available) };
   }
