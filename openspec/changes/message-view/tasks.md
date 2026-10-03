@@ -186,7 +186,7 @@ verification having been observed is the failure this repository keeps meeting.
       deltas disagree — in the delta, with the reason recorded. Verify: an amendment
       states what changed and why, and no clause is reinterpreted silently.
 
-- [ ] 6.3 Sync the delta into `openspec/specs/` and check the merge **mechanically**,
+- [x] 6.3 Sync the delta into `openspec/specs/` and check the merge **mechanically**,
       with a script kept outside the repository. Verify: every requirement and scenario
       title in the delta is present in the promoted spec.
 
