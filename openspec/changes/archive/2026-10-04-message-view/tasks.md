@@ -190,7 +190,7 @@ verification having been observed is the failure this repository keeps meeting.
       with a script kept outside the repository. Verify: every requirement and scenario
       title in the delta is present in the promoted spec.
 
-- [ ] 6.4 Archive with `--skip-specs` when the sync already promoted, and check the
+- [x] 6.4 Archive with `--skip-specs` when the sync already promoted, and check the
       command's effect rather than assuming it. Verify: both promoted specs are
       hash-identical before and after, `openspec validate --specs --strict` holds, and
       the archived files are renames with zero content change.
@@ -289,6 +289,72 @@ clause's letter and not in its intent — both are output, neither is a hand sum
 `pnpm build` builds the website **only**. Shared packages are consumed as TypeScript
 source, so a green build is not a claim about them; `pnpm typecheck` is that gate, and it
 is a different fact from the tests passing.
+
+---
+
+# Sync and archive
+
+Two stages after the apply, each on its own branch with its own merge commit:
+`docs/message-view-spec-sync` (#39) and `chore/archive-message-view` (#40). Every
+observation below was read from command output or from a hash. None of them is an inference
+from a command exiting `0`.
+
+## The sync
+
+Ten requirements and twenty-six scenarios promoted across two capabilities, every one
+`ADDED`, so nothing was modified, removed, or renamed and no existing clause needed
+preserving. Checked **mechanically** with a script kept outside the repository, because "a
+manual merge is exactly where a scenario quietly disappears": **6/6 requirement titles and
+16/16 scenario titles** present in `mailbox-session`, **4/4 and 10/10** in `website-client`.
+
+**The existing provenance footers were recounted before being extended, not repeated on
+trust.** This repository has published three arithmetically-wrong counts, one of them in a
+promoted spec's own provenance line. Both verify exactly — slice 1 at 7 requirements / 14
+scenarios and slice 2 at 7 / 18 for `mailbox-session`; 7 / 15 and 5 / 12 for
+`website-client`. Slice 3 adds 6 / 16 and 4 / 10, for **20 requirements and 48 scenarios** and
+**16 requirements and 37 scenarios**.
+
+Three things the merge got wrong or could have got wrong, each caught by a guard rather than
+by reading:
+
+- The first provenance needle **did not match** — the needle carried quotes around a quoted
+  phrase the file does not quote. The guard fired **before the first write**. An earlier draft
+  validated inside the write loop, which would have left `mailbox-session` half-merged the
+  moment `website-client`'s needle failed; the script was changed to check every needle
+  against every file before writing any file.
+- The tool appends, so a second run would have **silently duplicated all ten requirements**.
+  It now refuses when a requirement is already promoted, and that refusal was **observed**,
+  with both files byte-identical by SHA-256 afterwards. A tool that cannot tell whether its
+  own work is already present reports success without evidence.
+- Both promoted specs validate strict, `openspec validate --specs --strict` holds at **8
+  passed, 0 failed**, and the change still validates at exit `0` — now reporting `ADDED
+  failed … already exists` for two headers, which is the expected sync-then-archive window
+  that `--skip-specs` exists for.
+
+## The archive
+
+`openspec archive message-view --skip-specs --yes`, required because the sync stage had
+already promoted the delta: applying it again would double every requirement it carries.
+The command's effect was checked rather than assumed, on three counts that an exit code
+cannot show:
+
+- **Both promoted specs are hash-identical before and after.** `mailbox-session/spec.md` at
+  `F7843D6F…DE27E7D` and `website-client/spec.md` at `41F52950…CA629F9`, unchanged across the
+  command. This is the direct evidence that `--skip-specs` applied nothing a second time.
+- **The archived files are renames with zero content change.** The archived
+  `specs/mailbox-session/spec.md` hashes `94683DBE…2103CC197` and
+  `specs/website-client/spec.md` hashes `54EBACCF…71AB59C`, identical to the two active
+  deltas hashed **before** the command ran.
+- `openspec status` reports **No active changes** afterwards, which is the correct end state
+  for a completed milestone.
+
+**The first archive run reported `Task status: 35/36` and warned about one incomplete task**,
+because 6.4 was still unticked at the moment it ran — so the archive froze a ledger that was
+not yet true, and the command's own warning was the only thing that said so. The archive
+directory was removed, 6.4 was ticked against the observations above, and the command re-run,
+so the archived copy records **36/36** instead of a shortfall that no longer exists. Recorded
+because the correction involves deleting a directory the tool had just written: it had never
+been committed or pushed, and no promoted spec was touched at any point.
 
 ---
 

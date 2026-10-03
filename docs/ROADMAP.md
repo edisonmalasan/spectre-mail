@@ -18,21 +18,31 @@
 > source of truth — `openspec/specs/` and the active OpenSpec change artifacts are.
 > Reconcile this block against Git and OpenSpec before trusting it in a later session.
 >
-> `openspec/specs/` holds four capabilities: `provider-abstraction` (promoted from
-> `provider-role-decision`), `monorepo-foundation` (M1), `shared-domain-model`
-> (M2), and `provider-adapters` (M3). M0's own capability spec was archived with
+> `openspec/specs/` holds **eight** capabilities: `provider-abstraction` (promoted
+> from `provider-role-decision`), `monorepo-foundation` (M1), `shared-domain-model`
+> (M2), `provider-adapters` (M3), `mail-parsing` (M4), `build-and-verification`
+> (M1), `mailbox-session` (M5 slice 1), and `website-client` (M5 slice 1). M0's own
+> capability spec was archived with
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor:** M5 - Website Core MVP. **Slices 1 and 2 are complete and archived**
-(`mailbox-session-layer`, PRs #28–#32; `inbox-polling`, PRs #33–#36: propose, apply and
-verify, sync, archive). `openspec validate --specs --strict` reports **8 passed, 0
-failed**. The promoted capabilities now hold **`mailbox-session` at 14 requirements /
-32 scenarios** and **`website-client` at 12 / 27** — slice 2 contributed 7 + 18 and
-5 + 12, and those are the counts **as promoted**: slice 3's deltas are not in
-`openspec/specs/` yet.
-**Slice 3 (`message-view`) is applying and verified** on `feat/message-view`; its sync
-and archive stages are their own branches, as every stage has been.
+**Roadmap cursor:** M5 - Website Core MVP. **All three delivered slices are complete and
+archived** (`mailbox-session-layer`, PRs #28–#32; `inbox-polling`, PRs #33–#36;
+`message-view`, PRs #37–#40 — propose, apply and verify, sync, archive: four PRs each,
+as every stage has been). `openspec validate --specs --strict` reports **8 passed, 0
+failed**. The promoted capabilities now hold **`mailbox-session` at 20 requirements /
+48 scenarios** and **`website-client` at 16 / 37** — slice 3 contributed 6 + 16 and
+4 + 10.
+
+Those counts were **recounted from the requirements rather than carried over from the
+previous footer's own claim.** This roadmap has published arithmetically-wrong counts
+three times, one of them in a promoted spec's provenance line, so slice 2's figures were
+re-derived before being extended — 7 + 14 and 7 + 18 for `mailbox-session`, 7 + 15 and
+5 + 12 for `website-client`, all of which verify exactly.
+
+**M5 is not finished.** Four of its slices remain — history, provider selector, theme,
+and clear-data — and the next objective is **M5 slice 4**. M5 remains the earliest
+incomplete milestone, which is the rule that selects it.
 
 *Corrected 2026-10-03:* the archive commit recorded slice 2's PRs as #33–#37. There
 were four of them, #33–#36. A range written from a plan rather than from
@@ -94,6 +104,32 @@ on a non-finite `receivedAt`. It arrived with slice 2, its honest home is `core`
 owns the field, and fixing it here would widen the change past its scope — so it is
 recorded rather than taken.
 
+**Slice 3's sync and archive, and one thing the archive got wrong first.** The sync
+promoted ten requirements and twenty-six scenarios, every one `ADDED`, and checked the
+merge **mechanically** with a script kept outside the repository — "a manual merge is
+exactly where a scenario quietly disappears." The first provenance needle did not match,
+because it carried quotes around a quoted phrase the file does not quote; the guard fired
+**before the first write**, because an earlier draft of the tool validated inside its
+write loop and would have left one capability half-merged the moment the other's needle
+failed. The tool also appends, so a second run would have silently duplicated all ten
+requirements — it now refuses, and that refusal was **observed** with both files
+byte-identical by hash.
+
+The archive needed `--skip-specs`, because the sync had already promoted the delta, and
+its effect was checked on three counts an exit code cannot show: both promoted specs are
+**hash-identical before and after** (`F7843D6F~` and `41F52950~` unchanged), the archived
+files are **renames with zero content change** (git reports `R100` on five of six, and
+`R086` on `tasks.md` — the 14+ being the tick and the ledger written before archiving),
+and `openspec status` reports **No active changes**.
+
+**The first archive run reported `Task status: 35/36` and warned about an incomplete
+task**, because 6.4 was still unticked at the moment it ran — so it froze a ledger that
+was not yet true, and the command's own warning was the only thing that said so. The
+archive directory was removed, 6.4 was ticked against the three observations above, and
+the command re-run, so the archived copy records **36/36** rather than a shortfall that
+no longer exists. Worth recording because the correction means deleting a directory the
+tool had just written: it had never been committed or pushed, and no promoted spec was
+touched at any point.
 **Two claims about this slice that are not claims about the product.** The component
 has **never been seen by anything but jsdom** — **no live browser run of the website
 has ever been made** — and the `opened` state is asserted over a stub provider or a
@@ -234,9 +270,11 @@ run against a live provider**. And `pnpm test` is not a claim about types — th
 repository has been bitten in both directions, and slice 3 was no exception.
 **Remaining slices of M5:** history, provider selector, theme, and clear-data. The
 inbox with polling was slice 2 and the message view was slice 3.
-**No slice of M5 may begin until slice 3's sync and archive have merged** — the
-delivery order is the earliest incomplete milestone first, and M5 is still the
-earliest incomplete milestone.
+**Slice 3's sync and archive have merged**, so the gate that held the next slice is open.
+*Corrected 2026-10-04:* this line previously read "No slice of M5 may begin until slice
+3's sync and archive have merged". That was true when written, and a **lifted barrier
+left in place is worse than no barrier**, because it still reads as one — it would have
+sent the next session looking for a merge that had already happened.
 *Corrected 2026-10-02:* an earlier revision of this line named the next milestone
 "Storage Contracts". That was wrong, and it is worth recording why, because it is the
 same failure this repository keeps meeting in a different costume — **naming a
@@ -533,17 +571,18 @@ be written before the pass, not after.
 
 | M3 | complete (archived) | `provider-layer` |
 | M4 | **complete (archived)** | `mail-parsing-engine` |
-| M5 | **in progress** - slices 1 and 2 complete (archived); slice 3 applying and verified, sync and archive to follow | `mailbox-session-layer` (slice 1), `inbox-polling` (slice 2), `message-view` (slice 3) |
+| M5 | **in progress** - slices 1, 2 and 3 complete (archived); history, provider selector, theme and clear-data to follow | `mailbox-session-layer` (slice 1), `inbox-polling` (slice 2), `message-view` (slice 3) |
 | M6-M15 | not started | - |
 
 **OpenSpec lifecycle stage:** M0, the provider-role change, M1's foundation change,
 M2's `shared-domain-model`, M3's `provider-layer`, M4's `mail-parsing-engine`, M5
-slice 1's `mailbox-session-layer` and slice 2's `inbox-polling` **are all complete
-(propose -> apply -> verify -> sync -> archive)**. `mailbox-session-layer` was archived at
-`openspec/changes/archive/2026-10-02-mailbox-session-layer/` with its two promoted
-specs already written by the sync stage, so the archive ran with `--skip-specs` -
+slice 1's `mailbox-session-layer`, slice 2's `inbox-polling` and slice 3's `message-view`
+**are all complete (propose -> apply -> verify -> sync -> archive)**. `mailbox-session-layer`
+was archived at `openspec/changes/archive/2026-10-02-mailbox-session-layer/` with its two
+promoted specs already written by the sync stage, so the archive ran with `--skip-specs` -
 running it without that flag would have applied the same requirements twice. Slice 2's
-`inbox-polling` was archived the same way, and slice 3 will be too.
+`inbox-polling` was archived the same way, and so was slice 3's `message-view`, at
+`openspec/changes/archive/2026-10-04-message-view/`.
 **No active change.** Task 8.11 - the independent vacuity check - was the step that surfaced the
 defect above, and is ticked because the check was performed and it found something.
 M3's own verification pass found two more, and **M4's verification pass found two
@@ -1750,7 +1789,7 @@ its own, and one line in particular is delivered elsewhere:
 | --- | --- |
 | `open SpectreMail`, `receive a working address` | M5 slice 1 — `mailbox-session-layer` (archived) |
 | `receive a real message` | M5 slice 2 — `inbox-polling` (archived) |
-| `find the OTP` | M5 slice 3 — `message-view` (applied; sync and archive to follow) |
+| `find the OTP` | M5 slice 3 — `message-view` (archived) |
 | **`copy the OTP`** | **M10, the verification workflow** — see below |
 | `return to a recent mailbox` | M5's mailbox history slice, over M6's storage |
 | `clear local SpectreMail data` | M5's clear-data slice, over M6's storage |

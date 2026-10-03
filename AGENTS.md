@@ -828,20 +828,33 @@ reported `No active changes`, which is the correct end state for a completed mil
 This establishes that the archive moved the change and did not corrupt the promoted
 specs.
 
-**The archived delta and the promoted spec are NOT byte-identical, by design, and the
-difference was measured rather than assumed.** Verified at M4 by extracting everything
-from the first `### Requirement:` in each file and comparing: **9 requirements in
-both**, but **28 scenarios in the archived delta against 31 in the promoted spec**. The
-three extra scenarios are the ones the verification pass added. They were written into
-the promoted spec at the sync stage rather than back into the change's delta, because
-the change was already applied and its delta is the record of what the change
-originally proposed.
+**Whether the archived delta and the promoted spec differ is a property of the
+milestone, not a fixed rule — and the difference is a symptom of which artifact was
+edited, not a property of archiving.**
 
-So: **`openspec/specs/` is the source of truth for what is required**, and the
-archived delta is the record of what the change asked for. A later reader comparing
-them will find a gap, and it is a real one rather than a mistake — but it should be
-read as "the verification pass strengthened this", not "the archive lost
-something".
+Verified at **M4**: extracting everything from the first `### Requirement:` in each file
+and comparing gave **9 requirements in both**, but **28 scenarios in the archived delta
+against 31 in the promoted spec**. The three extra scenarios were the ones the
+verification pass added, and they were written into the **promoted spec** at the sync
+stage rather than back into the change's delta. A reader comparing the two would find a
+gap there.
+
+Verified at **M5 slice 3**, and it came out the other way: **6 requirements and 16
+scenarios in both** for `mailbox-session`, **4 and 10** for `website-client` — every
+delta title present in the promoted spec, checked mechanically rather than by reading.
+The reason is that this repository's own rule says *"if implementation reveals a missing
+or incorrect requirement, update the change instead of silently diverging"*, so slice 3's
+task 6.2 required its two apply-stage amendments to be written **into the delta**, with
+the reason attached, and they are there — `**Amendment, recorded during apply
+(2026-10-03).**` inside two of its requirements. Nothing was left for the sync stage to
+add, so there is no gap.
+
+So the rule that generalizes is the opposite of the one M4's numbers suggest: **a gap
+between the archived delta and the promoted spec means an amendment was recorded in the
+wrong artifact.** `openspec/specs/` is the source of truth for what is required, and the
+archived delta is the record of what the change asked for — and when a verification pass
+strengthens the second, it must strengthen the *change*, or the archive will ship a
+delta that understates its own milestone.
 
 
 
