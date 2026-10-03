@@ -26,6 +26,11 @@ import { createProviderManager } from "@spectre-mail/providers";
 import type { MailProvider } from "@spectre-mail/providers";
 
 import { App } from "./App";
+import { applyJsdomSuiteBudget } from "./jsdom-suite-budget";
+// **Applied at module scope, once.** See `jsdom-suite-budget.ts`: two of the eight runs
+// recorded there failed on this file's own timeouts, with every assertion in it measured
+// at well under 250ms.
+applyJsdomSuiteBudget();
 
 afterEach(() => {
   cleanup();
@@ -660,14 +665,32 @@ describe("the website", () => {
       // claims would have passed over it.
       expect(text).not.toMatch(/no inbox/i);
 
+      // **Slice 3 retired the "cannot open a message" claim, and this is the assertion
+      // that notices.** It is the third instance of the same property, and the reason
+      // this test is written as a set of *negative* claims rather than only positive
+      // ones is that every one of them was a sentence that outlived the feature it
+      // described. Slice 1's "no mailbox feature", slice 2's "no inbox", slice 3's
+      // "cannot open a message" — a page that keeps denying a capability it has is
+      // contradicting itself, and a test asserting only what the page *does* claim
+      // passes straight over it.
+      expect(text).not.toMatch(/cannot open a message/i);
+      expect(text).not.toMatch(/does not open a message/i);
+      expect(text).not.toMatch(/a message body is not shown/i);
+
+      // The replacement claim is the page's, and it is the one slice 3 actually
+      // delivered: the message view *can* be opened and shows text, codes, and links.
+      expect(text).toMatch(/can open a message/i);
+      expect(text).toMatch(/codes it found/i);
+
       // Statements that are still true are kept.
       expect(text).toMatch(/no backend/i);
       expect(text).toMatch(/never (relays|proxies)/i);
 
-      // And the limitations that are true are stated, including the ones that are
-      // unflattering. The unreadable-one is the slice-2 version of "no inbox": the page
-      // can list a mailbox but still cannot open a message.
-      expect(text).toMatch(/cannot open a message/i);
+      // **And the limitation that replaced it is stated, unflattering as it is.** The
+      // page can read a message and still will not copy a code or follow a link, and a
+      // user told "it opens messages" with nothing said about that would reasonably
+      // expect a button to copy the code they came for.
+      expect(text).toMatch(/does not copy codes or follow links/i);
       expect(text).toMatch(/reload discards/i);
       expect(text).toContain("Guerrilla Mail and nothing else");
     });

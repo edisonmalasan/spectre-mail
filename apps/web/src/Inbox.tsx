@@ -44,9 +44,17 @@ export interface InboxProps {
    * which is what `provider-abstraction` requires instead of a silent one.
    */
   readonly onCheck: () => void;
+  /**
+   * Open a message from the inbox.
+   *
+   * Passed down rather than imported from a session hook, which is what keeps this file
+   * presentational: it renders the state it is handed and reports what a control did.
+   * It never reads a message and never calls a parser.
+   */
+  readonly onOpenMessage: (messageId: string) => void;
 }
 
-export function Inbox({ inbox, onCheck }: InboxProps) {
+export function Inbox({ inbox, onCheck, onOpenMessage }: InboxProps) {
   // **The four states are distinct in words, and the strings differ from each other
   // rather than merely in wording.** An empty mailbox and a check that has not run are
   // different facts: the first says a provider answered and there was nothing, the
@@ -72,7 +80,7 @@ export function Inbox({ inbox, onCheck }: InboxProps) {
         {/* The messages already learned are still true, so they are still shown. A
             failed check is a condition of the inbox, not the loss of it. */}
         {inbox.listing.messages.length > 0 ? (
-          <InboxRows listing={inbox.listing} />
+          <InboxRows listing={inbox.listing} onOpenMessage={onOpenMessage} />
         ) : (
           // **An empty list under a failure needs a sentence, and did not have one.**
           // With no prior successful listing there is nothing to show, and rendering an
@@ -105,7 +113,7 @@ export function Inbox({ inbox, onCheck }: InboxProps) {
   return (
     <section aria-labelledby="inbox-heading">
       <h3 id="inbox-heading">Inbox</h3>
-      <InboxRows listing={inbox.listing} />
+      <InboxRows listing={inbox.listing} onOpenMessage={onOpenMessage} />
       <p data-testid="inbox-cadence-note">
         This page checks while it is open and stops when you switch away.
       </p>
@@ -118,9 +126,10 @@ interface InboxRowsProps {
     readonly messages: readonly MessageSummary[];
     readonly verdicts: ReadonlyMap<string, MessageVerdict>;
   };
+  readonly onOpenMessage: (messageId: string) => void;
 }
 
-function InboxRows({ listing }: InboxRowsProps) {
+function InboxRows({ listing, onOpenMessage }: InboxRowsProps) {
   return (
     <ul data-testid="inbox-rows">
       {listing.messages.map((message) => (
@@ -131,6 +140,7 @@ function InboxRows({ listing }: InboxRowsProps) {
             // `verdictFor`, which is the honest answer for a row whose body this
             // product has not managed to read.
             verdict={verdictFor(listing.verdicts, message.id)}
+            onOpen={() => onOpenMessage(message.id)}
           />
         </li>
       ))}
