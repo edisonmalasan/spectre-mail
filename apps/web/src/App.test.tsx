@@ -123,6 +123,45 @@ function visibleText(): string {
   return document.body.textContent ?? "";
 }
 
+/**
+ * Sentences that pair a provider or a named provider service with a claim that a
+ * provider choice is missing, unavailable, or still to come.
+ *
+ * ## What this is for
+ *
+ * `website-client` requires the website to offer no control for choosing a provider
+ * and **not to describe that absence as missing or forthcoming**. The first half is
+ * easy to assert and already was — `container.querySelector("select")` is null. The
+ * second half is the one with a shape worth checking, because the page's own limits
+ * list is full of statements about what it does not do, and "we do not do X yet" and
+ * "X is coming soon" say different things to a reader: the first reports a limit, the
+ * second promises something the page has no authority to deliver.
+ *
+ * ## Why the alternatives are grouped this way
+ *
+ * The match must stay **within one sentence**. `[^.!?]*` rather than `.*` is what
+ * stops "It reaches Guerrilla Mail and nothing else." from pairing with a keyword in
+ * the next `<li>`, which is how a rule of this shape turns into an assertion that
+ * fails on any page long enough to mention both. It also keeps the negative control
+ * meaningful: the page really does contain a provider name and a limitation in
+ * adjacent bullets.
+ *
+ * ## Stated limit
+ *
+ * This looks for the pairing, so it will miss a claim that describes the gap without
+ * naming a provider — "choosing between services is not available yet". A rule that
+ * caught that would have to reason about what a sentence is about, which a regex
+ * cannot do. The limit is stated rather than papered over, and the positive
+ * assertion that matters — that the page *names* the provider it reaches — is not
+ * built on this at all.
+ */
+function providerChoiceClaims(text: string): string[] {
+  const pattern =
+    /\b(?:provider|providers|guerrilla|mail\.tm)\b[^.!?]*\b(?:soon|later|coming|not yet|unavailable|missing|planned|upcoming|future)\b/gi;
+
+  return [...text.matchAll(pattern)].map((match) => match[0]);
+}
+
 describe("the website", () => {
   describe("while creating", () => {
     it("says it is creating, and shows no address of any kind", async () => {
@@ -733,18 +772,27 @@ describe("the website", () => {
     });
 
     it("offers no provider selector, and does not present its absence as missing", async () => {
-      // `website-client`'s provider-selector scenario is conditional — "WHEN the
-      // website renders a provider selector" — and today it renders none, so the
-      // scenario's *WHEN* never fires. A conditional scenario with nothing asserting
-      // the condition is the shape that hides a whole slice: nobody can tell whether
-      // the selector was forgotten, deliberately deferred, or quietly removed.
+      // `website-client` still carries the conditional scenario — "WHEN the website
+      // renders a provider selector / THEN it SHALL offer no provider that the website
+      // cannot reach" — which never fires, because the website renders none. This test
+      // asserts that condition.
       //
-      // So the condition is asserted instead. This is a real claim, not a
-      // placeholder: the selector belongs to a later slice of M5, and this test is
-      // what makes adding it a *deliberate act* rather than an accident. When the
-      // selector slice lands, this test is expected to be **replaced**, and the
-      // replacement is the honest thing to do — this one would otherwise start
-      // failing and someone would delete it.
+      // **This test was previously marked for replacement, and that replacement is not
+      // happening.** Its comment said the selector "belongs to a later slice of M5" and
+      // that this test "is expected to be **replaced**", "and the replacement is the
+      // honest thing to do — this one would otherwise start failing and someone would
+      // delete it". The slice arrived and found the condition was not a deferral: a
+      // control over one reachable provider cannot act, and
+      // `openspec validate --strict` refuses a `MODIFIED` block that drops a scenario
+      // the current spec has. Re-reading the scenario against that refusal showed it
+      // was right — the clauses are a sound rule for any client that *does* render a
+      // selector, including the extension at M8. So the conditional scenario stays as
+      // the forward rule, and an unconditional scenario now covers today.
+      //
+      // What this test guards is therefore permanent, not provisional. Adding a
+      // selector would have to change this file, which is the point: it makes that a
+      // deliberate act rather than an accident. What it must not do is be deleted —
+      // which is why the requirement, not this comment, is what now holds it up.
       const session = sessionOver(providerReturning({}));
 
       const { container } = render(<App session={session} />);
@@ -759,7 +807,82 @@ describe("the website", () => {
       // apologising for a choice it does not have.
       expect(visibleText()).toContain("Guerrilla Mail and nothing else");
       expect(visibleText()).not.toMatch(/mail\.tm/i);
-      expect(visibleText()).not.toMatch(/coming soon|not yet available|unavailable provider/i);
+      expect(providerChoiceClaims(visibleText())).toEqual([]);
+    });
+
+    it("says which provider it reaches, and offers no choice of one, in every state", async () => {
+      // `website-client`'s unconditional scenario says "WHEN the website is displayed
+      // in any state". The test above covers `ready` only, and `ready` is the state
+      // least likely to lose a shared block: the limits list is rendered outside every
+      // conditional, so a change that moved it into one branch would keep this state
+      // green and drop it from the other two.
+      //
+      // Each state is therefore rendered for real. Nothing is asserted about a string
+      // the page never produced.
+      const pending = new Promise<Mailbox>(() => undefined);
+      const creating = sessionOver(providerReturning({ create: () => pending }));
+
+      const { container: creatingContainer } = render(<App session={creating} />);
+      expect(screen.getByTestId("creating")).toBeTruthy();
+      expect(creatingContainer.querySelector("select")).toBeNull();
+      expect(visibleText()).toContain("Guerrilla Mail");
+      expect(providerChoiceClaims(visibleText())).toEqual([]);
+
+      cleanup();
+      vi.restoreAllMocks();
+
+      const failed = sessionOver(
+        providerReturning({
+          failWith: {
+            code: NormalizedErrorCode.NETWORK_ERROR,
+            provider: "guerrilla",
+            description: "The request never reached the provider.",
+            cause: new Error("network down"),
+          },
+        }),
+      );
+      render(<App session={failed} />);
+      await screen.findByTestId("failure-explanation");
+
+      expect(document.querySelector("select")).toBeNull();
+      expect(visibleText()).toContain("Guerrilla Mail");
+      expect(providerChoiceClaims(visibleText())).toEqual([]);
+    });
+
+    it("catches a page that describes its missing provider choice as forthcoming", async () => {
+      // **The control the assertions above need.** A rule that matches nothing passes
+      // for the same reason a check narrower than its rule does: it reports no
+      // violation because there is nothing to report, not because the page is clean.
+      // The only way to tell the two apart is to feed the detector the phrasing it
+      // exists to catch and watch it catch it.
+      //
+      // One fixture per form, not a gathered list. A single phrase that trips a
+      // pattern containing five alternatives proves only that the pattern fires; it
+      // proves nothing about the four alternatives, which is the sixteenth recorded
+      // instance of a check narrower than the rule it documents.
+      const fixtures = [
+        "A provider selector is coming soon.",
+        "Choosing a provider is not yet available.",
+        "Mail.tm is planned for a later release.",
+        "Other providers will be available in a future update.",
+        "The provider options are missing from this page.",
+        "Guerrilla Mail is an unavailable provider right now.",
+      ];
+
+      for (const fixture of fixtures) {
+        expect(providerChoiceClaims(fixture)).not.toEqual([]);
+      }
+
+      // And the negative control: text that is honest, and mentions both a provider
+      // and a limitation, must not trip it. Without this the rule could be satisfied
+      // by a pattern so wide it rejected the page's real wording.
+      const honest = [
+        "It reaches Guerrilla Mail and nothing else.",
+        "No server is involved. SpectreMail operates no backend and never relays a provider request.",
+        "It does not copy codes or follow links for you. Those are the verification workflow, which this page does not do yet.",
+      ];
+
+      expect(providerChoiceClaims(honest.join(" "))).toEqual([]);
     });
 
     it("starts a fresh mailbox after a reload instead of claiming the old one", async () => {

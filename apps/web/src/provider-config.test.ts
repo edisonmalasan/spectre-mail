@@ -54,19 +54,31 @@ describe("the website's provider configuration", () => {
 
     // A second provider would be a claim of redundancy this client does not have.
     // Asserting the length pins that, and the id pins which one.
-    //
-    // **These two constants are independent, and an earlier comment here claimed
-    // they were not.** It said "the list is the single place that decision lives",
-    // but `createWebsiteProviderManager` constructs `createGuerrillaAdapter`
-    // directly and never reads `WEBSITE_PROVIDER_IDS`. So the list documented an
-    // indirection that did not exist, and a reader would reasonably assume editing
-    // the list changed the client's behaviour. It does not.
-    //
-    // The coverage is unaffected — the assertions above drive a real creation and
-    // check every URL, which is what actually pins the behaviour — but the two
-    // constants must be changed together, so that is now said rather than implied.
-    expect(manager.available).toHaveLength(WEBSITE_PROVIDER_IDS.length);
     expect(manager.available[0]?.displayName).toBe("Guerrilla Mail");
     expect(WEBSITE_PROVIDER_IDS).toEqual(["guerrilla"]);
+  });
+
+  it("resolves its providers to exactly the ids it declares, in declared order", () => {
+    const manager = createWebsiteProviderManager(recorder().transport);
+
+    // **This assertion cannot catch the defect this change fixed, and is not claimed
+    // to.** With one provider on each side it is a coincidental match: a factory that
+    // ignored `WEBSITE_PROVIDER_IDS` entirely would satisfy it just as well, which is
+    // why it was not the only assertion before. What was there —
+    // `expect(manager.available).toHaveLength(WEBSITE_PROVIDER_IDS.length)` — has the
+    // same weakness for the same reason, and its comment conceded it: "the two
+    // constants must be changed together, so that is now said rather than implied".
+    //
+    // This form states the correct *relation* rather than a coincidental one, and it
+    // would fail if a provider were added to the factory while the list still named
+    // one. What it still cannot show is that the factory *reads* the list.
+    //
+    // That claim is asserted elsewhere and is falsifiable: the boundary rule in
+    // `tests/architecture/boundaries.test.ts` fails when a client's configuration
+    // exports an id list it never reads as a value, with a control that reverts this
+    // factory to direct construction. Between the two, the list is the configuration
+    // rather than documentation beside one — one test for the behaviour, one for the
+    // structure, neither standing in for the other.
+    expect(manager.available.map((provider) => provider.id)).toEqual([...WEBSITE_PROVIDER_IDS]);
   });
 });

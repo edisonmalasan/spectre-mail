@@ -20,11 +20,21 @@
  * two configurations are separate because reachability is a property of where
  * the code runs. Nothing here is a verdict on either provider.
  *
+ * ## Why there is no provider selector
+ *
+ * A selector needs options, and the website has exactly one reachable provider. A
+ * `<select>` with a single option is a control that cannot do anything, and it
+ * would tell a reader that a choice exists and is unavailable — which is worse
+ * than saying nothing. `website-client` requires the absence to be a stated
+ * decision rather than a gap nobody has noticed, and this is that statement. The
+ * extension, whose host permissions do reach two providers, is where a selector
+ * would belong; that is M8.
+ *
  * @module
  */
 
 import { createGuerrillaAdapter, createProviderManager } from "@spectre-mail/providers";
-import type { ProviderManager } from "@spectre-mail/providers";
+import type { MailProvider, ProviderManager, Transport } from "@spectre-mail/providers";
 
 import { webTransport } from "./transport";
 
@@ -38,11 +48,51 @@ import { webTransport } from "./transport";
  *
  * **Keep it a list of one.** Two entries here would claim redundancy the website
  * does not have.
+ *
+ * **This list is what configures the client, and that is now enforced rather than
+ * described.** It used to be documentation beside the real configuration:
+ * `createWebsiteProviderManager` constructed the adapter directly and never read
+ * this constant, so adding a provider meant editing this list *and* the factory —
+ * exactly the spread the paragraph above claims to avoid. The factory now derives
+ * from this list, and {@link ADAPTERS} is typed as an exhaustive `Record` over it,
+ * so an id added here without an adapter beside it is a compile error rather than
+ * a runtime surprise.
  */
 export const WEBSITE_PROVIDER_IDS = ["guerrilla"] as const;
 
 /**
+ * The ids this client declares, as a union.
+ *
+ * Derived from {@link WEBSITE_PROVIDER_IDS} rather than written out again, so the
+ * two cannot disagree.
+ */
+export type WebsiteProviderId = (typeof WEBSITE_PROVIDER_IDS)[number];
+
+/**
+ * One adapter per declared id, and the only place an adapter is constructed.
+ *
+ * Typed `Record<WebsiteProviderId, …>` on purpose. `Record` over a finite literal
+ * union is exhaustive in the type system, so declaring a second id in
+ * {@link WEBSITE_PROVIDER_IDS} without adding it here **does not compile** — which
+ * is what makes the list a real configuration rather than a comment beside one.
+ *
+ * **Client configuration, not shared provider machinery.** A registry like this
+ * would be wrong inside `packages/providers`: keyed by id, it would let any client
+ * import an adapter it must not reach, and the boundary rule that confines adapters
+ * to that package exists precisely because reachability is per client.
+ */
+const ADAPTERS: Readonly<Record<WebsiteProviderId, (transport: Transport) => MailProvider>> = {
+  // `now` is injected rather than read from the platform, so the adapter has no
+  // clock of its own and a test can pin a mailbox's creation time. Nothing on the
+  // page derives a lifetime from it — see `MailboxLifetime.tsx`.
+  guerrilla: (transport) => createGuerrillaAdapter({ transport, now: () => Date.now() }),
+};
+
+/**
  * Build the website's provider manager.
+ *
+ * Derives its adapters from {@link WEBSITE_PROVIDER_IDS}, so the exported list and
+ * the client's actual providers cannot drift apart.
  *
  * Takes the transport as a parameter rather than reading the global `fetch`, so
  * this file contains no `fetch` call and a test can supply a recording transport
@@ -51,10 +101,5 @@ export const WEBSITE_PROVIDER_IDS = ["guerrilla"] as const;
  * @param transport - How requests are performed. Production passes {@link webTransport}.
  */
 export function createWebsiteProviderManager(transport = webTransport): ProviderManager {
-  return createProviderManager([
-    // `now` is injected rather than read from the platform, so the adapter has no
-    // clock of its own and a test can pin a mailbox's creation time. Nothing on the
-    // page derives a lifetime from it — see `MailboxLifetime.tsx`.
-    createGuerrillaAdapter({ transport, now: () => Date.now() }),
-  ]);
+  return createProviderManager(WEBSITE_PROVIDER_IDS.map((id) => ADAPTERS[id](transport)));
 }
