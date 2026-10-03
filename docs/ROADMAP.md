@@ -86,6 +86,20 @@ provider selector **as a requirement** rather than by omission. Both are falsifi
 8 of 8 deliberate mutations were caught by the intended assertion, with every mutated
 file restored byte-identical by hash.
 
+**Lifecycle.** Apply merged as **#42**. The sync promoted a `MODIFIED` requirement
+into `openspec/specs/website-client/spec.md` — 16 requirements, 39 scenarios, up from
+37 — and all four of the delta's scenario titles were verified present in the promoted
+file **mechanically**, by comparing titles and counting, not by reading. `openspec
+validate --specs --strict` reports **8 passed, 0 failed**.
+
+*Recorded, because it is a second reading of the same gotcha `AGENTS.md` documents.*
+`openspec validate provider-reachability --type spec --strict` fails here with
+`ENOENT`, and that is **correct**: this change modified an existing capability rather
+than promoting a new one, so there is no `openspec/specs/provider-reachability/`. The
+verification that applies is `openspec validate website-client --type spec --strict`,
+which passes. A `MODIFIED` sync and an `ADDED` sync are verified by different commands,
+and the right one follows from which capability the change named.
+
 **What slice 4 is still not evidence for.** No live browser run has been made, every
 provider interaction in every test still replays a recording, the polling cadence has
 still never run against a live provider, and `pnpm test` is still not a claim about
