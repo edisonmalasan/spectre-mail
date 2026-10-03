@@ -86,19 +86,41 @@ provider selector **as a requirement** rather than by omission. Both are falsifi
 8 of 8 deliberate mutations were caught by the intended assertion, with every mutated
 file restored byte-identical by hash.
 
-**Lifecycle.** Apply merged as **#42**. The sync promoted a `MODIFIED` requirement
-into `openspec/specs/website-client/spec.md` — 16 requirements, 39 scenarios, up from
-37 — and all four of the delta's scenario titles were verified present in the promoted
-file **mechanically**, by comparing titles and counting, not by reading. `openspec
-validate --specs --strict` reports **8 passed, 0 failed**.
+**Lifecycle.** Apply merged as **#42**, sync as **#43**, and the change is **archived**
+at `openspec/changes/archive/2026-10-04-provider-reachability/` with
+`--skip-specs --yes`; `openspec status` now reports **No active changes**. The sync
+promoted a `MODIFIED` requirement into `openspec/specs/website-client/spec.md` — 16
+requirements, 39 scenarios, up from 37 — and all four of the delta's scenario titles
+were verified present in the promoted file **mechanically**, by comparing titles and
+counting, not by reading. `openspec validate --specs --strict` reports **8 passed, 0
+failed**.
 
-*Recorded, because it is a second reading of the same gotcha `AGENTS.md` documents.*
-`openspec validate provider-reachability --type spec --strict` fails here with
-`ENOENT`, and that is **correct**: this change modified an existing capability rather
-than promoting a new one, so there is no `openspec/specs/provider-reachability/`. The
-verification that applies is `openspec validate website-client --type spec --strict`,
-which passes. A `MODIFIED` sync and an `ADDED` sync are verified by different commands,
-and the right one follows from which capability the change named.
+**The archived delta and the promoted spec's requirement block are byte-identical**,
+which is the check M4's numbers argue for. Whether they differ is a property of *which
+artifact an amendment was written into*: a gap means the amendment was recorded in the
+wrong place, because `openspec/specs/` is the source of truth for what is required and
+the archived delta is the record of what the change asked for. Slice 4's amendments
+were written into the delta during propose, so there is nothing left for the sync to
+add and the two agree exactly — the same outcome as slice 3, for the same reason.
+
+*Recorded because the archive verification harness damaged a file it could not restore,
+and the guard that prevents a repeat is the useful part.* `openspec archive` **moves**
+the change rather than copying it, so `openspec/changes/archive/<date>-<change>/` is
+**untracked** from that moment until something is committed. A mutation run against the
+archived delta therefore cannot be undone with `git checkout --`, which fails with
+"pathspec did not match any file(s) known to git". The run that proved the delta-loss
+check fires left a `#### Scenario: A placeholder` in the archived delta. Recovering it
+took **two wrong attempts before a correct one**:
+
+1. `git show <commit>:<path> > file` through PowerShell returned the right content with
+   **93 CRLF line endings**, so the file came back byte-wrong.
+2. Piping that through node preserved the content but not the endings either, because
+   PowerShell had already rewritten them before node saw them.
+
+Only `execFileSync("git", ["show", ...])` returning a Buffer and writing that Buffer
+unchanged restored the file — verified by SHA-256 against the pre-run hash. The harness
+now **refuses to mutate any path git does not track** and says why. Recovering text
+through a shell redirect on Windows is not recovering bytes.
 
 **What slice 4 is still not evidence for.** No live browser run has been made, every
 provider interaction in every test still replays a recording, the polling cadence has
@@ -636,13 +658,31 @@ be written before the pass, not after.
 
 **OpenSpec lifecycle stage:** M0, the provider-role change, M1's foundation change,
 M2's `shared-domain-model`, M3's `provider-layer`, M4's `mail-parsing-engine`, M5
-slice 1's `mailbox-session-layer`, slice 2's `inbox-polling` and slice 3's `message-view`
+slice 1's `mailbox-session-layer`, slice 2's `inbox-polling`, slice 3's `message-view`
+and slice 4's `provider-reachability`
 **are all complete (propose -> apply -> verify -> sync -> archive)**. `mailbox-session-layer`
 was archived at `openspec/changes/archive/2026-10-02-mailbox-session-layer/` with its two
 promoted specs already written by the sync stage, so the archive ran with `--skip-specs` -
 running it without that flag would have applied the same requirements twice. Slice 2's
 `inbox-polling` was archived the same way, and so was slice 3's `message-view`, at
-`openspec/changes/archive/2026-10-04-message-view/`.
+`openspec/changes/archive/2026-10-04-message-view/`. Slice 4's
+`provider-reachability` was archived at
+`openspec/changes/archive/2026-10-04-provider-reachability/`, also with
+`--skip-specs`, and its `MODIFIED` requirement was promoted by the sync stage as
+**PR #43** (apply: **#42**).
+
+**A `MODIFIED` sync is verified by a different command than an `ADDED` one**, and
+getting that wrong looks like a validator bug rather than a mistake. After slice 4's
+sync, `openspec validate provider-reachability --type spec --strict` failed with
+`ENOENT` - correctly, because the change modified an existing capability instead of
+promoting a new one, so there is no `openspec/specs/provider-reachability/`. The
+verification that applies is `openspec validate website-client --type spec --strict`,
+which passes, alongside `openspec validate --specs --strict` at **8 passed, 0 failed**.
+`AGENTS.md` documents the *other* half of this gotcha - a bare name matching **both** a
+change and a promoted spec, resolved with `--type`; this is its mirror, and the rule
+that resolves it is to ask which capability the change named rather than what the
+change is called.
+
 **No active change.** Task 8.11 - the independent vacuity check - was the step that surfaced the
 defect above, and is ticked because the check was performed and it found something.
 M3's own verification pass found two more, and **M4's verification pass found two
