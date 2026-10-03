@@ -124,6 +124,26 @@ function visibleText(): string {
 }
 
 /**
+ * The text of the page's own list of what it can and cannot do.
+ *
+ * Scoped deliberately, because a whole-page text search is satisfied by coincidence.
+ * The first version of the state-coverage test asserted `visibleText()` contained
+ * "Guerrilla Mail", and the falsification pass caught it immediately: making that
+ * line conditional on the `ready` state left the suite **green**, because the
+ * `creating` state already says "Asking Guerrilla Mail for a new address" and the
+ * `failed` state names the provider in its explanation. Two of the three assertions
+ * were therefore passing on unrelated text ++ and a test that passes on unrelated
+ * text is not coverage, however true the statement it appears to be checking.
+ *
+ * The `<section aria-labelledby>` has an accessible name, so it is a `region` and can
+ * be addressed directly. A copy change inside the list is fine; moving the line out
+ * of this list is not.
+ */
+function limitsText(): string {
+  return screen.getByRole("region", { name: "What this page can and cannot do" }).textContent ?? "";
+}
+
+/**
  * Sentences that pair a provider or a named provider service with a claim that a
  * provider choice is missing, unavailable, or still to come.
  *
@@ -819,13 +839,17 @@ describe("the website", () => {
       //
       // Each state is therefore rendered for real. Nothing is asserted about a string
       // the page never produced.
+      //
+      // `limitsText()` rather than `visibleText()`: see its note. A whole-page search
+      // for "Guerrilla Mail" is satisfied by this state heading and by the failure
+      // prose, so it would pass with the line removed from the list entirely.
       const pending = new Promise<Mailbox>(() => undefined);
       const creating = sessionOver(providerReturning({ create: () => pending }));
 
       const { container: creatingContainer } = render(<App session={creating} />);
       expect(screen.getByTestId("creating")).toBeTruthy();
       expect(creatingContainer.querySelector("select")).toBeNull();
-      expect(visibleText()).toContain("Guerrilla Mail");
+      expect(limitsText()).toContain("Guerrilla Mail");
       expect(providerChoiceClaims(visibleText())).toEqual([]);
 
       cleanup();
@@ -845,7 +869,7 @@ describe("the website", () => {
       await screen.findByTestId("failure-explanation");
 
       expect(document.querySelector("select")).toBeNull();
-      expect(visibleText()).toContain("Guerrilla Mail");
+      expect(limitsText()).toContain("Guerrilla Mail");
       expect(providerChoiceClaims(visibleText())).toEqual([]);
     });
 
