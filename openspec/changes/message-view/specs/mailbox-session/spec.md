@@ -30,6 +30,53 @@ another mailbox's address.
 - **THEN** the session SHALL report that nothing is open
 - **AND** the previously opened message SHALL NOT be reported for the new mailbox
 
+#### Scenario: A message is closed
+
+- **GIVEN** a message was open
+- **WHEN** the caller asks for it to be closed
+- **THEN** the session SHALL report that nothing is open
+- **AND** asking to close a message that was never open SHALL change nothing
+
+#### Scenario: The session is discarded while a message is being read
+
+- **GIVEN** a message is being opened and the provider has not yet answered
+- **WHEN** the session is destroyed
+- **THEN** the read SHALL resolve rather than hang or reject
+- **AND** no opened message SHALL be published afterwards
+
+#### Scenario: A message is open when a replacement mailbox begins
+
+- **GIVEN** a message was open
+- **WHEN** a replacement mailbox begins being created
+- **THEN** the session SHALL report that nothing is open
+- **AND** it SHALL do so from that transition, not only once the new mailbox is ready
+
+**Amendment, recorded during apply (2026-10-03).** The proposal's first requirement
+covered opening and mailbox replacement, and was silent on two behaviours the
+implementation could not avoid:
+
+- **Closing.** The client needs a way back, and `design.md` D5 puts it behind a button
+  rather than a router. A "way back" with no requirement would be the one piece of this
+  slice's navigation invented outside the delta.
+- **A read in flight when the session is discarded.** Not a choice: a provider request
+  already sent cannot be recalled, so the only real question is whether its late answer
+  is published. `destroy()` already made this true for the inbox, and opening a message
+  added a second request path that needed the same rule rather than its own.
+- **Cleared at the start of the replacement, not the end.** The mailbox-replacement
+  scenario above says the session reports nothing open once a different mailbox exists.
+  Read literally that is satisfied by clearing at the end, which leaves the previous
+  mailbox's message on screen for the whole duration of the request — a user who
+  pressed "new address" would watch the old message sit there under the new one being
+  created. The third scenario states the earlier moment the implementation actually
+  clears at.
+
+The implementation initially cleared at the end and cleared without notifying: `reset()`
+set the tracker's internal state and never called `onChange`, so `closeMessage()` left
+the session still reporting a message as open. That was found by a test reading the
+*session's* state rather than the tracker's own, and `reset()` now publishes whenever
+the reported state changes — and only then, so that a mailbox replacement does not emit
+a transition whose value is the one already on screen.
+
 ### Requirement: A message already read is not read again
 
 The session SHALL retain what it learned when it read a message for the inbox's
@@ -64,6 +111,22 @@ cache remains sticky and only the expensive part is shed.
 - **WHEN** the next listing arrives
 - **THEN** the retained reading SHALL be discarded
 - **AND** the inbox's verdict for it SHALL be kept
+
+#### Scenario: A listing fails
+
+- **GIVEN** retained readings of the current listing
+- **WHEN** a listing attempt fails
+- **THEN** the retention SHALL NOT be pruned
+- **AND** the retained readings SHALL still be openable without a provider request
+
+**Amendment, recorded during apply (2026-10-03).** The scenario above says pruning
+happens "when the next listing arrives", which does not say what happens when that
+listing *fails*. The implementation prunes only on a successful one, and the reason is
+that a failure teaches nothing: pruning against a listing that was never received would
+shed every retained reading on a single transient provider error, so the next successful
+check would re-read every message in the mailbox. That is the same request cost D2
+exists to avoid, reached by a different route, and it would be invisible in every test
+whose stub does not fail a listing on demand.
 
 ### Requirement: A message that cannot be read is not an empty message
 

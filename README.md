@@ -37,12 +37,20 @@ on. See [Current status](#current-status).
 `mail-parsing` at the sync stage of the `mail-parsing-engine` change — 9 requirements
 and 31 scenarios, three of which were added by its verification pass.
 
-The website **creates a mailbox, renders its address, and lists that mailbox's
-messages while polling for new ones.** That is what a user can see work. It still has
-**no message view, no styling, and no persistence** — a reload discards the mailbox,
-because storage is M6, and opening a message is the next slice. The absence of styling
-is a decision rather than an omission: M7 owns the visual design, so markup written
-now would be markup M7 rewrites.
+The website **creates a mailbox, renders its address, lists that mailbox's messages
+while polling for new ones, and opens one.** That is what a user can see work. It still
+has **no styling and no persistence** — a reload discards the mailbox, because storage
+is M6. The absence of styling is a decision rather than an omission: M7 owns the visual
+design, so markup written now would be markup M7 rewrites.
+
+**Opening a message displays what was found and acts on none of it.** The view shows
+the sender, subject, arrival time, readable text, the one-time codes in the parser's
+own rank order, and each detected link as plain text with its host visible. There is
+no copy control for a code and no link that follows itself — that is the verification
+workflow, which `AGENTS.md` places at M10, and copying the **mailbox address** stays
+legal because the roadmap's own acceptance criteria require it. Confidence is never
+rendered as a number, and a message that could not be read says exactly that and offers
+a retry rather than reporting that it holds no code.
 
 **The polling interval is this product's own choice and the page says so by showing no
 number.** No provider limit was measured for the only provider a browser can reach —
@@ -52,12 +60,15 @@ invention presented as a measurement. A limit a provider _does_ declare is honou
 a floor rather than turned into a schedule, a throttled listing stops the loop rather
 than retrying quietly, and polling stops when nothing is displaying the page.
 
-Nothing has yet been verified against the **live** Guerrilla Mail API from a
-browser. The website's 57 tests render against a stub provider or a recording
-transport, which establishes that the page composes the abstraction correctly and
-says nothing about whether a real browser reaches that provider successfully — and the
-polling cadence has never been exercised against a live provider at all, so nothing
-here establishes how a real provider responds to a page asking every five seconds.
+**No live browser run of the website has ever been made.** Every component in it has
+been seen by jsdom and by nothing else, including the message view, so no claim here
+is a claim about what a real page looks like or does. Nothing has been verified against
+the **live** Guerrilla Mail API from a browser. The website's 74 tests render against a
+stub provider or a recording transport, which establishes that the page composes the
+abstraction correctly and says nothing about whether a real browser reaches that
+provider successfully — and the polling cadence has never been exercised against a
+live provider at all, so nothing here establishes how a real provider responds to a
+page asking every five seconds.
 
 `packages/core` holds SpectreMail's **normalized domain model** — mailbox, message,
 credentials, verification code, verification link, and a closed set of normalized
@@ -243,18 +254,18 @@ committed fact; see [`.gitattributes`](.gitattributes). The lesson is recorded
 here rather than quietly dropped: **a green CI run is not evidence that a gate
 works on your machine.**
 
-| Command                              | What it proves                                                                 | What it does **not** prove                                                                         |
-| ------------------------------------ | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| `pnpm install`                       | The workspace resolves and installs from the committed lockfile.               | Anything about providers or product behaviour.                                                     |
-| `pnpm typecheck`                     | All 8 workspace projects type check under the shared strict config.            | That the types are useful — that is what the tests are for.                                        |
-| `pnpm lint`                          | ESLint passes.                                                                 | Type correctness; `pnpm typecheck` owns that.                                                      |
-| `pnpm format:check`                  | Prettier passes on the files this repository governs.                          | That historical documents are formatted; those are deliberately excluded.                          |
-| `pnpm test`                          | 474 tests across 24 files pass, including 31 architecture boundary assertions. | Product behaviour against a **live** provider. Every provider test replays recorded responses.     |
-| `pnpm build`                         | The website builds with Vite.                                                  | That packages emit anything — they are consumed as TypeScript source, so there is nothing to emit. |
-| `pnpm dev:web`                       | The website dev server starts and serves the app on `127.0.0.1:5173`.          | That a real browser can reach Guerrilla Mail. No live browser run has been made.                   |
-| `pnpm spike:selftest`                | The M0 harness records outcomes correctly and writes its artifacts.            | Anything about real providers — it issues zero network requests.                                   |
-| `pnpm verify`                        | typecheck + lint + format + test + build all pass in sequence.                 | Anything beyond those five gates.                                                                  |
-| `openspec validate --specs --strict` | The live capability specs are internally consistent.                           | That the implementation matches them.                                                              |
+| Command                              | What it proves                                                                 | What it does **not** prove                                                                                                              |
+| ------------------------------------ | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm install`                       | The workspace resolves and installs from the committed lockfile.               | Anything about providers or product behaviour.                                                                                          |
+| `pnpm typecheck`                     | All 8 workspace projects type check under the shared strict config.            | That the types are useful — that is what the tests are for.                                                                             |
+| `pnpm lint`                          | ESLint passes.                                                                 | Type correctness; `pnpm typecheck` owns that.                                                                                           |
+| `pnpm format:check`                  | Prettier passes on the files this repository governs.                          | That historical documents are formatted; those are deliberately excluded.                                                               |
+| `pnpm test`                          | 537 tests across 26 files pass, including 37 architecture boundary assertions. | Product behaviour against a **live** provider. Every provider test replays recorded responses, and no browser has ever loaded the page. |
+| `pnpm build`                         | The website builds with Vite.                                                  | That packages emit anything — they are consumed as TypeScript source, so there is nothing to emit.                                      |
+| `pnpm dev:web`                       | The website dev server starts and serves the app on `127.0.0.1:5173`.          | That a real browser can reach Guerrilla Mail. No live browser run has been made.                                                        |
+| `pnpm spike:selftest`                | The M0 harness records outcomes correctly and writes its artifacts.            | Anything about real providers — it issues zero network requests.                                                                        |
+| `pnpm verify`                        | typecheck + lint + format + test + build all pass in sequence.                 | Anything beyond those five gates.                                                                                                       |
+| `openspec validate --specs --strict` | The live capability specs are internally consistent.                           | That the implementation matches them.                                                                                                   |
 
 ### What M0 established
 
