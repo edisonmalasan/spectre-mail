@@ -439,6 +439,84 @@ function collectFetchViolations(repoPath: string, contents: string): string[] {
 }
 
 /**
+ * A client's provider configuration: the one module where it may name an adapter.
+ *
+ * Matched by path so a client added later is covered by the rule below without
+ * anyone remembering to extend a list. The `.ts` shape is what exists today.
+ */
+const CLIENT_PROVIDER_CONFIG_FILES = /^apps\/[^/]+\/src\/provider-config\.tsx?$/;
+
+/**
+ * The name under which a configuration declares which providers it reaches.
+ *
+ * Matched by shape rather than by a fixed name, so a client is not required to call
+ * its list something particular beyond saying what it is.
+ */
+const CLIENT_PROVIDER_IDS_PATTERN = /export\s+const\s+([A-Z][A-Z0-9_]*_PROVIDER_IDS)\s*=/g;
+
+/**
+ * Configurations whose exported provider-id list is never read as a value.
+ *
+ * The defect this exists for was real and was in this repository. `apps/web`'s
+ * `WEBSITE_PROVIDER_IDS` was documented as making "adding a provider ... a visible
+ * edit to one list rather than a change spread across call sites", while the factory
+ * beside it constructed the adapter directly and never read it. The list and the
+ * factory were two independent sources of truth, and the test that noticed recorded
+ * the coupling in a comment instead — "the two constants must be changed together,
+ * so that is now said rather than implied" — which is a claim about an indirection
+ * the code did not have. So `provider-abstraction`'s clause that "adding a second
+ * provider SHALL remain additive through the abstraction, not require a rewrite" was
+ * true of the abstraction and false of this client.
+ *
+ * Two references are removed before the name is searched for, because neither is a
+ * **use** of the list:
+ *
+ * - its own declaration, which every configuration necessarily contains;
+ * - `typeof <NAME>`, which the id union is derived from and which reads the list's
+ *   type without reading its value.
+ *
+ * What must survive is a reference that reads the list's **value**, which is what
+ * makes it the configuration rather than documentation beside one.
+ *
+ * **Stated limit.** This counts references; it cannot prove a factory *derives* its
+ * adapters from the list, and a dead statement such as `void WEBSITE_PROVIDER_IDS;`
+ * would satisfy it. The looseness is deliberate: a tighter rule would have to parse
+ * an expression, and a source scan that guesses at structure fails in ways a reader
+ * cannot audit. The compile-time guarantee is separate and stronger — the registry
+ * beside the list is typed `Record` over it, so an id declared with no adapter
+ * beside it does not compile. And because comments are stripped first, prose cannot
+ * satisfy this rule, which is the point: a comment naming the list is exactly the
+ * defect.
+ */
+function collectUndrivenProviderConfigs(repoPath: string, contents: string): string[] {
+  const code = stripComments(contents);
+  const declared = [...code.matchAll(CLIENT_PROVIDER_IDS_PATTERN)];
+  const violations: string[] = [];
+
+  if (declared.length === 0) {
+    violations.push(`${repoPath} declares no provider-id list`);
+    return violations;
+  }
+
+  for (const match of declared) {
+    const name = match[1];
+    if (name === undefined) continue;
+
+    const withoutDeclaration = code.replace(
+      new RegExp(`export\\s+const\\s+${name}\\s*=[^;]*;`),
+      "",
+    );
+    const withoutTypeOnlyUse = withoutDeclaration.replace(new RegExp(`typeof\\s+${name}`, "g"), "");
+
+    if (!withoutTypeOnlyUse.includes(name)) {
+      violations.push(`${repoPath} exports ${name} but never reads it as a value`);
+    }
+  }
+
+  return violations;
+}
+
+/**
  * A UI framework reached by an import specifier.
  *
  * Matches the specifier's first path segment, so `react/jsx-runtime` and
@@ -1609,6 +1687,99 @@ describe("architecture boundaries", () => {
     }
 
     expect(violations).toEqual([]);
+  });
+
+  it("makes a client's exported provider-id list the configuration it claims to be", () => {
+    const configs = collectSourceFiles(APPS_DIR).filter((file) =>
+      CLIENT_PROVIDER_CONFIG_FILES.test(toRepoPath(file)),
+    );
+    const violations: string[] = [];
+
+    // The scan must find a client, or the rule passes vacuously on an empty list —
+    // which is the ninth recorded way a check in this file can succeed for the wrong
+    // reason. The collection rule below guards the same shape for tests, where a
+    // client test was silently skipped and read as covered.
+    expect(configs.length).toBeGreaterThan(0);
+
+    for (const file of configs) {
+      violations.push(
+        ...collectUndrivenProviderConfigs(toRepoPath(file), readFileSync(file, "utf8")),
+      );
+    }
+
+    expect(violations).toEqual([]);
+  });
+
+  it("catches a client whose id list is documentation beside its factory", () => {
+    // The defect as it stood: the list is exported, the type union is derived from
+    // it, and the factory never reads it. The two references that survive the
+    // exclusion are both removed, so this must go red.
+    const legacy = [
+      `import { createGuerrillaAdapter, createProviderManager } from "@spectre-mail/providers";`,
+      `import type { ProviderManager, Transport } from "@spectre-mail/providers";`,
+      ``,
+      `export const WEBSITE_PROVIDER_IDS = ["guerrilla"] as const;`,
+      ``,
+      `export type WebsiteProviderId = (typeof WEBSITE_PROVIDER_IDS)[number];`,
+      ``,
+      `export function createWebsiteProviderManager(transport: Transport): ProviderManager {`,
+      `  return createProviderManager([createGuerrillaAdapter({ transport, now: () => Date.now() })]);`,
+      `}`,
+    ].join("\n");
+
+    expect(collectUndrivenProviderConfigs("apps/web/src/provider-config.ts", legacy)).toEqual([
+      "apps/web/src/provider-config.ts exports WEBSITE_PROVIDER_IDS but never reads it as a value",
+    ]);
+  });
+
+  it("does not accept a list named only in a comment as a configuration", () => {
+    // The inverse of the third time this file's checks fired on their own
+    // documentation. There, a comment had to be *ignored* so prose could not fail a
+    // rule. Here, prose must not be able to *satisfy* one, because a module that only
+    // describes the coupling it lacks is precisely what this rule exists to catch.
+    const describedButUnused = [
+      `// The manager is built from WEBSITE_PROVIDER_IDS, in preference order.`,
+      `export const WEBSITE_PROVIDER_IDS = ["guerrilla"] as const;`,
+      ``,
+      `export function createWebsiteProviderManager(): unknown {`,
+      `  return "configured";`,
+      `}`,
+    ].join("\n");
+
+    expect(
+      collectUndrivenProviderConfigs("apps/web/src/provider-config.ts", describedButUnused),
+    ).toEqual([
+      "apps/web/src/provider-config.ts exports WEBSITE_PROVIDER_IDS but never reads it as a value",
+    ]);
+  });
+
+  it("catches a client that reaches a provider without declaring which", () => {
+    const undeclared = [
+      `export function createWebsiteProviderManager(): unknown {`,
+      `  return createProviderManager([]);`,
+      `}`,
+    ].join("\n");
+
+    expect(collectUndrivenProviderConfigs("apps/web/src/provider-config.ts", undeclared)).toEqual([
+      "apps/web/src/provider-config.ts declares no provider-id list",
+    ]);
+  });
+
+  it("stays quiet on a configuration that reads its list, and on the type-only use", () => {
+    // The positive control for the two exclusions. A rule that reported the
+    // declaration or the `typeof` derivation would make the fix impossible to write:
+    // the list has to be declared, and the id union has to come from somewhere.
+    const derived = [
+      `export const WEBSITE_PROVIDER_IDS = ["guerrilla"] as const;`,
+      ``,
+      `export type WebsiteProviderId = (typeof WEBSITE_PROVIDER_IDS)[number];`,
+      ``,
+      `export function createWebsiteProviderManager(): unknown {`,
+      `  return createProviderManager(WEBSITE_PROVIDER_IDS.map((id) => ADAPTERS[id]()));`,
+      `}`,
+    ].join("\n");
+
+    expect(collectUndrivenProviderConfigs("apps/web/src/provider-config.ts", derived)).toEqual([]);
   });
 
   it("keeps a module-level fetch out of the provider and parser packages", () => {

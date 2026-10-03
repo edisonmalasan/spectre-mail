@@ -14,15 +14,16 @@ on. See [Current status](#current-status).
 
 ## Current status
 
-| Milestone                         | State                                 |
-| --------------------------------- | ------------------------------------- |
-| M0 — Provider compatibility spike | complete (gate satisfied — see below) |
-| M1 — Monorepo foundation          | complete and archived                 |
-| M2 — Shared domain model          | complete and archived                 |
-| M3 — Provider layer               | complete and archived                 |
-| M4 — Mail parsing engine          | complete and archived                 |
-| M5 — Website core MVP             | next, not yet proposed                |
-| M6–M15                            | not started                           |
+| Milestone                         | State                                                                       |
+| --------------------------------- | --------------------------------------------------------------------------- |
+| M0 — Provider compatibility spike | complete (gate satisfied — see below)                                       |
+| M1 — Monorepo foundation          | complete and archived                                                       |
+| M2 — Shared domain model          | complete and archived                                                       |
+| M3 — Provider layer               | complete and archived                                                       |
+| M4 — Mail parsing engine          | complete and archived                                                       |
+| M5 — Website core MVP             | complete in scope — 4 slices archived; 3 acceptance lines are M6's or M10's |
+| M6 — Website hardening            | next                                                                        |
+| M7–M15                            | not started                                                                 |
 
 | Capability spec          | State |
 | ------------------------ | ----- |
@@ -63,7 +64,7 @@ than retrying quietly, and polling stops when nothing is displaying the page.
 **No live browser run of the website has ever been made.** Every component in it has
 been seen by jsdom and by nothing else, including the message view, so no claim here
 is a claim about what a real page looks like or does. Nothing has been verified against
-the **live** Guerrilla Mail API from a browser. The website's 74 tests render against a
+the **live** Guerrilla Mail API from a browser. The website's 77 tests render against a
 stub provider or a recording transport, which establishes that the page composes the
 abstraction correctly and says nothing about whether a real browser reaches that
 provider successfully — and the polling cadence has never been exercised against a
@@ -86,7 +87,12 @@ either provider's current behaviour.
 The website now consumes it, through **one provider only** — Guerrilla Mail, chosen
 for the measured CORS reason below. Mail.tm is deliberately _not_ configured for the
 website; it remains reachable from the extension, where host permissions make it
-legally and technically reachable.
+legally and technically reachable. That one provider is configured by a single
+exported list the factory derives from, so adding a provider is one edit rather than
+a spread, and a build fails if that list is ever declared and never read. **The
+website offers no provider selector**, and that is a requirement rather than a
+missing feature: a control over one reachable option cannot act, so the page names
+the provider it reaches instead.
 
 `packages/mail-parser` turns a message body into **readable text plus ranked
 detections** — one-time codes and verification links. It is a pure function of
@@ -260,7 +266,7 @@ works on your machine.**
 | `pnpm typecheck`                     | All 8 workspace projects type check under the shared strict config.            | That the types are useful — that is what the tests are for.                                                                             |
 | `pnpm lint`                          | ESLint passes.                                                                 | Type correctness; `pnpm typecheck` owns that.                                                                                           |
 | `pnpm format:check`                  | Prettier passes on the files this repository governs.                          | That historical documents are formatted; those are deliberately excluded.                                                               |
-| `pnpm test`                          | 537 tests across 26 files pass, including 37 architecture boundary assertions. | Product behaviour against a **live** provider. Every provider test replays recorded responses, and no browser has ever loaded the page. |
+| `pnpm test`                          | 545 tests across 26 files pass, including 42 architecture boundary assertions. | Product behaviour against a **live** provider. Every provider test replays recorded responses, and no browser has ever loaded the page. |
 | `pnpm build`                         | The website builds with Vite.                                                  | That packages emit anything — they are consumed as TypeScript source, so there is nothing to emit.                                      |
 | `pnpm dev:web`                       | The website dev server starts and serves the app on `127.0.0.1:5173`.          | That a real browser can reach Guerrilla Mail. No live browser run has been made.                                                        |
 | `pnpm spike:selftest`                | The M0 harness records outcomes correctly and writes its artifacts.            | Anything about real providers — it issues zero network requests.                                                                        |

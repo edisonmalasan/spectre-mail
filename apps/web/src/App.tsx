@@ -14,7 +14,14 @@
  * - It reaches **one** provider, for the measured CORS reason recorded in
  *   `provider-config.ts`. It does not claim redundancy it does not have, and it
  *   offers no provider selector, because a selector offering only one reachable
- *   provider is a control that cannot do anything.
+ *   provider is a control that cannot do anything. That absence is now a
+ *   **requirement** rather than an opinion this file happens to hold:
+ *   `website-client` states that the website offers no control for choosing a
+ *   provider, names the provider it reaches, and does not describe the absence as
+ *   missing or forthcoming. Before this it was only a comment here, and
+ *   `App.test.tsx` had to guard the condition itself, because the spec's selector
+ *   scenario was conditional on "WHEN the website renders a provider selector" —
+ *   which never fired.
  * - It **shows no cadence**. It says that it checks while the page is open, and never
  *   how often — no provider limit was measured for the only provider a browser page
  *   can reach, so any figure would be an invention presented as a measurement.
