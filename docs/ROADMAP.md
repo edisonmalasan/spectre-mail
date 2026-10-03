@@ -40,9 +40,23 @@ three times, one of them in a promoted spec's provenance line, so slice 2's figu
 re-derived before being extended — 7 + 14 and 7 + 18 for `mailbox-session`, 7 + 15 and
 5 + 12 for `website-client`, all of which verify exactly.
 
-**M5 is not finished.** Four of its slices remain — history, provider selector, theme,
-and clear-data — and the next objective is **M5 slice 4**. M5 remains the earliest
-incomplete milestone, which is the rule that selects it.
+**M5 has no buildable slice left, and the next objective is M6 — Website Hardening.**
+That is a move of the cursor, and it is not M5 being skipped. Three of M5's four
+remaining slices were blocked by milestones scheduled **after** it, and the fourth is
+resolved by the `provider-reachability` change, which declined to ship a provider
+selector rather than shipping one that cannot act:
+
+| remaining slice | status | the file that establishes it |
+| --- | --- | --- |
+| provider selector | **resolved**, slice 4 | `website-client` now requires no selector, and the naming of the one provider reached |
+| theme | blocked | `packages/ui/src/index.ts` – design tokens are applied from M7, not anticipated here |
+| mailbox history | blocked | `packages/storage/src/index.ts` – `SpectreStorage` is M6, and the package has no exports |
+| clear-data | **M6's own** | M6's Privacy controls list `Clear all local SpectreMail data` verbatim |
+
+*Recorded 2026-10-04:* this block previously read "Four of its slices remain — and
+the next objective is M5 slice 4. M5 remains the earliest incomplete milestone, which
+is the rule that selects it." That was the delivery-order rule pointing at a milestone
+it could not advance, three times over. A cursor that cannot move is not a cursor.
 
 *Corrected 2026-10-03:* the archive commit recorded slice 2's PRs as #33–#37. There
 were four of them, #33–#36. A range written from a plan rather than from
@@ -268,8 +282,10 @@ interaction in every test replays a recording, so nothing here says what a real
 provider does when a real page opens a real message. The polling cadence has **never
 run against a live provider**. And `pnpm test` is not a claim about types — this
 repository has been bitten in both directions, and slice 3 was no exception.
-**Remaining slices of M5:** history, provider selector, theme, and clear-data. The
-inbox with polling was slice 2 and the message view was slice 3.
+**M5's slices:** the inbox with polling was slice 2, the message view slice 3, and the
+provider line slice 4 (`provider-reachability`), which settled the selector. History,
+theme, and clear-data are not M5's to build – each depends on a later milestone, and
+the acceptance table below names which.
 **Slice 3's sync and archive have merged**, so the gate that held the next slice is open.
 *Corrected 2026-10-04:* this line previously read "No slice of M5 may begin until slice
 3's sync and archive have merged". That was true when written, and a **lifted barrier
@@ -571,7 +587,7 @@ be written before the pass, not after.
 
 | M3 | complete (archived) | `provider-layer` |
 | M4 | **complete (archived)** | `mail-parsing-engine` |
-| M5 | **in progress** - slices 1, 2 and 3 complete (archived); history, provider selector, theme and clear-data to follow | `mailbox-session-layer` (slice 1), `inbox-polling` (slice 2), `message-view` (slice 3) |
+| M5 | **complete in scope** - slices 1-4 archived; its three remaining acceptance lines are M6's or M10's | `mailbox-session-layer` (slice 1), `inbox-polling` (slice 2), `message-view` (slice 3), `provider-reachability` (slice 4) |
 | M6-M15 | not started | - |
 
 **OpenSpec lifecycle stage:** M0, the provider-role change, M1's foundation change,
@@ -1788,11 +1804,12 @@ its own, and one line in particular is delivered elsewhere:
 | Line | Delivered by |
 | --- | --- |
 | `open SpectreMail`, `receive a working address` | M5 slice 1 — `mailbox-session-layer` (archived) |
+| **`use it externally`** | **M5 slice 1 delivers the address; using it on a third-party site is UNVERIFIED** — see below |
 | `receive a real message` | M5 slice 2 — `inbox-polling` (archived) |
 | `find the OTP` | M5 slice 3 — `message-view` (archived) |
 | **`copy the OTP`** | **M10, the verification workflow** — see below |
-| `return to a recent mailbox` | M5's mailbox history slice, over M6's storage |
-| `clear local SpectreMail data` | M5's clear-data slice, over M6's storage |
+| `return to a recent mailbox` | **M6**, whose Storage block lists `mailboxes`; M5's history slice depends on that contract |
+| `clear local SpectreMail data` | **M6's Privacy controls, which list it verbatim** — see below |
 
 **`copy the OTP` is M10's, and that is a decision rather than an oversight.**
 `AGENTS.md` assigns "OTP copy/fill" to the verification workflow, and M10's own "User
@@ -1805,6 +1822,25 @@ layer that felt like it should come next rather than the one this roadmap schedu
 and that deferring a capability needs no amendment while absorbing one would.
 **This list is deliberately left unedited**, because a plan's exit conditions are not
 amended from inside a slice; the table names the slice instead.
+
+**`use it externally` had no delivery record until 2026-10-04, and that is worth
+recording rather than tidying.** The table mapped seven of the eight lines; `use it
+externally` was simply absent, which is how a reader would have concluded the line was
+delivered. It is **not** verified. M5 slice 1 delivers an address that is created,
+rendered and copyable, and the page has been seen by jsdom and by nothing else – **no
+live browser run of the website has ever been made**, and no third-party signup has
+ever been driven against it. So the address is *produced*; whether a real service
+accepts it and delivers to it is exactly the claim no test in this repository makes.
+
+**`clear local SpectreMail data` is M6's, and the table previously said otherwise.**
+It read "M5's clear-data slice, over M6's storage", which had two milestones claiming
+one line – and M6 is the one that lists it. M6's Privacy controls block contains
+`Clear all local SpectreMail data` **verbatim**, alongside `Forget mailbox` and `Clear
+mailbox history`. M5's V1 feature list has a "Clear local data" entry that duplicates
+it; the duplicate is left in place above rather than deleted, because removing a line
+from a plan's feature list is a different kind of edit from naming which milestone
+delivers it. `return to a recent mailbox` moves with it: M6's Storage block lists
+`mailboxes`, so history has nothing to persist until M6's contract exists.
 
 ---
 
