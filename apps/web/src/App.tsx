@@ -93,7 +93,7 @@ import { MailboxLifetime } from "./MailboxLifetime";
 import { MessageView } from "./MessageView";
 import { createWebsiteProviderManager } from "./provider-config";
 import { webScheduler } from "./scheduler";
-import { createWebsiteStorage } from "./storage";
+import { useWebsiteStorage } from "./storage";
 import type { WebsiteStorage } from "./storage";
 import { StoredAddressGone } from "./StoredAddressGone";
 import { StoredAddressUnchecked } from "./StoredAddressUnchecked";
@@ -125,25 +125,31 @@ export interface AppProps {
    * The storage to read and write, or the reason there is none.
    *
    * **Injected for the same reason as `session`, and it is not optional in practice.**
-   * `createWebsiteStorage()` cannot be defaulted to a *hook*, and defaulting it to a
-   * plain call in the component body would build a new storage — and re-run the read —
-   * on every render. So it is built once in a `useState` initialiser, exactly like the
-   * session beside it, and a caller that already has one uses it.
+   * A default built by calling a factory in the component body would produce a new
+   * storage — and re-run the read — on every render, so the default goes through
+   * `useWebsiteStorage`, which builds it once. A caller that already has one uses it,
+   * and the hook still runs: a hook called only when a prop is absent is a hook whose
+   * call order changes with its props.
    */
   readonly storage?: WebsiteStorage;
 }
 
 export function App({ session, storage }: AppProps = {}) {
-  // **Both built once, in `useState` initialisers.** Calling `createMailboxSession` in the
-  // component body produced a *new* session on every render, which was harmless while
-  // the session only ever held a mailbox and quietly wrong now: the binding keys its
-  // first listing on the mailbox's id, so a fresh session per render would reset the
-  // poller — and its verdict cache — on every state change. A fresh storage per render
-  // is the same hazard one layer out, and it additionally re-reads the store.
+  // **Both built once.** Calling `createMailboxSession` in the component body produced a
+  // *new* session on every render, which was harmless while the session only ever held
+  // a mailbox and quietly wrong now: the binding keys its first listing on the
+  // mailbox's id, so a fresh session per render would reset the poller — and its
+  // verdict cache — on every state change. A fresh storage per render is the same
+  // hazard one layer out, and it additionally re-reads the store.
   const [ownSession] = useState(() =>
     createMailboxSession(createWebsiteProviderManager(), webScheduler),
   );
-  const [ownStorage] = useState(createWebsiteStorage);
+  // **Unconditional, and then chosen between.** `useWebsiteStorage` is called whether
+  // or not a `storage` prop arrived, because a hook whose call order depends on its
+  // props is the failure React's rules exist to prevent — and because the builder never
+  // throws: where the platform has nothing, the result is `blocked` and the injected
+  // value is used instead.
+  const ownStorage = useWebsiteStorage();
   const active = session ?? ownSession;
   const store = storage ?? ownStorage;
   const {

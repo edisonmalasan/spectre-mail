@@ -372,9 +372,23 @@ export function createMailboxSession(
       const listing = await inbox.check(stored);
 
       if (listing.kind === "checked") {
-        // The reconciliation listing *is* the inbox state — carried as `listing`
-        // rather than `inbox.state` because they are the same value here and reading
-        // the tracker again would invite them to differ later.
+        // The reconciliation listing *is* the inbox state, and it arrives already
+        // analysed.
+        //
+        // **`listing` is passed and then replaced, and the falsification pass is why
+        // that is written down rather than tidied away.** `withInbox` reads
+        // `inbox.state` for the `ready` branch, so whatever arrives in this field is
+        // discarded — the tracker is the single source of truth, which is the better
+        // design. A mutation that replaced `inbox: listing` with `notStarted` left the
+        // whole suite **green**, because it changes nothing.
+        //
+        // So the earlier comment here — "carried as `listing` rather than `inbox.state`
+        // because they are the same value here" — described a choice that had no
+        // effect, and implied a guarantee the line did not provide. The field exists
+        // only because `SessionReady` requires one. What actually guarantees the
+        // restored mailbox arrives with its messages read is that the listing came
+        // from `inbox.check(stored)` rather than from a second request, and that is
+        // what `makes one request to reconcile` asserts.
         return withInbox({ kind: "ready", mailbox: stored, inbox: listing, opened: opened.state });
       }
 

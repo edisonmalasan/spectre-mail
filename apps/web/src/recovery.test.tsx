@@ -25,7 +25,7 @@
 // @vitest-environment jsdom
 
 import { StrictMode } from "react";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, renderHook, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { NormalizedErrorCode } from "@spectre-mail/core";
@@ -38,7 +38,7 @@ import type { SpectreStorage } from "@spectre-mail/storage";
 
 import { App } from "./App";
 import { applyJsdomSuiteBudget } from "./jsdom-suite-budget";
-import { createWebsiteStorage } from "./storage";
+import { createWebsiteStorage, useWebsiteStorage } from "./storage";
 import type { WebsiteStorage } from "./storage";
 import { EMPTY_STORE, stubStore } from "./storage-stub";
 
@@ -123,6 +123,34 @@ function visibleText(): string {
 }
 
 describe("the website's own storage", () => {
+  it("builds the storage once for the life of the page", () => {
+    // **Object identity, not a read count.** The hazard is a factory called in the
+    // component body: a new storage per render would be a new dependency for the
+    // boot, and would re-read the store each time. Counting `loadMailbox` would not
+    // catch it, because the boot is guarded and would read only once regardless — the
+    // waste would be invisible. Two renders and the same object is the claim.
+    let constructions = 0;
+    const working: SpectreStorage = {
+      loadMailbox: () => Promise.resolve(null),
+      saveMailbox: () => Promise.resolve(),
+    };
+
+    const { result, rerender } = renderHook(
+      ({ build }: { readonly build: () => SpectreStorage }) => useWebsiteStorage(build),
+      { initialProps: { build: () => ((constructions += 1), working) } },
+    );
+
+    const first = result.current;
+    expect(first.kind).toBe("ready");
+    expect(constructions).toBe(1);
+
+    rerender({ build: () => ((constructions += 1), working) });
+    rerender({ build: () => ((constructions += 1), working) });
+
+    expect(constructions).toBe(1);
+    expect(result.current).toBe(first);
+  });
+
   it("asks about what is stored before it asks the provider for a mailbox", async () => {
     // **The ordering claim, which nothing else here establishes.** The page reads its
     // storage first and only then decides whether to create. A page that created
@@ -254,6 +282,12 @@ describe("the website's own storage", () => {
     // they are the data loss.
     expect(provider.creates()).toBe(0);
     expect(screen.queryByTestId("ready")).toBeNull();
+    // **And nothing else from the session is rendered.** A page that showed the
+    // refusal *and* "looking for a saved address" at the same time would be telling
+    // the user two contradictory things, and the gate that prevents it is the one the
+    // other half of this suite's mutations target. The session really is `idle` here,
+    // so the absence is the gate's doing and not an accident of the state.
+    expect(screen.queryByTestId("idle")).toBeNull();
     expect(visibleText()).not.toContain("@");
     // And it must not have claimed to have found nothing stored.
     expect(visibleText()).not.toMatch(/nothing (is |has been )?stored/i);
@@ -298,15 +332,23 @@ describe("the website's own storage", () => {
   });
 
   it("stops claiming it cannot check once a retry is under way", async () => {
-    // **The regression this caught.** `retryBoot` originally left the boot at
-    // `blocked`, so the page kept rendering the refusal for the whole of a second
-    // attempt and only swapped to the real answer when the read landed. A user who
-    // clicked *Check again* and saw the same refusal would conclude the retry had not
-    // been tried.
+    // **The regression this caught, and the first version of this test did not catch
+    // it** — it asserted only the state *after* the retry landed, which the original
+    // bug also reached. So the second attempt is held open and the page is inspected
+    // while the read is still out, which is the only moment the claim is about.
+    //
+    // `retryBoot` originally left the boot at `blocked`, so the page kept rendering the
+    // refusal for the whole of a second attempt and only swapped to the real answer
+    // when the read resolved. A user who clicked *Check again* and saw the same refusal
+    // would conclude the retry had not been tried.
     let failing = true;
+    let release: (stored: Mailbox | null) => void = () => undefined;
+    const retry = new Promise<Mailbox | null>((resolve) => {
+      release = resolve;
+    });
     const storage: SpectreStorage = {
       loadMailbox: () =>
-        failing ? Promise.reject(new Error("still not readable")) : Promise.resolve(null),
+        failing ? Promise.reject(new Error("still not readable")) : retry.then((stored) => stored),
       saveMailbox: () => Promise.resolve(),
     };
     const provider = countingProvider();
@@ -319,9 +361,19 @@ describe("the website's own storage", () => {
       fireEvent.click(screen.getByRole("button", { name: /check again/i }));
     });
 
-    // The refusal is gone — not merely supplemented — while the attempt is made.
-    await screen.findByTestId("ready");
+    // **During** the second attempt: the refusal is gone rather than supplemented,
+    // and the page says what it is doing.
     expect(screen.queryByTestId("boot-failure-reason")).toBeNull();
+    expect(screen.getByTestId("idle")).toBeTruthy();
+    expect(visibleText()).toContain("Checking what this device has stored.");
+
+    await act(async () => {
+      release(null);
+      await retry;
+    });
+
+    // And the attempt really did finish.
+    await screen.findByTestId("ready");
     expect(provider.creates()).toBe(1);
   });
 

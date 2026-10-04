@@ -31,6 +31,8 @@
  * @module
  */
 
+import { useState } from "react";
+
 import { createBrowserStorage } from "@spectre-mail/storage";
 import type { SpectreStorage } from "@spectre-mail/storage";
 
@@ -72,6 +74,31 @@ export function createWebsiteStorage(
   } catch (cause) {
     return { kind: "blocked", reason: describeCause(cause) };
   }
+}
+
+/**
+ * The website's storage, built once for the life of the component.
+ *
+ * **A hook rather than a plain call, and the reason is that the "once" has to be
+ * testable.** `App` builds a session in a `useState` initialiser for the same reason
+ * and records the hazard in a comment; a comment is not a test. Passing the builder in
+ * makes the construction *countable*, so the claim can be falsified — and a factory
+ * called in a component body would be reconstructed on every render, which would also
+ * re-read the store, because the boot's dependency is the storage.
+ *
+ * **Not conditional.** `App` calls this unconditionally and then chooses between the
+ * result and an injected one, because a hook called only when a prop is absent is a
+ * hook whose call order changes with its props — which is the failure React's rules
+ * exist to prevent. Since {@link createWebsiteStorage} never throws, calling it in a
+ * test environment with no IndexedDB is harmless: the result is `blocked`, and the
+ * caller ignores it.
+ *
+ * @param build Overrides the factory. A parameter so a test can count constructions
+ * without a platform to construct from; production passes nothing.
+ */
+export function useWebsiteStorage(build?: () => SpectreStorage): WebsiteStorage {
+  const [store] = useState(() => createWebsiteStorage(build));
+  return store;
 }
 
 /**
