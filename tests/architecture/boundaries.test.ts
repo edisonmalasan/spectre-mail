@@ -689,6 +689,91 @@ function storageImportViolations(): string[] {
 }
 
 /**
+ * {@link STORAGE_API_PATTERN} with one member expression carved out, for clients.
+ *
+ * ## Why a client needs its own pattern at all
+ *
+ * `spectre-storage`'s promoted requirement says **no client and no shared package**
+ * other than this layer may name a platform storage API. The enforced rule above scans
+ * `packages/*` only — and until M6 slice 2 that was not a gap, because no client had
+ * any reason to reach a store. The website becoming the first client with a mailbox to
+ * persist is what made it one.
+ *
+ * **The tempting repair was to weaken the requirement text to match the scan.** "No
+ * *shared* package may name a platform storage API" is exactly true of what is
+ * enforced, it needs no new assertion, and it reads like a clarification rather than a
+ * concession. It is also the wrong move, and `packages/storage/src/browser.ts` records
+ * why in the place a reader will find it: a boundary written around "the code that
+ * happens to be shared" is a boundary around the current code, not around the decision.
+ * The first time a client found a platform store inconvenient, the rule would have
+ * said nothing.
+ *
+ * So the requirement keeps saying *client* and this rule grows to match.
+ *
+ * ## The carve-out, and its cost
+ *
+ * `navigator` is in the pattern because `navigator.storage` is the Storage API, and a
+ * client reaching that would be persisting outside this layer. It is also how
+ * `apps/web/src/Address.tsx` copies a mailbox address, which `website-client` requires
+ * and which has nothing to do with storage.
+ *
+ * `navigator(?!\s*\.\s*clipboard\b)` therefore excludes the clipboard and **nothing
+ * else** — `navigator.userAgent`, `navigator.storage`, and `navigator.credentials` are
+ * all still reported. The alternative, filtering whole lines whose text happens to
+ * contain the allowed spelling, was rejected because it is blunter than it looks: a
+ * line doing both `navigator.clipboard.writeText(a)` and `localStorage.setItem(...)`
+ * would pass whole, and a rule that lets a real violation ride in on an allowed
+ * neighbour is a rule with no line between "safe" and "not".
+ *
+ * The stated cost: a member spelled with whitespace around the dot
+ * (`navigator . clipboard`) is still excluded, because the lookahead allows it. No
+ * formatter this repository uses produces that, and `prettier` rewrites it on the next
+ * `pnpm format`, so the gap is transient rather than permanent — but it is a gap, and
+ * it is written down rather than discovered later.
+ */
+const CLIENT_STORAGE_API_PATTERN =
+  /(?<![\w.$-])(?:localStorage|sessionStorage|navigator(?!\s*\.\s*clipboard\b)|cookies?|location|history|indexedDB|caches)(?![\w$-])|\.cookie\b/g;
+
+/** A module naming `indexedDB` from a client, which no client may do. */
+const CLIENT_STORAGE_PROBE = "export const x = indexedDB.open('spectre-mail');";
+
+/**
+ * Clients that reach a global store, the URL, or cookies.
+ *
+ * **Same shape as {@link storageApiViolations} for the same reasons, and the two are
+ * deliberately separate functions rather than one with a root argument.** The argument
+ * *is* the second spelling of what to scan: M6 slice 1's falsification pass rewrote a
+ * call site to `(["mailbox"])`, then to `([])`, and the suite stayed green both times
+ * because every package it stopped scanning happened to be clean. A root parameter here
+ * would be exactly that mistake, one directory over — the scan would quietly stop
+ * covering `apps/extension`, which today has no source files at all and would therefore
+ * make the loss invisible until M8 writes some.
+ *
+ * **No allowance list, so there is nothing to widen.** The one permitted spelling is in
+ * the pattern, where it is visible next to the thing it modifies. A separate allowance
+ * constant is what made the sibling rule's control able to silence the wrong test, and
+ * that mistake should not be repeated to avoid a slightly longer regex.
+ *
+ * **Test files are skipped**, as in every rule here: a client test has to be able to
+ * install `fake-indexeddb` on the global or stub a clipboard, exactly as a provider test
+ * has to name wire fields.
+ */
+function clientStorageApiViolations(): string[] {
+  const violations: string[] = [];
+
+  for (const file of collectSourceFiles(APPS_DIR)) {
+    if (/\.test\.tsx?$/.test(file)) continue;
+    const repoPath = toRepoPath(file).split("\\").join("/");
+    const contents = stripComments(readFileSync(file, "utf8"));
+    for (const hit of findPatternOccurrences(contents, CLIENT_STORAGE_API_PATTERN)) {
+      violations.push(`${repoPath} ${hit} (a client reached a global store)`);
+    }
+  }
+
+  return violations;
+}
+
+/**
  * Any way a client can turn a string into markup.
  *
  * `innerHTML`, `outerHTML`, and the legacy `document.write` are included because a
@@ -1625,6 +1710,132 @@ describe("architecture boundaries", () => {
     // why the scan strips comments before matching. A client importing this layer is
     // the intended use and `apps/*` is not scanned at all.
     expect(storageImportViolations()).toEqual([]);
+  });
+
+  it("keeps storage, cookies, and the URL out of every client", () => {
+    // The other half of the requirement the sibling rule above already covers for
+    // shared packages, and it exists because the website became the first client with
+    // something to persist.
+    //
+    // **`spectre-storage` says "no client and no shared package".** Until this change
+    // only the second half was enforced, and the rule that enforced it was correct
+    // about what it scanned. The requirement was simply broader than its check — the
+    // nineteenth shape of that defect in this repository, and the first where the
+    // obvious fix was to *narrow the requirement* until it matched. That fix is not
+    // made; `packages/storage/src/browser.ts` records why in the module a reader of the
+    // entry point will actually open.
+    //
+    // **Same one-call-site design as the shared-package rule, for the same structural
+    // reason.** This assertion is negative, so a rule that scanned nothing would
+    // satisfy it — and `apps/extension` has no source files today, so a rule quietly
+    // covering only `apps/web` would look identical from here until M8 writes the
+    // extension. A probe planted in every client the rule must scan is what makes the
+    // negative assertion mean something.
+    const mustScan = ["web", "extension"];
+
+    // Preconditions, transcribed rather than derived. Deriving the expected list from
+    // the thing under test moved both sides of the comparison in the sibling rule's
+    // falsification pass, and the rule stopped guarding a package with the suite still
+    // green.
+    for (const app of mustScan) {
+      expect(() => statSync(join(APPS_DIR, app)), `apps/${app} should exist`).not.toThrow();
+    }
+
+    const planted: string[] = [];
+    try {
+      for (const app of mustScan) {
+        planted.push(app);
+        // **At the app root, not under `src/`**, because `apps/extension` has no `src`
+        // directory and creating one to hold a probe would leave the workspace shaped by
+        // a test. `collectSourceFiles` walks recursively, so its position does not
+        // matter — and that is worth stating, because a probe's placement is the usual
+        // reason a scan silently misses it.
+        writeFileSync(
+          join(APPS_DIR, app, "__client-storage-probe.ts"),
+          CLIENT_STORAGE_PROBE,
+          "utf8",
+        );
+      }
+
+      const reported = clientStorageApiViolations().filter((hit) =>
+        hit.includes("__client-storage-probe.ts"),
+      );
+
+      // **By name, not only as a count** — a count is satisfied by reporting one app
+      // twice, and the platform would never do that, but the assertion should not depend
+      // on that.
+      //
+      // **Sorted on both sides, and the sort is not a weakening.** Directory iteration
+      // order put `extension` before `web` on the first run, which failed an otherwise
+      // correct rule for a reason that has nothing to do with it. Sorting two
+      // transcribed literals leaves the claim intact — *these exact apps, each once* —
+      // where comparing in walk order would only be testing `readdirSync`.
+      expect(
+        reported.map((hit) => hit.split("/__client-storage-probe")[0]?.split("/").pop()).sort(),
+        "the rule should report each client that must be scanned",
+      ).toEqual([...mustScan].sort());
+      expect(reported).toHaveLength(mustScan.length);
+    } finally {
+      for (const app of planted) {
+        rmSync(join(APPS_DIR, app, "__client-storage-probe.ts"), { force: true });
+      }
+    }
+
+    // **The rule itself.** `apps/web/src/Address.tsx` copies a mailbox address through
+    // `navigator.clipboard`, which is required behaviour and not a store — so this line
+    // passing is also the carve-out being load-bearing on real shipped code rather than
+    // only on a fixture.
+    expect(clientStorageApiViolations()).toEqual([]);
+  });
+
+  it("catches a platform store or the URL in a client, in every spelling but the clipboard", () => {
+    // One assertion per form, through the rule's own scan, and one **negative** control
+    // for the carve-out. A carve-out asserted only by its absence leaves the pattern
+    // free to exclude all of `navigator` and still pass the pair below — which is the
+    // failure mode the sibling rules record three times over.
+    const caught = {
+      localStorage: "export const x = localStorage.length;",
+      sessionStorage: "export const x = sessionStorage.length;",
+      cookies: "export const x = document.cookie;",
+      url: "export const x = location.href;",
+      /** **Not the clipboard.** The single member the pattern excludes, checked against
+       * its nearest neighbour so the exclusion cannot spread. */
+      "navigator storage": "export const x = navigator.storage;",
+      "navigator user agent": "export const x = navigator.userAgent;",
+      indexedDB: CLIENT_STORAGE_PROBE,
+    };
+
+    const path = join(APPS_DIR, "web", "__client-storage-form-probe.ts");
+    try {
+      for (const [name, source] of Object.entries(caught)) {
+        writeFileSync(path, source, "utf8");
+        // **Filtered by `apps/web`'s path, not by file name alone.** Every client holds
+        // a probe from the rule test above, and a name filter would satisfy a form the
+        // rule genuinely missed with the other client's violation — the exact defect the
+        // shared-package controls were rewritten for.
+        expect(
+          clientStorageApiViolations().filter((hit) =>
+            hit.startsWith("apps/web/__client-storage-form-probe.ts"),
+          ),
+          `${name} should be caught in apps/web`,
+        ).not.toEqual([]);
+      }
+
+      // **The carve-out, stated as a positive claim about what is allowed.** The
+      // website's own copy control is this spelling, so it is not a fixture: if the
+      // lookahead were broken, `clientStorageApiViolations()` would report
+      // `Address.tsx` and the rule test above would fail — but a test that can only
+      // catch that by breaking the whole suite is not a test of the carve-out.
+      writeFileSync(path, "export const x = navigator.clipboard.writeText('a');", "utf8");
+      expect(
+        clientStorageApiViolations().filter((hit) =>
+          hit.startsWith("apps/web/__client-storage-form-probe.ts"),
+        ),
+        "the clipboard is not a store",
+      ).toEqual([]);
+    } finally {
+      rmSync(path, { force: true });
+    }
   });
 
   it("stays quiet on the word framework in a comment", () => {

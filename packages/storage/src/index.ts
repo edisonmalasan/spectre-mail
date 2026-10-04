@@ -7,17 +7,18 @@
  * `chrome.storage` has no transactions, so its adapter will not resemble this one
  * except in the contract it serves.
  *
- * ## No client consumes this package yet
+ * ## Two ways in, and why there are two
  *
- * This is stated first because it is the fact most likely to be misread. M6 slice
- * 1 builds and verifies the layer; the slice that follows wires a client to it and
- * amends `mailbox-session`'s *A reload loses the session* scenario in the same
- * change as the behaviour. Until then **a reload still discards the mailbox**,
- * exactly as it did at M5.
+ * `createIndexedDbStorage` takes an injected `IDBFactory` and **has no default**,
+ * because `globalThis.indexedDB` compiles in every package in this workspace and a
+ * default would be a path that runs only where a browser happens to provide one.
+ * `createBrowserStorage` is the browser-facing entry point: it reads that global
+ * **inside this layer** and hands it over.
  *
- * The precedent is M4: `packages/mail-parser` shipped fully verified with "No
- * client consumes it yet", and the alternative — a client wired against a contract
- * with no tests of its own — is how a seam becomes decorative.
+ * The second exists because this package is the only place a client is permitted to
+ * reach a platform store, and the website is the first client that needs to. Its
+ * module note sets out the two rejected alternatives, one of which was to weaken the
+ * boundary rule below to match what is actually scanned.
  *
  * ## Why the contract is shaped the way it is
  *
@@ -45,12 +46,20 @@
  * `localStorage`, `sessionStorage`, and `navigator` in every package here, which
  * was measured — so both rules say what they can and cannot check.
  *
+ * **A third rule covers the clients**, added when the website became the first one to
+ * want a store: no file under `apps/` may name a platform storage API either. Before
+ * it, the enforced rule scanned `packages/*` only while the requirement text said
+ * "no client and no shared package" — a requirement broader than its own check, which
+ * is the gap this repository has now recorded eighteen times.
+ *
  * This package must never import from `apps/web` or `apps/extension`.
  *
  * @module
  */
 
 export type { SpectreStorage } from "./contract";
+
+export { createBrowserStorage } from "./browser";
 
 export { SPECTRE_RECORD_VERSION, readStoredMailboxRecord, toStoredMailboxRecord } from "./record";
 export type { StoredMailboxRecord } from "./record";
