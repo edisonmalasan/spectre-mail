@@ -27,12 +27,50 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor:** **M6 — Website Hardening.** Slice 1 (`spectre-storage`) is applied,
+**Roadmap cursor:** **M6 - Website Hardening.** Slice 1 (`spectre-storage`) is applied,
 verified, synced, and **archived** at
 `openspec/changes/archive/2026-10-05-spectre-storage/`; `openspec status` reports
-**No active changes**. Apply merged as **#46**, sync as **#47**. The next objective is
-**M6 slice 2**, the adopt-and-recover slice, which is what finally delivers `return to a
-recent mailbox`.
+**No active changes**. Apply merged as **#46**, sync as **#47**. Slice 2
+(`mailbox-adoption`) is **applied and verified, not yet archived**; its Apply PR is
+open. The next objective after this slice's archive is **M6 slice 3**, the privacy
+controls.
+
+**Slice 2 delivers `return to a recent mailbox`, and that acceptance line is now met.**
+The website reads its own storage before it asks the provider for anything, hands the
+session what it found, and writes back a mailbox it was **not** handed. Adoption
+reconciles through the provider that owns the address, so a stored mailbox is only ever
+presented once the provider confirms it.
+
+**Slice 2's numbers as of 2026-10-05, and these are the current ones.** The workspace
+runs **620 tests across 31 files**, of which **46 are architecture boundary assertions**:
+54 in `packages/core`, 89 in `packages/providers`, 149 in `packages/mail-parser`,
+**153 in `packages/mailbox`** (19 of them adoption), **96 in `apps/web`** (93 rendering,
+3 provider configuration), **33 in `packages/storage`** (7 stored record, 20 IndexedDB
+adapter, 6 browser entry point), and 46 boundary. Counts are read from the reporter,
+not added by hand. `pnpm install`, `pnpm typecheck`, `pnpm lint`, `pnpm format:check`,
+`pnpm test`, `pnpm build`, and `pnpm verify` all exited 0, and
+`openspec validate mailbox-adoption --type change --strict` exited 0.
+
+**This milestone has added persistence without adding its removal, and that sentence
+belongs in the status block rather than in a task.** There is now a mailbox written to a
+user's browser and **no control anywhere that deletes it**. That is slice 3's job and
+it does not exist yet; the page's own limits list says so, in those words, rather than
+leaving a user to discover it. A product that stores and cannot be made to stop is a
+different product from one that says it stores nothing, and this is the slice where that
+difference became real.
+
+**What slice 2 does not establish, and the list is longer than it was after slice 1.**
+No page under test has ever run in a **real browser**, and this is the first change that
+would persist anything in one. `jsdom` implements no IndexedDB, so the real
+`createBrowserStorage` path is exercised by no test at all - the client suites inject a
+store, and `fake-indexeddb` is a fake rather than a browser. No test contacts a live
+provider, and **a restored mailbox has never been reconciled against a real Guerrilla
+Mail session**, which is the whole operation this slice added. The polling cadence has
+still never run against a live provider. The falsification pass covered **31 mutations,
+31 caught by the intended assertion**, every mutated file restored byte-identical by
+SHA-256; one further mutation was **recorded as unfalsifiable rather than counted**,
+because `inbox.check` handed a mailbox cannot return the two states that branch guards,
+so no test can reach it.
 
 **The archive ran with `--skip-specs`, because the sync had already promoted the
 delta.** That is the documented reason the flag exists and the fourth time this
@@ -50,8 +88,8 @@ many requirements the file has. That is the **fourth** wrong total this roadmap 
 published, and it was found by counting the promoted files rather than by re-reading a
 previous footer's claim, which is the only reason it was found at all.
 
-**M6 slice 1's numbers as of 2026-10-05, and these are the current ones.** The workspace
-runs **574 tests across 28 files**, of which **44 are architecture boundary assertions**:
+**M6 slice 1's numbers as of 2026-10-05, kept as that slice's snapshot.** The workspace
+ran **574 tests across 28 files**, of which **44 were architecture boundary assertions**:
 54 in `packages/core`, 89 in `packages/providers`, 149 in `packages/mail-parser`,
 134 in `packages/mailbox`, **77 in `apps/web`** (74 rendering, 3 provider configuration),
 **27 in `packages/storage`** (7 for the stored record, 20 for the IndexedDB adapter), and
@@ -59,11 +97,12 @@ runs **574 tests across 28 files**, of which **44 are architecture boundary asse
 `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `pnpm test`, `pnpm build`, and
 `pnpm verify` all exited 0.
 
-**No client consumes the package.** That is the sentence a later session must not
-misread, so it is stated here rather than implied: `packages/storage` has real
-behaviour and **nothing reads it**. A reload still discards the mailbox, `return to a
-recent mailbox` is still undelivered, and no privacy control exists. What slice 1
-delivers is the seam a client can be wired against, not persistence.
+**No client consumed the package when slice 1 was archived, and this is kept as that
+slice's record rather than corrected into the present tense.** `packages/storage` had
+real behaviour and nothing read it; a reload discarded the mailbox, `return to a recent
+mailbox` was undelivered, and no privacy control existed. Slice 1 delivered the seam a
+client could be wired against, not persistence. **Slice 2 is what wired it**, and the
+cursor above is the current statement.
 
 **What slice 1 is evidence for.** That a `SpectreStorage` contract can be stated, stored,
 and read back under two conditions this repository can test without a browser:
@@ -2080,8 +2119,8 @@ Each slice therefore owns exactly one of them, and the table is the assignment.
 | Slice | Change | Owns | State |
 | --- | --- | --- | --- |
 | 1 | `spectre-storage` | The `SpectreStorage` contract and its IndexedDB adapter. **No client.** | applied, verified, archived |
-| 2 | *(next)* | `MailboxSession.adopt(mailbox)`, the new session states, and website reload recovery - `return to a recent mailbox` | not started |
-| 3 | *(later)* | Privacy controls, verbatim from the block above | not started |
+| 2 | `mailbox-adoption` | `MailboxSession.restore`, the four new session states, and website reload recovery - `return to a recent mailbox` | applied, verified |
+| 3 | *(next)* | Privacy controls, verbatim from the block above. **Nothing deletes stored data until this lands.** | not started |
 | 4 | *(later)* | Error states, security and accessibility items, and pausing polling when the page is hidden | not started |
 
 **Slice 1 amends no promoted requirement, and that is a decision rather than an
@@ -2091,11 +2130,13 @@ Promoting that amendment here would ship a spec describing a path that does not 
 The conflict is recorded in the change's `design.md` (D9) and the amendment is written
 into the delta **in slice 2**, so the archive carries it.
 
-**What slice 1 does not deliver, stated plainly.** No client reads or writes the
-package. A reload still discards the mailbox, `return to a recent mailbox` is still
-undelivered, and no privacy control exists. The package's existence is not persistence
-shipping - it is the seam that lets a client be wired against a tested contract rather
-than against an untested guess, the same choice M4 made for the parser.
+**What slice 1 did not deliver, stated plainly at the time.** No client read or wrote
+the package. A reload discarded the mailbox, `return to a recent mailbox` was
+undelivered, and no privacy control existed. The package's existence was not persistence
+shipping - it was the seam that lets a client be wired against a tested contract rather
+than against an untested guess, the same choice M4 made for the parser. **Two of those
+three sentences became false with slice 2**; the third has not, and slice 3 is what
+makes it false.
 
 ---
 
