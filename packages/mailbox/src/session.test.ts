@@ -15,7 +15,15 @@ import { createGuerrillaAdapter, createProviderManager } from "@spectre-mail/pro
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-import { createMailboxSession, isCreating, isFailed, isReady, openedOf, verdictFor } from "./index";
+import {
+  createMailboxSession,
+  isCreating,
+  isFailed,
+  isIdle,
+  isReady,
+  openedOf,
+  verdictFor,
+} from "./index";
 import type { MailboxSession, MessageVerdict, SessionState } from "./index";
 import {
   BOTH_BODY,
@@ -124,21 +132,35 @@ describe("createMailboxSession", () => {
   });
 
   describe("the state it reports", () => {
-    it("starts as creating, and says so rather than inventing a mailbox", () => {
+    it("starts idle, and does not claim to be creating a mailbox it has not been asked for", () => {
       const session = createMailboxSession(
         createProviderManager([stubProvider("guerrilla")]),
         manualScheduler(),
       );
 
+      // **`idle` rather than `creating`, and this assertion was `creating` until
+      // adoption arrived.** The test was not wrong when it was written and it was not
+      // weakened to pass: the session's first act used to be creating a mailbox, so
+      // `creating` described a session that had been built and asked nothing. Its
+      // first act is now to be handed a stored mailbox or told there is none, and a
+      // session that has not been asked anything is not creating one — a page
+      // rendering before it has asked would say it is asking the provider for a new
+      // address while it is asking its own storage. The promoted `mailbox-session`
+      // scenario this serves is *Nothing is stored and no request has been made*.
+      expect(session.current()).toEqual({ kind: "idle", opened: { kind: "none" } });
+      expect(isIdle(session.current())).toBe(true);
+      // **The negative half, which is the half that matters.** `isCreating` false is
+      // the assertion; a test that only checked the `kind` string would pass against
+      // an implementation that reported `idle` while every helper still said creating.
+      expect(isCreating(session.current())).toBe(false);
+
       // **`opened: { kind: "none" }` from the very first state, and that is the claim
       // being made.** Slice 3 added `opened` to `SessionState`, and the question this
       // assertion answers is whether a session that has opened nothing says so from the
-      // moment it exists. A `creating` state with no `opened` field would be a state a
-      // client has to special-case, and it is the state a client renders *while a
-      // mailbox is being replaced* — which is exactly when the previous mailbox's
-      // message must already be gone from the screen.
-      expect(session.current()).toEqual({ kind: "creating", opened: { kind: "none" } });
-      expect(isCreating(session.current())).toBe(true);
+      // moment it exists. A state with no `opened` field would be a state a client has
+      // to special-case, and it is the state a client renders *while a mailbox is
+      // being replaced* - which is exactly when the previous mailbox's message must
+      // already be gone from the screen.
       expect(openedOf(session.current())).toEqual({ kind: "none" });
       expect(isReady(session.current())).toBe(false);
       expect(isFailed(session.current())).toBe(false);
@@ -949,8 +971,11 @@ describe("createMailboxSession", () => {
       const { seen } = observed();
 
       // Without this, a subscriber that arrived after the state had already moved would
-      // render one transition behind for as long as it lived.
-      expect(seen).toEqual([{ kind: "creating", opened: { kind: "none" } }]);
+      // render one transition behind for as long as it lived. `idle` rather than
+      // `creating`, for the reason the sibling test records: the state a subscriber is
+      // handed on the way in is the state the session actually holds, and it has not
+      // been asked to create anything.
+      expect(seen).toEqual([{ kind: "idle", opened: { kind: "none" } }]);
     });
 
     it("tells a subscriber about the move into checking, before the provider answers", async () => {

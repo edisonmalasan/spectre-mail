@@ -39,6 +39,34 @@ export interface MailboxSession {
   open(): Promise<SessionState>;
 
   /**
+   * Recover a stored mailbox, or create one when there is none.
+   *
+   * **`null` means "nothing is stored", and it is an argument rather than an
+   * implicit behaviour** so that the decision between recovering and creating is
+   * one the caller makes visibly, in one call. With `open` left to do the boot,
+   * two things would create a mailbox and a caller that failed to read its own
+   * storage would reach for `open` — which is exactly the silent replacement the
+   * adoption requirements forbid.
+   *
+   * **The session is handed a mailbox, never a way to find one.** The parameter is
+   * a `Mailbox | null`, so there is no path by which a storage handle could reach
+   * this package: the dependency is impossible by type rather than forbidden by a
+   * rule.
+   *
+   * **A stored mailbox is reconciled before it is presented.** This does not read
+   * the record and trust it — the record proves only that this device once held a
+   * mailbox, which is a different claim from the one the page is about to make. It
+   * performs a real provider request, which is also the inbox's first listing, and
+   * reports `expired` or `restoreFailed` rather than guessing. The empty-inbox trap
+   * `docs/PROVIDERS.md` §3 records is why: a dead Guerrilla session answers
+   * `HTTP 200` with no messages and no error.
+   *
+   * **Never retries, on the same terms as `open`.** A throttled or failed
+   * reconciliation is reported, and the caller decides whether to ask again.
+   */
+  restore(stored: Mailbox | null): Promise<SessionState>;
+
+  /**
    * Discard the current mailbox and create another.
    *
    * The previous state is **not** mutated. A client holding the old value keeps a
@@ -166,7 +194,15 @@ export function createMailboxSession(
   manager: ProviderManager,
   scheduler: MailboxScheduler,
 ): MailboxSession {
-  let state: SessionState = { kind: "creating", opened: { kind: "none" } };
+  /**
+   * **`idle`, not `creating`.** The session's first act used to be creating a
+   * mailbox, which made `creating` an honest description of a session that had been
+   * built and asked nothing. Now its first act is to be handed a stored mailbox or
+   * told there is none, and a session that has not been asked anything is not
+   * creating one — a page rendering before it has asked would say it is asking the
+   * provider for a new address while it is in fact asking its own storage.
+   */
+  let state: SessionState = { kind: "idle", opened: { kind: "none" } };
 
   const listeners = new Set<(next: SessionState) => void>();
 
@@ -227,24 +263,37 @@ export function createMailboxSession(
     return state;
   }
 
-  /** Republish the session so it carries the tracker's latest inbox, and notify. */
+  /**
+   * Republish the session so it carries the tracker's latest inbox, and notify.
+   *
+   * **Only `ready` gets an inbox, because only `ready` has one.** `expired` and
+   * `restoreFailed` hold a mailbox so a page can *name* the address the user came
+   * back for, and neither has a listing — attaching one would let a client render
+   * "no messages" for an address the provider has just said is gone, which is the
+   * same unrepresentable reading the variant withholds by not having the field.
+   */
   function withInbox(next: SessionState): SessionState {
     return setState(
-      next.kind === "ready"
-        ? { ...next, inbox: inbox.state, opened: opened.state }
-        : next.kind === "creating"
-          ? { ...next, opened: opened.state }
-          : next,
+      next.kind === "failed"
+        ? next
+        : next.kind === "ready"
+          ? { ...next, inbox: inbox.state, opened: opened.state }
+          : { ...next, opened: opened.state },
     );
   }
 
   /**
    * Republish with a new opened-message state, and notify.
    *
-   * **Every non-failed state carries `opened`, so none of the three branches can skip
-   * it in the payload.** That is what keeps the address and the message it belonged to
-   * from coming apart on screen: `creating` says nothing is open as loudly as `ready`
-   * does, and a client rendering either has a single field to read.
+   * **Every non-failed state carries `opened`, so nothing else has to be handled
+   * here.** That is what keeps the address and the message it belonged to from coming
+   * apart on screen: `creating` and `adopting` say nothing is open as loudly as
+   * `ready` does, and a client rendering any of them has a single field to read.
+   *
+   * This was three explicit branches before adoption, one per variant, and the
+   * fourth and fifth states would have made seven. `failed` is the only variant with
+   * no such field, so it is the only branch — a rule that had to be restated per
+   * variant was a rule that would eventually be forgotten for one.
    *
    * **What the `failed` branch still does, stated rather than implied.** It returns
    * `current` unchanged, but it reaches that through `setState`, so a subscriber is
@@ -257,13 +306,7 @@ export function createMailboxSession(
    * about the notification too.
    */
   function withOpened(current: SessionState, next: OpenedMessageState): SessionState {
-    return setState(
-      current.kind === "ready"
-        ? { ...current, opened: next }
-        : current.kind === "creating"
-          ? { ...current, opened: next }
-          : current,
-    );
+    return setState(current.kind === "failed" ? current : { ...current, opened: next });
   }
 
   const session: MailboxSession = {
@@ -297,6 +340,85 @@ export function createMailboxSession(
       return withInbox(await createOnce(manager));
     },
 
+    async restore(stored) {
+      // Nothing stored is the first-visit path, and it is the *same* path rather than
+      // a parallel one. A second implementation of "create a mailbox" would be free
+      // to drift — different states, different order — and the drift would show up as
+      // a first visit behaving differently from a retry, which is the one pair of
+      // paths a user cannot tell apart and must not be able to.
+      if (stored === null) return session.open();
+
+      // Both trackers forget the previous mailbox first, on the same grounds `open`
+      // gives: an opened message is a provider-scoped id, and message ids are
+      // provider-scoped too, so carrying either across a mailbox change would be a
+      // claim about a mailbox this session has not reached yet.
+      inbox.reset();
+      opened.reset();
+
+      // **Published before the provider is asked.** A page that cannot say it is
+      // checking looks broken, and this request is the slowest thing a returning
+      // visitor waits through — it is the one moment `adopting` is worth a variant
+      // of its own rather than reusing `creating`, whose copy would say the page is
+      // asking for a *new* address.
+      withInbox({ kind: "adopting", opened: opened.state });
+
+      // **One request, and it is the inbox's first listing.** Reusing the tracker
+      // rather than calling the provider directly means a restored mailbox arrives
+      // already analysed: the tracker reads each new arrival to decide its verdict
+      // and hands the reading to the opened-message tracker, which is what lets a
+      // message be opened later without a second request. It also means a separate
+      // "is this mailbox alive" probe would be a second request against a provider
+      // that publishes no limit for this path, answering a weaker question.
+      const listing = await inbox.check(stored);
+
+      if (listing.kind === "checked") {
+        // The reconciliation listing *is* the inbox state — carried as `listing`
+        // rather than `inbox.state` because they are the same value here and reading
+        // the tracker again would invite them to differ later.
+        return withInbox({ kind: "ready", mailbox: stored, inbox: listing, opened: opened.state });
+      }
+
+      if (listing.kind !== "checkFailed") {
+        // **Unreachable, and reported rather than cast away.**
+        //
+        // `check` returns `notStarted` only when handed no mailbox, and returns
+        // `checking` only as a transitional publish it has already moved past by the
+        // time its promise resolves. This call passed a mailbox, so the answer is
+        // `checked` or `checkFailed`. The compiler cannot see that — `InboxState` has
+        // four variants and the two it cannot rule out are real variants a client
+        // handles elsewhere — so a cast here would be hiding a possibility from the
+        // next reader rather than documenting it.
+        //
+        // Reporting it means that if the tracker's contract ever changes to make this
+        // reachable, a page finds out at runtime instead of rendering an address on
+        // the strength of an inbox that is still being fetched.
+        throw new Error(
+          `The inbox tracker reported "${listing.kind}" instead of a listing, so a stored mailbox was neither confirmed nor refused.`,
+        );
+      }
+
+      // **Stop the loop on both failure paths, and the reason is not tidiness.**
+      // `check` reschedules, so without this the session would go on listing the very
+      // mailbox it is about to report as gone — a request the provider has already
+      // refused, repeating forever, for a state nothing reads. `reset` publishes
+      // nothing, so no inbox transition is announced that the session cannot honour.
+      inbox.reset();
+
+      if (listing.failure.code === NormalizedErrorCode.MAILBOX_EXPIRED) {
+        return withInbox({ kind: "expired", mailbox: stored, opened: opened.state });
+      }
+
+      // Everything else is "could not tell", including a throttle. Reporting a
+      // throttled check as `expired` would tell a user their address is gone on the
+      // strength of a provider asking us to slow down.
+      return withInbox({
+        kind: "restoreFailed",
+        mailbox: stored,
+        failure: listing.failure,
+        opened: opened.state,
+      });
+    },
+
     async replace() {
       return session.open();
     },
@@ -304,8 +426,10 @@ export function createMailboxSession(
     async health() {
       // With no mailbox there is no owning provider, so this reports the health of
       // the first configured provider rather than inventing a status for a mailbox
-      // that does not exist.
-      const owner = mailboxOf(state);
+      // that does not exist. `subjectOf` rather than `mailboxOf`, so an `expired` or
+      // `restoreFailed` session is still asked about the provider that owns the
+      // address it is telling the user about.
+      const owner = subjectOf(state);
       const provider = owner === undefined ? firstConfigured(manager) : manager.providerFor(owner);
       return provider.checkHealth();
     },
@@ -353,8 +477,39 @@ async function createOnce(manager: ProviderManager): Promise<SessionState> {
   }
 }
 
+/**
+ * The mailbox this session may *act on*, which is only ever a `ready` one.
+ *
+ * **Deliberately narrower than `subjectOf`, and the difference is load-bearing.**
+ * `expired` and `restoreFailed` hold a mailbox so the page can name it, but this
+ * session will not list it, read from it, or poll it: the provider has either said
+ * it is gone or failed to be asked, and in both cases a listing would either repeat
+ * a refused request or produce an inbox for an address that may not receive mail.
+ * `checkInbox` on such a session therefore reports `notStarted` — which is true,
+ * since this session has never started checking a mailbox.
+ */
 function mailboxOf(state: SessionState): Mailbox | undefined {
   return state.kind === "ready" ? state.mailbox : undefined;
+}
+
+/**
+ * The mailbox this session is *about*, which includes the two it could not confirm.
+ *
+ * **Only `health()` uses this, and the reason is that a provider question and a
+ * mailbox question are not the same.** Asking "is this provider working" and getting
+ * an answer about whichever provider happens to be first configured would be a true
+ * answer to a question nobody asked, on a page currently saying the user's address
+ * is gone. The owning provider is the one the answer is about.
+ */
+function subjectOf(state: SessionState): Mailbox | undefined {
+  switch (state.kind) {
+    case "ready":
+    case "expired":
+    case "restoreFailed":
+      return state.mailbox;
+    default:
+      return undefined;
+  }
 }
 
 function firstConfigured(manager: ProviderManager): MailProvider {

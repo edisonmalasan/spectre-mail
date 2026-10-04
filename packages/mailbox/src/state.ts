@@ -1,11 +1,20 @@
 /**
  * The session state.
  *
- * **Three named states, not a mailbox plus a loading flag.** Those two can
+ * **Seven named states, not a mailbox plus a loading flag.** Those two can
  * disagree — a loading flag that clears while the mailbox is still null, or a
  * mailbox that arrives while the flag is still true — and the disagreement is a
  * rendering bug that no unit test writes itself. A discriminated union makes the
  * impossible states unrepresentable instead of merely unlikely.
+ *
+ * **Seven is the number the claims require, not a preference.** `idle`,
+ * `creating`, and `adopting` are three different questions being asked of a
+ * provider-or-storage, and folding any two of them together makes the page's copy
+ * false in one of them. `expired` and `restoreFailed` are two different verdicts
+ * that offer the user different things — a new address and a retry — and folding
+ * them together would put an error-code comparison in every client. `ready` and
+ * `failed` are the outcomes. Every pair here differs in what the page can honestly
+ * say, which is the test a variant has to pass to be added.
  *
  * Every variant is `readonly` and holds no reference to the session that produced
  * it, so a client may keep a state, compare it, and render it long after the
@@ -131,6 +140,21 @@ export interface InboxListing {
 
 export type SessionState =
   | {
+      /**
+       * The session has been built and asked to do nothing yet.
+       *
+       * **Added when adoption arrived, and it exists because `creating` became a
+       * lie.** A session's first act used to be creating a mailbox, so starting at
+       * `creating` was honest. Now its first act is to look for a stored one, and a
+       * session that has been built and not yet asked anything is not creating a
+       * mailbox — a page rendering before it has asked would say "asking Guerrilla
+       * Mail for a new address" while it is in fact asking its own storage.
+       */
+      readonly kind: "idle";
+      /** Nothing is open, because no mailbox has been reached yet. */
+      readonly opened: OpenedMessageState;
+    }
+  | {
       readonly kind: "creating";
       /**
        * The previously opened message, kept while a new mailbox is being created.
@@ -143,13 +167,72 @@ export type SessionState =
        * your address" heading. Both states have to say the same thing about what is
        * open, or the address and the message it belonged to come apart on screen for
        * exactly as long as the request takes.
+       *
+       * **Carried by every variant that can hold one, for the same reason.** That now
+       * includes `idle`, `adopting`, `expired`, and `restoreFailed` — see
+       * `openedOf`, which is the one place a client should read it from, because it
+       * is the one place that knows `failed` has no such field to return.
        */
+      readonly opened: OpenedMessageState;
+    }
+  | {
+      /**
+       * A stored mailbox is being checked with the provider that owns it.
+       *
+       * **Not `creating`, and the difference is the whole reason this variant
+       * exists.** Creating asks for an address that does not exist; adopting asks
+       * about one that did. Reusing `creating` would make the page's existing copy
+       * — "Asking Guerrilla Mail for a new address" — false in exactly the situation
+       * where it is most visible, which is the moment a returning user is waiting to
+       * find out whether their address survived.
+       */
+      readonly kind: "adopting";
       readonly opened: OpenedMessageState;
     }
   | {
       readonly kind: "ready";
       readonly mailbox: Mailbox;
       readonly inbox: InboxState;
+      readonly opened: OpenedMessageState;
+    }
+  | {
+      /**
+       * The provider has said the stored mailbox is gone.
+       *
+       * **Carries the mailbox, and carries no inbox.** The mailbox is carried so a
+       * page can name the address the user came back for and say plainly that it no
+       * longer receives mail — which is more use than hiding it. The inbox is
+       * withheld deliberately: an `expired` mailbox has none, and giving the variant
+       * an `InboxState` would let a client render "no messages" for an address that
+       * cannot receive any. That reading is unrepresentable here rather than merely
+       * avoided.
+       *
+       * **Distinct from `restoreFailed` because the two offer different things.**
+       * This one cannot be retried into existence, so it offers a new address; see
+       * that variant for the other.
+       */
+      readonly kind: "expired";
+      readonly mailbox: Mailbox;
+      readonly opened: OpenedMessageState;
+    }
+  | {
+      /**
+       * The provider could not be asked about the stored mailbox.
+       *
+       * **A condition, not a verdict.** The session does not know whether the
+       * mailbox is still good, and neither may a client. Reporting this as `expired`
+       * would tell a user their address is gone on the strength of a dropped
+       * request; reporting it as `ready` would hand them an address the provider
+       * never confirmed. Both are false, and the difference between them is why the
+       * two variants exist separately rather than as one variant plus an error code.
+       *
+       * **The stored mailbox is not discarded by this state.** It is carried here so
+       * the page can name it, and it stays in storage, because a failed check is not
+       * evidence about the provider.
+       */
+      readonly kind: "restoreFailed";
+      readonly mailbox: Mailbox;
+      readonly failure: SessionFailure;
       readonly opened: OpenedMessageState;
     }
   | { readonly kind: "failed"; readonly failure: SessionFailure };
@@ -228,21 +311,59 @@ export type OpenedMessageState =
  * variants means a fourth field is added once, and a hand-written predicate that
  * disagreed with the union would be a type error rather than a silently-wrong narrowing.
  */
+type SessionIdle = Extract<SessionState, { readonly kind: "idle" }>;
 type SessionCreating = Extract<SessionState, { readonly kind: "creating" }>;
+type SessionAdopting = Extract<SessionState, { readonly kind: "adopting" }>;
 type SessionReady = Extract<SessionState, { readonly kind: "ready" }>;
+type SessionExpired = Extract<SessionState, { readonly kind: "expired" }>;
+type SessionRestoreFailed = Extract<SessionState, { readonly kind: "restoreFailed" }>;
 type SessionFailed = Extract<SessionState, { readonly kind: "failed" }>;
 
 /** Narrowing helpers, so a client reads as `isReady(state)` rather than a cast. */
+export function isIdle(state: SessionState): state is SessionIdle {
+  return state.kind === "idle";
+}
+
 export function isCreating(state: SessionState): state is SessionCreating {
   return state.kind === "creating";
+}
+
+export function isAdopting(state: SessionState): state is SessionAdopting {
+  return state.kind === "adopting";
 }
 
 export function isReady(state: SessionState): state is SessionReady {
   return state.kind === "ready";
 }
 
+export function isExpired(state: SessionState): state is SessionExpired {
+  return state.kind === "expired";
+}
+
+export function isRestoreFailed(state: SessionState): state is SessionRestoreFailed {
+  return state.kind === "restoreFailed";
+}
+
 export function isFailed(state: SessionState): state is SessionFailed {
   return state.kind === "failed";
+}
+
+/**
+ * Whether a state holds a mailbox the page may show an address for.
+ *
+ * **`expired` and `restoreFailed` are included, and that is a deliberate over-inclusion.**
+ * Both hold the address the user came back for, and a page needs to *name* it in both
+ * cases — "the address you were using is gone" is a far better answer than "something
+ * went wrong". What it may not do is treat the mailbox as usable, which is what `isReady`
+ * is for.
+ *
+ * This exists so a client does not assemble the list itself and get it subtly wrong in
+ * the direction that loses the user's address from the screen entirely.
+ */
+export function holdsMailbox(
+  state: SessionState,
+): state is SessionReady | SessionExpired | SessionRestoreFailed {
+  return isReady(state) || isExpired(state) || isRestoreFailed(state);
 }
 
 /**

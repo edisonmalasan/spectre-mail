@@ -80,8 +80,12 @@ export { createMailboxSession } from "./session";
 export type { MailboxSession } from "./session";
 
 export {
+  holdsMailbox,
+  isAdopting,
   isCreating,
+  isExpired,
   isFailed,
+  isIdle,
   isInboxCheckFailed,
   isInboxChecked,
   isInboxChecking,
@@ -91,6 +95,7 @@ export {
   isMessageOpening,
   isNoMessageOpen,
   isReady,
+  isRestoreFailed,
   openedOf,
   verdictFor,
 } from "./state";
