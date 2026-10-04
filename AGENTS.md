@@ -34,13 +34,16 @@ the M0 spike probed `api.mail.tm` and `api.guerrillamail.com` live and recorded 
 they actually do, and every architectural rule below is a consequence of a recorded
 observation rather than of an assumption about how such an API ought to behave.
 
-**M0–M5 are complete and M6 is in progress, but no user has ever seen this product.**
-The website creates an address, lists what arrives in it, and opens a message; **no live
-browser run of it has ever been made**, so every acceptance claim below is a claim
-about a function and about jsdom, not about a user's experience. M6's **first slice**
-(`spectre-storage`) is applied and verified: the persistence contract and its IndexedDB
-adapter exist, and **nothing consumes them**. `return to a recent mailbox` is delivered
-by M6 slice 2, not by this one.
+**M0-M5 are complete and M6 is in progress, but no user has ever seen this product.**
+The website creates an address, lists what arrives in it, opens a message, and - since
+M6 slice 2 - **keeps that address in the browser and offers it back on a reload**; **no
+live browser run of it has ever been made**, so every acceptance claim below is a claim
+about a function and about jsdom, not about a user's experience. That caveat is at its
+sharpest for slice 2: it is the first change that would write anything to a user's
+disk, and `jsdom` implements no IndexedDB, so the real storage path has been exercised
+by **no test at all**. `return to a recent mailbox` is delivered by slice 2. The
+controls that **delete** the stored address do not exist yet - that is slice 3 - so this
+milestone has added persistence without having added its removal.
 
 The current state, in dependency order:
 
@@ -52,11 +55,12 @@ The current state, in dependency order:
 - A pure message-parsing package (`packages/mail-parser`) that turns `Message.text`
   into readable text plus ranked one-time-code and verification-link detections, with
   **no network, no clock, and no AI**.
-- A mailbox lifecycle and polling layer (`packages/mailbox`) that both clients consume.
-- A persistence layer (`packages/storage`) holding a real `SpectreStorage` contract
-  and its IndexedDB adapter — **which no client consumes yet**, so the website still
-  has no persistence.
-- A website client (`apps/web`) that renders all of it, with no styling and no
+- A mailbox lifecycle and polling layer (`packages/mailbox`) that both clients
+  consume, and that **adopts a stored mailbox** since M6 slice 2.
+- A persistence layer (`packages/storage`) holding a real `SpectreStorage` contract,
+  an IndexedDB adapter, and a browser entry point - **which the website now uses** and
+  the extension does not.
+- A website client (`apps/web`) that renders all of it, with **no styling** but with
   persistence.
 
 The target state is two clients (website, extension) over that shared core. The
@@ -125,11 +129,20 @@ Pin versions when exact versions matter.
   absence rather than merely permitting it**: the page names the provider it reaches,
   offers no control for choosing one, and does not describe the absence as missing or
   forthcoming. A control over one reachable option cannot act. It has
-  **no styling and no
-  persistence**: a reload discards the mailbox, because storage is M6. Styling is
+  **no styling**. Styling is
   absent by decision, not by omission; M7 owns it
   under the approved Spectral Swiss Utility direction, and markup written now would be
-  markup M7 rewrites. The page deliberately displays **no polling interval** — the
+  markup M7 rewrites.
+  **It keeps this device's address**, which M6 slice 2 added and an earlier draft of
+  this file denied three times over. One mailbox is written to the browser's own storage
+  and offered back on the next visit **after the provider confirms it**. The page states
+  what is stored, where, and - the honest part - **that no button anywhere deletes it**,
+  because slice 3 has not landed. A stored address is **never** shown as working before
+  the provider says so, and that is not caution: `docs/PROVIDERS.md` §3 records a dead
+  Guerrilla Mail session answering `HTTP 200` with an empty inbox, so "nothing has
+  arrived" and "this address is gone" are the same response. The page therefore
+  distinguishes an address the provider confirmed from one it merely could not check, and
+  says the second is unconfirmed rather than gone. The page deliberately displays **no polling interval** — the
   cadence is the product's own choice and no provider limit was measured for this
   provider, so a figure on screen would be an invention presented as a measurement;
   a provider's own verbatim limit statement *is* shown, attributed, with its scope
@@ -217,10 +230,23 @@ Pin versions when exact versions matter.
   **floor** rather than parsed into a schedule, a throttled listing **stops the loop**
   rather than retrying quietly, and the client must not call `destroy()` on unmount
   because React StrictMode would then never poll again.
-  It holds **no persistence** — storage is M6 — and it never invents a mailbox
-  lifetime. **The cadence has never been exercised against a live provider**, and the
+  It holds **no persistence of its own** - a stored mailbox is handed to it as a value,
+  which is the whole point of the boundary - and it never invents a mailbox
+  lifetime. **M6 slice 2 gave it `restore`**, so adoption is
+  `restore(stored: Mailbox | null)`: `null` is the first-visit path and it delegates to
+  `open()` rather than running a parallel create, because two implementations of "create
+  a mailbox" drift into first visits behaving differently from retries. A stored mailbox
+  is reconciled by **one listing through the provider that owns it**, which is the
+  request that decides the question; `MAILBOX_EXPIRED` becomes `expired`, anything else
+  becomes `restoreFailed`, and success makes that listing the inbox's own first listing so
+  a restored mailbox arrives already analysed. `SessionState` now has **seven** variants
+  - `idle`, `creating`, `adopting`, `ready`, `expired`, `restoreFailed`, `failed` - and a
+  session **starts at `idle`**. `restore` never saves; the client owns persistence
+  entirely.
+  **The cadence has never been exercised against a live provider**, and the
   website has **never been run in a real browser**; every assertion about either is
-  about this repository's own logic.
+  about this repository's own logic. **No restored mailbox has ever been reconciled
+  against a real Guerrilla Mail session**, which is the operation slice 2 added.
   **M5 slice 3 gave it ownership of the opened message**, in `opened.ts` and a
   `SessionState.opened` on both `ready` and `creating`. The design decision worth
   knowing is retention: the analysis the inbox's verdict pass already produced is
@@ -238,14 +264,18 @@ Pin versions when exact versions matter.
   `docs/PROVIDERS.md` for why a SpectreMail-operated proxy is not a permitted
   workaround for Mail.tm.
 
-- Database / storage: **`packages/storage` has real behaviour since M6 slice 1, and
-  no client uses it.** It holds the `SpectreStorage` contract — `loadMailbox` and
-  `saveMailbox`, nothing else — and an IndexedDB adapter behind it, with **27 tests**
-  (7 for the versioned stored record, 20 for the adapter). **A reload still discards
-  the mailbox**, because the wiring is M6 slice 2 and the privacy controls are a later
-  slice; a package's existence is not persistence shipping, and the M5 acceptance line
-  `return to a recent mailbox` remains undelivered. The extension's adapter is also
-  later. Two properties are settled and worth knowing before anything is built on it:
+- Database / storage: **`packages/storage` has real behaviour since M6 slice 1, and the
+  website has used it since M6 slice 2.** It holds the `SpectreStorage` contract -
+  `loadMailbox` and `saveMailbox`, nothing else - an IndexedDB adapter behind it, and a
+  `createBrowserStorage()` entry point, with **33 tests** (7 for the versioned stored
+  record, 20 for the adapter, 6 for the browser entry point). **Two ways in, separately
+  named**: `createIndexedDbStorage` takes a required `IDBFactory` and needs no global,
+  while `createBrowserStorage()` reads `globalThis.indexedDB` and **throws where the
+  platform provides none** - a store that quietly kept nothing would let a page report
+  "nothing is saved on this device" on a device where saving is blocked. **Nothing
+  anywhere deletes what is written**, because the privacy controls are slice 3; the
+  extension's adapter is also later, and `fake-indexeddb` **is not a browser**. Two
+  properties are settled and worth knowing before anything is built on it:
   **`loadMailbox` returns `null` for "nothing stored" only** and every other failure
   rejects, because a read reported as absent would make a client believe it is a first
   visit, create a mailbox, and overwrite the user's stored identity; and a stored
@@ -270,12 +300,13 @@ Pin versions when exact versions matter.
   `pnpm typecheck`, which is a separate gate. There is still no extension build
   step — that is M8.
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running **574 tests across
-  28 files** via `pnpm test` (2026-10-05, after the M6 slice 1 apply stage):
+- Testing: Vitest `3.2.7` at the workspace root, verified running **620 tests across
+  31 files** via `pnpm test` (2026-10-05, after the M6 slice 2 apply stage):
   54 in `packages/core`, 89 in `packages/providers`, **149 in `packages/mail-parser`**,
-  **134 in `packages/mailbox`**, **77 in `apps/web`** (74 rendering, 3 provider
-  configuration), **27 in `packages/storage`** (7 stored record, 20 IndexedDB adapter),
-  and **44 architecture boundary assertions**.
+  **153 in `packages/mailbox`** (19 of them adoption), **96 in `apps/web`** (93
+  rendering, 3 provider configuration), **33 in `packages/storage`** (7 stored record,
+  20 IndexedDB adapter, 6 browser entry point),
+  and **46 architecture boundary assertions**.
   `passWithNoTests` is **off** by design - a
   green run that inspects nothing is worse than no run. The `include` globs name
   `tests/architecture/**/*.test.ts`, `packages/*/src/**/*.test.ts`,
@@ -604,13 +635,15 @@ return Vite-transformed JSX, so the server really serves the app rather than a
 static shell.
 
 The website creates a mailbox, renders its address, lists that mailbox's messages
-while polling for new ones, and opens one. It has **no styling and no
-persistence** — a reload discards the mailbox, because storage is M6. Those are the
-slices' stated limits, not an unfinished screen. The
+while polling for new ones, opens one, and - since M6 slice 2 - **reads its own storage
+first and offers a stored address back after the provider confirms it**. It has **no
+styling** - that is M7 - and **nothing anywhere deletes what it stores**, which is slice
+3 and is stated in the page's own limits list rather than left for a user to discover.
+Those are the slices' stated limits, not an unfinished screen. The
 page's provider configuration is reachable and testable without a network
 (`apps/web/src/provider-config.test.ts`), but **nothing has been verified against the
 live Guerrilla Mail API from a browser**, so no claim is made about what a real page
-does on a real network — and in particular **no claim is made about how a real
+does on a real network - and in particular **no claim is made about how a real
 provider responds to being polled every five seconds**, because that has never been
 run. The polling loop is asserted by reading the delay the scheduler was asked for,
 which proves the cadence this repository computes and nothing about a provider's
@@ -961,13 +994,14 @@ Observed results, re-verified after the M4 verification repair, again after the
 M5 slice 1 apply stage, again after its independent verification repairs (all on
 2026-10-02), after the M5 slice 2 verification repairs, again after the M5 slice 3
 verification repairs, again after the M5 slice 4 apply stage, and again after the
-M6 slice 1 apply stage, all on 2026-10-03 through 2026-10-05:
+M6 slice 1 apply stage, and again after the M6 slice 2 apply stage, all on 2026-10-03
+through 2026-10-05:
 
 ```text
 pnpm typecheck     8 of 8 workspace projects run tsc --noEmit
 pnpm lint          exit 0
 pnpm format:check  All matched files use Prettier code style
-pnpm test          28 files, 574 tests passed
+pnpm test          31 files, 620 tests passed
 pnpm build         vite 7.3.6, dist emitted
 pnpm verify        exit 0
 ```
@@ -991,15 +1025,25 @@ responses, so the suite proves this repository's mapping of a provider's wire fo
 and nothing about the provider's current behaviour. A provider renaming a field
 would leave this suite green. Fixture refresh against `docs/PROVIDERS.md` is a
 deliberate diff, not something CI does. The same limit now applies to the client, and
-it has **widened** since slice 2: `apps/web`'s 77 tests render against a **stub
-provider** or a recording transport, so they prove the page composes the abstraction
-correctly and say **nothing** about whether a real browser reaches Guerrilla Mail
-successfully. **No live browser run has ever been made**, so every component in the
-website — including `MessageView`, added at slice 3 — has been seen by jsdom and by
-nothing else. **Nor has the polling cadence ever run against a
-live provider**: `packages/mailbox`'s cadence assertions read the delay the scheduler
-was asked for, and nothing in this repository has observed what a real provider does
-when a real page polls it every five seconds.
+it has **widened twice**: `apps/web`'s 96 tests render against a **stub provider** or a
+recording transport, so they prove the page composes the abstraction correctly and say
+**nothing** about whether a real browser reaches Guerrilla Mail successfully. **No live
+browser run has ever been made**, so every component in the website — including
+`MessageView`, added at slice 3 — has been seen by jsdom and by nothing else. **Nor has
+the polling cadence ever run against a live provider**: `packages/mailbox`'s cadence
+assertions read the delay the scheduler was asked for, and nothing in this repository has
+observed what a real provider does when a real page polls it every five seconds.
+
+**M6 slice 2 widened that limit into a hole rather than a caveat, and it is stated here
+because `pnpm test` cannot detect it.** `jsdom` implements no IndexedDB, so
+`createBrowserStorage()` — the function a real page actually calls — has **never been
+executed by any test in the workspace**. The client suites inject a `SpectreStorage`, and
+substituting `fake-indexeddb` would substitute a fake rather than a browser. So the
+suite proves that the page's boot, save, and every error branch compose correctly around
+the contract, and proves **nothing at all** about the IndexedDB path a user's browser
+would take. **No stored mailbox has ever been reconciled against a live Guerrilla Mail
+session**, which is the operation slice 2 added, so both halves of reload recovery are
+untested end to end.
 
 **`pnpm test` and `pnpm typecheck` catch different defects, and this repository has
 now been bitten by that in both directions.** Vitest does not typecheck, so a
@@ -1028,8 +1072,9 @@ Four specific limitations worth not misreading:
   scoped to `packages/` and `apps/` so a root-level or `tests/` module could name
   an adapter freely. Both widened cases were then proven to fail. An assertion that
   passes for the wrong reason is not a passing assertion.
-- **The count is now 44 boundary assertions. M5 slice 1 added seven, and its
-  independent verification pass found five defects in them.** The
+- **The count reached 44 boundary assertions at M5 slice 1, which added seven, and its
+  independent verification pass found five defects in them.** (44 is that milestone's
+  figure; the current one is **46**, below.) The
   adapter-confinement rule was **re-scoped**, which is the first recorded instance of
   an assertion being *broader* than its documented rule rather than narrower: it also
   forbade `createProviderManager` and `createFetchTransport` outside
@@ -1135,6 +1180,52 @@ Four specific limitations worth not misreading:
   reported through the wrong test. All three are recorded in the change's `design.md`.
   **27 of 27 mutations are now caught by the intended assertion**, restoration reported
   separately and verified by SHA-256, and `nocompile` counted as its own outcome.
+- **M6 slice 2 added two more, bringing the count to 46, and its falsification pass
+  found three defects — one of them in an assertion this change wrote, and one of them
+  a mutation that was a no-op and so found a misleading comment instead.** The new rule
+  is the first **client-scoped** boundary in this repository: until slice 2 no rule
+  mentioned `apps/` for anything but provider identifiers, because no client wanted to
+  reach a store. `apps/web` now does, through `createBrowserStorage()`, so a client
+  naming `localStorage`, `sessionStorage`, `document.cookie`, `indexedDB`, `caches`,
+  `location`, `history`, or a bare `navigator` fails the build. It carries exactly one
+  carve-out, `navigator.clipboard`, which `Address.tsx` uses and which copying the
+  mailbox address requires — so **the carve-out is load-bearing on shipped code, not
+  only on a fixture**, and dropping it is one of the mutations.
+
+  It took the same shape slice 1's rules were driven to, for the same reason. The scan
+  function takes **no argument** — an argument would be a second spelling of which apps
+  to scan — and its roots are checked against the **directory contents on disk**, so a
+  new client is covered by being created rather than by being listed. Line-level
+  filtering was tried and rejected before the negative lookahead: filtering lines that
+  mention the clipboard would have silenced the rule by accident on any line whose
+  comment mentioned storage. The rule covers `apps/extension` even though that directory
+  has no `src/`, because a rule scoped to the only client that exists today is invisible
+  until M8 creates the second one.
+
+  The three defects were each a different way of being wrong. **The retry assertion was
+  satisfied by the bug it was written for** — it checked only the state after the retry
+  landed, which the buggy code also reached, so a mutation that stopped the page saying
+  "checking" mid-retry stayed green; it now holds the attempt open and inspects the page
+  while the read is out. **"Built once, not per render" was a comment**, so
+  `useWebsiteStorage` now takes the builder and the claim is asserted on object identity
+  across three renders — counting reads would not have caught it, because the boot is
+  guarded and would read once regardless. And **the mutation that was a no-op** aimed at
+  `inbox: listing` in `restore` and left the suite green, because `withInbox` reads the
+  tracker's own state for the `ready` branch; the comment beside that field described
+  the redundancy as a deliberate choice and implied a guarantee the line never provided,
+  so it now states plainly that the field is required only by the type and that what
+  actually delivers a pre-analysed inbox is reusing `inbox.check`'s own result. **31 of
+  31 mutations caught by the intended assertion**, restoration verified by SHA-256, and
+  one further mutation is **recorded as unfalsifiable rather than counted** — see below.
+- **One branch is deliberately unfalsifiable, and saying so is the point.**
+  `restore` reports rather than casts the case where the inbox tracker returns neither a
+  listing nor a failure, because `InboxState` has four variants and the compiler cannot
+  rule out the other two. Replacing that throw with a guess leaves the suite green,
+  because `inbox.check` handed a mailbox cannot return `notStarted` (only when handed no
+  mailbox) or `checking` (only as a transitional publish it has moved past before its
+  promise resolves). It is therefore not covered by a test and does not claim to be. A
+  branch no assertion can reach is not a gap in the suite, and filing it as coverage
+  would be the same error in the other direction.
 - **`pnpm test` proved a third check of that same shape was vacuous, and the fix
   was to delete the gap rather than to add an exemption.** The adapter-identifier
   rule listed `MailTmProvider`, `GuerrillaMailProvider`, and `SpectreMailProvider`

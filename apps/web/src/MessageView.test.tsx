@@ -43,6 +43,7 @@ import type { MailProvider } from "@spectre-mail/providers";
 
 import { App } from "./App";
 import { applyJsdomSuiteBudget } from "./jsdom-suite-budget";
+import { EMPTY_STORE } from "./storage-stub";
 import { MessageView } from "./MessageView";
 // **Applied at module scope, once.** See `jsdom-suite-budget.ts`. This file's "gives every
 // row a real button with a name" was the other of the two assertions that timed out in the
@@ -153,7 +154,7 @@ function providerReturning(
 /** The whole page, with the mailbox created and the first listing settled. */
 async function renderPage(provider: MailProvider) {
   const session = createMailboxSession(createProviderManager([provider]), inertScheduler);
-  const view = render(<App session={session} />);
+  const view = render(<App session={session} storage={EMPTY_STORE} />);
   await screen.findByTestId("ready");
   await waitFor(() => expect(screen.queryByTestId("inbox-checking")).toBeNull());
   return { ...view, session };

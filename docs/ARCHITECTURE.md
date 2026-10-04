@@ -39,7 +39,7 @@ depend on packages, never the reverse.
 | `@spectre-mail/providers`   | The `MailProvider` contract, the Mail.tm adapter, the Guerrilla Mail adapter, the shared conformance suite, the provider manager, any future SpectreMail-operated provider | Business logic that belongs in `core`; presentation; any storage                              |
 | `@spectre-mail/mail-parser` | Safe text extraction, OTP detection, verification-link detection, message classification                                                                                   | Anything that renders markup; provider field names                                            |
 | `@spectre-mail/mailbox`     | The mailbox session — opening, replacing, retrying, provider health — as state values a client renders                                                                     | Any framework; any DOM; any storage; any request of its own                                   |
-| `@spectre-mail/storage`     | The `SpectreStorage` contract and its IndexedDB adapter — **the extension's adapter is a later slice, and no client consumes this yet**                                    | Provider wire format; assumptions specific to one client; any workspace package except `core` |
+| `@spectre-mail/storage`     | The `SpectreStorage` contract, its IndexedDB adapter, and `createBrowserStorage()` — **the website uses it, and the extension's adapter is a later slice**                 | Provider wire format; assumptions specific to one client; any workspace package except `core` |
 | `@spectre-mail/ui`          | Reusable product UI and design tokens                                                                                                                                      | Marketing-only website sections                                                               |
 
 ### The session layer
@@ -425,11 +425,34 @@ unavailable — which is worse than saying nothing. The extension, whose host
 permissions do reach two providers, is where a selector belongs.
 
 **It creates a mailbox, renders its address, lists that mailbox's messages while
-polling, and opens one — with no styling and no persistence.** (The "no inbox" this
-sentence carried was stale from slice 1 and was not corrected when slice 2 landed.) A
-reload discards the mailbox because storage is M6. The absence of styling is a
-decision, not an omission: M7 owns the visual design, and markup written before it
-would be markup M7 rewrites.
+polling, opens one, and keeps the address so a reload brings it back - with no
+styling.** (This sentence carried "no persistence", and before that a "no inbox" claim
+stale from slice 1; both were retired by their own slices and neither was corrected
+when the next one landed, which is the failure this line exists to record.) The absence
+of styling is a decision, not an omission: M7 owns the visual design, and markup written
+before it would be markup M7 rewrites.
+
+**The persistence boundary now has a client on one side of it, which changed what the
+rule could scan.** Until M6 slice 2 every rule here was about shared packages, because
+no client wanted to reach a store. The website does now, through
+`createBrowserStorage()` and nowhere else, so a **client-scoped** rule forbids a client
+naming `localStorage`, `sessionStorage`, `document.cookie`, `indexedDB`, `caches`,
+`location`, `history`, or a bare `navigator` — with exactly one carve-out,
+`navigator.clipboard`, which `Address.tsx` uses and which copying the mailbox address
+requires. Two properties of that rule were measured rather than assumed, and both came
+from mistakes the falsification pass caught:
+
+- **The carve-out is a negative lookahead on `navigator`, not on the clipboard**, because
+  filtering whole _lines_ was tried and rejected — a comment about storage on a line that
+  also copies an address would have silenced the rule by accident.
+- **The scan takes no package argument.** Each scan function is parameterless and its
+  package list is checked against the directory contents on disk, so a package added
+  without appearing in the list fails rather than being silently exempt. A parameter
+  would be a second spelling of what to scan, and slice 1's pass found three such
+  spellings whose narrowing left the rule satisfied by accident.
+
+The rule covers **every** app root, not `apps/web`, because `apps/extension` has no
+`src/` yet — a rule scoped to the only client that exists today is invisible until M8.
 
 **Opening a message displays what was found and acts on none of it.** Two boundary
 rules hold that rather than a code review. One fails the build if a client copies a

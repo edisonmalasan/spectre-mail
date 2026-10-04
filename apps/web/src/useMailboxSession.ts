@@ -20,21 +20,69 @@
  * polling again. Unmount reports the inbox invisible instead, which is reversible and
  * stops the loop; see `MailboxSession.destroy` for who that is for.
  *
- * **No storage, no recovery.** A remount starts a new session. Mail.tm publishes a
- * message retention and says a mailbox lasts until deleted, but neither value
- * appears in any API response, so nothing here could be persisted truthfully even if
- * persistence existed — it is M6's work and its decision to make.
+ * ## Two things this holds that the session does not
+ *
+ * The session layer takes **no storage dependency at all** — `mailbox-session`'s
+ * purpose excludes it, and the boundary rule enforces it. So the read of what this
+ * device has stored, and the write of what the page goes on to hold, both happen
+ * here. That gives the page two facts the session cannot have:
+ *
+ * - **`boot`** — whether the page knows yet what it has stored. It is what the page
+ *   shows instead of the session while it does not, and it is the only thing standing
+ *   between a failed read and a silently created mailbox.
+ * - **`saving`** — whether the last write worked.
+ *
+ * **They are two fields rather than one union, because they are two axes.** `boot`
+ * moves once, forwards, and only forward except on a retry; `saving` changes while a
+ * mailbox is on screen. Folding them into one union would mean inventing states like
+ * `{ boot: "started", saving: "failed" }`, which is a union that has to grow a row
+ * for every combination of two facts that never interact.
  *
  * @module
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import type { Mailbox } from "@spectre-mail/core";
 import type { MailboxSession, SessionState } from "@spectre-mail/mailbox";
+import { isReady } from "@spectre-mail/mailbox";
+
+import type { WebsiteStorage } from "./storage";
+
+/**
+ * Whether the page knows what this device has stored.
+ *
+ * **`blocked` is a terminal answer about *this attempt*, not about the mailbox.** It
+ * means the page could not read its own storage, so it has deliberately not asked the
+ * session to do anything — creating a mailbox here is the one move that would destroy
+ * the address the user came back for, because the next save would overwrite a record
+ * this page never managed to look at.
+ */
+export type BootState =
+  /** Reading. Nothing has been asked of the session, and no address can be shown. */
+  | { readonly kind: "reading" }
+  /** The read failed or could not be attempted. Nothing has been created. */
+  | { readonly kind: "blocked"; readonly reason: string }
+  /** The read succeeded; the session has been asked to adopt or create. */
+  | { readonly kind: "started" };
+
+/** Whether the mailbox the page holds has been stored. */
+export type SaveState =
+  | { readonly kind: "saved" }
+  /** The last write was refused. The address on screen is real; the next reload is not promised. */
+  | { readonly kind: "notSaved"; readonly reason: string };
 
 export interface MailboxSessionBinding {
   /** What to render. Never a promise; never partially built. */
   readonly state: SessionState;
+  /** Whether the page knows what it has stored yet. */
+  readonly boot: BootState;
+  /** Whether the mailbox it holds has been written. */
+  readonly saving: SaveState;
+  /** Ask again whether this device has something stored. What a blocked page offers. */
+  readonly retryBoot: () => void;
+  /** Create a mailbox for now, leaving whatever is stored untouched. */
+  readonly startFresh: () => void;
   /** Open a mailbox, or try again after a failure. Always user-initiated. */
   readonly retry: () => void;
   /** Discard the current mailbox and create another. */
@@ -47,9 +95,47 @@ export interface MailboxSessionBinding {
   readonly closeMessage: () => void;
 }
 
-export function useMailboxSession(session: MailboxSession): MailboxSessionBinding {
+export function useMailboxSession(
+  session: MailboxSession,
+  store: WebsiteStorage,
+): MailboxSessionBinding {
   const [state, setState] = useState<SessionState>(() => session.current());
+  // **`reading` is the initial value rather than something set in the effect body.** A
+  // `setState` there would be a second render pass before anything had been learned,
+  // and `react-hooks/set-state-in-effect` exists for a reason.
+  const [boot, setBoot] = useState<BootState>({ kind: "reading" });
+  const [saving, setSaving] = useState<SaveState>({ kind: "saved" });
+
   const opened = useRef(false);
+  /**
+   * The id of the mailbox this page was *handed*, if any.
+   *
+   * **This is the whole save rule, and it is one comparison.** The page stores a
+   * `ready` mailbox whose id is not the one it was handed, which covers exactly the
+   * three paths that must save — a first visit (handed nothing), *Replace address*
+   * (handed the old one), and a retry after a failed creation (handed nothing) — and
+   * excludes the one that must not: adoption, where the mailbox is already stored and
+   * writing it again would be a request-free no-op whose only purpose would be to make
+   * a bug elsewhere look correct.
+   *
+   * **Updated after a successful write** so a re-render does not write the same record
+   * again on every session transition — the inbox polls five times a second.
+   */
+  const handed = useRef<string | null>(null);
+
+  /**
+   * Whether this page load should write the mailbox it holds.
+   *
+   * **A ref, because it is a decision rather than a state.** Nothing renders it and
+   * nothing reads it twice; the one thing a reader needs is *why a new mailbox might
+   * deliberately not be stored*, which `startFresh` says and this names.
+   *
+   * `true` on every path except `startFresh`, and set back to `true` by both `retry`
+   * and `replace` — a user who took a fresh address without replacing their record and
+   * then chose to replace it has changed their mind, and the page should not keep
+   * honouring the earlier decision.
+   */
+  const persist = useRef(true);
 
   const run = useCallback((operation: () => Promise<SessionState>) => {
     // Show "creating" before awaiting, not after. Reading the new state only once the
@@ -69,11 +155,77 @@ export function useMailboxSession(session: MailboxSession): MailboxSessionBindin
     void operation();
   }, []);
 
+  /**
+   * Create a mailbox **without** storing it, keeping whatever is already stored.
+   *
+   * **This is the control the `restoreFailed` state exists to offer**, and the reason
+   * it cannot be `replace` is the whole design. `restoreFailed` means the provider
+   * could not be asked whether the stored mailbox still works — which is not the same
+   * claim as saying it does not. Overwriting the record on the strength of one failed
+   * request would destroy the only copy of an address that may be perfectly alive.
+   *
+   * **And `expired` offers the same control, for a different reason.** There the
+   * provider *did* say the mailbox is gone, so nothing is lost by moving on — the
+   * record is already worthless — but the user is not asked to decide that. Both
+   * states reach it; the reasoning behind each is different and neither belongs on the
+   * page.
+   */
+  const startFresh = useCallback(() => {
+    persist.current = false;
+    run(() => session.open());
+  }, [run, session]);
+
+  /**
+   * Read what is stored, then ask the session to adopt or create.
+   *
+   * **The `catch` is the requirement, not defensive coding.**
+   * `spectre-storage` reserves `null` for "nothing stored" and rejects for everything
+   * else, because a read reported as absent would make this page believe it was a
+   * first visit, create a mailbox, and overwrite the record it never managed to read.
+   * Catching that rejection and passing `null` on is the exact conversion the contract
+   * exists to prevent, so the failure ends the boot and reaches the page instead.
+   */
+  const startBoot = useCallback(async () => {
+    if (store.kind === "blocked") {
+      setBoot({ kind: "blocked", reason: store.reason });
+      return;
+    }
+
+    let stored: Mailbox | null;
+    try {
+      stored = await store.storage.loadMailbox();
+    } catch (cause) {
+      setBoot({ kind: "blocked", reason: describe(cause) });
+      return;
+    }
+
+    handed.current = stored?.id ?? null;
+    setBoot({ kind: "started" });
+    await session.restore(stored);
+  }, [session, store]);
+
+  const retryBoot = useCallback(() => {
+    // **Back to `reading` first, and this was a bug.** Without it the page kept
+    // rendering `BootFailure` -- "SpectreMail cannot check what it has saved" -- for
+    // the whole of a second attempt it was in the middle of making, and only swapped
+    // to the real answer when the read finally landed. A user who clicked *Check
+    // again* and saw the same refusal would conclude the retry had not been tried,
+    // which is the opposite of what the control did.
+    setBoot({ kind: "reading" });
+    void startBoot();
+  }, [startBoot]);
+
   const retry = useCallback(() => {
+    persist.current = true;
     run(() => session.open());
   }, [run, session]);
 
   const replace = useCallback(() => {
+    // **Persist, unlike `startFresh`.** Replacing an address is a decision to make this
+    // the one that comes back on the next reload, and the restored-mailbox scenario in
+    // `website-client` requires exactly that. A user who replaced and reloaded would
+    // otherwise be handed the address they had just decided to discard.
+    persist.current = true;
     run(() => session.replace());
   }, [run, session]);
 
@@ -98,15 +250,19 @@ export function useMailboxSession(session: MailboxSession): MailboxSessionBindin
   }, [session]);
 
   useEffect(() => {
-    // **No `setState` in this effect body.** The initial state is already `creating`,
-    // so setting it again would be a no-op that triggers a second render pass —
-    // which is exactly what the `react-hooks/set-state-in-effect` rule is for.
+    // **No `setState` in this effect body** — the initial state is already `reading`.
     //
     // The `opened` ref exists because of StrictMode, which mounts, unmounts, and
     // remounts an effect in development. Without it, the double invocation would
     // create **two** mailboxes on every page load in dev and silently throw one away
     // — against a provider that rate-limits account creation, that is not a harmless
     // duplicate.
+    //
+    // **The guard now covers the whole boot, not just `open()`.** Before adoption the
+    // guard protected one provider request; it now protects a storage read *and* the
+    // request, and the read is the one that matters most — a second read racing the
+    // first could deliver a second `restore` after the first had already created a
+    // mailbox.
     //
     // There is deliberately **no cancellation flag** in the cleanup. A cleanup that
     // marked the result stale would strand StrictMode's remount: the second pass
@@ -115,8 +271,8 @@ export function useMailboxSession(session: MailboxSession): MailboxSessionBindin
     // so the only thing a guard would buy here is the bug.
     if (opened.current) return;
     opened.current = true;
-    void session.open();
-  }, [session]);
+    void startBoot();
+  }, [startBoot]);
 
   // Subscribed rather than read: see the module note. `subscribe` delivers the
   // current state on the way in, so this cannot render one render behind.
@@ -130,9 +286,97 @@ export function useMailboxSession(session: MailboxSession): MailboxSessionBindin
     // session polls a mailbox it has been asked about and nothing had asked. Keyed on
     // the mailbox's id rather than on the state object, so a re-render producing an
     // equal-but-new state does not ask again — and a replaced mailbox does.
-    if (mailboxId === null) return;
+    //
+    // **Gated on `boot` having started**, because before it has there is no mailbox to
+    // list, and a call here would be `checkInbox` against `idle` — which reports
+    // `notStarted` and, more to the point, would be a client asking a question before
+    // it knows whether it has a mailbox at all.
+    if (mailboxId === null || boot.kind !== "started") return;
     void session.checkInbox();
-  }, [session, mailboxId]);
+  }, [boot.kind, session, mailboxId]);
 
-  return { state, retry, replace, checkInbox, openMessage, closeMessage };
+  /**
+   * Store the mailbox this page holds, when it is not the one it was handed.
+   *
+   * **One effect, one comparison, and it is keyed on the mailbox's id.** Keying on the
+   * state object would write on every inbox transition, which at the polling cadence is
+   * a write several times a second; keying on the id means one write per mailbox, which
+   * is what "persist the mailbox it holds" asks for.
+   */
+  useEffect(() => {
+    if (mailboxId === null || boot.kind !== "started") return;
+    if (mailboxId === handed.current) return;
+    if (!persist.current) return;
+    if (!isReady(state)) return;
+    // **Narrowed rather than cast.** `boot.kind === "started"` already implies this —
+    // a blocked store never starts the boot, so there is nothing to save — but the
+    // compiler cannot see that the two conditions are the same one, and writing
+    // `store.storage` on the union is an error. A cast would silence it; the extra
+    // check states the dependency the type cannot infer.
+    if (store.kind !== "ready") return;
+
+    // **Claimed before the write is awaited, not after it resolves.** It was updated in
+    // the success callback first, and the page wrote the same record twice: the save
+    // effect depends on the state object, the inbox publishes a transition every few
+    // seconds, and any transition arriving between the call and its resolution started
+    // a second write with `handed` still pointing at the old value. Two records, one
+    // mailbox, and a test asserting a count would have been the only place it showed.
+    //
+    // **So a failed write is not retried, and that is the deliberate consequence.**
+    // Retrying on every inbox transition would mean retrying a full disk several times
+    // a second for as long as the page is open. The page says the address was not
+    // stored, which is the fact a user needs; a silent retry loop is not a service
+    // SpectreMail should offer against a device that has said no.
+    handed.current = mailboxId;
+
+    let current = true;
+    void store.storage.saveMailbox(state.mailbox).then(
+      () => {
+        // **Guarded against an unmount, and the guard is not optional.** A
+        // `setState` after unmount is discarded by React without warning, but this one
+        // is not the page's state that matters — it is `handed`, a ref. Writing it
+        // after unmount would be harmless, and `current` exists anyway because the
+        // failure branch below has the same problem with a value the user can see.
+        if (!current) return;
+        setSaving({ kind: "saved" });
+      },
+      (cause: unknown) => {
+        // **Reported, not swallowed.** A page that saved quietly would leave the user
+        // believing reload recovery works on a device where it does not, which is the
+        // same class of claim the whole recovery path exists to avoid.
+        if (!current) return;
+        setSaving({ kind: "notSaved", reason: describe(cause) });
+      },
+    );
+
+    return () => {
+      current = false;
+    };
+  }, [boot.kind, state, mailboxId, store]);
+
+  return {
+    state,
+    boot,
+    saving,
+    retryBoot,
+    startFresh,
+    retry,
+    replace,
+    checkInbox,
+    openMessage,
+    closeMessage,
+  };
+}
+
+/**
+ * Turn whatever was thrown into a sentence the page can show.
+ *
+ * **A storage failure has no normalized code to map to**, because
+ * `spectre-storage` reports it as a rejection rather than as a value. That is the right
+ * design and it leaves nothing to normalize *to*; inventing a code here would be
+ * inventing an error vocabulary for a layer that deliberately has none.
+ */
+function describe(cause: unknown): string {
+  if (cause instanceof Error && cause.message.length > 0) return cause.message;
+  return String(cause);
 }

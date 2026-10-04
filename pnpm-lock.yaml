@@ -213,6 +213,9 @@ importers:
       '@spectre-mail/providers':
         specifier: workspace:*
         version: link:../../packages/providers
+      '@spectre-mail/storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
       react:
         specifier: 19.3.0
         version: 19.3.0

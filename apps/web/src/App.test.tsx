@@ -27,6 +27,7 @@ import type { MailProvider } from "@spectre-mail/providers";
 
 import { App } from "./App";
 import { applyJsdomSuiteBudget } from "./jsdom-suite-budget";
+import { EMPTY_STORE } from "./storage-stub";
 // **Applied at module scope, once.** See `jsdom-suite-budget.ts`: two of the eight runs
 // recorded there failed on this file's own timeouts, with every assertion in it measured
 // at well under 250ms.
@@ -191,9 +192,15 @@ describe("the website", () => {
       });
       const session = sessionOver(providerReturning({ create: () => pending.then((m) => m) }));
 
-      render(<App session={session} />);
+      render(<App session={session} storage={EMPTY_STORE} />);
 
-      // The creating state must be reachable and say what it is doing.
+      // **Awaited, where this assertion used to be synchronous.** The page reads its
+      // own storage before it asks the session for anything, so the first render is
+      // the boot's and `creating` arrives a microtask later. A synchronous assertion
+      // here was testing the boot, and it would have kept passing while the creating
+      // copy said anything at all — which is the defect this file's own comment below
+      // about `visibleText()` warns about.
+      await screen.findByTestId("creating");
       expect(screen.getByTestId("creating")).toBeTruthy();
       expect(visibleText()).toContain("Asking Guerrilla Mail for a new address.");
 
@@ -227,7 +234,7 @@ describe("the website", () => {
         }),
       );
 
-      render(<App session={session} />);
+      render(<App session={session} storage={EMPTY_STORE} />);
       await screen.findByTestId("ready");
       expect(visibleText()).toContain("guerrilla-1@mail.example");
 
@@ -252,7 +259,7 @@ describe("the website", () => {
     it("presents the address as selectable text", async () => {
       const session = sessionOver(providerReturning({ mailbox: mailbox("guerrilla-1") }));
 
-      render(<App session={session} />);
+      render(<App session={session} storage={EMPTY_STORE} />);
       await screen.findByTestId("ready");
 
       // The address is a text node, not an input value and not an image, so it can
@@ -280,7 +287,7 @@ describe("the website", () => {
     it("names the copy action for what it copies", async () => {
       const session = sessionOver(providerReturning({}));
 
-      render(<App session={session} />);
+      render(<App session={session} storage={EMPTY_STORE} />);
       await screen.findByTestId("ready");
 
       // "Copy address", not "Copy" and not an icon. The requirement is that the
@@ -297,7 +304,7 @@ describe("the website", () => {
       });
 
       const session = sessionOver(providerReturning({}));
-      render(<App session={session} />);
+      render(<App session={session} storage={EMPTY_STORE} />);
       await screen.findByTestId("ready");
 
       await act(async () => {
@@ -320,7 +327,7 @@ describe("the website", () => {
       });
 
       const session = sessionOver(providerReturning({}));
-      render(<App session={session} />);
+      render(<App session={session} storage={EMPTY_STORE} />);
       await screen.findByTestId("ready");
 
       await act(async () => {
@@ -339,7 +346,10 @@ describe("the website", () => {
 
       // Rendered once and held. The creating state never resolves, so this captures
       // a real settled render rather than a transient one.
-      render(<App session={session} />);
+      render(<App session={session} storage={EMPTY_STORE} />);
+      // Awaited for the reason given in the test above: the boot reads storage before
+      // the session is asked, so `creating` is not there on the first render.
+      await screen.findByTestId("creating");
 
       const creatingHeading = screen.getByRole("heading", { name: /creating your address/i });
       const creatingText = visibleText();
@@ -372,7 +382,7 @@ describe("the website", () => {
     it("says the lifetime is unknown and shows no time value", async () => {
       const session = sessionOver(providerReturning({ mailbox: mailbox("guerrilla-1") }));
 
-      render(<App session={session} />);
+      render(<App session={session} storage={EMPTY_STORE} />);
       await screen.findByTestId("ready");
 
       expect(screen.getByTestId("lifetime-unknown").textContent).toContain("Unknown");
@@ -395,7 +405,7 @@ describe("the website", () => {
         providerReturning({ mailbox: mailbox("guerrilla-1", expiresAt) }),
       );
 
-      render(<App session={session} />);
+      render(<App session={session} storage={EMPTY_STORE} />);
       await screen.findByTestId("ready");
 
       expect(screen.getByTestId("lifetime-reported").textContent).toContain(
@@ -422,7 +432,7 @@ describe("the website", () => {
         }),
       );
 
-      render(<App session={session} />);
+      render(<App session={session} storage={EMPTY_STORE} />);
       await screen.findByTestId("failure-explanation");
 
       expect(screen.getByTestId("failure-explanation").textContent).toContain(
@@ -451,7 +461,7 @@ describe("the website", () => {
         }),
       );
 
-      render(<App session={session} />);
+      render(<App session={session} storage={EMPTY_STORE} />);
       await screen.findByTestId("failure-explanation");
 
       const text = screen.getByTestId("failure-explanation").textContent ?? "";
@@ -473,7 +483,7 @@ describe("the website", () => {
       );
       const session = sessionOver(providerReturning({ create }));
 
-      render(<App session={session} />);
+      render(<App session={session} storage={EMPTY_STORE} />);
       await screen.findByTestId("failure-explanation");
 
       // Exactly one attempt with no user action. A page that hid a 429 behind a
@@ -496,7 +506,7 @@ describe("the website", () => {
       });
       const session = sessionOver(providerReturning({ create }));
 
-      render(<App session={session} />);
+      render(<App session={session} storage={EMPTY_STORE} />);
       await screen.findByTestId("failure-explanation");
 
       await act(async () => {
@@ -520,7 +530,7 @@ describe("the website", () => {
         }),
       );
 
-      render(<App session={session} />);
+      render(<App session={session} storage={EMPTY_STORE} />);
       await screen.findByTestId("failure-explanation");
 
       // Verbatim, and explicitly not interpreted. Whether `1; w=60` is per-IP or
@@ -543,7 +553,7 @@ describe("the website", () => {
         }),
       );
 
-      render(<App session={session} />);
+      render(<App session={session} storage={EMPTY_STORE} />);
       await screen.findByTestId("failure-explanation");
 
       // An unknown cause is stated as unknown rather than guessed at. Reading a cause
@@ -632,7 +642,7 @@ describe("the website", () => {
     it.each(EVERY_CODE)("names %s in its own words, and stays retryable", async (code) => {
       const session = sessionOver(providerReturning({ failWith: specterErrorFor(code) }));
 
-      render(<App session={session} />);
+      render(<App session={session} storage={EMPTY_STORE} />);
       const explanation = await screen.findByTestId("failure-explanation");
 
       // Its own words, not the fallback. `explain()` throws for an unhandled code,
@@ -683,7 +693,7 @@ describe("the website", () => {
       const messages: string[] = [];
       for (const code of DISTINCT) {
         const session = sessionOver(providerReturning({ failWith: specterErrorFor(code) }));
-        const { unmount } = render(<App session={session} />);
+        const { unmount } = render(<App session={session} storage={EMPTY_STORE} />);
         const explanation = await screen.findByTestId("failure-explanation");
         messages.push(explanation.textContent ?? "");
         unmount();
@@ -707,7 +717,7 @@ describe("the website", () => {
     it("says nothing that contradicts what the page does", async () => {
       const session = sessionOver(providerReturning({}));
 
-      render(<App session={session} />);
+      render(<App session={session} storage={EMPTY_STORE} />);
       await screen.findByTestId("ready");
 
       const text = visibleText();
@@ -750,7 +760,22 @@ describe("the website", () => {
       // user told "it opens messages" with nothing said about that would reasonably
       // expect a button to copy the code they came for.
       expect(text).toMatch(/does not copy codes or follow links/i);
-      expect(text).toMatch(/reload discards/i);
+
+      // **Slice 2's fourth retired claim, and the assertion that notices it.** The
+      // page used to say "A reload discards this address. SpectreMail stores nothing
+      // on your device yet." Both halves became false the moment the page persisted a
+      // mailbox, and this is the same property three times over: a sentence that
+      // outlives the behaviour it describes.
+      //
+      // **The replacement is asserted, not merely the old wording's absence.** A page
+      // that deleted the bullet entirely would pass a negative-only assertion while
+      // claiming nothing about stored data at all — and the honest claim here is the
+      // uncomfortable one, that there is no button to delete the record.
+      expect(text).not.toMatch(/reload discards/i);
+      expect(text).not.toMatch(/stores nothing on your device/i);
+      expect(text).toMatch(/keeps this device's address/i);
+      expect(text).toMatch(/no button here to delete/i);
+
       expect(text).toContain("Guerrilla Mail and nothing else");
     });
 
@@ -762,7 +787,7 @@ describe("the website", () => {
       });
       const session = sessionOver(providerReturning({ mailbox: hostile }));
 
-      const { container } = render(<App session={session} />);
+      const { container } = render(<App session={session} storage={EMPTY_STORE} />);
       await screen.findByTestId("ready");
 
       // An address is provider-supplied text. It renders as text, so the tag is
@@ -781,7 +806,7 @@ describe("the website", () => {
       // assertion would have noticed.
       const session = sessionOver(providerReturning({}));
 
-      const { container } = render(<App session={session} />);
+      const { container } = render(<App session={session} storage={EMPTY_STORE} />);
       await screen.findByTestId("ready");
 
       expect(container.querySelector("form")).toBeNull();
@@ -815,7 +840,7 @@ describe("the website", () => {
       // which is why the requirement, not this comment, is what now holds it up.
       const session = sessionOver(providerReturning({}));
 
-      const { container } = render(<App session={session} />);
+      const { container } = render(<App session={session} storage={EMPTY_STORE} />);
       await screen.findByTestId("ready");
 
       // No provider-picking control of any kind.
@@ -846,8 +871,10 @@ describe("the website", () => {
       const pending = new Promise<Mailbox>(() => undefined);
       const creating = sessionOver(providerReturning({ create: () => pending }));
 
-      const { container: creatingContainer } = render(<App session={creating} />);
-      expect(screen.getByTestId("creating")).toBeTruthy();
+      const { container: creatingContainer } = render(
+        <App session={creating} storage={EMPTY_STORE} />,
+      );
+      await screen.findByTestId("creating");
       expect(creatingContainer.querySelector("select")).toBeNull();
       expect(limitsText()).toContain("Guerrilla Mail");
       expect(providerChoiceClaims(visibleText())).toEqual([]);
@@ -865,7 +892,7 @@ describe("the website", () => {
           },
         }),
       );
-      render(<App session={failed} />);
+      render(<App session={failed} storage={EMPTY_STORE} />);
       await screen.findByTestId("failure-explanation");
 
       expect(document.querySelector("select")).toBeNull();
@@ -924,14 +951,14 @@ describe("the website", () => {
       // component against a *different* provider, which is what a real reload gives
       // you — a new session object and no memory of the old one.
       const first = sessionOver(providerReturning({ mailbox: mailbox("guerrilla-1") }));
-      const { unmount } = render(<App session={first} />);
+      const { unmount } = render(<App session={first} storage={EMPTY_STORE} />);
       await screen.findByTestId("ready");
       expect(visibleText()).toContain("guerrilla-1@mail.example");
       unmount();
 
       // A fresh mount over a provider that hands out a different mailbox.
       const second = sessionOver(providerReturning({ mailbox: mailbox("guerrilla-2") }));
-      render(<App session={second} />);
+      render(<App session={second} storage={EMPTY_STORE} />);
       await screen.findByTestId("ready");
 
       // The new mailbox, and no trace of the old one. Claiming the first address

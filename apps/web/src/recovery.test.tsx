@@ -1,0 +1,618 @@
+/**
+ * What the website does with a mailbox this device already has.
+ *
+ * ## Why this is a separate file and not more of `App.test.tsx`
+ *
+ * Because every assertion here is about the **boot**, and the boot happens before
+ * anything `App.test.tsx` describes has begun. `App.test.tsx` renders the page and
+ * asks what it says; this file asks what it *did* — whether it read before it asked,
+ * whether it asked twice, and what it wrote. Those are claims about order and count,
+ * and a page whose states are all correct can still get every one of them wrong.
+ *
+ * ## What is asserted here and what is not
+ *
+ * Every assertion runs against a **stub provider over a stub storage**, so nothing
+ * here has ever contacted Guerrilla Mail and nothing here has run in a browser. The
+ * `createBrowserStorage` path in particular is *not* exercised by this file: `jsdom`
+ * implements no IndexedDB, so the only way to test the real adapter from here would
+ * be to substitute `fake-indexeddb`, and a fake is not a browser. That gap is stated
+ * rather than papered over — `packages/storage/src/indexeddb.test.ts` is where the
+ * adapter is checked, and neither of those two facts is a claim about a user's device.
+ *
+ * @module
+ */
+
+// @vitest-environment jsdom
+
+import { StrictMode } from "react";
+import { act, cleanup, fireEvent, render, renderHook, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { NormalizedErrorCode } from "@spectre-mail/core";
+import type { Mailbox, SpectreError } from "@spectre-mail/core";
+import { createMailboxSession } from "@spectre-mail/mailbox";
+import type { MailboxScheduler } from "@spectre-mail/mailbox";
+import { createProviderManager } from "@spectre-mail/providers";
+import type { MailProvider } from "@spectre-mail/providers";
+import type { SpectreStorage } from "@spectre-mail/storage";
+
+import { App } from "./App";
+import { applyJsdomSuiteBudget } from "./jsdom-suite-budget";
+import { createWebsiteStorage, useWebsiteStorage } from "./storage";
+import type { WebsiteStorage } from "./storage";
+import { EMPTY_STORE, stubStore } from "./storage-stub";
+
+applyJsdomSuiteBudget();
+
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
+
+/** A mailbox at a reserved `.example` domain, so no test address is ever real. */
+function mailbox(id: string): Mailbox {
+  return {
+    id,
+    provider: "guerrilla",
+    address: `${id}@mail.example`,
+    createdAt: Date.parse("2026-10-05T12:00:00.000Z"),
+    status: "active",
+    credentials: { provider: "guerrilla", sessionId: `session-${id}` },
+  };
+}
+
+/**
+ * A provider that records every call it receives.
+ *
+ * **The counters are the point of this file.** "The page says the right thing" cannot
+ * distinguish a page that asked the provider twice from one that asked once, and a
+ * duplicate create against a rate-limited provider is exactly the failure the
+ * StrictMode guard exists to prevent — so the claims below are about counts.
+ */
+function countingProvider(
+  over: {
+    mailbox?: Mailbox;
+    createMailbox?: () => Promise<Mailbox>;
+    listMessages?: () => Promise<never[]>;
+  } = {},
+): MailProvider & { readonly creates: () => number; readonly lists: () => number } {
+  let creates = 0;
+  let lists = 0;
+
+  return {
+    id: "guerrilla",
+    displayName: "Guerrilla Mail",
+    supports: () => false,
+    checkHealth: () => Promise.resolve({ provider: "guerrilla", status: "ok" }),
+    createMailbox: () => {
+      creates += 1;
+      return over.createMailbox
+        ? over.createMailbox()
+        : Promise.resolve(over.mailbox ?? mailbox("guerrilla-1"));
+    },
+    listMessages: () => {
+      lists += 1;
+      return over.listMessages ? over.listMessages() : Promise.resolve([]);
+    },
+    getMessage: () => Promise.reject(new Error("unused")),
+    creates: () => creates,
+    lists: () => lists,
+  };
+}
+
+/**
+ * A scheduler that records what it was asked for and runs nothing.
+ *
+ * The same reasoning as `App.test.tsx`'s: a real timer would leave the page polling
+ * after the assertion finished, and the only symptom would be a provider call arriving
+ * at an unrelated moment.
+ */
+function inertScheduler(): MailboxScheduler {
+  return {
+    schedule: () => () => undefined,
+  };
+}
+
+function sessionOver(provider: MailProvider) {
+  return createMailboxSession(createProviderManager([provider]), inertScheduler());
+}
+
+/** Every character of visible text on the page. */
+function visibleText(): string {
+  return document.body.textContent ?? "";
+}
+
+describe("the website's own storage", () => {
+  it("builds the storage once for the life of the page", () => {
+    // **Object identity, not a read count.** The hazard is a factory called in the
+    // component body: a new storage per render would be a new dependency for the
+    // boot, and would re-read the store each time. Counting `loadMailbox` would not
+    // catch it, because the boot is guarded and would read only once regardless — the
+    // waste would be invisible. Two renders and the same object is the claim.
+    let constructions = 0;
+    const working: SpectreStorage = {
+      loadMailbox: () => Promise.resolve(null),
+      saveMailbox: () => Promise.resolve(),
+    };
+
+    const { result, rerender } = renderHook(
+      ({ build }: { readonly build: () => SpectreStorage }) => useWebsiteStorage(build),
+      { initialProps: { build: () => ((constructions += 1), working) } },
+    );
+
+    const first = result.current;
+    expect(first.kind).toBe("ready");
+    expect(constructions).toBe(1);
+
+    rerender({ build: () => ((constructions += 1), working) });
+    rerender({ build: () => ((constructions += 1), working) });
+
+    expect(constructions).toBe(1);
+    expect(result.current).toBe(first);
+  });
+
+  it("asks about what is stored before it asks the provider for a mailbox", async () => {
+    // **The ordering claim, which nothing else here establishes.** The page reads its
+    // storage first and only then decides whether to create. A page that created
+    // eagerly and read afterwards would pass every state assertion in `App.test.tsx`
+    // and still destroy the address the user came back for, because the create would
+    // save over the record.
+    let release: (stored: Mailbox | null) => void = () => undefined;
+    const read = new Promise<Mailbox | null>((resolve) => {
+      release = resolve;
+    });
+
+    const provider = countingProvider();
+    const storage: SpectreStorage = {
+      loadMailbox: () => read,
+      saveMailbox: () => Promise.resolve(),
+    };
+
+    render(<App session={sessionOver(provider)} storage={{ kind: "ready", storage }} />);
+
+    // While the read is out: no create, and the page says what it is doing.
+    expect(provider.creates()).toBe(0);
+    expect(screen.getByTestId("idle")).toBeTruthy();
+    expect(visibleText()).toContain("Checking what this device has stored.");
+
+    await act(async () => {
+      release(null);
+      await read;
+    });
+
+    await screen.findByTestId("ready");
+    // **The positive half.** Without this the assertions above would also hold for a
+    // page that never read at all and simply showed "checking" forever.
+    expect(provider.creates()).toBe(1);
+  });
+
+  it("stores the mailbox it created, and offers the same address again", async () => {
+    const store = stubStore();
+    const provider = countingProvider({ mailbox: mailbox("guerrilla-1") });
+
+    render(<App session={sessionOver(provider)} storage={store.storage} />);
+    await screen.findByTestId("ready");
+
+    // **What was written is asserted, not only that something was.** A page that
+    // stored a different mailbox than it displayed would satisfy a count.
+    await vi.waitFor(() => {
+      expect(store.saves).toHaveLength(1);
+    });
+    expect(store.saves[0]?.address).toBe("guerrilla-1@mail.example");
+    expect(visibleText()).toContain("guerrilla-1@mail.example");
+  });
+
+  it("does not write the mailbox it was handed", async () => {
+    // **The save rule's exclusion.** Adoption found the record already on the device
+    // and confirmed it; writing it back would be a no-op whose only purpose is to make
+    // a bug elsewhere look correct. `App.test.tsx` cannot see this — it passes the same
+    // empty store to every test and none of them adopts.
+    const store = stubStore({ stored: mailbox("stored-1") });
+    const provider = countingProvider();
+
+    render(<App session={sessionOver(provider)} storage={store.storage} />);
+    await screen.findByTestId("ready");
+
+    expect(visibleText()).toContain("stored-1@mail.example");
+    // **And the listing happened**, so the adoption really did reconcile rather than
+    // failing quietly and being reported as ready.
+    expect(provider.lists()).toBeGreaterThan(0);
+    // Give any stray write a chance to land before claiming there was none. A missing
+    // `await` here would make this test pass for a page that does save.
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(store.saves).toEqual([]);
+  });
+
+  it("writes the new mailbox when the address is replaced", async () => {
+    // **The positive control for the test above.** If replacing did not write, the
+    // previous test's silence would be indistinguishable from the save rule simply
+    // being absent.
+    const store = stubStore({ stored: mailbox("stored-1") });
+    const provider = countingProvider({ mailbox: mailbox("guerrilla-2") });
+
+    render(<App session={sessionOver(provider)} storage={store.storage} />);
+    await screen.findByTestId("ready");
+    expect(visibleText()).toContain("stored-1@mail.example");
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /replace address/i }));
+    });
+    await screen.findByTestId("ready");
+
+    await vi.waitFor(() => {
+      expect(store.saves).toHaveLength(1);
+    });
+    expect(store.saves[0]?.address).toBe("guerrilla-2@mail.example");
+  });
+
+  it("reads once and creates once when React mounts the page twice", async () => {
+    // **StrictMode.** Development remounts the same component with the same session
+    // instance, so without a guard the boot would run twice: two reads, and — since
+    // both would find nothing — two creates, one of which would be thrown away against
+    // a provider that rate-limits account creation.
+    const store = stubStore();
+    const provider = countingProvider();
+
+    render(
+      <StrictMode>
+        <App session={sessionOver(provider)} storage={store.storage} />
+      </StrictMode>,
+    );
+    await screen.findByTestId("ready");
+
+    expect(store.loadCount()).toBe(1);
+    expect(provider.creates()).toBe(1);
+  });
+
+  it("says it could not check, and creates nothing, when the read fails", async () => {
+    // **The half of `spectre-storage`'s contract that only a client can get wrong.**
+    // `loadMailbox` rejects rather than returning `null` precisely so that this page
+    // cannot mistake "I could not look" for "there is nothing there". The failure that
+    // this test exists to catch is catching that rejection and passing `null` on.
+    const store = stubStore({ loadThrows: new Error("the database is not readable") });
+    const provider = countingProvider();
+
+    render(<App session={sessionOver(provider)} storage={store.storage} />);
+    await screen.findByTestId("boot-failure-reason");
+
+    expect(visibleText()).toContain("the database is not readable");
+    // **No mailbox, and no request.** Either one alone would be survivable; together
+    // they are the data loss.
+    expect(provider.creates()).toBe(0);
+    expect(screen.queryByTestId("ready")).toBeNull();
+    // **And nothing else from the session is rendered.** A page that showed the
+    // refusal *and* "looking for a saved address" at the same time would be telling
+    // the user two contradictory things, and the gate that prevents it is the one the
+    // other half of this suite's mutations target. The session really is `idle` here,
+    // so the absence is the gate's doing and not an accident of the state.
+    expect(screen.queryByTestId("idle")).toBeNull();
+    expect(visibleText()).not.toContain("@");
+    // And it must not have claimed to have found nothing stored.
+    expect(visibleText()).not.toMatch(/nothing (is |has been )?stored/i);
+  });
+
+  it("says it could not check, and creates nothing, when the browser cannot store", async () => {
+    // **The other answer to the same question.** `createBrowserStorage` throws where
+    // the platform has no IndexedDB, which happens in private modes and under some
+    // fingerprinting settings. `createWebsiteStorage` turns that into a value, so this
+    // is what the page sees.
+    const provider = countingProvider();
+
+    render(
+      <App
+        session={sessionOver(provider)}
+        storage={createWebsiteStorage(() => {
+          throw new Error("this browser has no IndexedDB");
+        })}
+      />,
+    );
+    await screen.findByTestId("boot-failure-reason");
+
+    expect(visibleText()).toContain("this browser has no IndexedDB");
+    expect(provider.creates()).toBe(0);
+    expect(visibleText()).not.toContain("@");
+  });
+
+  it("keeps a ready store when there is no platform to build one from", () => {
+    // **The positive control for the test above**, and it exercises the real factory
+    // rather than a fixture: a `SpectreStorage` that works must survive the catch that
+    // exists for one that does not.
+    const working: SpectreStorage = {
+      loadMailbox: () => Promise.resolve(null),
+      saveMailbox: () => Promise.resolve(),
+    };
+
+    const result = createWebsiteStorage(() => working);
+
+    expect(result.kind).toBe("ready");
+    if (result.kind !== "ready") throw new Error("expected a working store");
+    expect(result.storage).toBe(working);
+  });
+
+  it("stops claiming it cannot check once a retry is under way", async () => {
+    // **The regression this caught, and the first version of this test did not catch
+    // it** — it asserted only the state *after* the retry landed, which the original
+    // bug also reached. So the second attempt is held open and the page is inspected
+    // while the read is still out, which is the only moment the claim is about.
+    //
+    // `retryBoot` originally left the boot at `blocked`, so the page kept rendering the
+    // refusal for the whole of a second attempt and only swapped to the real answer
+    // when the read resolved. A user who clicked *Check again* and saw the same refusal
+    // would conclude the retry had not been tried.
+    let failing = true;
+    let release: (stored: Mailbox | null) => void = () => undefined;
+    const retry = new Promise<Mailbox | null>((resolve) => {
+      release = resolve;
+    });
+    const storage: SpectreStorage = {
+      loadMailbox: () =>
+        failing ? Promise.reject(new Error("still not readable")) : retry.then((stored) => stored),
+      saveMailbox: () => Promise.resolve(),
+    };
+    const provider = countingProvider();
+
+    render(<App session={sessionOver(provider)} storage={{ kind: "ready", storage }} />);
+    await screen.findByTestId("boot-failure-reason");
+
+    failing = false;
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /check again/i }));
+    });
+
+    // **During** the second attempt: the refusal is gone rather than supplemented,
+    // and the page says what it is doing.
+    expect(screen.queryByTestId("boot-failure-reason")).toBeNull();
+    expect(screen.getByTestId("idle")).toBeTruthy();
+    expect(visibleText()).toContain("Checking what this device has stored.");
+
+    await act(async () => {
+      release(null);
+      await retry;
+    });
+
+    // And the attempt really did finish.
+    await screen.findByTestId("ready");
+    expect(provider.creates()).toBe(1);
+  });
+
+  it("says when the mailbox it holds could not be stored", async () => {
+    const store = stubStore({ saveThrows: new Error("the disk is full") });
+
+    render(<App session={sessionOver(countingProvider())} storage={store.storage} />);
+    await screen.findByTestId("ready");
+    await screen.findByTestId("save-failed");
+
+    // **The claim being made and the claim being withheld, both asserted.** A page that
+    // only said "could not be saved" leaves a user believing the next reload will bring
+    // the address back; that is the belief this line exists to correct.
+    expect(visibleText()).toContain("a reload will not bring it back");
+    expect(visibleText()).toContain("the disk is full");
+    // The address itself is still shown, because it is real and usable right now.
+    expect(visibleText()).toContain("guerrilla-1@mail.example");
+  });
+
+  it("does not say a failed write is a problem when the write succeeded", async () => {
+    // **The negative control for the line above.** A page that always rendered the
+    // warning would satisfy it perfectly.
+    render(<App session={sessionOver(countingProvider())} storage={EMPTY_STORE} />);
+    await screen.findByTestId("ready");
+
+    expect(screen.queryByTestId("save-failed")).toBeNull();
+  });
+});
+
+describe("a stored mailbox the provider will not confirm", () => {
+  /** A provider whose listing fails with `error`, so adoption cannot confirm. */
+  function refusing(error: SpectreError) {
+    return countingProvider({
+      listMessages: () => Promise.reject(error),
+    });
+  }
+
+  it("renders the state as its own labelled region", async () => {
+    render(
+      <App
+        session={sessionOver(
+          refusing({
+            code: NormalizedErrorCode.NETWORK_ERROR,
+            provider: "guerrilla",
+            description: "The request never reached the provider.",
+            cause: new Error("network down"),
+          }),
+        )}
+        storage={stubStore({ stored: mailbox("stored-1") }).storage}
+      />,
+    );
+
+    // By accessible name, which is what a screen reader addresses it by. The section
+    // carries `aria-labelledby`, so it is a `region`.
+    // **Awaited first**, because a synchronous query after `render` sees the boot and
+    // nothing else — the read and the reconciliation are both in flight.
+    await screen.findByTestId("restore-failed-address");
+    expect(
+      screen.getByRole("region", { name: /could not check your saved address/i }),
+    ).toBeTruthy();
+  });
+
+  it("does not say the address is gone when the check merely failed", async () => {
+    // **The wording claim, and the reason this state exists at all.** A provider that
+    // drops one request says nothing about whether the mailbox works, so any wording
+    // that reads as "gone" tells the user something false about the only copy of their
+    // address. `StoredAddressGone` is where that wording is allowed, and it is a
+    // different state because the provider actually said so.
+    render(
+      <App
+        session={sessionOver(
+          refusing({
+            code: NormalizedErrorCode.NETWORK_ERROR,
+            provider: "guerrilla",
+            description: "The request never reached the provider.",
+            cause: new Error("network down"),
+          }),
+        )}
+        storage={stubStore({ stored: mailbox("stored-1") }).storage}
+      />,
+    );
+    await screen.findByTestId("restore-failed-address");
+
+    const text = visibleText();
+    expect(text).not.toMatch(/\bgone\b/i);
+    expect(text).not.toMatch(/no longer/i);
+    expect(text).not.toMatch(/will not receive/i);
+    // The address is named, and named as unchecked rather than withheld: the user came
+    // back for it and hiding it would be a small loss next to the risk of their
+    // believing they had lost it.
+    expect(text).toContain("stored-1@mail.example");
+    expect(text).toContain("The request never reached the provider.");
+  });
+
+  it("offers a new address without discarding what is stored", async () => {
+    // **The control `restoreFailed` offers, and the destructive thing it must not do.**
+    // The provider did not say the mailbox is dead — only that nobody could ask — so
+    // overwriting the only copy of an address that may still work is not a decision
+    // SpectreMail should make on the user's behalf.
+    const store = stubStore({ stored: mailbox("stored-1") });
+    const provider = refusing({
+      code: NormalizedErrorCode.NETWORK_ERROR,
+      provider: "guerrilla",
+      description: "The request never reached the provider.",
+      cause: new Error("network down"),
+    });
+
+    render(<App session={sessionOver(provider)} storage={store.storage} />);
+    await screen.findByTestId("restore-failed-address");
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /use a new address for now/i }));
+    });
+    await screen.findByTestId("ready");
+
+    // A usable address for this visit...
+    expect(visibleText()).toContain("@mail.example");
+    // ...and the stored record untouched.
+    expect(store.saves).toEqual([]);
+  });
+
+  it("says the address is gone when the provider said it was", async () => {
+    // **The positive control for every absence above.** Without this, a page whose
+    // `expired` copy also avoided the word "gone" would pass all three.
+    render(
+      <App
+        session={sessionOver(
+          refusing({
+            code: NormalizedErrorCode.MAILBOX_EXPIRED,
+            provider: "guerrilla",
+            description: "The provider does not recognise this session.",
+            cause: new Error("no such session"),
+          }),
+        )}
+        storage={stubStore({ stored: mailbox("stored-1") }).storage}
+      />,
+    );
+
+    await screen.findByTestId("expired-address");
+    expect(visibleText()).toContain("stored-1@mail.example");
+    // **By accessible name, after the state has settled** — a synchronous query after
+    // `render` sees the boot and nothing else. And the region is still the expired one
+    // once the page has caught up, which is the claim that matters.
+    expect(screen.getByRole("region", { name: /saved address is gone/i })).toBeTruthy();
+    expect(screen.queryByTestId("restore-failed-address")).toBeNull();
+  });
+
+  it("does not offer a gone address as one to receive mail at", async () => {
+    // **The claim `expired` must not make, and it is a structural one.** The `Address`
+    // component renders the address, a copy control, and the words "Your address" — all
+    // of which tell a reader the address is usable. So the assertion is about that
+    // component being absent rather than about prose, because prose can be reworded
+    // without the page becoming truthful.
+    render(
+      <App
+        session={sessionOver(
+          refusing({
+            code: NormalizedErrorCode.MAILBOX_EXPIRED,
+            provider: "guerrilla",
+            description: "The provider does not recognise this session.",
+            cause: new Error("no such session"),
+          }),
+        )}
+        storage={stubStore({ stored: mailbox("stored-1") }).storage}
+      />,
+    );
+    await screen.findByTestId("expired-address");
+
+    expect(screen.queryByTestId("address")).toBeNull();
+    expect(screen.queryByRole("button", { name: /copy/i })).toBeNull();
+    // And the page is not claiming to be ready for mail.
+    expect(screen.queryByTestId("ready")).toBeNull();
+    expect(visibleText()).not.toContain("Your address is below");
+  });
+
+  it("keeps writing after a fresh address, once the user replaces it", async () => {
+    // **The other half of `startFresh`'s contract.** Persisting is suspended for the
+    // fresh address; choosing *Replace address* afterwards is the user changing their
+    // mind, and the page must not keep honouring the earlier decision — otherwise the
+    // address they picked is discarded on the next reload and the one they rejected is
+    // handed back.
+    const store = stubStore({ stored: mailbox("stored-1") });
+    const provider = refusing({
+      code: NormalizedErrorCode.NETWORK_ERROR,
+      provider: "guerrilla",
+      description: "The request never reached the provider.",
+      cause: new Error("network down"),
+    });
+
+    render(<App session={sessionOver(provider)} storage={store.storage} />);
+    await screen.findByTestId("restore-failed-address");
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /use a new address for now/i }));
+    });
+    await screen.findByTestId("ready");
+    expect(store.saves).toEqual([]);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /replace address/i }));
+    });
+    await screen.findByTestId("ready");
+
+    await vi.waitFor(() => {
+      expect(store.saves).toHaveLength(1);
+    });
+  });
+});
+
+describe("the state where a mailbox could not be created", () => {
+  it("still names the provider it reached, so the limits list is checked in every state", async () => {
+    // **Kept from `App.test.tsx`, because that test grew a fourth state and this one
+    // is the case it does not cover.** The limits list is rendered outside every
+    // conditional, and a change that moved it into one branch would keep the other
+    // states green while dropping it from this one.
+    const store: WebsiteStorage = stubStore().storage;
+
+    render(
+      <App
+        session={sessionOver(
+          countingProvider({
+            createMailbox: () =>
+              Promise.reject({
+                code: NormalizedErrorCode.NETWORK_ERROR,
+                provider: "guerrilla",
+                description: "The request never reached the provider.",
+                cause: new Error("network down"),
+              }),
+          }),
+        )}
+        storage={store}
+      />,
+    );
+    await screen.findByTestId("failure-explanation");
+
+    expect(
+      screen.getByRole("region", { name: /what this page can and cannot do/i }).textContent,
+    ).toContain("Guerrilla Mail");
+    // And nothing was stored, because there was nothing to store.
+    expect(screen.queryByTestId("save-failed")).toBeNull();
+  });
+});
