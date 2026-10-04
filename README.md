@@ -22,17 +22,26 @@ on. See [Current status](#current-status).
 | M3 — Provider layer               | complete and archived                                                       |
 | M4 — Mail parsing engine          | complete and archived                                                       |
 | M5 — Website core MVP             | complete in scope — 4 slices archived; 3 acceptance lines are M6's or M10's |
-| M6 — Website hardening            | next                                                                        |
+| M6 — Website hardening            | in progress — slice 1 archived; nothing consumes it yet                     |
 | M7–M15                            | not started                                                                 |
 
-| Capability spec          | State |
-| ------------------------ | ----- |
-| `provider-abstraction`   | live  |
-| `monorepo-foundation`    | live  |
-| `build-and-verification` | live  |
-| `shared-domain-model`    | live  |
-| `provider-adapters`      | live  |
-| `mail-parsing`           | live  |
+| Capability spec          | Requirements | State                            |
+| ------------------------ | -----------: | -------------------------------- |
+| `provider-abstraction`   |            9 | live                             |
+| `monorepo-foundation`    |            5 | live                             |
+| `build-and-verification` |            6 | live                             |
+| `shared-domain-model`    |            9 | live                             |
+| `provider-adapters`      |           12 | live                             |
+| `mail-parsing`           |            9 | live                             |
+| `mailbox-session`        |           20 | live                             |
+| `website-client`         |           16 | live                             |
+| `spectre-storage`        |            7 | live — **consumed by no client** |
+
+`mailbox-session` and `website-client` were promoted at M5's sync stages, and
+`spectre-storage` at M6 slice 1's. **Nine capabilities, 93 requirements and 232
+scenarios**, counted from the promoted files rather than carried over from a previous
+claim — this repository has published a wrong total four times, and the last one was
+caught only because the count was re-derived rather than re-read.
 
 `provider-adapters` was promoted at the sync stage of the `provider-layer` change, and
 `mail-parsing` at the sync stage of the `mail-parsing-engine` change — 9 requirements
