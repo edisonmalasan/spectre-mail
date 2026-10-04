@@ -297,6 +297,80 @@ says so rather than leaving it implicit.
   the point, and its control must be a probe that injects a storage global into a
   *different* package, or it would pass for the same reason the old rule did.
 
+## Verification findings
+
+**Recorded during apply (2026-10-05).** The falsification pass ran 27 mutations and
+all 27 are now caught, with the intended test named in every case and every mutated
+file restored byte-identical by SHA-256. It found **six defects in assertions this
+change authored**, all of them fixed. They are recorded here rather than only in the
+diff because the reasoning is what a later reader needs, and the fifth of them is a
+fact about this repository's checks that belongs beside the rules.
+
+1. **Generalising the rule to every shared package reported a real false positive.**
+   `packages/providers/src/fixtures.ts` holds a recorded `set-cookie` response
+   header from the M0 spike, which the pattern read as a cookie jar. The fix is in
+   the pattern — a hyphen now counts as a word character — and the **cost is stated
+   in the rule's own comment**: a global reached through a hyphenated name would be
+   missed, and no JavaScript global is written that way. A pattern tightened by one
+   change and one of this slice's own mutations.
+
+2. **The generalised rule's control was in `packages/core` for a reason, and it had
+   to be.** A probe in `packages/mailbox` would have been satisfied by the rule as
+   it was written before this change. This is the control doing the job D8 says it
+   must do.
+
+3. **The generalised rule's negative control was wrong on arrival.** It asserted an
+   empty result for `packages/storage` and failed on the package's own
+   implementation, which legitimately names `indexedDB` in its option type. An
+   allowance is what makes the *rule* pass, so the control now compares two packages
+   through the rule's own scan.
+
+4. **The two rules shared one allowance constant, and falsification showed the
+   coupling is observable.** Widening the storage-API allowance also silenced the
+   *import* rule, and the test that reported it was the wrong one. They are now
+   separate constants: two boundaries that happen to agree today are two boundaries.
+
+5. **Four mutations left the suite green, and all four had the same cause — a
+   control that called the *function* rather than the *rule*.** A negative assertion
+   (`violations == []`) is structurally unfalsifiable on its own: narrowing a rule's
+   package list to `["mailbox"]`, to `[]`, or shortening its scan loop all leave it
+   satisfied, because every package it stopped scanning happened to be clean. Three
+   attempts to catch that with a control elsewhere in the file also stayed green.
+   The resolution is not a better control but a smaller surface:
+
+   - Each scan function now takes **no package argument at all**, so there is no
+     second spelling of the list to narrow. The two ways it *could* be narrowed are
+     both asserted instead.
+   - `SHARED_PACKAGES` is checked against the **directory contents on disk**, so a
+     package added without appearing in the list fails rather than being silently
+     exempt.
+   - Each rule's positive and negative halves are asserted **in one test through one
+     call site**: a probe is planted in every package the rule must scan and the rule
+     must report each one by name, and only then is it asserted to report nothing.
+     A rule that scans nothing fails the first; a rule that cannot see a planted
+     violation fails the second.
+
+   This is the **eighteenth** recorded instance of a check narrower than the rule it
+   documents, and the **second** this change authored and then found in its own
+   falsification pass.
+
+6. **A control's expectation was computed out of the thing it tested.** The
+   planted-probe assertion derived its expected package list by filtering out the
+   allowance constant, so widening the allowance moved both sides and the rule
+   silently stopped guarding `packages/core` with the suite green. The expectation is
+   now transcribed. A control must not compute its own expectation from the value
+   under test — and neither must its filter: the per-form assertions had been
+   filtering by probe *file name*, which also matched probes planted in the other
+   packages, so a form the rule genuinely missed was satisfied by an unrelated
+   package's violation.
+
+   One further assertion, in `record.test.ts`, was caught by three other tests before
+   the falsification pass showed it was caught **for an unrelated reason**: the
+   "does not throw" loop contained only values that failed narrowing trivially, so
+   turning the `null` branch into a `throw` was detected as collateral damage. It now
+   includes a well-shaped record that fails `isMailbox`, and pairs "does not throw"
+   with "returns null" so one cannot satisfy the other.
+
 ## Migration Plan
 
 None. Nothing consumes this package, no data exists to migrate, and no user-visible

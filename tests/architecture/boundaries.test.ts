@@ -553,9 +553,140 @@ const FRAMEWORK_IMPORT_PATTERN =
  *
  * A word boundary is required on each side: `mylocalStorage` is not the global,
  * and a rule that fires on ordinary code gets disabled within a week.
+ *
+ * **A hyphen counts as part of the word, and that was measured rather than
+ * preferred.** Generalising this rule from `packages/mailbox` to every shared
+ * package immediately reported `packages/providers/src/fixtures.ts`, which holds a
+ * **recorded `set-cookie` response header** from the M0 spike:
+ * `"set-cookie": "PHPSESSID=measured-php-session; domain=.api.guerrillamail.com"`.
+ * That is provider *data* — the thing this repository must never confuse with a
+ * cookie jar it opened itself — and a rule that cannot tell the two is a rule whose
+ * first false positive would be a real one. `\w` does not include `-`, so the bare
+ * global alternative now requires a non-hyphen on both sides.
+ *
+ * The stated cost: a global reached through a hyphenated name would be missed, and
+ * no JavaScript global is written that way. `document.cookie` is unaffected — it is
+ * matched by the property alternative, which never had a boundary requirement.
  */
 const STORAGE_API_PATTERN =
-  /(?<![\w.$])(?:localStorage|sessionStorage|navigator|cookies?|location|history|indexedDB|caches)(?![\w$])|\.cookie\b/g;
+  /(?<![\w.$-])(?:localStorage|sessionStorage|navigator|cookies?|location|history|indexedDB|caches)(?![\w$-])|\.cookie\b/g;
+
+/**
+ * Every shared package, named once, so a rule about "the shared packages" does not
+ * quietly mean one of them.
+ *
+ * The storage rules below are the reason this list exists. Both were written when
+ * `packages/storage` held no behaviour and the answer to "which packages must not
+ * reach for a store" happened to be one name long. Writing the scan as
+ * `packages/mailbox` would have kept passing when the rule's meaning changed and
+ * nothing else had — which is exactly what happened with the collection rule at M5
+ * slice 1, where deleting the package glob dropped the suite from 365 tests to 40
+ * with a **green exit**.
+ *
+ * Read from the directory rather than maintained in step with it? No — a list is
+ * wrong the moment a package is added, and the rule above that names the roadmap's
+ * shared-package list already asserts this one matches it. Two lists that can
+ * disagree is one too many; if they ever do, that assertion is the place it shows.
+ */
+const SHARED_PACKAGES = ["core", "mail-parser", "mailbox", "providers", "storage", "ui"] as const;
+
+/**
+ * The one shared package allowed to name a platform storage API.
+ *
+ * `packages/storage` is the layer whose job is to speak to one. Its `tsconfig`
+ * declares `DOM` and `DOM.Iterable` for that reason and no other package does, so
+ * the exception matches a real boundary rather than softening the rule.
+ *
+ * **A second allowance for the import rule, not one shared between both.** Falsifying
+ * this change showed the coupling is observable: widening this list also silenced the
+ * *import* rule, and the test that reported it was the wrong one. Two boundaries that
+ * happen to agree today are two boundaries, and a control that cannot tell which rule
+ * it is exercising is not a control on either.
+ */
+const STORAGE_API_ALLOWED_PACKAGES: readonly string[] = ["storage"];
+
+/** The one shared package allowed to import the storage layer: itself, excluded in fact. */
+const STORAGE_IMPORT_ALLOWED_PACKAGES: readonly string[] = ["storage"];
+
+/** The specifier a shared package must not reach for. */
+const STORED_STORAGE_SPECIFIER = "@spectre-mail/storage";
+
+/** A module naming `indexedDB`, which the storage layer may and others may not. */
+const INDEXED_DB_PROBE = "export const x = indexedDB.open('spectre-mail');";
+
+/**
+ * Shared packages that reach a global store or the URL, honouring the allowance.
+ *
+ * **The allowance lives here rather than in the rule body**, because a control that
+ * calls a raw pattern matcher is not a control on the allowance at all — it is a
+ * second run of the pattern. An earlier version of the storage control did exactly
+ * that and failed on the storage package's own implementation, which is what this
+ * extraction exists to prevent: the rule and its control now scan through one
+ * function, so a change to the allowance cannot leave one of them behind.
+ *
+ * **It takes no package argument, and that is the point rather than the terseness.**
+ * With one, a falsification pass rewrote a call site to `(["mailbox"])` and to `([])`
+ * and the suite stayed green both times — every package the call site stopped
+ * scanning happened to be clean, and the argument is a second, narrower spelling of
+ * the very list this function exists to read. There is now exactly one spelling of
+ * it, and the two ways it could be narrowed (`SHARED_PACKAGES`, and this loop) are
+ * both asserted elsewhere. The per-package controls work by planting a probe and
+ * reading the returned hits, not by asking for a smaller scan.
+ */
+function storageApiViolations(): string[] {
+  const violations: string[] = [];
+
+  for (const packageName of SHARED_PACKAGES) {
+    if (STORAGE_API_ALLOWED_PACKAGES.includes(packageName)) continue;
+
+    for (const file of collectSourceFiles(join(PACKAGES_DIR, packageName))) {
+      if (file.endsWith(".test.ts")) continue;
+      const contents = stripComments(readFileSync(file, "utf8"));
+      for (const hit of findPatternOccurrences(contents, STORAGE_API_PATTERN)) {
+        violations.push(`${toRepoPath(file)} ${hit} (reaches a global store or the URL)`);
+      }
+    }
+  }
+
+  return violations;
+}
+
+/**
+ * Shared packages that reach for the storage layer's own specifier.
+ *
+ * **Extracted for the same reason as `storageApiViolations` above, and proved by
+ * the same falsification pass.** The first version of this rule's control called
+ * `scanPackageWithProbe` with `MODULE_SPECIFIER_PATTERN` directly, which meant
+ * two mutations stayed green: one that broke the rule's specifier comparison, and
+ * one that narrowed its pattern to `from "…"`. Both left the suite green because
+ * the control was not the rule. The rule and its controls now go through one
+ * function, with no argument for the same reason as above.
+ *
+ * **`apps/*` is not scanned here**, and the limit is worth stating: a client
+ * importing this layer is the *intended* use, so this rule is deliberately about
+ * shared packages only and says so.
+ */
+function storageImportViolations(): string[] {
+  const violations: string[] = [];
+
+  for (const packageName of SHARED_PACKAGES) {
+    if (STORAGE_IMPORT_ALLOWED_PACKAGES.includes(packageName)) continue;
+
+    for (const file of collectSourceFiles(join(PACKAGES_DIR, packageName))) {
+      const repoPath = toRepoPath(file).split("\\").join("/");
+      if (/\.test\.tsx?$/.test(file)) continue;
+
+      const contents = stripComments(readFileSync(file, "utf8"));
+      for (const hit of findPatternOccurrences(contents, MODULE_SPECIFIER_PATTERN)) {
+        if (hit.includes(STORED_STORAGE_SPECIFIER)) {
+          violations.push(`${repoPath} ${hit} (imports the storage layer)`);
+        }
+      }
+    }
+  }
+
+  return violations;
+}
 
 /**
  * Any way a client can turn a string into markup.
@@ -997,17 +1128,73 @@ describe("architecture boundaries", () => {
     // `readdirSync` over the directory would have thrown if it did not exist. That is
     // not an assertion about the roadmap, and it stops guarding the moment that rule
     // changes.
-    const expectedPackages = ["core", "mail-parser", "mailbox", "providers", "storage", "ui"];
+    //
+    // **The list itself is `SHARED_PACKAGES`,** so the roadmap's shared-package list
+    // is transcribed once rather than twice. It was written here and again in the
+    // storage rules in the same change, which is one list too many — a check that
+    // disagrees with another check is a failure that reads as a pass in both.
+    const expectedPackages = [...SHARED_PACKAGES];
 
     for (const name of expectedPackages) {
       expect(() => statSync(join(PACKAGES_DIR, name))).not.toThrow();
     }
     expect(() => statSync(join(APPS_DIR, "web"))).not.toThrow();
     expect(() => statSync(join(APPS_DIR, "extension"))).not.toThrow();
+
+    // **And it names every package on disk, not only that everything it names
+    // exists.** The loop above is one-directional, and a one-directional check is
+    // exactly the shape that let a sixth package be added without appearing in
+    // `SHARED_PACKAGES` — which would silently exempt it from both storage rules.
+    // Falsifying this change found that gap: rewriting the storage rules' package
+    // list to `["mailbox"]` left the suite **green**, so the rules could be
+    // narrowed to one package while still being named for all of them. This
+    // assertion is what makes a *narrowed* list fail rather than pass.
+    const onDisk = readdirSync(PACKAGES_DIR, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort();
+
+    // Sorted both sides, because order carries no meaning here and a list that only
+    // matches in one order is a list that fails for the wrong reason.
+    expect([...expectedPackages].sort()).toEqual(onDisk);
   });
 
   it("declares exactly the roadmap's workspace layout", () => {
     expect(readWorkspaceGlobs()).toEqual(["apps/*", "packages/*"]);
+  });
+
+  it("keeps the storage layer's own dependencies to the domain model", () => {
+    // The third direction, and the one with no rule of its own until now. The two
+    // storage rules say which packages must not *reach* the layer and must not
+    // *name* a store; neither says what the layer itself may depend on, and a
+    // storage adapter that imported a provider adapter would make the platform seam
+    // depend on the thing it exists to persist — so a second provider's wire format
+    // would reach a client that never asked for it.
+    //
+    // `apps/*` is covered by the existing "a package never imports an app" rule, so
+    // it is not restated here. This is the shared-package half, read from the
+    // manifest rather than from import specifiers, because that is where the
+    // dependency is declared and where a wrong one would be resolved.
+    const manifest = JSON.parse(
+      readFileSync(join(PACKAGES_DIR, "storage", "package.json"), "utf8"),
+    ) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
+
+    // A precondition on the shape being read, so an empty `dependencies` cannot make
+    // the allow-list assertion pass without ever having compared anything.
+    expect(manifest.dependencies).toBeDefined();
+    expect(Object.keys(manifest.dependencies ?? {})).not.toEqual([]);
+
+    // The domain model, and nothing else. `@spectre-mail/core` holds the `Mailbox`
+    // this layer stores and carries no provider wire format, which is the property
+    // that makes it safe to depend on.
+    expect(Object.keys(manifest.dependencies ?? {}).sort()).toEqual(["@spectre-mail/core"]);
+
+    // And the test-only dependency is not a runtime one. `fake-indexeddb` standing in
+    // for a browser is a fixture; in `dependencies` it would ship to production.
+    const runtime = new Set(Object.keys(manifest.dependencies ?? {}));
+    for (const name of Object.keys(manifest.devDependencies ?? {})) {
+      expect(runtime.has(name), `${name} is both a runtime and a dev dependency`).toBe(false);
+    }
   });
 
   it("keeps the M0 spike outside the workspace", () => {
@@ -1196,58 +1383,248 @@ describe("architecture boundaries", () => {
     }
   });
 
-  it("keeps storage, cookies, and the URL out of the mailbox session layer", () => {
-    // Task 1.6's storage half, and it is **a separate rule because the compiler
-    // cannot do this job.** `packages/mailbox`'s `tsconfig.json` withholds `DOM`,
-    // which rejects `window`, `document`, and `location` — measured name by name.
-    // It does *not* reject `navigator`, `localStorage`, or `sessionStorage`:
-    // `@types/node` declares all three, and `"types": []` was tried and does not
-    // exclude it. So a session that quietly persisted itself would have compiled,
-    // typechecked, and passed every other gate in this file.
+  it("keeps storage, cookies, and the URL out of every shared package but the storage layer", () => {
+    // Task 1.6's storage half, **generalised at M6 slice 1**, and it is a separate
+    // rule because the compiler cannot do this job. `packages/mailbox`'s
+    // `tsconfig.json` withholds `DOM`, which rejects `window`, `document`, and
+    // `location` — measured name by name. It does *not* reject `navigator`,
+    // `localStorage`, or `sessionStorage`: `@types/node` declares all three, and
+    // `"types": []` was tried and does not exclude it. So a package that quietly
+    // persisted itself would have compiled, typechecked, and passed every other
+    // gate in this file.
     //
-    // Storage is M6 and arrives behind a `SpectreStorage` contract that is passed
-    // *in*. A session reaching for a global store would make that contract
-    // decorative and would put a per-client persistence decision inside a shared
-    // package, where neither client can see it.
-    const violations: string[] = [];
+    // **Why it was generalised rather than left on `packages/mailbox`.** That is a
+    // property of `@types/node`, not of one package: every workspace package
+    // compiles `localStorage` today, and `packages/core` has no `tsconfig` excuse
+    // to offer because it has nothing to exclude. A rule that described all of them
+    // and checked one is the defect this file has already recorded seven times — and
+    // the control below deliberately probes a package the old rule never looked at,
+    // because a control in `mailbox` would pass for the same reason the old rule
+    // did.
+    //
+    // Storage arrives behind a `SpectreStorage` contract that is passed *in*. A
+    // shared package reaching for a global store would make that contract
+    // decorative, and would put a per-client persistence decision inside a package
+    // neither client can see.
+    // **The rule and its positive control share ONE call site, and that is the whole
+    // design of this test.** Falsifying this change found that a rule written
+    // `expect(storageApiViolations()).toEqual([])` is structurally unfalsifiable: it
+    // is a *negative* assertion, so narrowing the call site to `[]` or to
+    // `["mailbox"]`, or narrowing `SHARED_PACKAGES`, all leave it satisfied — every
+    // package it stopped scanning happened to be clean. Three separate attempts to
+    // catch that with a control elsewhere in the file also stayed green, because a
+    // control that calls the *function* is not a control on the *rule*.
+    //
+    // So the two halves are asserted here, in order, through the same call:
+    // violations **with** a probe planted in every package the rule must scan (which
+    // fails if it scans fewer), then violations **without** any probe (which is the
+    // rule itself). A rule that stops scanning cannot satisfy the first; a rule that
+    // cannot see a planted violation cannot satisfy the second.
+    const planted: string[] = [];
+    try {
+      for (const packageName of SHARED_PACKAGES) {
+        planted.push(packageName);
+        writeFileSync(
+          join(PACKAGES_DIR, packageName, "__storage-rule-probe.ts"),
+          INDEXED_DB_PROBE,
+          "utf8",
+        );
+      }
 
-    for (const file of collectSourceFiles(join(PACKAGES_DIR, "mailbox"))) {
-      if (file.endsWith(".test.ts")) continue;
-      const contents = stripComments(readFileSync(file, "utf8"));
-      for (const hit of findPatternOccurrences(contents, STORAGE_API_PATTERN)) {
-        violations.push(`${toRepoPath(file)} ${hit} (reaches a global store or the URL)`);
+      // The allowance, **transcribed here rather than derived from the allowance
+      // constant.** Deriving it — `planted.filter((n) => !STORAGE_API_ALLOWED_PACKAGES
+      // .includes(n))` — is what an earlier version did, and falsifying the change
+      // showed the consequence: widening the allowance moved *both* sides of the
+      // comparison, so the assertion stayed true and the rule silently stopped
+      // guarding `packages/core`. A control must not compute its own expectation out
+      // of the thing it is testing.
+      const mustScan = ["core", "mail-parser", "mailbox", "providers", "ui"];
+
+      // Preconditions on the list itself, so a rule that scans nothing cannot make the
+      // count below zero and look correct, and so a renamed package fails here rather
+      // than as a puzzling count.
+      expect([...planted].sort()).toEqual([...SHARED_PACKAGES].sort());
+      expect(mustScan.length).toBe(SHARED_PACKAGES.length - 1);
+
+      const reported = storageApiViolations().filter((hit) =>
+        hit.includes("__storage-rule-probe.ts"),
+      );
+
+      expect(reported.length, `the rule should report all ${mustScan.length} packages`).toBe(
+        mustScan.length,
+      );
+
+      // **Each expected package by name, not only as a count.** A count is satisfied
+      // by reporting one package five times, and the platform would never do that —
+      // but the assertion should not depend on that.
+      expect(
+        reported.map((hit) => hit.split("/__storage-rule-probe")[0]?.split("/").pop()),
+        "the rule should report each expected package once",
+      ).toEqual(mustScan);
+    } finally {
+      for (const packageName of planted) {
+        rmSync(join(PACKAGES_DIR, packageName, "__storage-rule-probe.ts"), { force: true });
       }
     }
 
-    expect(violations).toEqual([]);
+    // **The rule itself**, and the reason the allowance exists: `indexeddb.ts` names
+    // `indexedDB` in its option type and in its destructuring, which is that package
+    // doing its job rather than reaching for a global store.
+    //
+    // **What this line cannot prove, stated plainly.** It is a negative assertion, so
+    // it is satisfied by a rule that reports nothing at all — which is why the
+    // planted half above is in this same test rather than beside it. The pair is what
+    // has teeth: a rule that scans nothing fails the first, and a rule that cannot see
+    // a planted violation fails the second.
+    expect(storageApiViolations()).toEqual([]);
   });
 
-  it("catches a storage API in the session layer, in every spelling", () => {
-    // The positive control the rule above had none of. Each spelling is listed
-    // separately because `localStorage` and `sessionStorage` are two distinct
-    // globals that one careless pattern would half-cover, and because
-    // `document.cookie` is a property of an object rather than a bare global.
+  it("catches a storage API in every spelling, through the rule's own scan", () => {
+    // Each spelling is listed separately because `localStorage` and `sessionStorage`
+    // are two distinct globals that one careless pattern would half-cover, and
+    // because `document.cookie` is a property of an object rather than a bare
+    // global. The loop does not stop at the first failure, so a pattern that catches
+    // one form and misses three reports which.
+    //
+    // **Probed in `packages/core` on purpose.** A probe in `packages/mailbox` would be
+    // satisfied by the rule as it was written before this change, and would therefore
+    // establish nothing about whether the rule got any broader.
     const forms = {
       localStorage: "export const x = localStorage.length;",
       sessionStorage: "export const x = sessionStorage.length;",
       cookies: "export const x = document.cookie;",
       url: "export const x = location.href;",
       navigator: "export const x = navigator.userAgent;",
+      indexedDB: INDEXED_DB_PROBE,
     };
 
-    for (const [name, source] of Object.entries(forms)) {
-      // **Through `scanPackageWithProbe`, not around it.** The first version of this
-      // control wrote the probe and then read *that one file* directly, so it proved
-      // the pattern fires and proved nothing about whether the rule's file discovery
-      // would find it. The framework and clock controls already went end to end; this
-      // one is now the same shape rather than a third way of testing the same idea.
-      expect(
-        scanPackageWithProbe("mailbox", "__storage-rule-probe.ts", source, (contents) =>
-          findPatternOccurrences(stripComments(contents), STORAGE_API_PATTERN),
-        ),
-        `${name} should be caught`,
-      ).not.toEqual([]);
+    const path = join(PACKAGES_DIR, "core", "__storage-rule-probe.ts");
+    try {
+      for (const [name, source] of Object.entries(forms)) {
+        writeFileSync(path, source, "utf8");
+        // **Through the rule, not around it.** The first version of this control read
+        // the probe file directly, which proved the pattern fires and proved nothing
+        // about whether the rule's own file discovery would find it.
+        //
+        // **Filtered by `packages/core`'s path, not by the file name alone.** A
+        // filename filter also matched probes planted in the other shared packages
+        // during the rule test above, so a form the rule genuinely missed was
+        // satisfied by an unrelated package's violation. That is the same shape of
+        // defect this file has recorded repeatedly: an assertion satisfied by text it
+        // did not name.
+        expect(
+          storageApiViolations().filter((hit) =>
+            hit.startsWith(`packages/core/__storage-rule-probe.ts`),
+          ),
+          `${name} should be caught in packages/core`,
+        ).not.toEqual([]);
+      }
+    } finally {
+      rmSync(path, { force: true });
     }
+  });
+
+  it("reaches the storage layer only from a client", () => {
+    // The **reverse** direction of the rule above, and it is what keeps the
+    // dependency arrow pointing from host environments inward. Without it, a shared
+    // package could depend on `packages/storage`, and the platform API would be one
+    // `import` away from every layer that `mailbox-session`'s Purpose records as
+    // unreachable from — a claim that would then be true only in prose.
+    //
+    // **What it does not check:** the dependency declared in a `package.json`, only
+    // the specifier a module actually imports. A package that declared the
+    // dependency and imported nothing would pass. That is a manifest-level fact, and
+    // pnpm would refuse to link an undeclared specifier, so the two cannot drift
+    // apart into a broken build.
+    //
+    // **The positive half comes first, in this same test and through this same call**,
+    // for the reason the storage-API rule above gives: this assertion is negative, so
+    // narrowing the rule's package list leaves it satisfied — every package it stopped
+    // scanning happens to be clean, because no package imports this layer today.
+    // A violation planted in every package the rule must scan is what makes the
+    // negative assertion mean something.
+    const forms = {
+      "a named import":
+        'import { SpectreStorage } from "@spectre-mail/storage";\nexport const x = SpectreStorage;',
+      "a type import":
+        'import type { SpectreStorage } from "@spectre-mail/storage";\nexport const x: SpectreStorage | null = null;',
+      "a re-export": 'export { SpectreStorage } from "@spectre-mail/storage";',
+      "a namespace import":
+        'import * as storage from "@spectre-mail/storage";\nexport const x = storage;',
+      "a dynamic import": 'export const x = import("@spectre-mail/storage");',
+      "a side-effect import": 'import "@spectre-mail/storage";',
+    };
+
+    const planted: string[] = [];
+    try {
+      for (const packageName of SHARED_PACKAGES) {
+        planted.push(packageName);
+        writeFileSync(
+          join(PACKAGES_DIR, packageName, "__storage-import-probe.ts"),
+          forms["a named import"],
+          "utf8",
+        );
+      }
+
+      // **Every import form, one at a time, in `packages/core`**, for the reason the
+      // framework rule's comment records: that rule originally missed a bare
+      // side-effect `import "x";` and its single control used the form the author
+      // happened to pick. One assertion per form, not one for the idea, and the loop
+      // does not stop at the first failure.
+      //
+      // **Filtered by `packages/core`'s path, not by the file name alone** — every
+      // shared package holds a probe by then, and a filename filter would satisfy a
+      // form the rule genuinely missed with an unrelated package's violation. Falsifying
+      // this change found exactly that: narrowing the rule's pattern to
+      // `from "…"` left the suite **green**.
+      const path = join(PACKAGES_DIR, "core", "__storage-import-probe.ts");
+      for (const [name, source] of Object.entries(forms)) {
+        writeFileSync(path, source, "utf8");
+        expect(
+          storageImportViolations().filter((hit) =>
+            hit.startsWith(`packages/core/__storage-import-probe.ts`),
+          ),
+          `${name} should be caught`,
+        ).not.toEqual([]);
+      }
+      writeFileSync(path, forms["a named import"], "utf8");
+
+      // **Transcribed, not derived from the allowance constant** — for the reason the
+      // storage-API rule above gives. Deriving the expectation out of the thing under
+      // test moved both sides of the comparison when the allowance was widened, and
+      // the rule stopped guarding `packages/core` with the suite still green.
+      const mustScan = ["core", "mail-parser", "mailbox", "providers", "ui"];
+
+      expect([...planted].sort()).toEqual([...SHARED_PACKAGES].sort());
+      expect(mustScan.length).toBe(SHARED_PACKAGES.length - 1);
+
+      const reported = storageImportViolations().filter((hit) =>
+        hit.includes("__storage-import-probe.ts"),
+      );
+
+      expect(reported.length, `the rule should report all ${mustScan.length} packages`).toBe(
+        mustScan.length,
+      );
+      expect(
+        reported.map((hit) => hit.split("/__storage-import-probe")[0]?.split("/").pop()),
+        "the rule should report each expected package once",
+      ).toEqual(mustScan);
+    } finally {
+      for (const packageName of planted) {
+        rmSync(join(PACKAGES_DIR, packageName, "__storage-import-probe.ts"), { force: true });
+      }
+    }
+
+    // **The rule itself**, and the allowance it carries: `packages/storage` is the one
+    // package excluded, and it is excluded by name — the probe planted in it above was
+    // planted by the same loop and is *not* among the packages reported, which is the
+    // allowance being load-bearing rather than merely present.
+    //
+    // The negative half is a comparison rather than an expectation of no hits, because
+    // `packages/storage` does legitimately name its own specifier in prose — which is
+    // why the scan strips comments before matching. A client importing this layer is
+    // the intended use and `apps/*` is not scanned at all.
+    expect(storageImportViolations()).toEqual([]);
   });
 
   it("stays quiet on the word framework in a comment", () => {

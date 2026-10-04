@@ -33,14 +33,14 @@ depend on packages, never the reverse.
 
 ## Packages
 
-| Package                     | Owns                                                                                                                                                                       | Must never contain                                                     |
-| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `@spectre-mail/core`        | The normalized domain model and its invariants — mailbox, message, credentials, the closed set of normalized error codes, shared types                                     | Provider wire format; any HTTP call to a provider; lifecycle behaviour |
-| `@spectre-mail/providers`   | The `MailProvider` contract, the Mail.tm adapter, the Guerrilla Mail adapter, the shared conformance suite, the provider manager, any future SpectreMail-operated provider | Business logic that belongs in `core`; presentation; any storage       |
-| `@spectre-mail/mail-parser` | Safe text extraction, OTP detection, verification-link detection, message classification                                                                                   | Anything that renders markup; provider field names                     |
-| `@spectre-mail/mailbox`     | The mailbox session — opening, replacing, retrying, provider health — as state values a client renders                                                                     | Any framework; any DOM; any storage; any request of its own            |
-| `@spectre-mail/storage`     | The `SpectreStorage` interface, the web IndexedDB adapter, the extension storage adapter                                                                                   | Provider wire format; assumptions specific to one client               |
-| `@spectre-mail/ui`          | Reusable product UI and design tokens                                                                                                                                      | Marketing-only website sections                                        |
+| Package                     | Owns                                                                                                                                                                       | Must never contain                                                                            |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `@spectre-mail/core`        | The normalized domain model and its invariants — mailbox, message, credentials, the closed set of normalized error codes, shared types                                     | Provider wire format; any HTTP call to a provider; lifecycle behaviour                        |
+| `@spectre-mail/providers`   | The `MailProvider` contract, the Mail.tm adapter, the Guerrilla Mail adapter, the shared conformance suite, the provider manager, any future SpectreMail-operated provider | Business logic that belongs in `core`; presentation; any storage                              |
+| `@spectre-mail/mail-parser` | Safe text extraction, OTP detection, verification-link detection, message classification                                                                                   | Anything that renders markup; provider field names                                            |
+| `@spectre-mail/mailbox`     | The mailbox session — opening, replacing, retrying, provider health — as state values a client renders                                                                     | Any framework; any DOM; any storage; any request of its own                                   |
+| `@spectre-mail/storage`     | The `SpectreStorage` contract and its IndexedDB adapter — **the extension's adapter is a later slice, and no client consumes this yet**                                    | Provider wire format; assumptions specific to one client; any workspace package except `core` |
+| `@spectre-mail/ui`          | Reusable product UI and design tokens                                                                                                                                      | Marketing-only website sections                                                               |
 
 ### The session layer
 
@@ -82,6 +82,39 @@ properties here, and only the first is enforced by the compiler.** A session lay
 that quietly persisted itself through `localStorage` would have compiled, typechecked,
 linted, and passed every other rule. So the storage half is held by its own scan,
 which is the _only_ thing holding it and says so in its own comment.
+
+**That scan now covers every shared package, and the generalisation was measured rather
+than preferred.** It was written when the answer to "which packages must not reach a
+store" happened to be one name long, and widening it to `packages/*` immediately
+reported a real false positive: `packages/providers` holds a recorded `set-cookie`
+response header from the M0 spike, which the pattern read as a cookie jar. So a hyphen
+now counts as a word character on both sides of the bare-global alternative. The stated
+cost — a global reached through a hyphenated name would be missed — is recorded in the
+rule itself, because no JavaScript global is written that way and `document.cookie` is
+matched by the property alternative regardless.
+
+**Two more rules hold the storage boundary from the other side, and one of them exists
+because of what falsification found.** No shared package may import
+`@spectre-mail/storage` at all, so the platform API stays reachable only from a client;
+and `packages/storage` may declare `@spectre-mail/core` as its single runtime
+dependency, which keeps a provider wire format from reaching a client through the layer
+that persists mailboxes.
+
+The rule shapes here were rewritten during M6 slice 1 after four mutations of the
+storage rules left the suite green, and the reason generalizes. Each rule's assertion is
+**negative** — no shared package reaches a store — so narrowing its package list to one
+package leaves it satisfied, because every package it stopped scanning happens to be
+clean. Three attempts to catch that with a control placed elsewhere in the file also
+stayed green, for the same reason: a control that calls the scan _function_ is not a
+control on the _rule_. The fix was to remove the surface rather than to write a better
+control. Each scan function now takes **no package argument**, so there is no second
+spelling of the list to narrow; the shared-package list is checked against the
+**directory contents on disk**, so a package added without appearing in it fails rather
+than being silently exempt; and each rule asserts its positive and negative halves **in
+one test through one call site** — a probe planted in every package the rule must scan,
+which the rule must then report by name, and only after that a claim that it reports
+nothing. A rule that scans nothing fails the first half. A rule that cannot see a
+planted violation fails the second.
 
 That table is also why the no-DOM test reads the globals **reflectively**
 (`Reflect.get(globalThis, name)`) rather than referencing them: `globalThis.document`
