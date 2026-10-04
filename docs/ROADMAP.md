@@ -27,19 +27,27 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor:** **M6 - Website Hardening.** Slice 1 (`spectre-storage`) is applied,
-verified, synced, and **archived** at
-`openspec/changes/archive/2026-10-05-spectre-storage/`; `openspec status` reports
-**No active changes**. Apply merged as **#46**, sync as **#47**. Slice 2
-(`mailbox-adoption`) is **applied and verified, not yet archived**; its Apply PR is
-open. The next objective after this slice's archive is **M6 slice 3**, the privacy
-controls.
+**Roadmap cursor:** **M6 - Website Hardening.** Slice 1 (`spectre-storage`) and slice 2
+(`mailbox-adoption`) are both applied, verified, synced, and **archived** at
+`openspec/changes/archive/2026-10-05-spectre-storage/` and
+`openspec/changes/archive/2026-10-05-mailbox-adoption/`. `openspec status` reports
+**No active changes**. Slice 1 merged as Apply **#46** / sync **#47**; slice 2 as Apply
+**#50** / sync **#51**. The next objective is **M6 slice 3**, the privacy controls —
+`clear local SpectreMail data`, and the only thing standing between this milestone and a
+product that can be made to stop storing.
 
 **Slice 2 delivers `return to a recent mailbox`, and that acceptance line is now met.**
 The website reads its own storage before it asks the provider for anything, hands the
 session what it found, and writes back a mailbox it was **not** handed. Adoption
 reconciles through the provider that owns the address, so a stored mailbox is only ever
 presented once the provider confirms it.
+
+That leaves M6's acceptance list with **two of four met**: `return to a recent mailbox`
+now, and `clear local SpectreMail data` with slice 3. The remaining two — `use it
+externally` and the security and accessibility items — are unchanged and still
+undelivered. **Two of four is not a milestone half-finished by accident**; it is the
+point at which this milestone stops being about storage and starts being about
+everything M6 grouped that is not storage.
 
 **Slice 2's numbers as of 2026-10-05, and these are the current ones.** The workspace
 runs **620 tests across 31 files**, of which **46 are architecture boundary assertions**:
@@ -48,8 +56,19 @@ runs **620 tests across 31 files**, of which **46 are architecture boundary asse
 3 provider configuration), **33 in `packages/storage`** (7 stored record, 20 IndexedDB
 adapter, 6 browser entry point), and 46 boundary. Counts are read from the reporter,
 not added by hand. `pnpm install`, `pnpm typecheck`, `pnpm lint`, `pnpm format:check`,
-`pnpm test`, `pnpm build`, and `pnpm verify` all exited 0, and
-`openspec validate mailbox-adoption --type change --strict` exited 0.
+`pnpm test`, `pnpm build`, and `pnpm verify` all exited 0.
+
+**Where slice 2's requirements now live.** Four were added and three amended, promoted
+at the sync stage and now in `openspec/specs/`. `openspec validate --specs --strict`
+reports **9 passed, 0 failed**; `openspec status` reports **No active changes**. The
+delta and the promoted specs were compared mechanically rather than by reading, and
+**all 34 requirement and scenario titles in the delta are present in the promoted
+files**: **0 missing**. That comparison is the check this repository needed, because M4
+shipped a milestone whose archived delta and promoted spec disagreed — the amendments
+had been written into the promoted spec at the sync stage and never back into the
+change. Slice 2's three apply-stage amendments are in the delta, so this archive does
+not repeat that. Promoted totals move from 93 requirements and 232 scenarios to **97 and
+253**.
 
 **This milestone has added persistence without adding its removal, and that sentence
 belongs in the status block rather than in a task.** There is now a mailbox written to a
@@ -2118,8 +2137,8 @@ Each slice therefore owns exactly one of them, and the table is the assignment.
 
 | Slice | Change | Owns | State |
 | --- | --- | --- | --- |
-| 1 | `spectre-storage` | The `SpectreStorage` contract and its IndexedDB adapter. **No client.** | applied, verified, archived |
-| 2 | `mailbox-adoption` | `MailboxSession.restore`, the four new session states, and website reload recovery - `return to a recent mailbox` | applied, verified |
+| 1 | `spectre-storage` | The `SpectreStorage` contract and its IndexedDB adapter, delivered **with no client**, so the seam existed before anything was wired to it | applied, verified, archived |
+| 2 | `mailbox-adoption` | `MailboxSession.restore`, the four new session states, and website reload recovery - `return to a recent mailbox` | applied, verified, archived |
 | 3 | *(next)* | Privacy controls, verbatim from the block above. **Nothing deletes stored data until this lands.** | not started |
 | 4 | *(later)* | Error states, security and accessibility items, and pausing polling when the page is hidden | not started |
 
