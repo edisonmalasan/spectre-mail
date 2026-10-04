@@ -34,10 +34,13 @@ the M0 spike probed `api.mail.tm` and `api.guerrillamail.com` live and recorded 
 they actually do, and every architectural rule below is a consequence of a recorded
 observation rather than of an assumption about how such an API ought to behave.
 
-**M0–M5 are complete and M6 is next, but no user has ever seen this product.** The
-website creates an address, lists what arrives in it, and opens a message; **no live
+**M0–M5 are complete and M6 is in progress, but no user has ever seen this product.**
+The website creates an address, lists what arrives in it, and opens a message; **no live
 browser run of it has ever been made**, so every acceptance claim below is a claim
-about a function and about jsdom, not about a user's experience.
+about a function and about jsdom, not about a user's experience. M6's **first slice**
+(`spectre-storage`) is applied and verified: the persistence contract and its IndexedDB
+adapter exist, and **nothing consumes them**. `return to a recent mailbox` is delivered
+by M6 slice 2, not by this one.
 
 The current state, in dependency order:
 
@@ -50,6 +53,9 @@ The current state, in dependency order:
   into readable text plus ranked one-time-code and verification-link detections, with
   **no network, no clock, and no AI**.
 - A mailbox lifecycle and polling layer (`packages/mailbox`) that both clients consume.
+- A persistence layer (`packages/storage`) holding a real `SpectreStorage` contract
+  and its IndexedDB adapter — **which no client consumes yet**, so the website still
+  has no persistence.
 - A website client (`apps/web`) that renders all of it, with no styling and no
   persistence.
 
@@ -232,11 +238,21 @@ Pin versions when exact versions matter.
   `docs/PROVIDERS.md` for why a SpectreMail-operated proxy is not a permitted
   workaround for Mail.tm.
 
-- Database / storage: none yet. Roadmap target is IndexedDB in the web client and
-  extension storage in the extension, behind a shared `SpectreStorage` contract —
-  milestone **M6**, not M5. M5's mailbox history is in-memory, which is a real
-  limitation the M5 acceptance criteria state rather than one this file designs
-  around.
+- Database / storage: **`packages/storage` has real behaviour since M6 slice 1, and
+  no client uses it.** It holds the `SpectreStorage` contract — `loadMailbox` and
+  `saveMailbox`, nothing else — and an IndexedDB adapter behind it, with **27 tests**
+  (7 for the versioned stored record, 20 for the adapter). **A reload still discards
+  the mailbox**, because the wiring is M6 slice 2 and the privacy controls are a later
+  slice; a package's existence is not persistence shipping, and the M5 acceptance line
+  `return to a recent mailbox` remains undelivered. The extension's adapter is also
+  later. Two properties are settled and worth knowing before anything is built on it:
+  **`loadMailbox` returns `null` for "nothing stored" only** and every other failure
+  rejects, because a read reported as absent would make a client believe it is a first
+  visit, create a mailbox, and overwrite the user's stored identity; and a stored
+  record this build cannot narrow is **neither surfaced nor deleted**. `IDBFactory` is a
+  **required** option with no global default, and writes resolve on
+  `transaction.oncomplete` rather than on request success. `fake-indexeddb` `6.2.5` is
+  the test substrate and **is not a browser**.
 
 - ORM / data access: none yet.
 
@@ -254,11 +270,12 @@ Pin versions when exact versions matter.
   `pnpm typecheck`, which is a separate gate. There is still no extension build
   step — that is M8.
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running **545 tests across
-  26 files** via `pnpm test` (2026-10-04, after the M5 slice 4 apply stage):
+- Testing: Vitest `3.2.7` at the workspace root, verified running **574 tests across
+  28 files** via `pnpm test` (2026-10-05, after the M6 slice 1 apply stage):
   54 in `packages/core`, 89 in `packages/providers`, **149 in `packages/mail-parser`**,
   **134 in `packages/mailbox`**, **77 in `apps/web`** (74 rendering, 3 provider
-  configuration), and **42 architecture boundary assertions**.
+  configuration), **27 in `packages/storage`** (7 stored record, 20 IndexedDB adapter),
+  and **44 architecture boundary assertions**.
   `passWithNoTests` is **off** by design - a
   green run that inspects nothing is worse than no run. The `include` globs name
   `tests/architecture/**/*.test.ts`, `packages/*/src/**/*.test.ts`,
@@ -943,17 +960,25 @@ sequence. All exited `0`.
 Observed results, re-verified after the M4 verification repair, again after the
 M5 slice 1 apply stage, again after its independent verification repairs (all on
 2026-10-02), after the M5 slice 2 verification repairs, again after the M5 slice 3
-verification repairs, and again after the M5 slice 4 apply stage, all on 2026-10-03
-through 2026-10-04:
+verification repairs, again after the M5 slice 4 apply stage, and again after the
+M6 slice 1 apply stage, all on 2026-10-03 through 2026-10-05:
 
 ```text
 pnpm typecheck     8 of 8 workspace projects run tsc --noEmit
 pnpm lint          exit 0
 pnpm format:check  All matched files use Prettier code style
-pnpm test          26 files, 545 tests passed
+pnpm test          28 files, 574 tests passed
 pnpm build         vite 7.3.6, dist emitted
 pnpm verify        exit 0
 ```
+
+**One environment note, because `pnpm lint` failed to launch cleanly once and the
+distinction matters.** On 2026-10-05 `pnpm lint` printed a PowerShell
+`NativeCommandError` wrapper around `eslint .` while **exiting `0`**, and once exited
+`-1` with no output. Running `node node_modules/eslint/bin/eslint.js .` directly
+exited `0` with no findings, and `pnpm verify` — which runs lint in sequence — exited
+`0` throughout. The exit code is the fact and the wrapper is PowerShell noise, but a
+`-1` with no output is not a pass and was re-run rather than assumed.
 
 These commands establish that the workspace is internally consistent: every
 package and app type checks under the shared strict config, lints, is formatted,
@@ -1003,7 +1028,7 @@ Four specific limitations worth not misreading:
   scoped to `packages/` and `apps/` so a root-level or `tests/` module could name
   an adapter freely. Both widened cases were then proven to fail. An assertion that
   passes for the wrong reason is not a passing assertion.
-- **The count is now 42 boundary assertions. M5 slice 1 added seven, and its
+- **The count is now 44 boundary assertions. M5 slice 1 added seven, and its
   independent verification pass found five defects in them.** The
   adapter-confinement rule was **re-scoped**, which is the first recorded instance of
   an assertion being *broader* than its documented rule rather than narrower: it also
@@ -1075,6 +1100,41 @@ Four specific limitations worth not misreading:
   a catch is how a dead case gets filed as coverage. 8 of 8 mutations are now caught by
   the intended assertion, with restoration reported separately and verified by
   SHA-256.
+- **M6 slice 1 added two, and its falsification pass found six defects in what this
+  change authored — including the eighteenth instance of a check narrower than its
+  rule.** The storage-API rule was generalised from `packages/mailbox` to every shared
+  package, and the generalisation was *measured* rather than preferred: it immediately
+  reported a real false positive in `packages/providers`, which holds a recorded
+  `set-cookie` response header from the M0 spike and was being read as a cookie jar. So
+  a hyphen now counts as a word character in that pattern, with the cost stated in the
+  rule — no JavaScript global is written with one, and `document.cookie` is matched by
+  the property alternative regardless. A pattern narrowed by a change, which is why the
+  narrowing is one of the 27 mutations.
+
+  Four mutations then left the suite green, all with one cause: **a control that calls
+  the scan *function* is not a control on the *rule*.** Each rule's assertion is
+  *negative* — no shared package reaches a store — so narrowing its package list to
+  `["mailbox"]`, to `[]`, or shortening its scan loop all leave it satisfied, because
+  every package it stopped scanning happens to be clean. Three attempts to catch that
+  with a control placed elsewhere in the file also stayed green. The fix was to remove
+  the surface rather than write a better control: each scan function takes **no package
+  argument**, so there is no second spelling of the list to narrow; the shared-package
+  list is checked against the **directory contents on disk**, so a package added
+  without appearing in it fails rather than being silently exempt; and each rule asserts
+  its positive and negative halves **in one test through one call site** — a probe
+  planted in every package the rule must scan, which the rule must report *by name*,
+  and only after that a claim that it reports nothing.
+
+  Three further defects came from controls that computed their own expectations out of
+  the value under test: one derived its expected package list by filtering out the
+  allowance constant, so widening the allowance moved both sides and the rule silently
+  stopped guarding `packages/core`; another filtered probe hits by *file name*, which
+  also matched probes planted in other packages, so a form the rule genuinely missed was
+  satisfied by an unrelated package's violation; and the two rules shared one allowance
+  constant, so widening the storage-API allowance also silenced the *import* rule and
+  reported through the wrong test. All three are recorded in the change's `design.md`.
+  **27 of 27 mutations are now caught by the intended assertion**, restoration reported
+  separately and verified by SHA-256, and `nocompile` counted as its own outcome.
 - **`pnpm test` proved a third check of that same shape was vacuous, and the fix
   was to delete the gap rather than to add an exemption.** The adapter-identifier
   rule listed `MailTmProvider`, `GuerrillaMailProvider`, and `SpectreMailProvider`

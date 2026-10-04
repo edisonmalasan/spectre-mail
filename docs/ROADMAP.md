@@ -26,13 +26,51 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor:** M5 - Website Core MVP. **All three delivered slices are complete and
+**Roadmap cursor:** **M6 — Website Hardening.** Slice 1 (`spectre-storage`) is applied
+and verified; the change is awaiting sync and archive. The next objective is **M6 slice
+2**, the adopt-and-recover slice, which is what finally delivers `return to a recent
+mailbox`.
+
+**M6 slice 1's numbers as of 2026-10-05, and these are the current ones.** The workspace
+runs **574 tests across 28 files**, of which **44 are architecture boundary assertions**:
+54 in `packages/core`, 89 in `packages/providers`, 149 in `packages/mail-parser`,
+134 in `packages/mailbox`, **77 in `apps/web`** (74 rendering, 3 provider configuration),
+**27 in `packages/storage`** (7 for the stored record, 20 for the IndexedDB adapter), and
+44 boundary. Counts are read from the reporter, not added by hand. `pnpm install`,
+`pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `pnpm test`, `pnpm build`, and
+`pnpm verify` all exited 0.
+
+**No client consumes the package.** That is the sentence a later session must not
+misread, so it is stated here rather than implied: `packages/storage` has real
+behaviour and **nothing reads it**. A reload still discards the mailbox, `return to a
+recent mailbox` is still undelivered, and no privacy control exists. What slice 1
+delivers is the seam a client can be wired against, not persistence.
+
+**What slice 1 is evidence for.** That a `SpectreStorage` contract can be stated, stored,
+and read back under two conditions this repository can test without a browser:
+**absence and failure are different answers**, and a value is narrowed through `core`'s
+own `isMailbox` on both the way in and the way out. Its two boundary rules were proved
+falsifiable — **27 of 27 mutations caught**, each by the intended test, every mutated
+file restored byte-identical by SHA-256 — and **six defects this change authored were
+found by that pass and fixed**, all recorded in the change's `design.md`.
+
+**What slice 1 is not evidence for.** `fake-indexeddb` **is not a browser**: a green
+suite against it says nothing about a real IndexedDB implementation. No live browser run
+of the website has ever been made. No test in this repository contacts a provider.
+`pnpm build` builds the website only and says nothing about this package, which is
+consumed as TypeScript source and established by `pnpm typecheck`.
+
+---
+
+**Roadmap history: M5 - Website Core MVP. All four slices are complete and
 archived** (`mailbox-session-layer`, PRs #28–#32; `inbox-polling`, PRs #33–#36;
-`message-view`, PRs #37–#40 — propose, apply and verify, sync, archive: four PRs each,
-as every stage has been). `openspec validate --specs --strict` reports **8 passed, 0
-failed**. The promoted capabilities now hold **`mailbox-session` at 20 requirements /
-48 scenarios** and **`website-client` at 16 / 37** — slice 3 contributed 6 + 16 and
-4 + 10.
+`message-view`, PRs #37–#40; `provider-reachability`, PRs #41–#44 — propose, apply and
+verify, sync, archive: four PRs each, as every stage has been).
+`openspec validate --specs --strict` reports **8 passed, 0 failed**. The promoted
+capabilities hold **`mailbox-session` at 20 requirements / 48 scenarios** and
+**`website-client` at 20 / 39** — slice 3 contributed 6 + 16 and 4 + 10, slice 4
+promoted a `MODIFIED` requirement that took the file from 16 requirements / 37
+scenarios to 20 / 39.
 
 Those counts were **recounted from the requirements rather than carried over from the
 previous footer's own claim.** This roadmap has published arithmetically-wrong counts
@@ -40,7 +78,7 @@ three times, one of them in a promoted spec's provenance line, so slice 2's figu
 re-derived before being extended — 7 + 14 and 7 + 18 for `mailbox-session`, 7 + 15 and
 5 + 12 for `website-client`, all of which verify exactly.
 
-**M5 has no buildable slice left, and the next objective is M6 — Website Hardening.**
+**M5 has no buildable slice left, and the next objective was M6 — Website Hardening.**
 That is a move of the cursor, and it is not M5 being skipped. Three of M5's four
 remaining slices were blocked by milestones scheduled **after** it, and the fourth is
 resolved by the `provider-reachability` change, which declined to ship a provider
@@ -50,7 +88,7 @@ selector rather than shipping one that cannot act:
 | --- | --- | --- |
 | provider selector | **resolved**, slice 4 | `website-client` now requires no selector, and the naming of the one provider reached |
 | theme | blocked | `packages/ui/src/index.ts` – design tokens are applied from M7, not anticipated here |
-| mailbox history | blocked | `packages/storage/src/index.ts` – `SpectreStorage` is M6, and the package has no exports |
+| mailbox history | blocked | **now M6 slice 2** — the `SpectreStorage` contract arrived at M6 slice 1 (2026-10-05) and *nothing reads it yet*, so the history slice still has nothing to persist through |
 | clear-data | **M6's own** | M6's Privacy controls list `Clear all local SpectreMail data` verbatim |
 
 *Recorded 2026-10-04:* this block previously read "Four of its slices remain — and
@@ -70,7 +108,7 @@ rendering, 3 provider configuration), 37 boundary. The website
 now lists a mailbox's messages, polls it, **and opens one**; it has **no styling and
 no persistence** — a reload still discards the mailbox, because storage is M6.
 
-**Slice 4's numbers as of 2026-10-04, and these are the current ones.** The workspace
+**Slice 4's numbers as of 2026-10-04, kept as that milestone's snapshot.** The workspace
 runs **545 tests across 26 files**, of which **42 are architecture boundary
 assertions**: 54 in `packages/core`, 89 in `packages/providers`, 149 in
 `packages/mail-parser`, 134 in `packages/mailbox`, **77 in `apps/web`** (74 rendering,
@@ -1892,7 +1930,7 @@ its own, and one line in particular is delivered elsewhere:
 | `receive a real message` | M5 slice 2 — `inbox-polling` (archived) |
 | `find the OTP` | M5 slice 3 — `message-view` (archived) |
 | **`copy the OTP`** | **M10, the verification workflow** — see below |
-| `return to a recent mailbox` | **M6**, whose Storage block lists `mailboxes`; M5's history slice depends on that contract |
+| `return to a recent mailbox` | **M6 slice 2** - the storage contract is slice 1, and nothing reads it yet; M5's history slice depends on that contract |
 | `clear local SpectreMail data` | **M6's Privacy controls, which list it verbatim** — see below |
 
 **`copy the OTP` is M10's, and that is a decision rather than an oversight.**
@@ -2011,6 +2049,35 @@ pause inbox activity when page is hidden where appropriate
 > connection). **Design for adaptive polling as the only transport**, and treat
 > "SSE where reliable" as dead rather than aspirational. See
 > `docs/PROVIDERS.md`.
+
+## Slices
+
+**M6 is delivered as bounded slices, and the breakdown exists because two milestones
+mention the same responsibilities.** M5's acceptance list carries `return to a recent
+mailbox` and `clear local SpectreMail data`, and both depend on this milestone's
+Storage and Privacy controls blocks. Left alone that is one responsibility written
+under two milestones, which is how a milestone gets read as finished when it is not.
+Each slice therefore owns exactly one of them, and the table is the assignment.
+
+| Slice | Change | Owns | State |
+| --- | --- | --- | --- |
+| 1 | `spectre-storage` | The `SpectreStorage` contract and its IndexedDB adapter. **No client.** | applied, verified |
+| 2 | *(next)* | `MailboxSession.adopt(mailbox)`, the new session states, and website reload recovery - `return to a recent mailbox` | not started |
+| 3 | *(later)* | Privacy controls, verbatim from the block above | not started |
+| 4 | *(later)* | Error states, security and accessibility items, and pausing polling when the page is hidden | not started |
+
+**Slice 1 amends no promoted requirement, and that is a decision rather than an
+omission.** `mailbox-session`'s scenario *"A reload loses the session"* becomes false
+the moment a client adopts a stored mailbox - which slice 2 does and slice 1 does not.
+Promoting that amendment here would ship a spec describing a path that does not exist.
+The conflict is recorded in the change's `design.md` (D9) and the amendment is written
+into the delta **in slice 2**, so the archive carries it.
+
+**What slice 1 does not deliver, stated plainly.** No client reads or writes the
+package. A reload still discards the mailbox, `return to a recent mailbox` is still
+undelivered, and no privacy control exists. The package's existence is not persistence
+shipping - it is the seam that lets a client be wired against a tested contract rather
+than against an untested guess, the same choice M4 made for the parser.
 
 ---
 

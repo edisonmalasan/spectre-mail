@@ -44,6 +44,17 @@ has **no styling and no persistence** — a reload discards the mailbox, because
 is M6. The absence of styling is a decision rather than an omission: M7 owns the visual
 design, so markup written now would be markup M7 rewrites.
 
+**`packages/storage` exists and no client uses it.** That sentence is the honest
+summary of M6 slice 1, and it is stated rather than implied so the package is not
+mistaken for persistence shipping. The package holds a real `SpectreStorage` contract —
+`loadMailbox` and `saveMailbox`, nothing else — and a real IndexedDB adapter behind it,
+with 27 tests. What is missing is the wiring: `apps/web` neither reads nor writes it, so
+a reload still discards the mailbox. Two properties are settled and worth knowing before
+anything is built on it: **`null` means "nothing stored" and every failure rejects**
+rather than reporting an absence, because a read reported as absent would make a client
+believe this is a first visit, create a mailbox, and overwrite the user's stored
+identity; and a record this build cannot narrow is **neither returned nor deleted**.
+
 **Opening a message displays what was found and acts on none of it.** The view shows
 the sender, subject, arrival time, readable text, the one-time codes in the parser's
 own rank order, and each detected link as plain text with its host visible. There is
@@ -149,14 +160,14 @@ apps/extension ───┘
 
 Six shared packages, each with one responsibility:
 
-| Package                     | Owns                                                                                                      |
-| --------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `@spectre-mail/core`        | The normalized domain model and its invariants — mailbox, message, credentials, closed error codes, types |
-| `@spectre-mail/providers`   | The Mail.tm and Guerrilla Mail adapters — the only place provider code may live                           |
-| `@spectre-mail/mail-parser` | Safe text extraction, OTP detection, verification-link detection                                          |
-| `@spectre-mail/mailbox`     | The mailbox session: opening, replacing, retrying, and reporting provider health                          |
-| `@spectre-mail/storage`     | The `SpectreStorage` contract, the web IndexedDB adapter, the extension storage adapter                   |
-| `@spectre-mail/ui`          | Reusable product UI and design tokens                                                                     |
+| Package                     | Owns                                                                                                             |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `@spectre-mail/core`        | The normalized domain model and its invariants — mailbox, message, credentials, closed error codes, types        |
+| `@spectre-mail/providers`   | The Mail.tm and Guerrilla Mail adapters — the only place provider code may live                                  |
+| `@spectre-mail/mail-parser` | Safe text extraction, OTP detection, verification-link detection                                                 |
+| `@spectre-mail/mailbox`     | The mailbox session: opening, replacing, retrying, and reporting provider health                                 |
+| `@spectre-mail/storage`     | The `SpectreStorage` contract and the web IndexedDB adapter — **built at M6 slice 1, consumed by no client yet** |
+| `@spectre-mail/ui`          | Reusable product UI and design tokens                                                                            |
 
 `packages/mailbox` is **framework-free and DOM-free by compiler rather than by
 convention**: its `tsconfig.json` sets `lib: ["ES2023"]` with no `"DOM"`, so `window`,
@@ -172,21 +183,36 @@ exclude them — and Node v26.10.0 additionally defines `navigator` and
 DOM and **not** storage; the second half of that boundary is held by an explicit
 rule in `tests/architecture/boundaries.test.ts` rather than by a compiler option.
 
-The boundaries are enforced by a test, not just documented — **23 assertions** in
+**That rule now covers every shared package, not just `packages/mailbox`, and a second
+rule holds the direction from the other side.** The first was written when the answer
+to "which packages must not reach a store" happened to be one name long, and the
+generalisation was measured rather than preferred: it immediately reported a real false
+positive in `packages/providers`, which holds a recorded `set-cookie` response header
+from the M0 spike. So a hyphen now counts as a word character in that pattern, with the
+cost stated in the rule — no JavaScript global is written with one. The second rule says
+no shared package may import `@spectre-mail/storage` at all, keeping the platform API
+reachable only from a client, and a third says the storage layer itself may depend on
+`@spectre-mail/core` and nothing else.
+
+The boundaries are enforced by a test, not just documented — **44 assertions** in
 `pnpm test`. They fail if a package imports an app, if a file outside
 `packages/providers` contains a provider JSON field name, if a provider adapter is
 implemented or re-exported outside `packages/providers`, if a module in
 `packages/mail-parser` or `packages/mailbox` reaches the global `fetch` instead of
 its injected transport, if `packages/mailbox` imports a UI framework **in any of the
-four import forms**, if it reaches a global store, cookie jar, or URL, if `apps/`
+four import forms**, if **any shared package but the storage layer** reaches a global
+store, cookie jar, or URL, if a shared package imports the storage layer in **any of the
+six import forms**, if the storage layer gains a runtime dependency, if `apps/`
 inserts untrusted values as markup, and if **any** shipped test is not actually
 collected by the test runner.
 
 Each rule states its own limits in the source, and each was proven able to fail. That
-last clause is not a formality: this repository has now recorded **fifteen** instances
+last clause is not a formality: this repository has now recorded **eighteen** instances
 of a check that was narrower or broader than the rule it documented while staying
-green, including rules that fired on their own documentation and rules whose single
-positive control proved only the case its author thought of.
+green, including rules that fired on their own documentation, rules whose single
+positive control proved only the case its author thought of, and a rule that is
+structurally unfalsifiable because its assertion is negative — no shared package
+reaches a store today, so narrowing its package list leaves it satisfied.
 
 Full detail, including why each rule exists: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 

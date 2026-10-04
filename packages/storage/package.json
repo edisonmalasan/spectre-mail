@@ -9,5 +9,11 @@
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
+  "dependencies": {
+    "@spectre-mail/core": "workspace:*"
+  },
+  "devDependencies": {
+    "fake-indexeddb": "6.2.5"
+  },
   "private": true
 }
