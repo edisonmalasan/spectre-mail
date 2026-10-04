@@ -18,18 +18,37 @@
 > source of truth — `openspec/specs/` and the active OpenSpec change artifacts are.
 > Reconcile this block against Git and OpenSpec before trusting it in a later session.
 >
-> `openspec/specs/` holds **eight** capabilities: `provider-abstraction` (promoted
+> `openspec/specs/` holds **nine** capabilities: `provider-abstraction` (promoted
 > from `provider-role-decision`), `monorepo-foundation` (M1), `shared-domain-model`
 > (M2), `provider-adapters` (M3), `mail-parsing` (M4), `build-and-verification`
-> (M1), `mailbox-session` (M5 slice 1), and `website-client` (M5 slice 1). M0's own
-> capability spec was archived with
+> (M1), `mailbox-session` (M5 slice 1), `website-client` (M5 slice 1), and
+> `spectre-storage` (M6 slice 1). Counted mechanically, they hold **93 requirements and
+> 232 scenarios** in total. M0's own capability spec was archived with
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor:** **M6 — Website Hardening.** Slice 1 (`spectre-storage`) is applied
-and verified; the change is awaiting sync and archive. The next objective is **M6 slice
-2**, the adopt-and-recover slice, which is what finally delivers `return to a recent
-mailbox`.
+**Roadmap cursor:** **M6 — Website Hardening.** Slice 1 (`spectre-storage`) is applied,
+verified, synced, and **archived** at
+`openspec/changes/archive/2026-10-05-spectre-storage/`; `openspec status` reports
+**No active changes**. Apply merged as **#46**, sync as **#47**. The next objective is
+**M6 slice 2**, the adopt-and-recover slice, which is what finally delivers `return to a
+recent mailbox`.
+
+**The archive ran with `--skip-specs`, because the sync had already promoted the
+delta.** That is the documented reason the flag exists and the fourth time this
+repository has needed it. Its effect was verified rather than assumed: the promoted spec
+was compared against the archived delta **mechanically**, by extracting every
+requirement and scenario title from each — 7 and 17 in both, same order, no title on
+either side alone — and `openspec validate --specs --strict` reports **9 passed, 0
+failed**.
+
+**One arithmetic error was caught in this block while recording the above, and it is
+worth naming rather than quietly fixing.** The first draft of the M6 section restated
+M5's `website-client` count as *20 requirements / 39 scenarios*. It is **16 / 39** —
+slice 4 promoted a `MODIFIED` requirement, which adds scenarios without changing how
+many requirements the file has. That is the **fourth** wrong total this roadmap has
+published, and it was found by counting the promoted files rather than by re-reading a
+previous footer's claim, which is the only reason it was found at all.
 
 **M6 slice 1's numbers as of 2026-10-05, and these are the current ones.** The workspace
 runs **574 tests across 28 files**, of which **44 are architecture boundary assertions**:
@@ -65,12 +84,11 @@ consumed as TypeScript source and established by `pnpm typecheck`.
 **Roadmap history: M5 - Website Core MVP. All four slices are complete and
 archived** (`mailbox-session-layer`, PRs #28–#32; `inbox-polling`, PRs #33–#36;
 `message-view`, PRs #37–#40; `provider-reachability`, PRs #41–#44 — propose, apply and
-verify, sync, archive: four PRs each, as every stage has been).
-`openspec validate --specs --strict` reports **8 passed, 0 failed**. The promoted
+verify, sync, archive: four PRs each, as every stage has been). The promoted
 capabilities hold **`mailbox-session` at 20 requirements / 48 scenarios** and
-**`website-client` at 20 / 39** — slice 3 contributed 6 + 16 and 4 + 10, slice 4
-promoted a `MODIFIED` requirement that took the file from 16 requirements / 37
-scenarios to 20 / 39.
+**`website-client` at 16 / 39** — slice 3 contributed 6 + 16 and 4 + 10, and slice 4
+promoted a `MODIFIED` requirement, which took the second file from 37 scenarios to 39
+while leaving its requirement count at 16.
 
 Those counts were **recounted from the requirements rather than carried over from the
 previous footer's own claim.** This roadmap has published arithmetically-wrong counts
@@ -2061,7 +2079,7 @@ Each slice therefore owns exactly one of them, and the table is the assignment.
 
 | Slice | Change | Owns | State |
 | --- | --- | --- | --- |
-| 1 | `spectre-storage` | The `SpectreStorage` contract and its IndexedDB adapter. **No client.** | applied, verified |
+| 1 | `spectre-storage` | The `SpectreStorage` contract and its IndexedDB adapter. **No client.** | applied, verified, archived |
 | 2 | *(next)* | `MailboxSession.adopt(mailbox)`, the new session states, and website reload recovery - `return to a recent mailbox` | not started |
 | 3 | *(later)* | Privacy controls, verbatim from the block above | not started |
 | 4 | *(later)* | Error states, security and accessibility items, and pausing polling when the page is hidden | not started |
