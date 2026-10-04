@@ -40,6 +40,7 @@ import type { MailProvider } from "@spectre-mail/providers";
 
 import { App } from "./App";
 import { applyJsdomSuiteBudget } from "./jsdom-suite-budget";
+import { EMPTY_STORE } from "./storage-stub";
 // **Applied at module scope, once.** See `jsdom-suite-budget.ts`: this file's own
 // "clears the annotation once a later listing succeeds" was one of the two assertions
 // that timed out in the eight-run record, at 247ms measured in isolation.
@@ -140,7 +141,7 @@ function summary(id: string, over: Partial<MessageSummary> = {}): MessageSummary
  */
 async function renderPage(provider: MailProvider) {
   const session = createMailboxSession(createProviderManager([provider]), inertScheduler);
-  const view = render(<App session={session} />);
+  const view = render(<App session={session} storage={EMPTY_STORE} />);
   await screen.findByTestId("ready");
   await waitFor(() => expect(screen.queryByTestId("inbox-checking")).toBeNull());
   return { ...view, session };
@@ -264,7 +265,7 @@ describe("the inbox on the page", () => {
       // all, and passed while saying nothing about whether the page can say it is
       // checking. A state that exists only between two renders is not a state a user
       // can be shown, so a test has to hold it open to assert it.
-      render(<App session={blockedListingSession()} />);
+      render(<App session={blockedListingSession()} storage={EMPTY_STORE} />);
       await screen.findByTestId("ready");
 
       expect(screen.getByTestId("inbox-checking").textContent).toBe(
@@ -301,7 +302,7 @@ describe("the inbox on the page", () => {
       // whole document: without it both pages are mounted at once and each assertion
       // could be satisfied by the other's DOM.
       cleanup();
-      render(<App session={blockedListingSession()} />);
+      render(<App session={blockedListingSession()} storage={EMPTY_STORE} />);
       await screen.findByTestId("inbox-checking");
       const checking = screen.getByTestId("inbox-checking").textContent;
 
@@ -318,7 +319,7 @@ describe("the inbox on the page", () => {
       // The mailbox exists before the listing does. If the inbox drove the whole
       // `ready` branch, an address would appear and then vanish — which is the one
       // thing a user copying an address into a signup form cannot tolerate.
-      render(<App session={blockedListingSession()} />);
+      render(<App session={blockedListingSession()} storage={EMPTY_STORE} />);
       await screen.findByTestId("ready");
 
       expect(screen.getByTestId("inbox-checking")).toBeTruthy();
@@ -655,7 +656,7 @@ describe("the inbox on the page", () => {
       };
 
       const session = createMailboxSession(createProviderManager([provider]), inertScheduler);
-      render(<App session={session} />);
+      render(<App session={session} storage={EMPTY_STORE} />);
       await screen.findByTestId("ready");
 
       // Mid-check: the page says it is checking, and says no number while it waits.
@@ -719,7 +720,7 @@ describe("the inbox on the page", () => {
       });
 
       setVisibility("visible");
-      render(<App session={session} />);
+      render(<App session={session} storage={EMPTY_STORE} />);
       await screen.findByTestId("ready");
       expect(seen.at(-1)).toBe(true);
 

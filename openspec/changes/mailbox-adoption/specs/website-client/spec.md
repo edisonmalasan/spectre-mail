@@ -59,6 +59,14 @@ below now names the states recovery adds. It listed three, and a page that could
 reach five more while its coverage requirement named three would be a page whose
 states nothing had claimed to check.
 
+**Second amendment, recorded during apply (2026-10-05).** That list was itself
+incomplete, and the implementation is what showed it: it named six of the seven
+states and omitted `creating`, which is the state a first-time visitor actually
+sees for the whole of the provider request. A coverage requirement that omits the
+most-observed state on the page is worse than the three-state version it replaced,
+because it reads as exhaustive and would have let `creating` ship unrendered. The
+enumeration is now all seven, in the order a page passes through them.
+
 #### Scenario: The page is built
 
 - **WHEN** the website's production build runs
@@ -67,9 +75,9 @@ states nothing had claimed to check.
 
 #### Scenario: Each state is reachable
 
-- **WHEN** the page is looking for a stored address, checking one, has a ready
-      mailbox, could not create one, could not check the stored one, or has found
-      the stored one is gone
+- **WHEN** the page is looking for a stored address, is creating a mailbox, is
+      checking a stored one, has a ready mailbox, could not create one, could not
+      check the stored one, or has found the stored one is gone
 - **THEN** each SHALL be rendered as distinct, labelled content
 - **AND** none SHALL be conveyed by colour alone
 
@@ -131,6 +139,30 @@ should return to the replacement.
 - **WHEN** the page fails to read what it has stored
 - **THEN** it SHALL NOT report that nothing is stored
 - **AND** it SHALL NOT create a mailbox on that basis
+- **AND** it SHALL say it could not check
+- **AND** it SHALL offer a way to try again
+
+**Amendment, recorded during apply (2026-10-05).** The last two lines are new. As
+written the scenario forbade two failures and required nothing, which is a
+requirement a page can satisfy by rendering nothing at all — and rendering
+nothing is the most likely implementation of a page whose storage read threw,
+because there is no mailbox to render. `spectre-storage`'s contract already makes
+the read a rejection rather than a `null` precisely so this page can *say*
+something; the scenario did not ask it to.
+
+#### Scenario: The page cannot write what it has
+
+- **WHEN** the page holds a mailbox and fails to store it
+- **THEN** it SHALL say so
+- **AND** it SHALL NOT claim the address will be here after a reload
+
+**Amendment, recorded during apply (2026-10-05).** This scenario did not exist,
+and its absence was found by the implementation rather than by review: the save
+rule the change introduces has a failure path, and nothing in the delta described
+what a page may do with it. A page that saved silently would leave the user
+believing reload recovery works on a device where it does not, which is the same
+class of claim as the one this requirement exists to prevent — asserting something
+about stored data that is not true.
 
 #### Scenario: A stored mailbox is offered and a new one is created
 
