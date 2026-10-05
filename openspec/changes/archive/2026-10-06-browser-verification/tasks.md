@@ -466,7 +466,29 @@ building a theory out of missing output.
 
 ## 8. Sync and archive
 
-- [ ] 8.1 At the sync stage, promote all three deltas by **copying** delta text into
+- [x] 8.1 At the sync stage, promote all three deltas by **copying** delta text into
       `openspec/specs/`, and verify agreement **byte for byte** rather than by title.
-- [ ] 8.2 Archive with `--skip-specs`, since the sync stage has already promoted the
+
+      **Done, and the check is stronger than the task asked for.** 11 requirements / 29
+      scenarios went into **four** capabilities — `browser-verification` (new, 5/12),
+      `build-and-verification` (3/7), `spectre-storage` (1/3), `website-client` (2/7).
+      Every block is `## ADDED`; nothing was modified, removed, or renamed, and no ADDED
+      title collides with a requirement already promoted.
+
+      Byte-identical was established **mechanically, and re-established after
+      `prettier --write`**, because a formatter is precisely the step that can silently
+      reflow a quoted block. Totals were re-counted from the files by script rather than
+      added up: **9 capabilities / 99 requirements / 271 scenarios → 10 / 110 / 300**.
+
+      **One defect was found here rather than shipped.** The first generated
+      `browser-verification/spec.md` omitted its `## Purpose` header, and
+      `openspec validate --specs --strict` caught it as a schema failure (9 passed, 1
+      failed). Fixed, and validation then reported **10 passed, 0 failed**. Worth
+      recording that a file assembled *by script* still failed a schema check — the
+      script was careful about the requirements and silent about the header.
+- [x] 8.2 Archive with `--skip-specs`, since the sync stage has already promoted the
       deltas.
+
+      Archived as `2026-10-06-browser-verification`, **33/34 tasks**, the remaining one
+      being this tick. `--skip-specs` was required: the sync stage already wrote all four
+      promoted files, so a second promotion would apply the delta twice.
