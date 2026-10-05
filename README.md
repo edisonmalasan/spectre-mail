@@ -22,26 +22,35 @@ on. See [Current status](#current-status).
 | M3 — Provider layer               | complete and archived                                                       |
 | M4 — Mail parsing engine          | complete and archived                                                       |
 | M5 — Website core MVP             | complete in scope — 4 slices archived; 3 acceptance lines are M6's or M10's |
-| M6 — Website hardening            | in progress — slice 1 archived; nothing consumes it yet                     |
+| M6 — Website hardening            | complete in scope — 3 slices archived; a 4th was audited, not built         |
 | M7–M15                            | not started                                                                 |
 
-| Capability spec          | Requirements | State                            |
-| ------------------------ | -----------: | -------------------------------- |
-| `provider-abstraction`   |            9 | live                             |
-| `monorepo-foundation`    |            5 | live                             |
-| `build-and-verification` |            6 | live                             |
-| `shared-domain-model`    |            9 | live                             |
-| `provider-adapters`      |           12 | live                             |
-| `mail-parsing`           |            9 | live                             |
-| `mailbox-session`        |           20 | live                             |
-| `website-client`         |           16 | live                             |
-| `spectre-storage`        |            7 | live — **consumed by no client** |
+| Capability spec          | Requirements | State                              |
+| ------------------------ | -----------: | ---------------------------------- |
+| `provider-abstraction`   |            9 | live                               |
+| `monorepo-foundation`    |            5 | live                               |
+| `build-and-verification` |            6 | live                               |
+| `shared-domain-model`    |            9 | live                               |
+| `provider-adapters`      |           12 | live                               |
+| `mail-parsing`           |            9 | live                               |
+| `mailbox-session`        |           22 | live                               |
+| `website-client`         |           18 | live                               |
+| `spectre-storage`        |            9 | live — **consumed by the website** |
 
 `mailbox-session` and `website-client` were promoted at M5's sync stages, and
-`spectre-storage` at M6 slice 1's. **Nine capabilities, 93 requirements and 232
+`spectre-storage` at M6 slice 1's. **Nine capabilities, 99 requirements and 271
 scenarios**, counted from the promoted files rather than carried over from a previous
-claim — this repository has published a wrong total four times, and the last one was
-caught only because the count was re-derived rather than re-read.
+claim — this repository has published a wrong total five times, and the last one was
+caught only because the count was re-derived rather than re-read. This table itself was
+stale when corrected: it read 93 requirements and 232 scenarios, and gave
+`spectre-storage` 7, none of which had been re-counted since their slice's sync.
+
+**`spectre-storage` is no longer "consumed by no client".** That was true at slice 1 and
+false from slice 2, which adopted a stored mailbox and from slice 3, which uses all three
+contract members — `loadMailbox` at boot, `saveMailbox` for a mailbox the page was not
+handed, and `clearAll` when a user asks this device to forget the address. **The removal
+has still never been run in a real browser**, so what the adapter's tests establish about
+it is established against `fake-indexeddb`, which is not a browser.
 
 `provider-adapters` was promoted at the sync stage of the `provider-layer` change, and
 `mail-parsing` at the sync stage of the `mail-parsing-engine` change — 9 requirements
@@ -185,14 +194,14 @@ apps/extension ───┘
 
 Six shared packages, each with one responsibility:
 
-| Package                     | Owns                                                                                                             |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `@spectre-mail/core`        | The normalized domain model and its invariants — mailbox, message, credentials, closed error codes, types        |
-| `@spectre-mail/providers`   | The Mail.tm and Guerrilla Mail adapters — the only place provider code may live                                  |
-| `@spectre-mail/mail-parser` | Safe text extraction, OTP detection, verification-link detection                                                 |
-| `@spectre-mail/mailbox`     | The mailbox session: opening, replacing, retrying, and reporting provider health                                 |
-| `@spectre-mail/storage`     | The `SpectreStorage` contract and the web IndexedDB adapter — **built at M6 slice 1, consumed by no client yet** |
-| `@spectre-mail/ui`          | Reusable product UI and design tokens                                                                            |
+| Package                     | Owns                                                                                                                     |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `@spectre-mail/core`        | The normalized domain model and its invariants — mailbox, message, credentials, closed error codes, types                |
+| `@spectre-mail/providers`   | The Mail.tm and Guerrilla Mail adapters — the only place provider code may live                                          |
+| `@spectre-mail/mail-parser` | Safe text extraction, OTP detection, verification-link detection                                                         |
+| `@spectre-mail/mailbox`     | The mailbox session: opening, replacing, retrying, and reporting provider health                                         |
+| `@spectre-mail/storage`     | The `SpectreStorage` contract and the web IndexedDB adapter - **built at M6 slice 1, used by the website since slice 2** |
+| `@spectre-mail/ui`          | Reusable product UI and design tokens                                                                                    |
 
 `packages/mailbox` is **framework-free and DOM-free by compiler rather than by
 convention**: its `tsconfig.json` sets `lib: ["ES2023"]` with no `"DOM"`, so `window`,

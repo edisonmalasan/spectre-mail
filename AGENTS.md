@@ -34,7 +34,7 @@ the M0 spike probed `api.mail.tm` and `api.guerrillamail.com` live and recorded 
 they actually do, and every architectural rule below is a consequence of a recorded
 observation rather than of an assumption about how such an API ought to behave.
 
-**M0-M5 are complete and M6 is in progress, but no user has ever seen this product.**
+**M0-M6 are complete in scope, but no user has ever seen this product.**
 The website creates an address, lists what arrives in it, opens a message, and - since
 M6 slice 2 - **keeps that address in the browser and offers it back on a reload**; **no
 live browser run of it has ever been made**, so every acceptance claim below is a claim
@@ -69,18 +69,29 @@ The current state, in dependency order:
 - A website client (`apps/web`) that renders all of it, with **no styling** but with
   persistence.
 
-The target state is two clients (website, extension) over that shared core. The
-roadmap's next milestone is **M6, Website Hardening** — storage behind a shared
-`SpectreStorage` contract, the privacy controls, and the error-state work. **M5 is
-complete in scope**: all four of its slices are archived, and the three acceptance
-lines it could not deliver itself (`copy the OTP`, `return to a recent mailbox`,
-`clear local SpectreMail data`) are M10's and M6's, as `docs/ROADMAP.md`'s table now
-records. Reading M5 as unfinished is what kept three blocked slices being selected;
-that correction is recorded in the roadmap's Project Status block. The extension build
-is M8 and the verification workflow (notifications, OTP copy/fill) is M10. Those
-numbers come from `docs/ROADMAP.md` and must be read from there, not recalled: an
-earlier draft of this file put storage at "M5–M6", which named a milestone from the
-layer it felt should come next rather than the one the roadmap schedules.
+The target state is two clients (website, extension) over that shared core. **M6,
+Website Hardening, is complete in scope**: its three slices are archived, and its fourth
+candidate was **audited rather than built** — three of its four items were already
+delivered and specified, and its two genuinely undelivered accessibility items (`visible
+focus states`, `reduced-motion handling`) are CSS that M7's own Accent and Motion blocks
+already place inside M7, so no fourth change was opened. `docs/ROADMAP.md`'s slice table
+records the audit with a file or a promoted requirement named for every claim. **The
+earlier sentence in this file — "the roadmap's next milestone is M6, Website Hardening —
+storage behind a shared `SpectreStorage` contract, the privacy controls, and the
+error-state work" — was deleted rather than reworded**, because the error-state work it
+named was already delivered by M3 and M5 and never owed by M6. **M6's next eligible
+objective is the first live browser run**, which is what would close `use it externally`,
+the real IndexedDB path, and the unobserved polling cadence; it gets its own change
+because there is no browser-automation suite in this repository. **M5 is complete in
+scope**: all four of its slices are archived, and the three acceptance lines it could not
+deliver itself (`copy the OTP`, `return to a recent mailbox`, `clear local SpectreMail
+data`) are M10's and M6's, as `docs/ROADMAP.md`'s table now records. Reading M5 as
+unfinished is what kept three blocked slices being selected; that correction is recorded
+in the roadmap's Project Status block. The extension build is M8 and the verification
+workflow (notifications, OTP copy/fill) is M10. Those numbers come from
+`docs/ROADMAP.md` and must be read from there, not recalled: an earlier draft of this
+file put storage at "M5–M6", which named a milestone from the layer it felt should come
+next rather than the one the roadmap schedules.
 
 
 
