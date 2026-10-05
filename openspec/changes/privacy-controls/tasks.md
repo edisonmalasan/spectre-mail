@@ -43,7 +43,7 @@
 
 ## 3. The binding learns what this device holds
 
-- [ ] 3.1 Add `localData: { kind: "stored" } | { kind: "none" }` and a
+- [x] 3.1 Add `localData: { kind: "stored" } | { kind: "none" }` and a
       `clearStored()` to `MailboxSessionBinding` in
       `apps/web/src/useMailboxSession.ts`. Set it only where storage state is
       confirmed — after a successful boot read, after a successful save, after a
@@ -51,10 +51,10 @@
       awaited and would claim a mailbox the device does not have when a write fails
       (D7). Verify by a test asserting `none` after a refused save while `saving`
       reports `notSaved`.
-- [ ] 3.2 Implement `clearStored` to call through the contract and reject with the
+- [x] 3.2 Implement `clearStored` to call through the contract and reject with the
       platform's reason, narrowing a blocked store without offering the control. Do
       not catch. Verify by a test asserting the rejection reaches the caller.
-- [ ] 3.3 Implement `clearAll` in the website's `storage-stub.ts` and in every
+- [x] 3.3 Implement `clearAll` in the website's `storage-stub.ts` and in every
       `SpectreStorage` double in `recovery.test.tsx`, recording clears so the client
       suite can assert the call reached the contract. Verify by `pnpm typecheck`,
       which fails until each is supplied.

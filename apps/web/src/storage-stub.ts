@@ -34,6 +34,15 @@ export interface StubStore {
   readonly saves: readonly Mailbox[];
   /** How many times the page read. */
   readonly loadCount: () => number;
+  /**
+   * How many times the page asked for everything to be removed.
+   *
+   * **A count and not just a flag**, for the reason `saves` is a list: a page that
+   * removed twice would satisfy a boolean, and "does not write the address back" is a
+   * claim about how *often* the page touches the store after a removal rather than
+   * about whether it ever does.
+   */
+  readonly clearCount: () => number;
 }
 
 export interface StubStoreOptions {
@@ -43,6 +52,8 @@ export interface StubStoreOptions {
   readonly loadThrows?: unknown;
   /** Make the write throw this. */
   readonly saveThrows?: unknown;
+  /** Make the removal throw this. */
+  readonly clearThrows?: unknown;
 }
 
 /**
@@ -51,20 +62,42 @@ export interface StubStoreOptions {
  * **Saves are recorded rather than replaced**, so a test can assert both that a write
  * happened and what was written — a page that stored a different mailbox than it
  * displayed would satisfy a count and not a record.
+ *
+ * **It models removal, and deliberately does not model writes into reads.** It did
+ * not model anything until removal arrived, and modelling the write too — keeping a
+ * `current` record that a save updates — broke **30 tests in `App.test.tsx`** at once.
+ * The cause is `EMPTY_STORE` below: it is one shared instance, so the first test whose
+ * page saves a mailbox leaves a record every later test reads. The module note here
+ * already named that hazard, and this is the evidence for it — the leak was invisible
+ * only because the stub previously answered every read with the same value.
+ *
+ * So a removal is modelled, because that is what this change is about and it is safe:
+ * nothing clicks removal in a rendering test, and the flag is per-`stubStore`. A write
+ * is recorded in `saves`, which is what every test that cares asserts on.
  */
 export function stubStore(options: StubStoreOptions = {}): StubStore {
   const saves: Mailbox[] = [];
   let loads = 0;
+  let clears = 0;
+  let removed = false;
 
   const storage: SpectreStorage = {
     async loadMailbox(): Promise<Mailbox | null> {
       loads += 1;
       if (options.loadThrows !== undefined) throw options.loadThrows;
+      // **A removal wins over the fixture's starting value**, so a test can observe the
+      // device after the page has removed what it was handed.
+      if (removed) return null;
       return options.stored ?? null;
     },
     async saveMailbox(mailbox: Mailbox): Promise<void> {
       if (options.saveThrows !== undefined) throw options.saveThrows;
       saves.push(mailbox);
+    },
+    async clearAll(): Promise<void> {
+      if (options.clearThrows !== undefined) throw options.clearThrows;
+      clears += 1;
+      removed = true;
     },
   };
 
@@ -72,6 +105,7 @@ export function stubStore(options: StubStoreOptions = {}): StubStore {
     storage: { kind: "ready", storage },
     saves,
     loadCount: () => loads,
+    clearCount: () => clears,
   };
 }
 

@@ -20,23 +20,29 @@
  * polling again. Unmount reports the inbox invisible instead, which is reversible and
  * stops the loop; see `MailboxSession.destroy` for who that is for.
  *
- * ## Two things this holds that the session does not
+ * ## Three things this holds that the session does not
  *
  * The session layer takes **no storage dependency at all** — `mailbox-session`'s
  * purpose excludes it, and the boundary rule enforces it. So the read of what this
- * device has stored, and the write of what the page goes on to hold, both happen
- * here. That gives the page two facts the session cannot have:
+ * device has stored, the write of what the page goes on to hold, and the removal of
+ * both all happen here. That gives the page three facts the session cannot have:
  *
  * - **`boot`** — whether the page knows yet what it has stored. It is what the page
  *   shows instead of the session while it does not, and it is the only thing standing
  *   between a failed read and a silently created mailbox.
  * - **`saving`** — whether the last write worked.
+ * - **`localData`** — whether this device holds the record at all, which is what
+ *   decides whether removal is offered and what the page says it keeps.
  *
- * **They are two fields rather than one union, because they are two axes.** `boot`
+ * **They are three fields rather than one union, because they are three axes.** `boot`
  * moves once, forwards, and only forward except on a retry; `saving` changes while a
- * mailbox is on screen. Folding them into one union would mean inventing states like
- * `{ boot: "started", saving: "failed" }`, which is a union that has to grow a row
- * for every combination of two facts that never interact.
+ * mailbox is on screen; `localData` changes on the three occasions storage state is
+ * confirmed. Folding them into one union would mean inventing states like
+ * `{ boot: "started", saving: "failed", localData: "stored" }`, which is a union that
+ * has to grow a row for every combination of three facts that rarely interact.
+ *
+ * `localData` is the one most likely to look derivable, and it is not — see its own
+ * documentation for why neither `handed` nor `saving` can stand in for it.
  *
  * @module
  */
@@ -72,6 +78,31 @@ export type SaveState =
   /** The last write was refused. The address on screen is real; the next reload is not promised. */
   | { readonly kind: "notSaved"; readonly reason: string };
 
+/**
+ * Whether this device currently holds SpectreMail's record of the mailbox.
+ *
+ * **A third fact, and it is neither `handed` nor `saving`.** The temptation was to
+ * read it off one of those, and both readings are wrong:
+ *
+ * - `handed.current` is claimed *before* the write is awaited, to stop a second write
+ *   racing the first. So it says a mailbox is spoken for, not that this device has it.
+ *   Deriving this state from it would claim a mailbox the device does not have every
+ *   time a write is refused.
+ * - `saving` starts at `saved` whether or not anything has ever been stored, so it
+ *   cannot tell "stored it" from "has nothing to store".
+ *
+ * So this is set only where storage state is **confirmed**: after a boot read that
+ * returned a mailbox, after a save that resolved, and after a removal that resolved.
+ * It is therefore never ahead of the truth — it can lag a write in flight, which is
+ * the safe direction, and `saving` reports a refused write separately and in the same
+ * breath.
+ *
+ * **It exists so the page can offer removal only where removal can act.** A clear
+ * control on a device holding nothing is decorative, and the disclosure beside it
+ * would have to lie in one direction or the other.
+ */
+export type LocalDataState = { readonly kind: "stored" } | { readonly kind: "none" };
+
 export interface MailboxSessionBinding {
   /** What to render. Never a promise; never partially built. */
   readonly state: SessionState;
@@ -79,6 +110,23 @@ export interface MailboxSessionBinding {
   readonly boot: BootState;
   /** Whether the mailbox it holds has been written. */
   readonly saving: SaveState;
+  /** Whether this device holds SpectreMail's record of the mailbox. */
+  readonly localData: LocalDataState;
+  /**
+   * Remove everything this device holds.
+   *
+   * **Returns the promise rather than swallowing it, so the caller owns the outcome.**
+   * A rejection here is the platform's reason — a second tab holding the database, a
+   * refused request — and a page that swallowed it would have to report the removal as
+   * having worked.
+   *
+   * **It rejects; it does not leave the caller waiting for a queued removal.**
+   * Reporting a blocked removal is the only available answer, because the wait ends
+   * when some other tab closes. It is not a cancellation either: the platform may
+   * still complete the removal afterwards, which is why the page's wording is
+   * constrained and no read-back is attempted here.
+   */
+  readonly clearStored: () => Promise<void>;
   /** Ask again whether this device has something stored. What a blocked page offers. */
   readonly retryBoot: () => void;
   /** Create a mailbox for now, leaving whatever is stored untouched. */
@@ -105,6 +153,11 @@ export function useMailboxSession(
   // and `react-hooks/set-state-in-effect` exists for a reason.
   const [boot, setBoot] = useState<BootState>({ kind: "reading" });
   const [saving, setSaving] = useState<SaveState>({ kind: "saved" });
+  // **`none` initially, and that is a fact rather than a placeholder.** Before the
+  // boot resolves nothing is known, and `none` is the only honest answer for a device
+  // that has not been read yet — which is also why the page offers no removal during
+  // the read and never on the strength of this value alone.
+  const [localData, setLocalData] = useState<LocalDataState>({ kind: "none" });
 
   const opened = useRef(false);
   /**
@@ -200,6 +253,7 @@ export function useMailboxSession(
     }
 
     handed.current = stored?.id ?? null;
+    setLocalData(stored === null ? { kind: "none" } : { kind: "stored" });
     setBoot({ kind: "started" });
     await session.restore(stored);
   }, [session, store]);
@@ -232,6 +286,38 @@ export function useMailboxSession(
   const checkInbox = useCallback(() => {
     void session.checkInbox();
   }, [session]);
+
+  /**
+   * Remove everything this device holds, through the contract.
+   *
+   * **No re-save guard was added here, and the reason is the interesting part.** The
+   * save effect already returns early when `mailboxId === handed.current`, so after a
+   * removal the polling that follows does not rewrite the address — no `persist`-style
+   * ref is needed, and adding one would have been a second mechanism doing a job the
+   * first already does. That claim is asserted by counting saves across several inbox
+   * transitions after a removal, because a comparison nobody tests stops being true
+   * when somebody edits it.
+   *
+   * **`handed` is deliberately left alone.** It names the mailbox this load was
+   * *handed*, which is a historical fact and stays true: the page was handed that
+   * mailbox, and it is still holding it. Clearing it would make the next write of that
+   * same mailbox look like a change and store it again — the exact re-save this
+   * operation exists to prevent.
+   *
+   * **Nothing is read back afterwards**, and that is measured rather than stylistic:
+   * while a removal is blocked, a fresh `open` is blocked too, so an attempt to verify
+   * would hang rather than answer.
+   */
+  const clearStored = useCallback(async () => {
+    // **A blocked store removes nothing, so there is nothing to remove.** The page
+    // never offers the control in that state, and this keeps the promise honest if
+    // something calls it anyway rather than reaching into a union that has no
+    // storage on it.
+    if (store.kind !== "ready") return;
+
+    await store.storage.clearAll();
+    setLocalData({ kind: "none" });
+  }, [store]);
 
   // **Deliberately not awaiting.** The session publishes `opening` before it asks the
   // provider and `opened` when the read lands, both through `subscribe`, so this
@@ -339,6 +425,11 @@ export function useMailboxSession(
         // failure branch below has the same problem with a value the user can see.
         if (!current) return;
         setSaving({ kind: "saved" });
+        // **Only on success.** `handed.current` was already claimed above, so the
+        // device is *spoken for*; this is where it becomes *known to be there*. A
+        // refused write leaves `localData` alone, so the page keeps declining to offer
+        // removal of something it cannot confirm it has — and `saving` says why.
+        setLocalData({ kind: "stored" });
       },
       (cause: unknown) => {
         // **Reported, not swallowed.** A page that saved quietly would leave the user
@@ -358,6 +449,8 @@ export function useMailboxSession(
     state,
     boot,
     saving,
+    localData,
+    clearStored,
     retryBoot,
     startFresh,
     retry,

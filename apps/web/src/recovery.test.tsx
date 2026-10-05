@@ -25,7 +25,7 @@
 // @vitest-environment jsdom
 
 import { StrictMode } from "react";
-import { act, cleanup, fireEvent, render, renderHook, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { NormalizedErrorCode } from "@spectre-mail/core";
@@ -41,6 +41,7 @@ import { applyJsdomSuiteBudget } from "./jsdom-suite-budget";
 import { createWebsiteStorage, useWebsiteStorage } from "./storage";
 import type { WebsiteStorage } from "./storage";
 import { EMPTY_STORE, stubStore } from "./storage-stub";
+import { useMailboxSession } from "./useMailboxSession";
 
 applyJsdomSuiteBudget();
 
@@ -133,6 +134,11 @@ describe("the website's own storage", () => {
     const working: SpectreStorage = {
       loadMailbox: () => Promise.resolve(null),
       saveMailbox: () => Promise.resolve(),
+      // **These doubles answer everything, including removal.** A double that omitted
+      // it would not compile once `clearAll` joined the contract, and the compiler
+      // catching that is the point — but had it not, a double that "worked" while
+      // storing nothing is precisely the fixture this repository distrusts.
+      clearAll: () => Promise.resolve(),
     };
 
     const { result, rerender } = renderHook(
@@ -166,6 +172,11 @@ describe("the website's own storage", () => {
     const storage: SpectreStorage = {
       loadMailbox: () => read,
       saveMailbox: () => Promise.resolve(),
+      // **These doubles answer everything, including removal.** A double that omitted
+      // it would not compile once `clearAll` joined the contract, and the compiler
+      // catching that is the point — but had it not, a double that "worked" while
+      // storing nothing is precisely the fixture this repository distrusts.
+      clearAll: () => Promise.resolve(),
     };
 
     render(<App session={sessionOver(provider)} storage={{ kind: "ready", storage }} />);
@@ -322,6 +333,11 @@ describe("the website's own storage", () => {
     const working: SpectreStorage = {
       loadMailbox: () => Promise.resolve(null),
       saveMailbox: () => Promise.resolve(),
+      // **These doubles answer everything, including removal.** A double that omitted
+      // it would not compile once `clearAll` joined the contract, and the compiler
+      // catching that is the point — but had it not, a double that "worked" while
+      // storing nothing is precisely the fixture this repository distrusts.
+      clearAll: () => Promise.resolve(),
     };
 
     const result = createWebsiteStorage(() => working);
@@ -350,6 +366,11 @@ describe("the website's own storage", () => {
       loadMailbox: () =>
         failing ? Promise.reject(new Error("still not readable")) : retry.then((stored) => stored),
       saveMailbox: () => Promise.resolve(),
+      // **These doubles answer everything, including removal.** A double that omitted
+      // it would not compile once `clearAll` joined the contract, and the compiler
+      // catching that is the point — but had it not, a double that "worked" while
+      // storing nothing is precisely the fixture this repository distrusts.
+      clearAll: () => Promise.resolve(),
     };
     const provider = countingProvider();
 
@@ -400,6 +421,110 @@ describe("the website's own storage", () => {
     await screen.findByTestId("ready");
 
     expect(screen.queryByTestId("save-failed")).toBeNull();
+  });
+});
+
+/**
+ * What this device holds, which is a third thing beside `boot` and `saving`.
+ *
+ * **`localData` is tested here rather than through the page**, because the page's
+ * assertions about it are in the removal block below and would be satisfied by copy
+ * alone. This is the state itself: the two derivations that look obvious and are both
+ * wrong.
+ *
+ * **Every test here hoists its session out of the `renderHook` callback, and that is
+ * not tidiness — it is the difference between passing and exhausting the heap.** A
+ * session built inside the callback is a *new* object on every render; the boot effect
+ * and the subscription both depend on it, so each render re-runs the boot, which sets
+ * state, which renders again. The first version of these tests did exactly that and
+ * ran until Node died with `JavaScript heap out of memory` rather than failing with a
+ * useful message.
+ */
+describe("whether this device holds the record", () => {
+  it("claims nothing before the boot has read anything", () => {
+    // **`none` is the honest pre-answer**, and it is why the page offers no removal
+    // during a read. Asserted directly because "the control is not there yet" is a
+    // weaker thing to check than "the state does not claim a record exists".
+    const session = sessionOver(countingProvider());
+    const { result } = renderHook(() => useMailboxSession(session, EMPTY_STORE));
+
+    expect(result.current.localData).toEqual({ kind: "none" });
+  });
+
+  it("claims a record once a boot read has found one", async () => {
+    const store = stubStore({ stored: mailbox("stored-one") });
+    const session = sessionOver(countingProvider());
+
+    const { result } = renderHook(() => useMailboxSession(session, store.storage));
+
+    await waitFor(() => expect(result.current.boot.kind).toBe("started"));
+    expect(result.current.localData).toEqual({ kind: "stored" });
+  });
+
+  it("claims a record once a write has been confirmed", async () => {
+    // **The positive control for the test below**, in the same file. Without it, "a
+    // refused write leaves `none`" would also be satisfied by a `localData` that never
+    // becomes `stored` for any reason at all.
+    const store = stubStore();
+    const session = sessionOver(countingProvider());
+    const { result } = renderHook(() => useMailboxSession(session, store.storage));
+
+    await waitFor(() => expect(result.current.state.kind).toBe("ready"));
+    await waitFor(() => expect(result.current.localData).toEqual({ kind: "stored" }));
+  });
+
+  it("claims no record when the write was refused", async () => {
+    // **The reason `localData` is not derived from `handed`.** `handed.current` is
+    // claimed *before* the write is awaited, so deriving from it would report a record
+    // this device does not have — and would offer the user a removal for something that
+    // was never stored.
+    const store = stubStore({ saveThrows: new Error("the disk is full") });
+    const session = sessionOver(countingProvider());
+    const { result } = renderHook(() => useMailboxSession(session, store.storage));
+
+    await waitFor(() => expect(result.current.saving.kind).toBe("notSaved"));
+    // Both halves at once: the write failed, **and** nothing is claimed to be stored.
+    // Asserting only the first would pass against a page that both failed to write and
+    // claimed a record anyway.
+    expect(result.current.saving).toEqual({ kind: "notSaved", reason: "the disk is full" });
+    expect(result.current.localData).toEqual({ kind: "none" });
+  });
+
+  it("hands a refused removal to the caller instead of swallowing it", async () => {
+    // **A page that swallowed this would have to report the removal as having worked.**
+    // That is the one outcome a privacy control may not produce, and it is only
+    // prevented by the rejection reaching the caller intact.
+    const store = stubStore({
+      stored: mailbox("stored-one"),
+      clearThrows: new Error("another connection is holding it open"),
+    });
+    const session = sessionOver(countingProvider());
+    const { result } = renderHook(() => useMailboxSession(session, store.storage));
+    await waitFor(() => expect(result.current.boot.kind).toBe("started"));
+
+    let thrown: unknown = "nothing was thrown";
+    await result.current.clearStored().catch((cause: unknown) => {
+      thrown = cause;
+    });
+
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as Error).message).toBe("another connection is holding it open");
+    // **And nothing was claimed on the strength of a removal that did not happen.**
+    expect(result.current.localData).toEqual({ kind: "stored" });
+  });
+
+  it("claims no record once a removal has succeeded", async () => {
+    const store = stubStore({ stored: mailbox("stored-one") });
+    const session = sessionOver(countingProvider());
+    const { result } = renderHook(() => useMailboxSession(session, store.storage));
+    await waitFor(() => expect(result.current.boot.kind).toBe("started"));
+
+    await act(async () => {
+      await result.current.clearStored();
+    });
+
+    expect(store.clearCount()).toBe(1);
+    expect(result.current.localData).toEqual({ kind: "none" });
   });
 });
 
