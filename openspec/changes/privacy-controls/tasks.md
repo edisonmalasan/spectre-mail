@@ -104,26 +104,26 @@
 
 ## 7. Documentation
 
-- [ ] 7.1 Annotate the Privacy controls block in `docs/ROADMAP.md` with a dated note
+- [x] 7.1 Annotate the Privacy controls block in `docs/ROADMAP.md` with a dated note
       mapping its three named controls onto what this data model can act on, stating
       that `Clear mailbox history` has no referent because no message history is
       persisted, and why one control was shipped rather than three (D4). Move slice 3
       in the M6 slice table to applied.
-- [ ] 7.2 Correct the several statements in `AGENTS.md` and `README.md` that no button
+- [x] 7.2 Correct the several statements in `AGENTS.md` and `README.md` that no button
       anywhere deletes stored data, replacing them with what is now true and with what
       remains untrue — that the website has still never been run in a real browser, so
       the IndexedDB path is still unexercised end to end.
-- [ ] 7.3 Record the counts actually observed — tests per package and boundary
+- [x] 7.3 Record the counts actually observed — tests per package and boundary
       assertions in total — and update only the numbers that were measured.
 
 ## 8. Verification
 
-- [ ] 8.1 Run the full gate set — `pnpm install`, `pnpm typecheck`, `pnpm lint`,
+- [x] 8.1 Run the full gate set — `pnpm install`, `pnpm typecheck`, `pnpm lint`,
       `pnpm format:check`, `pnpm test`, `pnpm build`, `pnpm verify` — and record exit
       codes with what each proves and what it does not.
-- [ ] 8.2 Run `openspec validate privacy-controls --type change --strict` and
+- [x] 8.2 Run `openspec validate privacy-controls --type change --strict` and
       `openspec validate --specs --strict`.
-- [ ] 8.3 Review the full diff against the deltas, comparing the implementation to the
+- [x] 8.3 Review the full diff against the deltas, comparing the implementation to the
       change's own artifacts rather than to the ticked boxes, and record any deviation
       as an amendment **in the delta** rather than leaving it for the sync stage.
 

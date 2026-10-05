@@ -445,6 +445,11 @@ interface EventDriver {
   openBlocked: () => void;
   openSucceeds: () => void;
   deleteFails: (error: DOMException) => void;
+  /**
+   * Fire `onerror` with a null `error`, so the adapter's `request.error ?? …` fallback
+   * is reachable. See the event's own note for why it exists.
+   */
+  deleteFailsSilently: () => void;
   closedConnections: () => number;
 }
 
