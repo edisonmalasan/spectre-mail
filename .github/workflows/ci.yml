@@ -203,9 +203,16 @@ jobs:
       # makes a hang report itself instead of being swallowed. Flags here are the point
       # of a diagnostic; the real step below still runs the maintainer's command with
       # none.
+      #
+      # **It builds first, and that is a fix rather than a detail.** The first version of
+      # this step ran before any build and died in two seconds on
+      # `The directory "dist" does not exist` - a failure of the diagnostic's own
+      # premises, which cost a full 11-minute cycle and produced nothing about the hang.
+      # A diagnostic that cannot fail for the reason it exists is worse than none.
       - name: Diagnose suite hang
         timeout-minutes: 8
         run: |
+          pnpm build
           pnpm --filter @spectre-mail/web exec playwright test \
             --reporter=list --timeout=20000 --workers=1
         continue-on-error: true
