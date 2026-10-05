@@ -255,11 +255,24 @@
       own no-network assertion is the correction — it is checked, so the limit is measured
       rather than asserted in prose.
 
-      **This job has never run.** It is committed unexecuted, which is stated here rather
-      than left for the next reader to assume the opposite: the workflow file is valid
-      YAML and the command is the one already verified locally, but **no run of this job
-      on a clean Linux runner exists yet**, and until one does, the browser tier has been
-      observed only on the machine that wrote it.
+      **This job did not work on its first run, and what happened is recorded rather
+      than smoothed over.** It **failed at 20m19s**, killed by its own timeout, and the
+      only line it produced was `The operation was canceled.` — 19m35s inside
+      `pnpm test:browser`, with **no output at all**.
+
+      **Two things that failure did establish, and neither is the install.** The Chromium
+      download and `--with-deps` finished in **24 seconds** on a clean runner, so the
+      budget is not there. And **a job killed by its own timeout reports nothing about
+      why it was slow** — the timeout became the thing under investigation rather than
+      the guard it was written to be. So the ceiling is raised 20 → **30 minutes**, which
+      lets the step either finish or fail on its own terms and name itself, and
+      `CI: "true"` is set at **job** level so Playwright's behaviour on a runner does not
+      rest on an ambient variable a step override could remove.
+
+      **What is still unknown, and is not guessed at.** The hang was neither reproduced
+      nor explained. A run with the larger ceiling is the next observation, and until one
+      exists this job has **never passed** — which is why the three documents say the job
+      has not run rather than that it is unverified.
 
 ## 6. Documentation, correcting only what this change makes false
 

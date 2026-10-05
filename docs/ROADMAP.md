@@ -103,7 +103,11 @@ are:**
 - **The blocked-`deleteDatabase` semantics.** Still a `fake-indexeddb` measurement; the
   browser suite does not produce that event.
 - **Other browsers.** Chromium only.
-- **The browser tier in CI.** The job is committed **unexecuted**.
+- **The browser tier in CI.** The job **has never passed**. Its first run failed at
+  20m19s, killed by its own timeout, having installed Chromium in 24 seconds and then
+  spent 19m35s inside `pnpm test:browser` producing nothing. The ceiling is raised so
+  the step can fail on its own terms and name itself; **the hang is not yet explained and
+  no cause is guessed at**.
 
 **Two boundary collisions were predicted before they happened and both landed**, which is
 the record worth keeping: the `apps/`-scoped storage-API rule saw test code naming a

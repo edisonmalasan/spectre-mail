@@ -113,7 +113,16 @@ jobs:
     # Chromium cold start on a clean runner is minutes, and this job must not be
     # able to fail the `verify` job's budget by sharing it. 15 is `verify`'s value
     # and is not inherited: the two jobs are siblings, not stages.
-    timeout-minutes: 20
+    #
+    # **Raised from 20 to 30, and the reason is a measured failure rather than a
+    # guess.** The first run of this job hit the 20-minute ceiling and was killed
+    # with `The operation was canceled.` — 19m35s inside `pnpm test:browser`, with
+    # **no output at all**. The Chromium install had finished in 24 seconds, so the
+    # install is not the cost. A job killed by its own timeout reports nothing about
+    # why it was slow, which makes the timeout the thing under investigation; a
+    # larger ceiling lets the step either finish or fail on its own terms and name
+    # itself.
+    timeout-minutes: 30
 
     # The browser tier (pnpm test:browser), run by its maintainer command with no
     # divergent flags. It is NOT part of `pnpm verify` and is not added to it here.
@@ -132,6 +141,16 @@ jobs:
     # about how a real provider responds to being polled every five seconds. All
     # three remain unverified, and the suite asserts the fourth rather than
     # claiming it.
+
+    # **`CI=true` is set for the whole job, and it is load-bearing.** Playwright reads
+    # it: `forbidOnly` and retries go to their CI defaults and the reporter becomes
+    # non-interactive. GitHub sets `CI=true` for every step anyway, but a claim about how
+    # this suite behaves on a runner should not rest on a variable a step-level override
+    # could quietly remove. Stated explicitly so it is a decision rather than an ambient
+    # fact.
+    env:
+      CI: "true"
+
     steps:
       - name: Check out
         uses: actions/checkout@v7
@@ -160,9 +179,13 @@ jobs:
       # The browser download is deliberately not cached between runs. A cache keyed
       # on a path that can move is a cache that can silently serve the wrong
       # bytes; the honest cost is re-downloading, and the job's own timeout
-      # absorbs it.
+      # absorbs it. **Measured at 24 seconds on a cold runner**, so this step is not
+      # where the first run's time went.
       - name: Install Chromium
         run: pnpm --dir apps/web exec playwright install --with-deps chromium
 
+      # **A maintainer runs `pnpm test:browser`; this runs the same command.** No
+      # extra flags, because the suite's assertions do not vary by environment and a
+      # divergent flag here would be a second thing to keep in step.
       - name: Test (browser)
         run: pnpm test:browser

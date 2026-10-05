@@ -424,12 +424,17 @@ Pin versions when exact versions matter.
   three were wrong. It has never yet been made to *fail*, so its ability to catch
   a regression is unproven.
   **A third job, `browser`, was added by `browser-verification`: it installs Chromium
-  and runs `pnpm test:browser`, as a sibling of `verify` with its own 20-minute
-  timeout.** It is **not** folded into `pnpm verify` or into the `verify` job, because
+  and runs `pnpm test:browser`, as a sibling of `verify` with its own timeout.** It is
+  **not** folded into `pnpm verify` or into the `verify` job, because
   `build-and-verification` requires `pnpm verify` to run with no browser installed and
   that is verified — with `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory, and
-  by reading every script `verify` names. **That job has never run.** It is committed
-  unexecuted, so the browser tier has been observed on exactly one machine.
+  by reading every script `verify` names.
+  **That job has never passed.** Its first run **failed at 20m19s**, killed by its own
+  timeout with `The operation was canceled.` and no other output, having spent 24 seconds
+  installing Chromium and then 19m35s inside `pnpm test:browser` producing nothing. The
+  ceiling is raised to **30 minutes** so the step can fail on its own terms and name
+  itself, and **the hang has not been explained** — it was not reproduced and no cause is
+  guessed at. Until a run passes, the browser tier has been observed on one machine only.
   No deployment, hosting, or release pipeline exists or is planned for V1.
 
 - External services: `https://api.mail.tm` and `https://api.guerrillamail.com`.

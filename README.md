@@ -83,7 +83,8 @@ stored mailbox has ever been reconciled against a live Guerrilla Mail session** 
 browser suite serves _recorded_ provider responses, so it reconciles against a recording,
 and `use it externally` stays unverified. **The blocked-removal semantics are still only a
 `fake-indexeddb` measurement**, because the browser suite does not produce that event. And
-**only Chromium was run**, on one machine, in a CI job that has never executed. What the
+**only Chromium was run**, on one machine. The CI job that would make it repeatable has
+**never passed** - see below. What the
 browser tier did corroborate is narrow but real: removing "everything this device holds"
 means deleting the whole database rather than clearing one key, and **Chromium and
 `fake-indexeddb` agreed on that** - established by breaking it and watching both tiers go
@@ -377,7 +378,8 @@ That makes it a real browser and **not** a real product test. What it cannot est
 that a live provider answers as recorded (`use it externally` stays unverified), how a
 real provider reacts to being polled every five seconds, what Firefox or WebKit do with
 IndexedDB, or what a blocked removal does — it does not produce that event. It also ran
-on **one machine**: the CI job that would make it repeatable has never executed.
+on **one machine**, and the CI job that would make it repeatable **has never passed**: its
+first run hit its own timeout with no output. See below.
 
 **Its first run found a shipped defect, and that is the argument for it.** In Chromium,
 the page wrote the mailbox and never learned it had — `records=1 claimsStored=0
@@ -437,7 +439,11 @@ The browser tier closed the storage-path gap and **did not close these**:
 - **A blocked removal** — still a `fake-indexeddb` measurement; the browser suite does not
   produce that event.
 - **Other browsers** — Chromium only, and on one machine.
-- **The browser tier in CI** — the job is committed and has never run.
+- **The browser tier in CI** — the job **has never passed**. Its first run failed at
+  20m19s, killed by its own timeout, after installing Chromium in 24 seconds and then
+  spending 19m35s inside `pnpm test:browser` with no output at all. The ceiling is raised
+  so the step can fail on its own terms and name itself; the hang itself is not yet
+  explained.
 
 ---
 
