@@ -266,6 +266,165 @@ function collectSourceFiles(root: string): string[] {
   return found;
 }
 
+/**
+ * Whether a file is a **test**, whatever the runner calls it.
+ *
+ * ## Why this exists rather than an inline `.test.tsx?`
+ *
+ * Several rules here exempt tests, because a test is allowed to do the thing the rule
+ * forbids **in order to verify it** — `clientStorageApiViolations()` says so in its own
+ * documentation: install `fake-indexeddb` on the global, or stub a clipboard. That
+ * sentence means *tests*, and it was spelled as one filename.
+ *
+ * **So the spelling was narrower than the rule — the twenty-first instance of the
+ * defect class this repository has recorded, and the first found by a change that had
+ * to widen a rule rather than add one.** `browser-verification` added a browser suite
+ * under `apps/web/e2e/` whose specs assert on `indexedDB.databases()`: the only way to
+ * ask a browser what is still on the device, and the assertion the whole tier exists
+ * for. Those files are named `*.spec.ts` because Playwright owns that convention, and
+ * the rule reported every one of them.
+ *
+ * ## Why both spellings and not a directory
+ *
+ * A test is a **kind**, and a rule should be written against the kind. An exemption
+ * keyed on a directory would be a boundary around where tests happen to live today,
+ * which is the same mistake as exempting a package list — and it would fail open the
+ * first time a suite appeared somewhere new, silently.
+ *
+ * **The cost, stated rather than discovered later:** a file named `*.spec.ts` that is
+ * not a test would be exempt from these rules. Nothing here can produce one, and the
+ * collection rules below independently require every `*.spec.ts` to be collected by a
+ * browser suite, so an uncollected one fails the build by another route.
+ */
+function isTestFile(file: string): boolean {
+  return /\.(?:test|spec)\.tsx?$/.test(file);
+}
+
+/**
+ * Compile one of the glob forms this repository actually uses.
+ *
+ * A double star followed by a separator means "zero or more directories", so the
+ * package glob matches a test directly inside `src` as well as one nested deeper.
+ * Treating a double star as a plain "anything" would demand at least one separator and
+ * report every test as uncovered — the failure mode of a matcher stricter than the glob
+ * it is checking, which would read as a real coverage gap. (The literal globs are not
+ * written here: a double star next to a slash ends this comment.)
+ *
+ * **At describe level rather than inside one test**, because two rules compile globs
+ * now — the unit-test collection rule and the browser-spec rule — and the browser-spec
+ * rule arrived needing the same conversion. Two copies of a glob compiler is two
+ * chances to be wrong in the same way, and this file has already been bitten by a
+ * duplicated `scanPackageWithProbe`.
+ */
+function toRepoPattern(pattern: string): RegExp {
+  const ANY_DIRS = "\u0001";
+  const ANY_CHARS = "\u0002";
+  const body = pattern
+    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+    .replace(/\*\*\//g, ANY_DIRS)
+    .replace(/\*\*/g, ANY_CHARS)
+    .replace(/\*/g, "[^/]*")
+    .replace(new RegExp(ANY_DIRS, "g"), "(?:.*/)?")
+    .replace(new RegExp(ANY_CHARS, "g"), ".*");
+  return new RegExp(`^${body}$`);
+}
+
+/** A browser suite's own configuration, as far as this repository needs to know it. */
+interface BrowserSuite {
+  /** Repo-relative path of the config file, for naming it in a failure. */
+  readonly configPath: string;
+  /** Repo-relative directory the suite collects from. */
+  readonly testDir: string;
+  /** The pattern a file inside `testDir` must match to be collected. */
+  readonly testMatch: RegExp;
+}
+
+/**
+ * Every browser suite configured in this repository, discovered from disk.
+ *
+ * **Discovered rather than listed**, for the same reason every other root here is: a
+ * rule that watches one path is invisible in a second one until something is added
+ * there, and a spec in the second one would then be uncollected and unreported at the
+ * same time — which is the failure this exists to prevent.
+ *
+ * **A configuration this cannot read is returned as a suite that collects nothing**
+ * rather than skipped, so an unparseable `playwright.config.ts` reports every spec as
+ * uncovered. Skipping it would make the rule pass in exactly the case where it has
+ * stopped working.
+ */
+function browserSuites(): BrowserSuite[] {
+  const configs = collectSourceFiles(REPO_ROOT).filter((file) =>
+    /(?:^|[\\/])playwright\.config\.[cm]?[jt]sx?$/.test(file),
+  );
+
+  return configs.map((file) => {
+    const configPath = toRepoPath(file);
+    const source = readFileSync(file, "utf8");
+
+    // **Anchored to one line, because a regex literal cannot span lines.** A greedy
+    // `.*` capture is the obvious spelling and it is wrong in a way this file would have
+    // filed as a coverage failure rather than as a parser that is wrong: it runs past the
+    // literal and latches onto a `/` inside a later comment, producing a pattern with
+    // nothing to do with the suite's actual configuration.
+    const testDir = source.match(/testDir:\s*["']([^"']+)["']/)?.[1];
+    const literal = source.match(/testMatch:[ \t]*(\/(?:[^/\\\n]|\\.)+\/[gimsuy]*)/)?.[1];
+
+    if (testDir === undefined || literal === undefined) {
+      // **Collects nothing.** See the note above: an unreadable configuration must
+      // report, not pass.
+      return {
+        configPath,
+        testDir: `${configPath} `,
+        testMatch: /(?!)/,
+      };
+    }
+
+    // **The delimiters are stripped, and that is the whole fix.** The capture is a regex
+    // *literal* — `/…/flags` — and handing it straight to `new RegExp` compiles the
+    // slashes as characters to match, so the compiled pattern requires a literal `/`
+    // immediately after its own end anchor and is therefore unsatisfiable. That was
+    // measured, not reasoned about: the first version of this rule reported every
+    // shipped spec as uncovered, which reads as a real coverage gap rather than as a
+    // parser that is wrong.
+    const lastSlash = literal.lastIndexOf("/");
+    const testMatch = new RegExp(literal.slice(1, lastSlash), literal.slice(lastSlash + 1));
+
+    // `testDir` is written relative to the config file, which is what Playwright
+    // resolves it against; resolving it here too keeps the two in step rather than
+    // assuming every suite lives at the repository root.
+    const resolved = relative(REPO_ROOT, join(file, "..", testDir))
+      .split(sep)
+      .join("/");
+    return { configPath, testDir: resolved, testMatch };
+  });
+}
+
+/**
+ * Browser specs no discovered suite collects, named.
+ *
+ * Scans the whole repository rather than `apps/` and `packages/`, because the rule this
+ * serves says **wherever a browser spec is placed**. The unit-test rule above watches
+ * two roots; this one does not need a second because there is no defensible place for a
+ * browser spec that `packages/` and `apps/` do not cover.
+ */
+function browserSpecViolations(suites: readonly BrowserSuite[]): string[] {
+  const violations: string[] = [];
+
+  for (const file of collectSourceFiles(REPO_ROOT)) {
+    if (!/\.spec\.tsx?$/.test(file)) continue;
+    const path = toRepoPath(file);
+
+    const claimed = suites.some(
+      (suite) => path.startsWith(`${suite.testDir}/`) && suite.testMatch.test(path),
+    );
+    if (!claimed) {
+      violations.push(`${path} (no browser suite collects it)`);
+    }
+  }
+
+  return violations;
+}
+
 function toRepoPath(absolutePath: string): string {
   return relative(REPO_ROOT, absolutePath).split(sep).join("/");
 }
@@ -762,7 +921,10 @@ function clientStorageApiViolations(): string[] {
   const violations: string[] = [];
 
   for (const file of collectSourceFiles(APPS_DIR)) {
-    if (/\.test\.tsx?$/.test(file)) continue;
+    // **Exempt because it is a test, not because of how it is named.** See `isTestFile`
+    // for why the previous `.test.tsx?` was the twenty-first instance of a check
+    // narrower than its rule, and for what that widening costs.
+    if (isTestFile(file)) continue;
     const repoPath = toRepoPath(file).split("\\").join("/");
     const contents = stripComments(readFileSync(file, "utf8"));
     for (const hit of findPatternOccurrences(contents, CLIENT_STORAGE_API_PATTERN)) {
@@ -1775,9 +1937,35 @@ describe("architecture boundaries", () => {
         "the rule should report each client that must be scanned",
       ).toEqual([...mustScan].sort());
       expect(reported).toHaveLength(mustScan.length);
+
+      // **The exemption itself, planted in every client and asserted by name.** A
+      // widening is only safe if the thing it now permits is load-bearing on real code,
+      // and only meaningful if permitting it is asserted rather than assumed. Both
+      // spellings are planted, because `isTestFile` covers two and a control for one
+      // would leave the other unguarded.
+      //
+      // **Two probes, adjacent, opposite outcomes.** This is the half that makes the
+      // exemption a rule rather than a hole: `__exempt.spec.ts` and `__exempt.test.ts`
+      // must go unreported while `__client-storage-probe.ts` beside them is reported. An
+      // exemption widened to "skip anything in this directory", or to "skip anything",
+      // satisfies both unreported assertions and fails the reported one.
+      for (const app of mustScan) {
+        for (const kind of ["spec", "test"]) {
+          writeFileSync(join(APPS_DIR, app, `__exempt.${kind}.ts`), CLIENT_STORAGE_PROBE, "utf8");
+        }
+      }
+
+      const exemptions = clientStorageApiViolations().filter((hit) => hit.includes("__exempt."));
+      expect(
+        exemptions,
+        "a test may reach a store in order to verify it, and the shipped browser specs do",
+      ).toEqual([]);
     } finally {
       for (const app of planted) {
         rmSync(join(APPS_DIR, app, "__client-storage-probe.ts"), { force: true });
+        for (const kind of ["spec", "test"]) {
+          rmSync(join(APPS_DIR, app, `__exempt.${kind}.ts`), { force: true });
+        }
       }
     }
 
@@ -2162,30 +2350,7 @@ describe("architecture boundaries", () => {
     );
     expect(patterns.length).toBeGreaterThan(0);
 
-    /**
-     * Compile one of the glob forms this repository actually uses.
-     *
-     * A double star followed by a separator means "zero or more directories", so
-     * the package glob matches a test directly inside `src` as well as one nested
-     * deeper. Treating a double star as a plain "anything" would demand at least
-     * one separator and report every test as uncovered - the failure mode of a
-     * matcher stricter than the glob it is checking, which would read as a real
-     * coverage gap. (The literal globs are not written here: a double star next to
-     * a slash ends this comment.)
-     */
-    const toMatcher = (pattern: string): RegExp => {
-      const ANY_DIRS = "\u0001";
-      const ANY_CHARS = "\u0002";
-      const body = pattern
-        .replace(/[.+^${}()|[\]\\]/g, "\\$&")
-        .replace(/\*\*\//g, ANY_DIRS)
-        .replace(/\*\*/g, ANY_CHARS)
-        .replace(/\*/g, "[^/]*")
-        .replace(new RegExp(ANY_DIRS, "g"), "(?:.*/)?")
-        .replace(new RegExp(ANY_CHARS, "g"), ".*");
-      return new RegExp(`^${body}$`);
-    };
-    const matchers = patterns.map(toMatcher);
+    const matchers = patterns.map(toRepoPattern);
 
     // **Both** roots, not just the apps. `packages/` is where 33 of this change's
     // tests live, and an unchecked package glob is the silent-skip failure this rule
@@ -2212,6 +2377,75 @@ describe("architecture boundaries", () => {
       .map((file) => toRepoPath(file));
 
     expect(uncovered).toEqual([]);
+  });
+
+  it("collects every browser spec, and never as a unit test", () => {
+    // ## Why this rule exists
+    //
+    // **The rule above watches `*.test.tsx?`, which is exactly the spelling a browser
+    // spec does not use.** `browser-verification` added `apps/web/e2e/storage.spec.ts`
+    // and the coverage rule could not see it — a test no runner collects reads as
+    // coverage while verifying nothing, which is the same defect as a test that cannot
+    // fail. This is the failure M5 slice 1 was bitten by when a client test was silently
+    // skipped, arriving through a different door.
+    //
+    // ## Why the suite's configuration is read rather than assumed
+    //
+    // **Because the alternative cannot observe the thing this exists to catch.** A rule
+    // asserting that specs sit under a hard-coded `apps/web/e2e` would pass unchanged
+    // after someone narrowed `playwright.config.ts`'s `testDir` to an empty directory —
+    // and the suite would then collect nothing while the rule stayed green. Narrowing the
+    // configuration has to break something, or this rule is decoration. So the config is
+    // parsed, and one that cannot be parsed reports rather than skips.
+    //
+    // ## Why a spec must also not be a unit test
+    //
+    // Two tiers execute different code against different platforms. One runner
+    // collecting both would let a browser-free `pnpm test` report as covering a browser
+    // suite — and `pnpm verify` is required by `build-and-verification` to run without a
+    // browser installed, so that is not hypothetical.
+    const suites = browserSuites();
+
+    // Preconditions, so nothing below can pass by finding nothing.
+    expect(suites.length).toBeGreaterThan(0);
+    const shippedSpecs = collectSourceFiles(REPO_ROOT)
+      .filter((file) => /\.spec\.tsx?$/.test(file))
+      .map((file) => toRepoPath(file));
+    expect(shippedSpecs.filter((path) => path.startsWith("apps/web/"))).not.toHaveLength(0);
+
+    // **The negative control, planted where no discovered `testDir` reaches it.** A spec
+    // nobody collects *is* the defect, so it is produced here and required to be reported
+    // by name. Without it, the rule's own assertion below would be satisfied by a rule
+    // that had stopped looking at all — which is the mistake this file records three
+    // times over at slice 1.
+    const orphan = join(APPS_DIR, "web", "__uncovered.spec.ts");
+    try {
+      writeFileSync(orphan, "export const probe = 1;\n", "utf8");
+      expect(
+        browserSpecViolations(suites).filter((hit) =>
+          hit.startsWith("apps/web/__uncovered.spec.ts"),
+        ),
+        "a browser spec no suite collects should be named",
+      ).not.toEqual([]);
+    } finally {
+      rmSync(orphan, { force: true });
+    }
+
+    // **The rule itself**, over every spec in the repository.
+    expect(browserSpecViolations(suites)).toEqual([]);
+
+    // **And the other half: the unit runner must not claim them.**
+    const unitConfig = readFileSync(join(REPO_ROOT, "vitest.config.ts"), "utf8");
+    const unitBlock = unitConfig.match(/include:\s*\[([^\]]*)\]/);
+    expect(unitBlock).not.toBeNull();
+    const unitMatchers = [...(unitBlock?.[1] ?? "").matchAll(/"([^"]+)"/g)].map((match) =>
+      toRepoPattern(match[1] as string),
+    );
+    expect(unitMatchers.length).toBeGreaterThan(0);
+    expect(
+      shippedSpecs.filter((path) => unitMatchers.some((matcher) => matcher.test(path))),
+      "a browser spec must not be collected as a unit test",
+    ).toEqual([]);
   });
 
   it("confines provider adapters to packages/providers", () => {

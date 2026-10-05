@@ -105,3 +105,96 @@ jobs:
 
       - name: Spike self-test
         run: pnpm --dir tests/provider-spike spike:selftest
+
+  browser:
+    name: browser
+    runs-on: ubuntu-latest
+    # Its own timeout, and the reason is not politeness. A browser download plus a
+    # Chromium cold start on a clean runner is minutes, and this job must not be
+    # able to fail the `verify` job's budget by sharing it. 15 is `verify`'s value
+    # and is not inherited: the two jobs are siblings, not stages.
+    #
+    # **A backstop only, because a job-level ceiling cannot diagnose a hang.** Two runs
+    # were killed by the job timeout having produced `The operation was canceled.` and
+    # nothing else. Raising it from 20 to 30 changed nothing except how long the job sat
+    # producing nothing — the second run was silent for 29m34s, which *confirms* the
+    # hang is indefinite rather than slow, and therefore is not a budget problem at all.
+    # The ceilings that do the diagnostic work are per-step and below.
+    timeout-minutes: 25
+
+    # The browser tier (pnpm test:browser), run by its maintainer command with no
+    # divergent flags. It is NOT part of `pnpm verify` and is not added to it here.
+    #
+    # That separation is a requirement, not a scheduling preference:
+    # openspec/specs/build-and-verification/spec.md requires `pnpm verify` to run
+    # with no browser installed, which was verified by pointing
+    # PLAYWRIGHT_BROWSERS_PATH at an empty directory. Folding this tier into
+    # `verify` would make that requirement false in CI while leaving it true on a
+    # maintainer's machine - the exact shape of a claim that survives only where it
+    # is not exercised.
+    #
+    # What this job establishes: the built page, in real Chromium, against real
+    # IndexedDB, with provider traffic intercepted from recorded responses. It
+    # establishes NOTHING about a live provider, about `use it externally`, or
+    # about how a real provider responds to being polled every five seconds. All
+    # three remain unverified, and the suite asserts the fourth rather than
+    # claiming it.
+
+    # **`CI=true` is set for the whole job, and it is load-bearing.** Playwright reads
+    # it: `forbidOnly` and retries go to their CI defaults and the reporter becomes
+    # non-interactive. GitHub sets `CI=true` for every step anyway, but a claim about how
+    # this suite behaves on a runner should not rest on a variable a step-level override
+    # could quietly remove. Stated explicitly so it is a decision rather than an ambient
+    # fact.
+    env:
+      CI: "true"
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 12.6.0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26.10.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # `--with-deps` installs the shared libraries Chromium needs on a clean
+      # Ubuntu runner. Without it this job fails for a reason that has nothing to
+      # do with the code, which is the kind of failure that trains a team to
+      # ignore a red build.
+      #
+      # Run with `--dir apps/web` because @playwright/test is that package's dev
+      # dependency, and pnpm does not put a workspace member's binaries on the
+      # root's PATH.
+      #
+      # The browser download is deliberately not cached between runs. A cache keyed
+      # on a path that can move is a cache that can silently serve the wrong
+      # bytes; the honest cost is re-downloading, and the job's own timeout
+      # absorbs it. **Measured at 24 seconds on a cold runner**, so this step is not
+      # where the first run's time went. The ceiling is per-step for the reason given on
+      # the last step: a hang must name the step it happened in.
+      - name: Install Chromium
+        timeout-minutes: 5
+        run: pnpm --dir apps/web exec playwright install --with-deps chromium
+
+      # **A maintainer runs `pnpm test:browser`; this runs the same command.** No
+      # extra flags, because the suite's assertions do not vary by environment and a
+      # divergent flag here would be a second thing to keep in step.
+      #
+      # **The ceiling is per-STEP, and that is what turns a hang into evidence.** This
+      # step is where five earlier runs hung. A job-level ceiling cannot diagnose that,
+      # because the runner kills the whole job and the log's last line is
+      # `The action has timed out` - naming no step. Per-step ceilings made it fail in
+      # 11 minutes and print the finding underneath: **all 6 specs passing in 2.6
+      # seconds and then no summary line at all**, with the next step reporting that
+      # port 4173 was still held. The tests had never been the problem.
+      - name: Test (browser)
+        timeout-minutes: 10
+        run: pnpm test:browser

@@ -34,22 +34,36 @@ the M0 spike probed `api.mail.tm` and `api.guerrillamail.com` live and recorded 
 they actually do, and every architectural rule below is a consequence of a recorded
 observation rather than of an assumption about how such an API ought to behave.
 
-**M0-M6 are complete in scope, but no user has ever seen this product.**
+**M0-M6 are complete in scope, and no user has ever seen this product — but a real
+browser has.**
 The website creates an address, lists what arrives in it, opens a message, and - since
-M6 slice 2 - **keeps that address in the browser and offers it back on a reload**; **no
-live browser run of it has ever been made**, so every acceptance claim below is a claim
-about a function and about jsdom, not about a user's experience. That caveat is at its
-sharpest for slice 2 and it is **unchanged by slice 3**: it is the first change that
-would write anything to a user's disk, and `jsdom` implements no IndexedDB, so the real
-storage path has been exercised by **no test at all**. `return to a recent mailbox` is
-delivered by slice 2, and since slice 3 **this milestone has added its removal** - the
-page offers a confirmed control that clears what this device holds. **Nothing about that
-is a browser-tested claim**: `packages/storage`'s 44 tests run against
-`fake-indexeddb` `6.2.5`, which **is not a browser**, and `createBrowserStorage()` - the
-function a real page calls - is still **never executed by any test in the workspace**.
-Slice 3 therefore closes the *product* gap and leaves the *verification* gap exactly
-where slice 2 left it, and it is stated that way because a privacy control that has only
-been checked against a fake is the claim most worth being careful about.
+M6 slice 2 - **keeps that address in the browser and offers it back on a reload**.
+`browser-verification` has since run that page in **real Chromium against real IndexedDB**,
+and **the first thing it found was that a requirement this file had been stating as
+delivered was false there**: measured `records=1 claimsStored=0 offersRemoval=0` — the page
+wrote the record and never concluded it had, so the removal control `website-client`
+requires **was never offered at all**. 152 unit tests had passed against that page.
+The cause was a per-invocation unmount guard in `useMailboxSession.ts` that the save
+effect's **own cleanup** cleared when the inbox published a new `state` mid-write; it is
+now a `mounted` ref, cleared only on a real unmount. **This sentence replaces the one that
+said "no live browser run of it has ever been made"**, which was true until this change
+and is now false.
+
+**What is now browser-verified, narrowly.** The built page in **Chromium only**, with
+provider traffic served from recorded responses: boot reads real IndexedDB through
+`createBrowserStorage()`, a created mailbox is written and read back through the
+platform's own API, adoption is offered only after the provider confirms it, and removal
+leaves `indexedDB.databases()` empty — including a store this build does not recognise.
+6 browser specs, `pnpm test:browser`, its own CI job.
+
+**What is still unverified, and the list is the point.** **`use it externally` remains
+unverified** — a recorded provider is not a provider. **The live polling cadence remains
+unobserved**: nothing here has watched a real provider respond to being polled every five
+seconds. **The browser tier has never run in CI**; the job is committed unexecuted.
+**The blocked-`deleteDatabase` semantics remain a `fake-indexeddb` measurement** — one
+behaviour was checked against both substrates and they **agreed**, which is a result about
+that behaviour and not a general licence. `fake-indexeddb` `6.2.5` **is not a browser**,
+and `packages/storage`'s **44 tests** are unchanged and still run against it.
 
 The current state, in dependency order:
 
@@ -317,7 +331,12 @@ Pin versions when exact versions matter.
   ends when some *other* tab closes, which a page can neither cause nor predict. So
   rejecting does **not cancel** the removal, which is what forces the page's wording.
   `apps/web` has used all three since slice 3; the **extension's adapter is still
-  later**, and `fake-indexeddb` **is not a browser**. Two
+  later**. `fake-indexeddb` **is not a browser**, and it remains the substrate for all
+  44 of these tests — but **one of its behaviours has now been corroborated by Chromium**
+  through the browser tier: that removing "everything this device holds" means
+  `deleteDatabase` and not clearing `CURRENT_MAILBOX_KEY`. That is a fact about that
+  behaviour, established by deliberately breaking it and watching both tiers go red.
+  The blocked-`deleteDatabase` semantics above have **no** such corroboration. Two
   properties are settled and worth knowing before anything is built on it:
   **`loadMailbox` returns `null` for "nothing stored" only** and every other failure
   rejects, because a read reported as absent would make a client believe it is a first
@@ -343,20 +362,29 @@ Pin versions when exact versions matter.
   `pnpm typecheck`, which is a separate gate. There is still no extension build
   step — that is M8.
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running **647 tests across
-  31 files** via `pnpm test` (2026-10-05, after the M6 slice 3 apply stage), counted from
-  a JSON reporter rather than read off a summary line:
+- Testing: Vitest `3.2.7` at the workspace root, verified running **649 tests across
+  31 files** via `pnpm test` (2026-10-06, after the `browser-verification` apply stage),
+  counted from a JSON reporter rather than read off a summary line:
   54 in `packages/core`, 89 in `packages/providers`, **149 in `packages/mail-parser`**,
-  **153 in `packages/mailbox`** (19 of them adoption), **112 in `apps/web`** (108
-  rendering, 4 provider configuration), **44 in `packages/storage`** (7 stored record,
-  30 IndexedDB adapter, 7 browser entry point),
-  and **46 architecture boundary assertions**.
+  **153 in `packages/mailbox`** (19 of them adoption), **113 in `apps/web`**,
+  **44 in `packages/storage`** (7 stored record, 30 IndexedDB adapter, 7 browser entry
+  point), and **47 architecture boundary assertions**.
+  **Two of those numbers are this change's, and both are the interesting ones.**
+  `apps/web` went 112 → 113 for the regression test that holds a write open across an
+  inbox transition, and the boundary count went 46 → 47 for the rule requiring every
+  shipped browser spec to be collected by the browser suite and by nothing else.
   **The previous figures in this paragraph were wrong in two ways, and both were found
   by measuring rather than by reading**: it recorded `apps/web` at 96 when the real count
   was 108 before this slice, and it recorded 3 provider-configuration tests when there
   have been 4. The split was never checked against the file. Counts here are now taken
   from `--reporter=json` and grouped by project, so the next reader is measuring rather
   than adding up.
+  **Those counts cover one tier only.** There is now a **second runner**: Playwright
+  `1.63.0`, 6 browser specs in `apps/web/e2e/`, run by `pnpm test:browser`, **not** part
+  of `pnpm verify`, in its own CI job. It is a separate suite because two tiers execute
+  different code against different platforms, and a single runner claiming both would let
+  a browser-free `pnpm test` report as covering a browser suite — a boundary rule asserts
+  they are disjoint in both directions.
   `passWithNoTests` is **off** by design - a
   green run that inspects nothing is worse than no run. The `include` globs name
   `tests/architecture/**/*.test.ts`, `packages/*/src/**/*.test.ts`,
@@ -379,9 +407,12 @@ Pin versions when exact versions matter.
   about what is *rendered* cannot be verified without a DOM.
   Also installed: a disposable Node.js probe harness at `tests/provider-spike/`
   (`node:test`-free, hand-rolled, self-tested at `pnpm spike:selftest`, 16/16
-  passing). Playwright `1.63.0` is a **spike-only** dev dependency, outside the
-  workspace, used for browser-context and MV3 probes. There is **no Playwright
-  browser-automation test suite yet** — the live host-permission check remains deferred.
+  passing). Playwright `1.63.0` is **now a workspace dev dependency of `apps/web`**,
+  matching the version the spike already used, because the browser tier needs it; the
+  spike's own copy stays outside the workspace and is still not imported by
+  application code. **There is still no Playwright suite for the M0 spike's own
+  live host-permission check** — that probe remains deferred, and the new suite is
+  offline by design and does not cover it.
 
 - Infra / deploy: none. A GitHub Actions workflow exists at `.github/workflows/ci.yml`
   and runs the same root commands a maintainer runs, with no divergent flags. It
@@ -392,6 +423,48 @@ Pin versions when exact versions matter.
   workflow named checkout `v5`, setup-node `v6`, and action-setup `v4`, and all
   three were wrong. It has never yet been made to *fail*, so its ability to catch
   a regression is unproven.
+  **A third job, `browser`, was added by `browser-verification`: it installs Chromium
+  and runs `pnpm test:browser`, as a sibling of `verify` with its own timeout.** It is
+  **not** folded into `pnpm verify` or into the `verify` job, because
+  `build-and-verification` requires `pnpm verify` to run with no browser installed and
+  that is verified — with `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory, and
+  by reading every script `verify` names.
+  **That job hung five times and the cause is now measured, and it was this repository's
+  own `webServer` command.** Five runs produced `Running 6 tests using 1 worker` and then
+  silence. Two repairs were spent on the wrong theory and are recorded because each was
+  reasonable: raising the job ceiling 20 → 30 was **measured to be useless** (the second
+  silence was *longer*, 29m34s, which refutes "merely slow" and establishes an
+  indefinite hang), and `--disable-dev-shm-usage --no-sandbox` was **measured false** —
+  Chromium launched on the same runner in **250ms** and `/dev/shm` there is **7.9G**.
+
+  **What finally diagnosed it was per-step ceilings, because a job-level one names no
+  step.** Under them the job printed the finding the earlier kills had destroyed: **all
+  6 specs passing in 2.6 seconds, then no `6 passed` summary line at all**, and the
+  following step failing with `http://127.0.0.1:4173/ is already used`. So the tests
+  were never the problem and **the summary's absence was never evidence about them** —
+  Playwright hangs shutting the webServer *down*. `pnpm preview` spawns `vite` as a
+  child, so killing what Playwright spawned kills the wrapper and orphans the real
+  server, which then holds the inherited stdout pipe open and port 4173. The fix is to
+  **invoke `vite` directly**, so Playwright owns the process it started.
+
+  **Two lessons are recorded because both cost real time.** With `CI=true` Playwright
+  picks the **dot** reporter, which prints progress without newlines, and a killed step
+  discards it — so *four runs of missing test output were the reporter, not a hang*. And
+  a diagnostic is only worth its cycle if it can fail for the reason it exists: the first
+  version ran before the build and died in two seconds on `dist` not existing. **The
+  `browser` job now passes in 58 seconds.**
+
+  **`spike self-test` is cancelled for an unrelated reason, and the JSON is the only
+  instrument that says so.** That job is untouched by this change — no browser, no
+  Playwright, 26 seconds when it runs — yet it was cancelled on four runs, each at almost
+  exactly 15 minutes with **no log archive at all** (a 22-byte empty zip). The API is
+  what distinguishes this from a hang: **`runner_name` is empty and `steps` is 0**, so the
+  job **never received a runner**. One rerun waited **1215 seconds** in queue before its
+  own 10-minute `timeout-minutes` expired, which is exactly where the repeated 15-minute
+  duration comes from. **This is GitHub-hosted runner capacity being exhausted**, not a
+  defect in anything under test — recorded because a job reporting `cancelled` with no
+  logs is indistinguishable from a hang unless you read the JSON.
+
   No deployment, hosting, or release pipeline exists or is planned for V1.
 
 - External services: `https://api.mail.tm` and `https://api.guerrillamail.com`.
@@ -698,11 +771,18 @@ page's provider configuration is reachable and testable without a network
 live Guerrilla Mail API from a browser**, so no claim is made about what a real page
 does on a real network - and in particular **no claim is made about how a real
 provider responds to being polled every five seconds**, because that has never been
-run. **Nor has the removal been run in a browser**: `jsdom` implements no IndexedDB, so
-the whole delete path a user would take is exercised only against `fake-indexeddb`, which
-is not a browser. The polling loop is asserted by reading the delay the scheduler was
+run. The polling loop is asserted by reading the delay the scheduler was
 asked for, which proves the cadence this repository computes and nothing about a
 provider's tolerance.
+
+**The sentence this replaces said the removal had never been run in a browser. It has,
+and it found the control was not there.** `jsdom` implements no IndexedDB, so the whole
+delete path a user would take used to be exercised only against `fake-indexeddb`; the
+browser tier now runs it against real Chromium and real IndexedDB, via
+`pnpm test:browser`. Two claims survive unchanged: **the live provider is still not
+involved** — every provider response is a recorded one — and **the blocked-removal
+semantics are still only a `fake-indexeddb` measurement**, because the browser suite
+does not produce that event.
 There is still no extension build step; `pnpm dev:extension` does not exist and
 must not be documented until M8 creates it.
 
@@ -731,6 +811,20 @@ pnpm --dir tests/provider-spike install
 pnpm --dir tests/provider-spike exec playwright install chromium
 
 ```
+
+**The root install now brings a browser requirement with it for the first time.**
+`@playwright/test` `1.63.0` is a dev dependency of `apps/web`, so `pnpm install` resolves
+the package but downloads **no browser**: `pnpm test:browser` needs
+
+```bash
+
+pnpm --dir apps/web exec playwright install chromium
+
+```
+
+which is why `pnpm verify` is untouched by any of this — it must keep working with no
+browser present. `--dir apps/web` rather than plain `playwright`, because pnpm does not
+put a workspace member's binaries on the root's `PATH`.
 
 
 
@@ -826,6 +920,63 @@ utility, generator, test suite, asset processor, schema checker, etc.
 Do not retain examples that do not apply to the project.
 
 -->
+
+
+
+### Verified project tool: the browser tier
+
+Verified on `Windows 11 / Node.js v26.10.0 / pnpm 12.6.0` on 2026-10-06:
+
+```bash
+
+pnpm test:browser
+
+```
+
+Playwright `1.63.0`, 6 specs in `apps/web/e2e/`, **Chromium only**. The command builds
+the site first (`pnpm build`) and then serves `apps/web/dist` with `vite preview` on
+`http://127.0.0.1:4173` with `--strictPort`, because the page under test is the **built**
+`<App />` with no props — the page a user receives, not a composition mounted by a test.
+
+**What it establishes.** That the shipped page, in real Chromium, reads real IndexedDB
+through `createBrowserStorage()`, writes a created mailbox and reads it back **through
+the platform's own API**, offers a stored address back only after the provider confirms
+it, and — after a confirmed removal — leaves `indexedDB.databases()` empty, including a
+store this build does not recognise. `pnpm test:browser` exited `0`, 6 passed.
+
+**What it does not establish, and this list is the point:**
+
+- **Nothing about a live provider.** Every provider response is a **recorded** one,
+  imported by name from `packages/providers`, and any other origin is aborted **and
+  reported by name**. `use it externally` remains unverified, and a stored mailbox has
+  still never been reconciled against a live Guerrilla Mail session.
+- **Nothing about how a real provider tolerates being polled.** The cadence assertions
+  read the delay the scheduler was asked for; no live provider has been polled here.
+- **Nothing about Firefox or WebKit.** One engine is configured, on purpose: adding a
+  project per engine would turn "verified" into "verified somewhere" without adding
+  evidence about the claim.
+- **Nothing about a blocked `deleteDatabase`.** The suite does not produce that event, so
+  the queued-removal semantics remain a `fake-indexeddb` measurement.
+- **Nothing about any browser other than the one that ran.** This was observed on
+  **one machine**, and the CI job that would make it repeatable **has never run**.
+
+**Two tool hazards, both of which produced a false green before being fixed.**
+
+`pnpm.cmd` **cannot be spawned from Node** on this machine (`EINVAL spawnSync`). The
+falsification harness invoked `pnpm` anyway, got empty output, and its logic read "no
+failing titles" as **green** — reporting two mutations as uncaught when nothing had run.
+It now invokes `node` directly and reports **`harness-error`** when an output contains
+neither a passed nor a failed count. A check that did not run is not a check that passed.
+
+`passWithNoTests` is **Vitest's option, not Playwright's**, and `tsc` rejected it with
+`TS2769` when it was copied across. The property wanted is real and is Playwright's
+default instead: it exits non-zero with `No tests found` when `testDir` matches nothing.
+
+**Where the suite lives, and why that is not arbitrary.** It is in `apps/web/e2e/`
+because **`tests/` is not typechecked** — it has no `tsconfig`, and `pnpm -r` covers
+workspace members only — so a suite there would run while its types were never checked.
+It also puts the specs under `apps/web/tsconfig.json`, which was widened to include
+`e2e`, `vite.config.ts`, and `playwright.config.ts`.
 
 
 
@@ -1066,17 +1217,24 @@ M5 slice 1 apply stage, again after its independent verification repairs (all on
 2026-10-02), after the M5 slice 2 verification repairs, again after the M5 slice 3
 verification repairs, again after the M5 slice 4 apply stage, and again after the
 M6 slice 1 apply stage, again after the M6 slice 2 apply stage, and again after the
-M6 slice 3 apply stage, all on 2026-10-03
-through 2026-10-05:
+M6 slice 3 apply stage, and again after the `browser-verification` apply stage, all on
+2026-10-03
+through 2026-10-06:
 
 ```text
 pnpm typecheck     8 of 8 workspace projects run tsc --noEmit
 pnpm lint          exit 0
 pnpm format:check  All matched files use Prettier code style
-pnpm test          31 files, 647 tests passed
+pnpm test          31 files, 649 tests passed
 pnpm build         vite 7.3.6, dist emitted
 pnpm verify        exit 0
 ```
+
+**`pnpm test:browser` is deliberately absent from that block and has its own entry
+below.** It is not run by `pnpm verify`, and listing it here would make the two claims
+inconsistent: this block's property is that every gate in it runs with **no browser
+installed**, and that was measured by pointing `PLAYWRIGHT_BROWSERS_PATH` at an empty
+directory.
 
 **One environment note, because `pnpm lint` failed to launch cleanly once and the
 distinction matters.** On 2026-10-05 `pnpm lint` printed a PowerShell
@@ -1096,40 +1254,47 @@ the **live** service. Every test in `packages/providers` runs from **recorded**
 responses, so the suite proves this repository's mapping of a provider's wire format
 and nothing about the provider's current behaviour. A provider renaming a field
 would leave this suite green. Fixture refresh against `docs/PROVIDERS.md` is a
-deliberate diff, not something CI does. The same limit now applies to the client, and
-it has **widened twice**: `apps/web`'s 96 tests render against a **stub provider** or a
-recording transport, so they prove the page composes the abstraction correctly and say
-**nothing** about whether a real browser reaches Guerrilla Mail successfully. **No live
-browser run has ever been made**, so every component in the website — including
-`MessageView`, added at slice 3 — has been seen by jsdom and by nothing else. **Nor has
-the polling cadence ever run against a live provider**: `packages/mailbox`'s cadence
-assertions read the delay the scheduler was asked for, and nothing in this repository has
-observed what a real provider does when a real page polls it every five seconds.
+deliberate diff, not something CI does. The same limit applies to the client:
+`apps/web`'s 113 tests render against a **stub provider** or a recording transport, so
+they prove the page composes the abstraction correctly and say **nothing** about whether
+a real browser reaches Guerrilla Mail successfully. **Nor has the polling cadence ever run
+against a live provider**: `packages/mailbox`'s cadence assertions read the delay the
+scheduler was asked for, and nothing in this repository has observed what a real provider
+does when a real page polls it every five seconds.
 
-**M6 slice 2 widened that limit into a hole rather than a caveat, and it is stated here
-because `pnpm test` cannot detect it.** `jsdom` implements no IndexedDB, so
-`createBrowserStorage()` — the function a real page actually calls — has **never been
-executed by any test in the workspace**. The client suites inject a `SpectreStorage`, and
-substituting `fake-indexeddb` would substitute a fake rather than a browser. So the
-suite proves that the page's boot, save, and every error branch compose correctly around
-the contract, and proves **nothing at all** about the IndexedDB path a user's browser
-would take. **No stored mailbox has ever been reconciled against a live Guerrilla Mail
-session**, which is the operation slice 2 added, so both halves of reload recovery are
-untested end to end.
+**The four paragraphs this replaces are deleted rather than reworded, because each became
+false the moment a real browser ran the page.** They said, in substance:
+`createBrowserStorage()` is executed by **no test in the workspace**; `jsdom`'s lack of
+IndexedDB leaves the real storage path with **no test at all**; the sequence a user's
+browser actually takes — page boots, reads, creates, writes, then deletes the whole
+database — **has never run anywhere in this repository**; and *a privacy control verified
+only against a fake is the claim in this repository least entitled to confidence*. All
+four were true through M6 slice 3 and all four are false now. The last was the most
+important sentence this file held about its own work, and **its removal is the point of
+the change rather than a loss of caution**.
 
-**Slice 3 did not close that hole, and the reason it could not is worth stating plainly
-rather than leaving the reader to assume the number of tests grew the coverage.** The
-removal is the *first* operation in this repository whose correctness depends on
-IndexedDB semantics `fake-indexeddb` may not share — specifically on what a **blocked**
-`deleteDatabase` does, which was **measured** against the fake and is not a browser
-measurement. `packages/storage`'s 30 adapter tests drive real `onblocked` events from a
-real held-open connection, and they establish the adapter's behaviour and the queued
-semantics recorded above. They establish **nothing** about a browser's behaviour, and
-`createBrowserStorage()` is still executed by **no test in the workspace**. So the
-sequence a user's browser actually takes — page boots, reads, creates, writes, then
-deletes the whole database — has never run anywhere in this repository. **A privacy
-control verified only against a fake is the claim in this repository least entitled to
-confidence**, and 44 storage tests do not change that.
+**What replaced them, and what did not.** The browser tier now runs that exact sequence in
+**Chromium**: boot reads real IndexedDB through `createBrowserStorage()`, a created mailbox
+is written and read back **through the platform's own API** rather than through the
+adapter, and removal leaves `indexedDB.databases()` empty. **It found a real defect on its
+first run** — `records=1 claimsStored=0 offersRemoval=0`, the removal control never
+offered — which is the strongest evidence in this repository that the hole was a hole, and
+the reason 44 storage tests were never going to find it.
+
+**Three limits survive, and none of them is the one that closed:**
+
+- **No stored mailbox has ever been reconciled against a live Guerrilla Mail session.**
+  Still true. The tier serves **recorded** provider responses, so it reconciles against a
+  recording. This is what `use it externally` would close and it remains open.
+- **The blocked-`deleteDatabase` semantics remain a `fake-indexeddb` measurement.** Still
+  true. `packages/storage`'s 30 adapter tests drive real `onblocked` events from a real
+  held-open connection and establish the adapter's behaviour and the queued semantics
+  recorded above; the browser tier does not produce that event, so it does not corroborate
+  them. **One** behaviour was now checked against both substrates and the two **agreed** —
+  that removal takes the whole database rather than one key. That is a fact about that
+  behaviour and **not a general licence** for the fake.
+- **The browser tier has never run in CI.** The job is committed unexecuted, so every
+  claim about it is a claim about one machine.
 
 **`pnpm test` and `pnpm typecheck` catch different defects, and this repository has
 now been bitten by that in both directions.** Vitest does not typecheck, so a
@@ -1160,7 +1325,7 @@ Four specific limitations worth not misreading:
   passes for the wrong reason is not a passing assertion.
 - **The count reached 44 boundary assertions at M5 slice 1, which added seven, and its
   independent verification pass found five defects in them.** (44 is that milestone's
-  figure; the current one is **46**, below.) The
+  figure; the current one is **47**, below.) The
   adapter-confinement rule was **re-scoped**, which is the first recorded instance of
   an assertion being *broader* than its documented rule rather than narrower: it also
   forbade `createProviderManager` and `createFetchTransport` outside
@@ -1303,6 +1468,42 @@ Four specific limitations worth not misreading:
   actually delivers a pre-analysed inbox is reusing `inbox.check`'s own result. **31 of
   31 mutations caught by the intended assertion**, restoration verified by SHA-256, and
   one further mutation is **recorded as unfalsifiable rather than counted** — see below.
+- **`browser-verification` added one, bringing the count to 47, and found the
+  twenty-first instance of a check narrower than its rule — plus one of its own that
+  shipped wrong on arrival.** The new rule requires every shipped `*.spec.ts` to be
+  **collected by the browser suite and by nothing else**: a spec no suite collects reads
+  as coverage while verifying nothing, which is the M5 slice 1 silent-skip failure
+  arriving through a door one directory over. It is a **second** collection rule beside
+  the unit one, which was the point: two runners mean two ways for a test to be
+  uncollected, and one rule cannot guard both.
+
+  Its roots come from the **directory contents on disk**, and — the part that made it
+  worth writing — from **parsing `playwright.config.ts` rather than asserting a literal
+  path**. A rule checking that specs sit under a hard-coded `apps/web/e2e` would pass
+  unchanged after someone narrowed `testDir` to an empty directory, which is the one
+  event it exists to catch. A configuration it cannot read is returned as *a suite that
+  collects nothing*, so it reports; skipping would make it pass in exactly the case
+  where it has stopped working.
+
+  **The twenty-first instance was `isTestFile`, in the rule slice 2 added.** It matched
+  `.test.tsx?` while its documented rule said *test files*, so the browser tier's own
+  `*.spec.ts` was read as shipped source and would have been scanned for `localStorage`
+  and `indexedDB` — the rule would have reported the suite for the substrate it exists
+  to test. Widened to a pattern matching `test` **and** `spec`, and the fix is only
+  credible because
+  the exemption is tested **both ways**: controls plant `__exempt.spec.ts` *and*
+  `__exempt.test.ts` beside a probe the rule must still report, so an over-wide exemption
+  fails the half that is supposed to fire rather than passing unnoticed.
+
+  **And the new rule shipped with a parser bug, caught by running it.** The `testMatch`
+  capture is a regex *literal*, and handing `/…/flags` straight to `new RegExp` compiles
+  the slashes as pattern text — producing a pattern that requires a literal `/` after
+  its own end anchor and can therefore never match. The failure presented as
+  `apps/web/e2e/storage.spec.ts (no browser suite collects it)` for a suite that
+  collects it. **A rule that is wrong in the direction of reporting *more* than is true
+  is the dangerous direction**, because it cries wolf and the natural response to a
+  crying wolf is to delete it. Both narrowing forms are now mutation-tested separately,
+  since an empty `testDir` and an empty `testMatch` fail for different reasons.
 - **One branch is deliberately unfalsifiable, and saying so is the point.**
   `restore` reports rather than casts the case where the inbox tracker returns neither a
   listing nor a failure, because `InboxState` has four variants and the compiler cannot

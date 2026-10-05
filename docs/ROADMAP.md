@@ -36,7 +36,8 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor:** **M6 - Website Hardening.** Slice 1 (`spectre-storage`) and slice 2
+**Roadmap cursor:** **M6 - Website Hardening, complete; `browser-verification` applied.**
+Slice 1 (`spectre-storage`) and slice 2
 (`mailbox-adoption`) are both applied, verified, synced, and **archived** at
 `openspec/changes/archive/2026-10-05-spectre-storage/` and
 `openspec/changes/archive/2026-10-05-mailbox-adoption/`. Slice 1 merged as Apply
@@ -54,29 +55,91 @@ undelivered accessibility items are CSS, which this milestone's own promoted req
 excludes (*"This milestone builds structure, not visual design"*) and which M7's Accent
 and Motion blocks already place inside M7. **No fourth change was opened**, and the
 audit is recorded under M6's slice table with a file or a promoted requirement named for
-every claim. `packages/storage` holds **44 tests** and the workspace runs **647 across
+every claim. `packages/storage` holds **44 tests** and the workspace runs **649 across
 31 files**, counted from a JSON reporter.
 
-**Next eligible objective: the first live browser run, as its own OpenSpec change.** It
-is not code the product needs, and it is the only thing that would close three
-long-standing unproven claims:
+### `browser-verification`: the first real browser run, and what it found
 
-- `use it externally` is **UNVERIFIED**, because no live browser run and no third-party
-  signup have ever been driven.
-- **The removal has still never run in a browser**: `jsdom` implements no IndexedDB, so
-  `createBrowserStorage()` - the function a page calls - is executed by **no test in the
-  workspace**, and the adapter's blocked-delete semantics are measured against
-  `fake-indexeddb`, which is not a browser. That verification gap is slice 2's and slice
-  3 did not close it.
-- **No claim exists about what a provider does when a real page polls it every five
-  seconds**, because the cadence has never run against a live provider.
+**Proposed** (merged **#58**) and **applied** on this change. It is not product code; it
+is the thing that would close a set of long-standing unproven claims, and **closing them
+is what it did — except that it found a bug first.**
 
-It gets a change rather than a chore because **there is no browser-automation suite in
-this repository**: Playwright is a spike-only dev dependency *outside* the workspace, and
-bringing one inside has its own boundary consequences - the `apps/`-scoped storage-API
-rule would then see test code that names a storage API, which is a rule this repository
-has already had to widen twice. Nothing here begins that change; the cursor names it and
-stops.
+**The finding, and it invalidates a claim this file has been making.** In real Chromium
+the page **wrote the mailbox and never concluded it had**: measured
+`records=1 claimsStored=0 offersRemoval=0`. The removal control `website-client` requires
+— *"the user can make this device forget the address"* — **was never offered at all**,
+while **152 unit tests passed**. `packages/storage`'s 44 tests could not have found it:
+`fake-indexeddb` resolves a write immediately, so there is no window in which a listing can
+land mid-write.
+
+The cause was a per-invocation unmount guard in `useMailboxSession.ts`, cleared by the
+save effect's **own cleanup** whenever the inbox published a new `state` object. The guard
+is now a `mounted` ref cleared only on a real unmount, and `handed.current` was
+deliberately left alone — it is correct, and it is exactly why no later invocation could
+recover. **The change was widened during apply to carry this repair** (D9/D10), and the
+proposal's claim that no shipped source file is edited was **withdrawn rather than
+reworded**.
+
+**Two claims closed, one partly:**
+
+- **`createBrowserStorage()` is now executed by a test** — 6 Playwright specs against the
+  built page in real Chromium and real IndexedDB. Boot, save, read-back through the
+  platform's own API, confirmed adoption, and a removal that leaves
+  `indexedDB.databases()` empty including a store this build does not recognise.
+- **One `fake-indexeddb` behaviour was corroborated by Chromium**: removal means
+  `deleteDatabase`, not clearing `CURRENT_MAILBOX_KEY`. Established by breaking it and
+  watching both tiers go red — 8 unit tests and 2 browser specs. **That is a fact about
+  that behaviour, not a general licence for the fake.**
+
+**Still unverified after the run, and this list is the deliverable as much as the specs
+are:**
+
+- **`use it externally`.** The suite is **offline by design**: provider traffic is served
+  from recorded responses imported by name from `packages/providers`, and any other
+  origin is aborted **and named**. No stored mailbox has ever been reconciled against a
+  live Guerrilla Mail session.
+- **The live polling cadence.** Nothing has observed what a real provider does when a
+  real page polls it every five seconds.
+- **The blocked-`deleteDatabase` semantics.** Still a `fake-indexeddb` measurement; the
+  browser suite does not produce that event.
+- **Other browsers.** Chromium only.
+- **The browser tier in CI.** The job hung on **five** runs and the cause is now
+  **measured**: it was this repository's own `webServer` command. `pnpm preview` spawns
+  `vite` as a child, so Playwright's shutdown killed the wrapper, orphaned the real
+  server, and then blocked on the pipe that orphan still held. Fixed by invoking `vite`
+  directly, and **the job now passes in 58 seconds**. **The record worth keeping is the
+  two wrong theories**, each reasonable and each refuted by measurement rather than
+  argument: raising the job ceiling 20 → 30 (the second silence was **longer** at
+  29m34s, so it is an indefinite hang, not a slow one), and
+  `--disable-dev-shm-usage --no-sandbox` (**Chromium launched on the same runner in
+  250ms** and `/dev/shm` there is 7.9G). What actually found it was **per-step
+  ceilings**, because a job-level one names no step: those printed the finding the
+  earlier kills had destroyed — **all 6 specs passing in 2.6 seconds and then no summary
+  line**, with the next step reporting port 4173 still held. **Two further lessons are
+  recorded because both cost a cycle**: with `CI=true` Playwright's **dot reporter**
+  prints progress without newlines and a kill discards it, so four runs of missing test
+  output were the *reporter* and never a hang; and the first diagnostic ran before the
+  build, dying in two seconds on a missing `dist` — a diagnostic that cannot fail for
+  the reason it exists is worse than none.
+- **`spike self-test` has been cancelled on four runs, and it is not this change's
+  code.** That job is untouched by `browser-verification` — no browser, no Playwright,
+  and it takes 26 seconds when it runs. Every one of those runs reports
+  **`runner_name` empty and `steps: 0`** from the API, and a **22-byte empty log
+  archive**: the job **never received a runner and never executed a step**. One rerun sat
+  in queue for **1215 seconds** before its own 10-minute `timeout-minutes` expired,
+  which is where the repeated exact 15m duration comes from. **This is GitHub-hosted
+  capacity for this repository being exhausted, not a defect in anything under test**,
+  and it is recorded because a job that reports `cancelled` with **no logs at all** looks
+  like a hang and is not one — the JSON is the only instrument that distinguishes them.
+
+**Two boundary collisions were predicted before they happened and both landed**, which is
+the record worth keeping: the `apps/`-scoped storage-API rule saw test code naming a
+storage API (fixed by `isTestFile`, the **twenty-first** instance of a check narrower than
+its rule), and the provider-field-name rule saw test code under `apps/` (fixed by a
+`tests/`-exemption where the rule could not honestly have one). A **third** rule was added
+rather than adjusted: every shipped `*.spec.ts` must be collected by the browser suite
+and by nothing else, with roots read from `playwright.config.ts` — **47 boundary
+assertions** now, and **8 of 8 mutations caught by the intended assertion**.
 
 **What slice 3's proposal measured before proposing anything.** It holds one record
 kind under one key in one database, and **no message history or metadata cache is
@@ -127,12 +190,12 @@ undelivered. **Two of four is not a milestone half-finished by accident**; it is
 point at which this milestone stops being about storage and starts being about
 everything M6 grouped that is not storage.
 
-**Slice 3's numbers as of 2026-10-05, and these are the current ones.** The workspace
-runs **647 tests across 31 files**, of which **46 are architecture boundary assertions** -
-**unchanged, because slice 3 added no boundary rule**: `CLIENT_STORAGE_API_PATTERN`
-already forbids a client naming `indexedDB`, and `clearAll` is reached through the
-contract, so there was no new way to break. 54 in `packages/core`, 89 in
-`packages/providers`, 149 in `packages/mail-parser`,
+**Slice 3's numbers as of 2026-10-05, superseded by the block below.** At slice 3 the
+workspace ran **647 tests across 31 files**, of which **46 were architecture boundary
+assertions** - **unchanged by slice 3, which added no boundary rule**:
+`CLIENT_STORAGE_API_PATTERN` already forbids a client naming `indexedDB`, and `clearAll` is
+reached through the contract, so there was no new way to break. 54 in `packages/core`, 89
+in `packages/providers`, 149 in `packages/mail-parser`,
 **153 in `packages/mailbox`** (19 of them adoption), **112 in `apps/web`** (108 rendering,
 4 provider configuration), **44 in `packages/storage`** (7 stored record, 30 IndexedDB
 adapter, 7 browser entry point), and 46 boundary. Counts come from `--reporter=json`
@@ -142,6 +205,27 @@ the real pre-slice count was 108 and 4. That is the second time this repository 
 recorded a count it had not measured, which is why the source changed from a summary
 line to a JSON report grouped by project. `pnpm install`, `pnpm typecheck`, `pnpm lint`,
 `pnpm format:check`, `pnpm test`, `pnpm build`, and `pnpm verify` all exited 0.
+
+### Current numbers, measured 2026-10-06 after `browser-verification`'s apply stage
+
+**649 tests across 31 files, of which 47 are architecture boundary assertions.**
+54 in `packages/core`, 89 in `packages/providers`, 149 in `packages/mail-parser`,
+**153 in `packages/mailbox`** (19 of them adoption), **113 in `apps/web`**,
+**44 in `packages/storage`** (7 stored record, 30 IndexedDB adapter, 7 browser entry
+point), 47 boundary. Counts come from `--reporter=json` grouped by project, not added by
+hand.
+
+**The two movements are both this change's, and neither is cosmetic.** `apps/web`
+112 → 113 for the regression test that holds a write open across an inbox transition —
+the write no existing test could hold open, which is why 112 of them passed on a page
+whose privacy control did not exist. Boundary 46 → 47 for the rule requiring every
+shipped browser spec to be collected by the browser suite and by nothing else. **There is
+now a second test tier** — 6 Playwright specs in `apps/web/e2e/`, run by
+`pnpm test:browser`, **not** in `pnpm verify`, with its own CI job. **Those 6 are not in
+the 649** and adding them to it would misreport what `pnpm test` covers.
+`pnpm test:browser` exited 0, 6 passed. The gate commands all exited 0, and `pnpm verify`
+was additionally verified **with no browser installed** by pointing
+`PLAYWRIGHT_BROWSERS_PATH` at an empty directory.
 
 **Where slice 2's requirements now live.** Four were added and three amended, promoted
 at the sync stage and now in `openspec/specs/`. `openspec validate --specs --strict`
@@ -2132,7 +2216,7 @@ its own, and one line in particular is delivered elsewhere:
 | Line | Delivered by |
 | --- | --- |
 | `open SpectreMail`, `receive a working address` | M5 slice 1 — `mailbox-session-layer` (archived) |
-| **`use it externally`** | **M5 slice 1 delivers the address; using it on a third-party site is UNVERIFIED** — and it stays UNVERIFIED until the first live browser run, which is M6's next eligible objective |
+| **`use it externally`** | **M5 slice 1 delivers the address; using it on a third-party site is UNVERIFIED** — and it stays UNVERIFIED. `browser-verification` ran the page in a real browser but **deliberately offline**, serving recorded provider responses, so the claim is unchanged rather than narrowed. Closing it needs a **live** provider, which is a product decision, not a test |
 | `receive a real message` | M5 slice 2 — `inbox-polling` (archived) |
 | `find the OTP` | M5 slice 3 — `message-view` (archived) |
 | **`copy the OTP`** | **M10, the verification workflow** — see below |
@@ -2358,20 +2442,31 @@ should appear, and M7's Motion block defines the animation that a reduced-motion
 preference has to govern. M6 disclaims appearance and M7 owns it, so this is where the
 two items already lived.
 
-**What M6 therefore still owes is not code, and saying so is the point.** Three
-long-standing unproven claims would all be closed by **one thing this repository has
-never done: running the website in a real browser.** `use it externally` is unverified
-because no live browser run and no third-party signup have ever been driven. The storage
+**What M6 therefore owed was not code, and that is what the cursor above named.** Three
+long-standing unproven claims were to be closed by **one thing this repository had never
+done: running the website in a real browser.** `use it externally` was unverified
+because no live browser run and no third-party signup had ever been driven. The storage
 path a user's browser takes — boot, read, create, write, then delete the whole database —
-has never run anywhere, because `jsdom` implements no IndexedDB. And **no claim exists
-about what a provider does when a real page polls it every five seconds.** One
-browser-automation run would close all three, and it is the next eligible objective.
+had never run anywhere, because `jsdom` implements no IndexedDB. And **no claim existed
+about what a provider does when a real page polls it every five seconds.**
 
-That run is **not begun**, and it is a genuine capability rather than a chore: Playwright
-is a **spike-only** dev dependency outside the workspace, there is **no browser-automation
-test suite in this repository**, and bringing one inside the workspace is a decision with
-its own boundary consequences — an `apps/`-scoped boundary rule would then see test code
-that names a storage API. It gets its own OpenSpec change.
+**`browser-verification` has now run, and the record is more useful than the plan was.**
+The storage path closed, **and it was found broken on arrival**: the page wrote the
+mailbox and never concluded it had, so the removal control was never offered. That was a
+shipped requirement this roadmap had been reporting as delivered. The other two claims did
+**not** close, for a reason worth naming rather than treating as a shortfall: the tier is
+**offline by design**, serving recorded provider responses. A browser run cannot close
+`use it externally` unless it is also allowed to reach a live provider, and that is a
+product decision about sending real mail to a third-party site — not a test.
+
+**The predicted boundary consequence is what makes this worth recording.** Bringing a
+suite inside the workspace was flagged as a decision with its own consequences, and **both
+predicted collisions landed**: the `apps/`-scoped storage-API rule saw test code naming
+`indexedDB`, and the provider-field-name rule saw test code under `apps/`. The first was
+a check narrower than its rule — the **twenty-first** such instance here — fixed by
+exempting tests by *kind* rather than by the spelling `.test.tsx?`, and fixed with
+controls that plant both spellings so an over-wide exemption fails the half that is
+supposed to fire.
 
 ---
 
@@ -2498,9 +2593,14 @@ anything**:
   shipping animation with no way to opt out would introduce the problem rather than solve
   it.
 
-**Neither can be verified by assertion in this repository's current suite.** Contrast and
-focus visibility are properties of rendered pixels, and there is no browser-automation
-suite in the workspace. See M6's annotation on what a real browser run would close.
+**Contrast and focus visibility are not currently verified, and the reason is narrower
+than it was.** There **is** now a browser suite — `browser-verification` added one — so
+"there is no browser-automation suite in the workspace" is no longer true and this sentence
+is corrected rather than kept. What remains true is that **nothing in it asserts a
+computed colour or a rendered focus ring**: contrast and focus visibility are properties
+of rendered pixels, and the suite verifies behaviour over IndexedDB rather than appearance.
+M7 is where CSS arrives, and a stylesheet is what makes these assertions possible to
+write.
 
 ## Website sections
 

@@ -32,3 +32,18 @@ packages:
 # pnpm 12 reads settings from this file, not from package.json.
 allowBuilds:
   esbuild: true
+
+# `browser-verification` added a second reason to read this file's exclusions, and it is
+# the same reason with the opposite conclusion for a different directory.
+#
+# Playwright now IS a workspace dev dependency — of `apps/web`, not of the root, and only
+# because the first workspace dependency needing a browser download has to go somewhere.
+# Reason 1 above ("every root pnpm install would pull Playwright's graph for contributors
+# who will never run it") is why it is scoped to one package rather than declared at the
+# root, not a reason to keep it out of the workspace: a browser suite nothing requires to
+# keep passing is the deferred-verification pattern `build-and-verification` records, and
+# the whole point of that change is to stop recording it.
+#
+# `tests/provider-spike` remains excluded, and nothing in that was reversed. It is
+# hand-rolled .mjs, it is disposable research, and its evidence belongs in
+# `docs/PROVIDERS.md` rather than in a suite anyone maintains.

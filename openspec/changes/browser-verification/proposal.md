@@ -60,8 +60,36 @@ has been recording it instead of closing it. Time to close it.
   `fake-indexeddb`. This change adds the browser-observed behaviour of `clearAll` to what
   that requirement is known to hold, and records `fake-indexeddb` as a substrate whose
   agreement with a browser is now measured rather than assumed.
+- `website-client`: adds the property whose absence made the removal requirement false on
+  the platform — see the scope amendment below.
+
+## Scope amendment, recorded during apply (2026-10-05)
+
+**The Impact section below originally committed that no shipped source file is edited,
+and this change now edits one.** That sentence is withdrawn rather than reworded,
+because it was a claim about scope and a claim found to be wrong should not survive as a
+softer version of itself.
+
+The first browser run measured
+`databases=["spectre-mail"] records=1 claimsStored=0 offersRemoval=0`: the website
+writes the record and does not know it has, so **the removal control `website-client`
+requires is never offered in a real browser**. The cause is a guard in
+`apps/web/src/useMailboxSession.ts` scoped to an effect invocation rather than to the
+component, so the effect's own cleanup withdraws it when the inbox publishes a new state
+object while a real write is in flight. jsdom's stub resolves before that window opens,
+which is why 152 existing tests passed.
+
+**`apps/web/src/useMailboxSession.ts` is therefore in scope**, for one repair and one
+regression test. The repair is a mounted ref replacing the per-invocation flag; the
+`handed` claim that prevents a duplicate write is untouched, because it is correct.
+
+**Nothing else under `apps/` or `packages/` is edited.** The three storage specs assert
+on what the page stores and on what the platform holds afterwards — they observe the
+product, and a repair to the page is recorded here rather than smuggled into a test that
+was supposed to be checking it.
 
 ## Impact
+
 
 - **New:** `apps/web/e2e/` (Playwright specs), `playwright.config.ts`,
   `pnpm test:browser`. Playwright becomes a **dev dependency of `apps/web`** — the first
@@ -69,10 +97,12 @@ has been recording it instead of closing it. Time to close it.
 - **Changed:** `tests/architecture/boundaries.test.ts` (two rules widened, each with a
   positive and a negative control and a mutation to prove the control is not the rule);
   `package.json` (one script); `apps/web/package.json` (one dev dependency); `.gitignore`
-  (Playwright artefacts); `.github/workflows/ci.yml` (one job).
-- **Unchanged by design:** every shipped source file. `packages/storage`,
-  `packages/mailbox`, and `apps/web/src` are **not edited** — the suite verifies what
-  exists, and a defect it finds is fixed by a later change with its own evidence, not by
-  weakening an assertion here.
+  (Playwright artefacts); `.github/workflows/ci.yml` (one job);
+  **`apps/web/src/useMailboxSession.ts` (the repair described in the scope amendment
+  above, and only that)**.
+- **Unchanged by design:** every other shipped source file. `packages/storage`,
+  `packages/mailbox`, and the rest of `apps/web/src` are not edited. The suite verifies
+  what exists, and any further defect it finds is recorded and repaired by its own change
+  with its own evidence, not by weakening an assertion here.
 - **The extension is out of scope.** Playwright is a spike-only dependency for MV3 host-
   permission work, and M8 owns the extension. Nothing here touches `apps/extension`.
