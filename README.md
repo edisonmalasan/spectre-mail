@@ -439,11 +439,12 @@ The browser tier closed the storage-path gap and **did not close these**:
 - **A blocked removal** — still a `fake-indexeddb` measurement; the browser suite does not
   produce that event.
 - **Other browsers** — Chromium only, and on one machine.
-- **The browser tier in CI** — the job **has never passed**. Its first run failed at
-  20m19s, killed by its own timeout, after installing Chromium in 24 seconds and then
-  spending 19m35s inside `pnpm test:browser` with no output at all. The ceiling is raised
-  so the step can fail on its own terms and name itself; the hang itself is not yet
-  explained.
+- **The browser tier in CI** — the job **has never passed**. Two runs were killed by the
+  job timeout with `The operation was canceled.` and nothing else: 19m35s and then 29m34s
+  inside `pnpm test:browser`, no output at all, after installing Chromium in 24 seconds.
+  That the second silence was _longer_ is what refutes the idea that it was merely slow.
+  The ceilings are now per-step so a future run names the step that hangs; the hang
+  itself is still unexplained.
 
 ---
 

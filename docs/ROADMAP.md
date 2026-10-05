@@ -103,11 +103,15 @@ are:**
 - **The blocked-`deleteDatabase` semantics.** Still a `fake-indexeddb` measurement; the
   browser suite does not produce that event.
 - **Other browsers.** Chromium only.
-- **The browser tier in CI.** The job **has never passed**. Its first run failed at
-  20m19s, killed by its own timeout, having installed Chromium in 24 seconds and then
-  spent 19m35s inside `pnpm test:browser` producing nothing. The ceiling is raised so
-  the step can fail on its own terms and name itself; **the hang is not yet explained and
-  no cause is guessed at**.
+- **The browser tier in CI.** The job **has never passed**. Two runs were killed by the
+  job timeout having produced `The operation was canceled.` and nothing else — 19m35s and
+  then 29m34s inside `pnpm test:browser`, no output, after 24 seconds installing
+  Chromium. **The second silence being longer refutes the budget hypothesis by
+  measurement**: this is an indefinite hang, not a slow suite. Raising the job ceiling
+  from 20 to 30 was the first repair and it was wrong, which is recorded because it cost
+  twenty minutes to learn. The ceilings are now **per-step**, because a job-level
+  timeout names no step and a step-level one does. **The hang itself is still unexplained
+  and no cause is guessed at.**
 
 **Two boundary collisions were predicted before they happened and both landed**, which is
 the record worth keeping: the `apps/`-scoped storage-API rule saw test code naming a

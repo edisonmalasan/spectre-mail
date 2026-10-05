@@ -429,12 +429,17 @@ Pin versions when exact versions matter.
   `build-and-verification` requires `pnpm verify` to run with no browser installed and
   that is verified — with `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory, and
   by reading every script `verify` names.
-  **That job has never passed.** Its first run **failed at 20m19s**, killed by its own
-  timeout with `The operation was canceled.` and no other output, having spent 24 seconds
-  installing Chromium and then 19m35s inside `pnpm test:browser` producing nothing. The
-  ceiling is raised to **30 minutes** so the step can fail on its own terms and name
-  itself, and **the hang has not been explained** — it was not reproduced and no cause is
-  guessed at. Until a run passes, the browser tier has been observed on one machine only.
+  **That job has never passed**, and the reason is worth recording because the first
+  repair was wrong. Run 1 **failed at 20m19s**, killed by the job timeout with
+  `The operation was canceled.` and no other output: 24 seconds installing Chromium, then
+  19m35s inside `pnpm test:browser` producing nothing. Raising the ceiling 20 → 30 was
+  expected to let it fail on its own terms; instead run 2 was silent for **29m34s** and
+  was killed again, which **refutes the budget hypothesis by measurement** — the hang is
+  indefinite, not slow. The ceilings are now **per-step** (5 minutes for the install,
+  measured at 24s; 10 for the suite, measured at ~4s warm) with the job's 25 as a
+  backstop, because a job-level timeout names nothing and a step-level one names the
+  step. **The hang has not been explained** and no cause is guessed at. Until a run
+  passes, the browser tier has been observed on one machine only.
   No deployment, hosting, or release pipeline exists or is planned for V1.
 
 - External services: `https://api.mail.tm` and `https://api.guerrillamail.com`.

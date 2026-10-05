@@ -260,19 +260,28 @@
       only line it produced was `The operation was canceled.` — 19m35s inside
       `pnpm test:browser`, with **no output at all**.
 
-      **Two things that failure did establish, and neither is the install.** The Chromium
-      download and `--with-deps` finished in **24 seconds** on a clean runner, so the
-      budget is not there. And **a job killed by its own timeout reports nothing about
-      why it was slow** — the timeout became the thing under investigation rather than
-      the guard it was written to be. So the ceiling is raised 20 → **30 minutes**, which
-      lets the step either finish or fail on its own terms and name itself, and
-      `CI: "true"` is set at **job** level so Playwright's behaviour on a runner does not
-      rest on an ambient variable a step override could remove.
+      **The first repair was wrong, and it is recorded because it is instructive.** Raising
+      the job ceiling 20 → 30 was expected to let the step fail on its own terms. It did
+      not: the second run was silent for **29m34s** and was killed again. That is a
+      **measured refutation of the budget hypothesis** — the hang is indefinite, not slow
+      — and it cost twenty minutes to learn by pushing a bigger number at it.
 
-      **What is still unknown, and is not guessed at.** The hang was neither reproduced
-      nor explained. A run with the larger ceiling is the next observation, and until one
-      exists this job has **never passed** — which is why the three documents say the job
-      has not run rather than that it is unverified.
+      **What actually diagnoses a hang is a per-step ceiling**, because a job-level
+      timeout kills the whole job and the log's last line is `The operation was canceled.`,
+      naming nothing. The ceilings are now per-step: **5 minutes** for the Chromium
+      install, which was **measured at 24 seconds**, and **10** for the suite, which runs
+      in about **4 seconds** warm. The job's own 25 is a backstop. **The generous-looking
+      numbers are headroom so a first successful run cannot be mistaken for a hang** —
+      sized against what has been observed, not against what would be convenient to
+      observe. `CI: "true"` is set at **job** level so Playwright's behaviour does not
+      rest on an ambient step variable.
+
+      **What is still unknown, and is not guessed at.** The hang has not been explained.
+      The per-step ceilings exist so the next run **names the step that hangs**, which is
+      the first piece of evidence that can distinguish `pnpm build` from Playwright itself
+      — and both were silent, so nothing here names a cause. Until a run passes, this job
+      has **never passed**, which is why the three documents say that rather than calling
+      it unverified.
 
 ## 6. Documentation, correcting only what this change makes false
 

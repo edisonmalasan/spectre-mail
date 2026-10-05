@@ -114,15 +114,13 @@ jobs:
     # able to fail the `verify` job's budget by sharing it. 15 is `verify`'s value
     # and is not inherited: the two jobs are siblings, not stages.
     #
-    # **Raised from 20 to 30, and the reason is a measured failure rather than a
-    # guess.** The first run of this job hit the 20-minute ceiling and was killed
-    # with `The operation was canceled.` — 19m35s inside `pnpm test:browser`, with
-    # **no output at all**. The Chromium install had finished in 24 seconds, so the
-    # install is not the cost. A job killed by its own timeout reports nothing about
-    # why it was slow, which makes the timeout the thing under investigation; a
-    # larger ceiling lets the step either finish or fail on its own terms and name
-    # itself.
-    timeout-minutes: 30
+    # **A backstop only, because a job-level ceiling cannot diagnose a hang.** Two runs
+    # were killed by the job timeout having produced `The operation was canceled.` and
+    # nothing else. Raising it from 20 to 30 changed nothing except how long the job sat
+    # producing nothing — the second run was silent for 29m34s, which *confirms* the
+    # hang is indefinite rather than slow, and therefore is not a budget problem at all.
+    # The ceilings that do the diagnostic work are per-step and below.
+    timeout-minutes: 25
 
     # The browser tier (pnpm test:browser), run by its maintainer command with no
     # divergent flags. It is NOT part of `pnpm verify` and is not added to it here.
@@ -180,12 +178,28 @@ jobs:
       # on a path that can move is a cache that can silently serve the wrong
       # bytes; the honest cost is re-downloading, and the job's own timeout
       # absorbs it. **Measured at 24 seconds on a cold runner**, so this step is not
-      # where the first run's time went.
+      # where the first run's time went. The ceiling is per-step for the reason given on
+      # the last step: a hang must name the step it happened in.
       - name: Install Chromium
+        timeout-minutes: 5
         run: pnpm --dir apps/web exec playwright install --with-deps chromium
 
       # **A maintainer runs `pnpm test:browser`; this runs the same command.** No
       # extra flags, because the suite's assertions do not vary by environment and a
       # divergent flag here would be a second thing to keep in step.
+      #
+      # **The ceiling is per-STEP, and that is the fix for a hang, not a preference.**
+      # Two runs of this job were killed by a job-level timeout having produced
+      # `The operation was canceled.` and nothing else - 19m35s and then 29m34s
+      # inside this command with no output at all. **A job-level ceiling cannot tell you
+      # which command hung**, because the runner kills the whole job and the log's last
+      # line is the cancellation. A step-level ceiling kills one step and names it.
+      #
+      # So the job's own timeout is now only a backstop, and each step carries a ceiling
+      # sized against what it has actually been observed to take: the install is 24s and
+      # gets 5, this step gets 10 for a suite that runs in about 4 seconds warm. **The
+      # generous-looking 10 is not optimism - it is headroom so a first successful run
+      # cannot be mistaken for a hang.**
       - name: Test (browser)
+        timeout-minutes: 10
         run: pnpm test:browser
