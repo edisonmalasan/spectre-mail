@@ -719,6 +719,11 @@ describe("the website", () => {
 
       render(<App session={session} storage={EMPTY_STORE} />);
       await screen.findByTestId("ready");
+      // **One claim below only becomes true once a write is confirmed**, which is a
+      // later turn of the microtask queue than `ready` — the same ordering that made
+      // this test fail about one run in three until the wait was moved here. The page
+      // is briefly "Ready" while still holding nothing, and it says so.
+      await screen.findByTestId("local-data-stored");
 
       const text = visibleText();
 
@@ -761,20 +766,30 @@ describe("the website", () => {
       // expect a button to copy the code they came for.
       expect(text).toMatch(/does not copy codes or follow links/i);
 
-      // **Slice 2's fourth retired claim, and the assertion that notices it.** The
+      // **Slice 2's fourth retired claim, and the assertion that noticed it.** The
       // page used to say "A reload discards this address. SpectreMail stores nothing
       // on your device yet." Both halves became false the moment the page persisted a
       // mailbox, and this is the same property three times over: a sentence that
       // outlives the behaviour it describes.
       //
-      // **The replacement is asserted, not merely the old wording's absence.** A page
-      // that deleted the bullet entirely would pass a negative-only assertion while
-      // claiming nothing about stored data at all — and the honest claim here is the
-      // uncomfortable one, that there is no button to delete the record.
+      // **Then slice 3 retired the replacement, and this is the fourth time.** Slice 2
+      // replaced that sentence with one saying the address is kept and that *no button
+      // anywhere deletes it* — which was true, and was the only honest thing the page
+      // could say while it was true. Slice 3 built the button, so that sentence died
+      // too. This assertion failed on landing, which is what it was written to do.
+      //
+      // **The replacement is asserted in both directions, and the negatives are the
+      // load-bearing half.** A page that simply deleted the sentence would pass a
+      // positive-only check while claiming nothing about stored data at all. The claim
+      // now required is the opposite of the one being retired: the page must say the
+      // address is kept *and* must not say it cannot be deleted, because a user
+      // reading "we keep this and you cannot remove it" has been told something false
+      // by a page that now has a button.
       expect(text).not.toMatch(/reload discards/i);
       expect(text).not.toMatch(/stores nothing on your device/i);
-      expect(text).toMatch(/keeps this device's address/i);
-      expect(text).toMatch(/no button here to delete/i);
+      expect(text).toMatch(/holding this address/i);
+      expect(text).not.toMatch(/no button here to delete/i);
+      expect(text).not.toMatch(/cannot delete/i);
 
       expect(text).toContain("Guerrilla Mail and nothing else");
     });

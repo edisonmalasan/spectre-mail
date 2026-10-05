@@ -22,11 +22,18 @@
  * - It **shows no cadence**. It says that it checks while the page is open, and never
  *   how often — no provider limit was measured for the only provider a browser page
  *   can reach, so any figure would be an invention presented as a measurement.
- * - **It keeps this device's address.** One mailbox is written to this browser's own
- *   storage and offered back on the next visit, after the provider confirms it. What
- *   it does **not** yet offer is any way to delete that record — the privacy controls
- *   are a later slice of this milestone, and the limits list below says so rather than
- *   leaving the absence for a user to discover.
+ * - **It keeps this device's address, and it can be made to forget it.** One mailbox is
+ *   written to this browser's own storage and offered back on the next visit, after the
+ *   provider confirms it. `LocalData` states what is kept, where, and offers a confirmed
+ *   removal — so this page no longer has the property slice 2 documented about it and
+ *   could only apologise for, which was that it stored an address and offered no way to
+ *   take it back. That sentence in the limits list is **gone rather than reworded**;
+ *   the comment where it stood records why, because a stale claim that reads like a
+ *   security guarantee is the most damaging kind of wrong on a page.
+ * - **A removal that is refused is reported as refused.** A second SpectreMail tab
+ *   holding the database leaves the removal queued rather than cancelled, so the page
+ *   says it did not happen and says nothing at all about whether the record survives —
+ *   see `LocalData`'s note, which sets out both halves of that.
  * - **A stored address is never shown as working before the provider says so.** That
  *   is what `docs/PROVIDERS.md` §3's measured trap makes necessary: an unrecognised
  *   Guerrilla Mail session answers `HTTP 200` with an empty inbox and no error, so
@@ -88,6 +95,7 @@ import type { MailboxSession, OpenedMessageState } from "@spectre-mail/mailbox";
 import { Address } from "./Address";
 import { BootFailure } from "./BootFailure";
 import { Inbox } from "./Inbox";
+import { LocalData } from "./LocalData";
 import { MailboxFailure } from "./MailboxFailure";
 import { MailboxLifetime } from "./MailboxLifetime";
 import { MessageView } from "./MessageView";
@@ -156,6 +164,8 @@ export function App({ session, storage }: AppProps = {}) {
     state,
     boot,
     saving,
+    localData,
+    clearStored,
     retryBoot,
     startFresh,
     retry,
@@ -279,6 +289,27 @@ export function App({ session, storage }: AppProps = {}) {
         <MailboxFailure failure={state.failure} onRetry={retry} />
       )}
 
+      {boot.kind === "started" && (
+        // **Own region, gated on the boot having *finished*, and that gate is the
+        // second version of this decision.** It was first written as "anything but
+        // blocked", which rendered the region while the read was still out — and the
+        // region's honest `none` branch then said *"Nothing is kept in this browser"*
+        // on a page that had not yet looked. That is the same class of false claim as
+        // `boot: blocked` making the session's `idle` unreachable, one layer down: a
+        // branch chosen from a value that has not been established.
+        //
+        // Two reasons for the gate that replaced it. During the read the page knows
+        // nothing, so it may assert neither that something is stored nor that nothing
+        // is — and the session's own region is already telling the user a read is in
+        // flight, so nothing is left unsaid. And where storage is blocked it does not
+        // know either, for the same reason; `BootFailure` says that instead.
+        //
+        // It renders in **every session state** once the boot is done, because what this
+        // browser remembers has nothing to do with what the session is doing — a user
+        // looking at a creation failure with a stored address still needs to remove it.
+        <LocalData localData={localData} clearStored={clearStored} />
+      )}
+
       <section aria-labelledby="limits-heading">
         <h2 id="limits-heading">What this page can and cannot do</h2>
         <ul>
@@ -291,21 +322,19 @@ export function App({ session, storage }: AppProps = {}) {
             It does not copy codes or follow links for you. Those are the verification workflow,
             which this page does not do yet.
           </li>
-          {/*
-            **Rewritten, because both halves of the previous line became false with M6
-            slice 2.** It read "A reload discards this address. SpectreMail stores
-            nothing on your device yet." — the first half is no longer true, and the
-            second is the one that matters for trust. What replaced it states what is
-            stored, where, and that nothing on the page can remove it. A user reading
-            "SpectreMail keeps this address on your device" deserves to know in the same
-            breath that there is no button anywhere that deletes it, because a product
-            that stores and cannot be made to stop is a different product from one that
-            says it stores nothing.
-          */}
-          <li data-testid="limits-storage">
-            It keeps this device's address so a reload can bring it back. It is stored only in this
-            browser, and there is no button here to delete it — that has not been built yet.
-          </li>
+          {/* **The storage bullet is gone rather than reworded, and that is the
+              record worth keeping.** It was rewritten twice before: slice 2 replaced
+              "A reload discards this address. SpectreMail stores nothing on your
+              device yet." with a statement that the address is kept and that *no
+              button anywhere deletes it* — which was true, and was the honest thing to
+              say at the time.
+
+              It stopped being true the moment this slice landed, and a stale claim that
+              reads as a security property is the most damaging kind of wrong on a
+              page. Rather than reword it a third time, the subject moved into its own
+              region with a control in it, and the limits list kept to limits. The two
+              are one subject and were never two claims, so splitting them is what
+              stops the list from needing rewriting again. */}
           <li>
             No server is involved. SpectreMail operates no backend and never relays a provider
             request.

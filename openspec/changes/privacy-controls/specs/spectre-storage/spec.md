@@ -27,18 +27,30 @@ Removing the whole database instead also removes anything a future version wrote
 which is what the words on the button mean.
 
 The blocked case was measured rather than assumed, on this repository's own test
-substrate, and the measurement is the reason this requirement forbids waiting:
-`deleteDatabase` fires `onblocked` when another connection holds the database, and
-**it does not complete afterwards even once that connection closes**. A
-implementation that awaited the request would therefore hang rather than report. The
-adapter's `openDatabase` already rejects on `onblocked` for exactly the same
-reason, and the two paths now behave alike.
+substrate, and the measurement corrected the reason this requirement gives for
+reporting instead of waiting. `deleteDatabase` fires `onblocked` when another
+connection holds the database; while the removal is pending **a fresh read cannot
+complete either**, and **once the holding connection closes the queued removal goes
+through on its own.**
 
-That measurement is a statement about `fake-indexeddb`, which is not a browser. It
-is recorded as the reason the blocked path is exercised rather than trusted, not as a
-claim about what a real browser does — a real browser queues the delete and
-completes it when the connections close, which is precisely the behaviour an
-implementation may not *rely* on without being able to observe it.
+So reporting is not a substitute for waiting — it is the only available answer,
+because the wait ends when some *other* tab closes, which a page can neither cause
+nor predict. And because the refusal does not cancel the queued removal, a refusal
+may say that nothing was removed and may **not** say that the data remains: a moment
+after the refusal it may be gone. A caller that told the user "your address is still
+saved" would be promising something the platform is already in the middle of
+breaking.
+
+**Amendment, recorded during apply (2026-10-05).** This note originally claimed a
+blocked delete "does not complete afterwards even once the blocking connection
+closes", and the blocked scenario below carried a matching clause requiring that what
+was stored remain stored. Both were written from a probe whose promise had already
+resolved on `onblocked`, so it could not have observed the request afterwards; the
+claim was an artifact of how the probe was built rather than a property of the
+platform. Writing the tests found it, because the test asserting that the record
+survived a refusal failed by finding it gone. The clause requiring that what was
+stored remain stored is therefore **removed** — it was not merely imprecise but
+false, and the scenario now states the property that is actually observable.
 
 Idempotence is measured rather than assumed too: deleting a database that does not
 exist succeeds. Without that, a user who cleared their data twice, or cleared on a
@@ -67,8 +79,9 @@ for.
 
 - **WHEN** the platform blocks removal because another connection holds the data
 - **THEN** it SHALL report a failure
-- **AND** it SHALL NOT wait indefinitely for the block to clear
-- **AND** what was stored SHALL remain stored
+- **AND** it SHALL NOT wait for the block to clear
+- **AND** it SHALL NOT report that anything was removed
+- **AND** it SHALL NOT state that what was stored remains stored
 
 #### Scenario: Removal fails
 

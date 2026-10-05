@@ -96,6 +96,22 @@ describe("createBrowserStorage", () => {
     expect(await second.loadMailbox()).toEqual(A_MAILBOX);
   });
 
+  it("removes everything through the browser entry point too", async () => {
+    // **Two constructions, and the removal is issued through the second.** A single
+    // storage clearing and then reading itself would also pass against an
+    // implementation that only cleared an in-process copy of itself - the failure the
+    // "shares across constructions" test above was written to catch. Going through a
+    // second object over the same platform asks whether the entry point reaches the
+    // *database*, which is the only thing the contract promises.
+    restore = withPlatform();
+    const first = createBrowserStorage();
+    await first.saveMailbox(A_MAILBOX);
+
+    await createBrowserStorage().clearAll();
+
+    expect(await first.loadMailbox()).toBeNull();
+  });
+
   it("keeps nothing in this process, so a reload is what makes a record exist", async () => {
     // **The negative of the test above, and it is the one that could pass for the
     // wrong reason.** If `createBrowserStorage` kept the mailbox in a module-level

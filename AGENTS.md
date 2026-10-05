@@ -39,11 +39,17 @@ The website creates an address, lists what arrives in it, opens a message, and -
 M6 slice 2 - **keeps that address in the browser and offers it back on a reload**; **no
 live browser run of it has ever been made**, so every acceptance claim below is a claim
 about a function and about jsdom, not about a user's experience. That caveat is at its
-sharpest for slice 2: it is the first change that would write anything to a user's
-disk, and `jsdom` implements no IndexedDB, so the real storage path has been exercised
-by **no test at all**. `return to a recent mailbox` is delivered by slice 2. The
-controls that **delete** the stored address do not exist yet - that is slice 3 - so this
-milestone has added persistence without having added its removal.
+sharpest for slice 2 and it is **unchanged by slice 3**: it is the first change that
+would write anything to a user's disk, and `jsdom` implements no IndexedDB, so the real
+storage path has been exercised by **no test at all**. `return to a recent mailbox` is
+delivered by slice 2, and since slice 3 **this milestone has added its removal** - the
+page offers a confirmed control that clears what this device holds. **Nothing about that
+is a browser-tested claim**: `packages/storage`'s 44 tests run against
+`fake-indexeddb` `6.2.5`, which **is not a browser**, and `createBrowserStorage()` - the
+function a real page calls - is still **never executed by any test in the workspace**.
+Slice 3 therefore closes the *product* gap and leaves the *verification* gap exactly
+where slice 2 left it, and it is stated that way because a privacy control that has only
+been checked against a fake is the claim most worth being careful about.
 
 The current state, in dependency order:
 
@@ -133,11 +139,24 @@ Pin versions when exact versions matter.
   absent by decision, not by omission; M7 owns it
   under the approved Spectral Swiss Utility direction, and markup written now would be
   markup M7 rewrites.
-  **It keeps this device's address**, which M6 slice 2 added and an earlier draft of
-  this file denied three times over. One mailbox is written to the browser's own storage
-  and offered back on the next visit **after the provider confirms it**. The page states
-  what is stored, where, and - the honest part - **that no button anywhere deletes it**,
-  because slice 3 has not landed. A stored address is **never** shown as working before
+  **It keeps this device's address and can be made to forget it.** One mailbox is written
+  to the browser's own storage and offered back on the next visit **after the provider
+  confirms it**. M6 slice 3 added `LocalData`, a region of its own, which states what is
+  kept and where and offers a **two-step confirmed removal** of the whole database - not
+  of one key, so a record kind added later is removed with it. **The claim that no button
+  anywhere deletes it, which this file carried through two earlier drafts, was true until
+  this slice and is now false**; the sentence was **deleted rather than reworded**, and
+  the comment beside it records why, because a stale claim that reads like a security
+  guarantee is the most damaging kind of wrong on a page. The mailbox **stays on screen
+  and stays usable** afterwards, and the page says a later visit will not offer it back -
+  removal deletes this device's note of the address, not the address. A **refused**
+  removal is reported as refused, in the platform's own words, and is forbidden from
+  claiming either that the data is gone or that it is safe: a blocked removal stays
+  **queued** and completes on its own once the holding connection closes, so both halves
+  would be promises the product is about to break. The control is offered **only where it
+  can act**, and the region renders **only once the boot read has finished** - before
+  that the page knows nothing, and claiming nothing is kept would be a claim it cannot
+  support. A stored address is **never** shown as working before
   the provider says so, and that is not caution: `docs/PROVIDERS.md` §3 records a dead
   Guerrilla Mail session answering `HTTP 200` with an empty inbox, so "nothing has
   arrived" and "this address is gone" are the same response. The page therefore
@@ -264,17 +283,30 @@ Pin versions when exact versions matter.
   `docs/PROVIDERS.md` for why a SpectreMail-operated proxy is not a permitted
   workaround for Mail.tm.
 
-- Database / storage: **`packages/storage` has real behaviour since M6 slice 1, and the
-  website has used it since M6 slice 2.** It holds the `SpectreStorage` contract -
-  `loadMailbox` and `saveMailbox`, nothing else - an IndexedDB adapter behind it, and a
-  `createBrowserStorage()` entry point, with **33 tests** (7 for the versioned stored
-  record, 20 for the adapter, 6 for the browser entry point). **Two ways in, separately
+- Database / storage: **`packages/storage` has real behaviour since M6 slice 1, the
+  website has used it since M6 slice 2, and M6 slice 3 gave it a removal.** It holds the
+  `SpectreStorage` contract - `loadMailbox`, `saveMailbox`, and `clearAll` - an IndexedDB
+  adapter behind it, and a `createBrowserStorage()` entry point, with **44 tests** (7 for
+  the versioned stored record, 30 for the adapter, 7 for the browser entry point).
+  **Two ways in, separately
   named**: `createIndexedDbStorage` takes a required `IDBFactory` and needs no global,
   while `createBrowserStorage()` reads `globalThis.indexedDB` and **throws where the
   platform provides none** - a store that quietly kept nothing would let a page report
-  "nothing is saved on this device" on a device where saving is blocked. **Nothing
-  anywhere deletes what is written**, because the privacy controls are slice 3; the
-  extension's adapter is also later, and `fake-indexeddb` **is not a browser**. Two
+  "nothing is saved on this device" on a device where saving is blocked. **What deletion
+  there is**: `clearAll` is the **third** contract member and calls `deleteDatabase` -
+  the **whole database**, deliberately, not `CURRENT_MAILBOX_KEY`. The narrow version
+  would pass every test written against today's single record and would quietly stop
+  clearing everything the moment a later build added a second record kind, so the adapter
+  test plants a store this build does not recognise and requires it to go too. Removal is
+  **idempotent**, and **a blocked removal rejects rather than waiting** - and the reason
+  is *not* that it would hang, which is what an earlier draft of this file said and which
+  was wrong. Measured properly, a blocked `deleteDatabase` is **queued**: it fires
+  `onblocked`, a fresh `open` is blocked while it is pending, and **it completes on its
+  own** once the holding connection closes. The real reason to report is that the wait
+  ends when some *other* tab closes, which a page can neither cause nor predict. So
+  rejecting does **not cancel** the removal, which is what forces the page's wording.
+  `apps/web` has used all three since slice 3; the **extension's adapter is still
+  later**, and `fake-indexeddb` **is not a browser**. Two
   properties are settled and worth knowing before anything is built on it:
   **`loadMailbox` returns `null` for "nothing stored" only** and every other failure
   rejects, because a read reported as absent would make a client believe it is a first
@@ -300,13 +332,20 @@ Pin versions when exact versions matter.
   `pnpm typecheck`, which is a separate gate. There is still no extension build
   step — that is M8.
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running **620 tests across
-  31 files** via `pnpm test` (2026-10-05, after the M6 slice 2 apply stage):
+- Testing: Vitest `3.2.7` at the workspace root, verified running **647 tests across
+  31 files** via `pnpm test` (2026-10-05, after the M6 slice 3 apply stage), counted from
+  a JSON reporter rather than read off a summary line:
   54 in `packages/core`, 89 in `packages/providers`, **149 in `packages/mail-parser`**,
-  **153 in `packages/mailbox`** (19 of them adoption), **96 in `apps/web`** (93
-  rendering, 3 provider configuration), **33 in `packages/storage`** (7 stored record,
-  20 IndexedDB adapter, 6 browser entry point),
+  **153 in `packages/mailbox`** (19 of them adoption), **112 in `apps/web`** (108
+  rendering, 4 provider configuration), **44 in `packages/storage`** (7 stored record,
+  30 IndexedDB adapter, 7 browser entry point),
   and **46 architecture boundary assertions**.
+  **The previous figures in this paragraph were wrong in two ways, and both were found
+  by measuring rather than by reading**: it recorded `apps/web` at 96 when the real count
+  was 108 before this slice, and it recorded 3 provider-configuration tests when there
+  have been 4. The split was never checked against the file. Counts here are now taken
+  from `--reporter=json` and grouped by project, so the next reader is measuring rather
+  than adding up.
   `passWithNoTests` is **off** by design - a
   green run that inspects nothing is worse than no run. The `include` globs name
   `tests/architecture/**/*.test.ts`, `packages/*/src/**/*.test.ts`,
@@ -637,17 +676,22 @@ static shell.
 The website creates a mailbox, renders its address, lists that mailbox's messages
 while polling for new ones, opens one, and - since M6 slice 2 - **reads its own storage
 first and offers a stored address back after the provider confirms it**. It has **no
-styling** - that is M7 - and **nothing anywhere deletes what it stores**, which is slice
-3 and is stated in the page's own limits list rather than left for a user to discover.
-Those are the slices' stated limits, not an unfinished screen. The
+styling** - that is M7 - and since M6 slice 3 it **offers a two-step confirmed control
+that makes this browser forget that address**, with the mailbox left on screen and the
+page saying a later visit will not offer it back. `LocalData.tsx` is the only new
+component; the limits bullet that said no button could delete the stored address was
+**removed rather than reworded**, because it became false the moment the button landed.
+The remaining stated limit is styling, not an unfinished screen. The
 page's provider configuration is reachable and testable without a network
 (`apps/web/src/provider-config.test.ts`), but **nothing has been verified against the
 live Guerrilla Mail API from a browser**, so no claim is made about what a real page
 does on a real network - and in particular **no claim is made about how a real
 provider responds to being polled every five seconds**, because that has never been
-run. The polling loop is asserted by reading the delay the scheduler was asked for,
-which proves the cadence this repository computes and nothing about a provider's
-tolerance.
+run. **Nor has the removal been run in a browser**: `jsdom` implements no IndexedDB, so
+the whole delete path a user would take is exercised only against `fake-indexeddb`, which
+is not a browser. The polling loop is asserted by reading the delay the scheduler was
+asked for, which proves the cadence this repository computes and nothing about a
+provider's tolerance.
 There is still no extension build step; `pnpm dev:extension` does not exist and
 must not be documented until M8 creates it.
 
@@ -994,14 +1038,15 @@ Observed results, re-verified after the M4 verification repair, again after the
 M5 slice 1 apply stage, again after its independent verification repairs (all on
 2026-10-02), after the M5 slice 2 verification repairs, again after the M5 slice 3
 verification repairs, again after the M5 slice 4 apply stage, and again after the
-M6 slice 1 apply stage, and again after the M6 slice 2 apply stage, all on 2026-10-03
+M6 slice 1 apply stage, again after the M6 slice 2 apply stage, and again after the
+M6 slice 3 apply stage, all on 2026-10-03
 through 2026-10-05:
 
 ```text
 pnpm typecheck     8 of 8 workspace projects run tsc --noEmit
 pnpm lint          exit 0
 pnpm format:check  All matched files use Prettier code style
-pnpm test          31 files, 620 tests passed
+pnpm test          31 files, 647 tests passed
 pnpm build         vite 7.3.6, dist emitted
 pnpm verify        exit 0
 ```
@@ -1044,6 +1089,20 @@ the contract, and proves **nothing at all** about the IndexedDB path a user's br
 would take. **No stored mailbox has ever been reconciled against a live Guerrilla Mail
 session**, which is the operation slice 2 added, so both halves of reload recovery are
 untested end to end.
+
+**Slice 3 did not close that hole, and the reason it could not is worth stating plainly
+rather than leaving the reader to assume the number of tests grew the coverage.** The
+removal is the *first* operation in this repository whose correctness depends on
+IndexedDB semantics `fake-indexeddb` may not share — specifically on what a **blocked**
+`deleteDatabase` does, which was **measured** against the fake and is not a browser
+measurement. `packages/storage`'s 30 adapter tests drive real `onblocked` events from a
+real held-open connection, and they establish the adapter's behaviour and the queued
+semantics recorded above. They establish **nothing** about a browser's behaviour, and
+`createBrowserStorage()` is still executed by **no test in the workspace**. So the
+sequence a user's browser actually takes — page boots, reads, creates, writes, then
+deletes the whole database — has never run anywhere in this repository. **A privacy
+control verified only against a fake is the claim in this repository least entitled to
+confidence**, and 44 storage tests do not change that.
 
 **`pnpm test` and `pnpm typecheck` catch different defects, and this repository has
 now been bitten by that in both directions.** Vitest does not typecheck, so a

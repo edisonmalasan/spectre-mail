@@ -49,6 +49,19 @@ the rule cannot enforce is the behavioural half — that the page does not write
 address back afterwards — because that is a comparison inside the page rather than a
 named API. It is therefore a scenario here and not a boundary rule.
 
+**Amendment, recorded during apply (2026-10-05).** The scenario *This device holds
+nothing* presupposes that the page knows what the device holds, and it does not say what
+the page may claim before it knows. That gap was found by implementing it: the region was
+first rendered whenever storage was merely *available*, so during the boot read it
+rendered its "nothing is kept" branch on a page that had not looked yet — a claim it
+could not support, and the same failure `spectre-storage` exists to prevent, one layer
+up. The added scenario names the third state, and the page resolves it by **withholding
+the region entirely** rather than by inventing a fourth shape: the session's own region
+is already saying a read is in flight, so nothing is left unsaid. This is the **fourth**
+time this page has made a claim from a value it had not established, and the pattern is
+worth more than any one instance — a branch reachable on an unknown value will eventually
+assert something unverified.
+
 #### Scenario: The page holds an address
 
 - **WHEN** the page is displayed and this device holds an address
@@ -98,6 +111,12 @@ named API. It is therefore a scenario here and not a boundary rule.
 - **WHEN** the page is displayed and this device holds no address
 - **THEN** it SHALL offer no removal
 - **AND** it SHALL say nothing is kept on this device
+
+#### Scenario: What the page knows is not yet established
+
+- **WHEN** the page has not established whether this device holds an address
+- **THEN** it SHALL NOT say that something is kept
+- **AND** it SHALL NOT say that nothing is kept
 
 #### Scenario: The page's account of its own storage is checked
 

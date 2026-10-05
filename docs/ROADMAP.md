@@ -32,11 +32,16 @@
 `openspec/changes/archive/2026-10-05-spectre-storage/` and
 `openspec/changes/archive/2026-10-05-mailbox-adoption/`. Slice 1 merged as Apply
 **#46** / sync **#47**; slice 2 as Apply **#50** / sync **#51**. **Slice 3
-(`privacy-controls`) is now proposed** at `openspec/changes/privacy-controls/` and
-validated `openspec validate privacy-controls --type change --strict`; it is the
-privacy controls - `clear local SpectreMail data`, and the only thing standing between
-this milestone and a product that can be made to stop storing. No implementation has
-been written for it, and nothing in the repository has changed yet.
+(`privacy-controls`) is applied and verified**, its proposal having merged as **#53** and
+its Apply as **#54**; sync and archive are the stages still to run.
+It is the privacy controls - `clear local SpectreMail data`, and the last thing standing
+between this milestone and a product that can be made to stop storing. `packages/storage`
+holds **44 tests** and the workspace runs **647 across 31 files**, counted from a JSON
+reporter. **The removal has still never run in a browser**: `jsdom` implements no
+IndexedDB, so `createBrowserStorage()` - the function a page calls - is executed by no
+test in the workspace, and the adapter's blocked-delete semantics are measured against
+`fake-indexeddb`, which is not a browser. That verification gap is slice 2's and slice 3
+did not close it.
 
 **What slice 3's proposal measured before proposing anything.** It holds one record
 kind under one key in one database, and **no message history or metadata cache is
@@ -47,9 +52,29 @@ and `Clear mailbox history` **has no referent**. Shipping three buttons where tw
 identical and one does nothing would be a fake capability, and inventing a history
 store so a button could delete it would create user data in order to destroy it. One
 control is proposed, named for what it does. `IDBFactory.deleteDatabase` was also
-probed on this repository's own substrate: a blocked delete fires `onblocked` and
-**does not complete afterwards even once the blocker closes**, so the proposal
-requires a blocked removal to be **reported rather than waited on**.
+probed on this repository's own substrate, and **the proposal's first reading of that
+probe was wrong**: it claimed a blocked delete never completes, when a blocked delete
+is in fact *queued* — it cannot finish while another tab holds the database, it blocks
+reads meanwhile, and it goes through as soon as that tab closes. The reason a removal
+must be **reported rather than waited on** is therefore not a hang; it is that the
+wait ends on a condition the page cannot cause, and a refusal is not a cancellation,
+so the page must never tell a user their data is still there after one. Corrected in
+the change's apply stage, with the amendment recorded in the delta.
+
+**Slice 3's apply stage found three defects in its own work, and the third is the one
+that generalises.** The falsification pass reported **17 of 17 mutations caught by the
+intended assertion**, with a deliberate comment-only control staying green — that control
+is what proved the harness notices an *assertion* rather than an edit. One mutation was
+green at first, and the cause was not a narrow check: the adapter's
+`request.error ?? …` **fallback branch had no test at all**, so its wording could be
+replaced with anything. That is the twentieth instance in this repository of a check
+narrower than its rule. But the control *also* failed intermittently — impossible for a
+comment — which exposed two tests waiting on the wrong thing: they synchronised on `ready`
+while asserting on state that only settles in the `saveMailbox` **success callback**, a
+later turn of the microtask queue. **A binding publishes what the user sees from the
+session, and what the device holds arrives from a promise afterwards, so a wait on the
+first cannot observe the second.** Both now wait on the storage region; 30 consecutive
+runs were green afterwards.
 
 **Slice 2 delivers `return to a recent mailbox`, and that acceptance line is now met.**
 The website reads its own storage before it asks the provider for anything, hands the
@@ -58,20 +83,30 @@ reconciles through the provider that owns the address, so a stored mailbox is on
 presented once the provider confirms it.
 
 That leaves M6's acceptance list with **two of four met**: `return to a recent mailbox`
-now, and `clear local SpectreMail data` with slice 3. The remaining two — `use it
+with slice 2, and `clear local SpectreMail data` **with slice 3, which is now applied**
+— one control, because the other two names in that block have no referent or name the
+same removal; the mapping is annotated at the slice table below. The remaining two —
+`use it
 externally` and the security and accessibility items — are unchanged and still
 undelivered. **Two of four is not a milestone half-finished by accident**; it is the
 point at which this milestone stops being about storage and starts being about
 everything M6 grouped that is not storage.
 
-**Slice 2's numbers as of 2026-10-05, and these are the current ones.** The workspace
-runs **620 tests across 31 files**, of which **46 are architecture boundary assertions**:
-54 in `packages/core`, 89 in `packages/providers`, 149 in `packages/mail-parser`,
-**153 in `packages/mailbox`** (19 of them adoption), **96 in `apps/web`** (93 rendering,
-3 provider configuration), **33 in `packages/storage`** (7 stored record, 20 IndexedDB
-adapter, 6 browser entry point), and 46 boundary. Counts are read from the reporter,
-not added by hand. `pnpm install`, `pnpm typecheck`, `pnpm lint`, `pnpm format:check`,
-`pnpm test`, `pnpm build`, and `pnpm verify` all exited 0.
+**Slice 3's numbers as of 2026-10-05, and these are the current ones.** The workspace
+runs **647 tests across 31 files**, of which **46 are architecture boundary assertions** -
+**unchanged, because slice 3 added no boundary rule**: `CLIENT_STORAGE_API_PATTERN`
+already forbids a client naming `indexedDB`, and `clearAll` is reached through the
+contract, so there was no new way to break. 54 in `packages/core`, 89 in
+`packages/providers`, 149 in `packages/mail-parser`,
+**153 in `packages/mailbox`** (19 of them adoption), **112 in `apps/web`** (108 rendering,
+4 provider configuration), **44 in `packages/storage`** (7 stored record, 30 IndexedDB
+adapter, 7 browser entry point), and 46 boundary. Counts come from `--reporter=json`
+grouped by project, not added by hand. **The `apps/web` figures in this block were
+wrong before this correction** - it said 96, and 3 provider-configuration tests, where
+the real pre-slice count was 108 and 4. That is the second time this repository has
+recorded a count it had not measured, which is why the source changed from a summary
+line to a JSON report grouped by project. `pnpm install`, `pnpm typecheck`, `pnpm lint`,
+`pnpm format:check`, `pnpm test`, `pnpm build`, and `pnpm verify` all exited 0.
 
 **Where slice 2's requirements now live.** Four were added and three amended, promoted
 at the sync stage and now in `openspec/specs/`. `openspec validate --specs --strict`
@@ -2154,7 +2189,7 @@ Each slice therefore owns exactly one of them, and the table is the assignment.
 | --- | --- | --- | --- |
 | 1 | `spectre-storage` | The `SpectreStorage` contract and its IndexedDB adapter, delivered **with no client**, so the seam existed before anything was wired to it | applied, verified, archived |
 | 2 | `mailbox-adoption` | `MailboxSession.restore`, the four new session states, and website reload recovery - `return to a recent mailbox` | applied, verified, archived |
-| 3 | `privacy-controls` | Privacy controls, verbatim from the block above. **Nothing deletes stored data until this lands.** | proposed |
+| 3 | `privacy-controls` | Privacy controls, verbatim from the block above. **Nothing deletes stored data until this lands.** | applied, verified |
 | 4 | *(later)* | Error states, security and accessibility items, and pausing polling when the page is hidden | not started |
 
 **Slice 1 amends no promoted requirement, and that is a decision rather than an
@@ -2171,6 +2206,35 @@ shipping - it was the seam that lets a client be wired against a tested contract
 than against an untested guess, the same choice M4 made for the parser. **Two of those
 three sentences became false with slice 2**; the third has not, and slice 3 is what
 makes it false.
+
+**Slice 3 mapped this milestone's three named controls onto one, and that is a decision
+rather than a shortfall (annotated 2026-10-05, at the apply stage).** The Privacy
+controls block names three: `Forget mailbox`, `Clear mailbox history`, and `Clear local
+SpectreMail data`. The data model has room for exactly one of them.
+
+- **`Forget mailbox`** and **`Clear local SpectreMail data`** name **the same thing** -
+  what this device holds - and ship as **one** control.
+- **`Clear mailbox history` has no referent at all.** No message history is persisted:
+  the inbox is in-memory state inside `packages/mailbox` and is rebuilt by listing
+  through the provider on every visit. There is nothing on the device to delete, so the
+  control would be decorative — and a button that reports success while removing nothing
+  is worse than no button, because it teaches a user to believe a claim that is false.
+
+**Shipping three buttons was rejected**: two of them would have been byte-identical and
+the third inert, which is fake UI. **Creating a history store so the third button had
+something to delete was rejected more firmly** - inventing a record kind in order to
+delete it is a feature built to justify a button, and it would put mail content on a
+user's disk for the first time in this product's history to service a control nobody
+asked to exist. `docs/ARCHITECTURE.md` and the change's `design.md` (D4) carry the
+reason; this block is where a reader comparing the milestone's text against what shipped
+will look first.
+
+**What slice 3 delivered, and the limit that came with it.** `clearAll` on the
+`SpectreStorage` contract, the whole IndexedDB database rather than the one key it
+stores, behind a two-step confirmation in the page's own `LocalData` region. **The
+removal has never been run in a browser** - `jsdom` implements no IndexedDB and the
+adapter's tests run against `fake-indexeddb`, which is not a browser - so the product gap
+is closed while the verification gap from slice 2 stands unchanged.
 
 ---
 

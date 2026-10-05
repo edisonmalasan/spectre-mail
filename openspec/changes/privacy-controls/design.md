@@ -32,11 +32,24 @@ browser does.
 | Question | Measured |
 | --- | --- |
 | Does `deleteDatabase` work? | Yes. |
-| A second connection holds it open? | `onblocked` fires and the request **does not complete** — not even after the blocker closes. |
+| A second connection holds it open? | `onblocked` fires and the request does not finish. |
+| …can the database still be read while that is pending? | **No.** A fresh `open` is blocked too, so a read cannot complete. |
+| …what happens when the holding connection closes? | **The queued removal completes on its own.** |
 | Delete a database that does not exist? | Succeeds. |
 | Open again after a delete? | Succeeds and recreates the store. |
 
-The second row is the load-bearing measurement in this design.
+**The last three rows of the middle group are a correction, and they were wrong when
+this design was first written.** The original Context claimed a blocked delete "does
+not complete afterwards even once the blocker closes", and D2 argued that waiting
+would therefore hang. That claim came from a disposable probe whose promise had
+already resolved on `onblocked` — so it reported the value it had settled with and
+could not possibly have observed anything later. It was an artifact of how the probe
+was built, not a property of the platform.
+
+Writing the tests found it: the assertion that a record survives a refusal failed
+because it was gone after the blocker closed. The corrected behaviour is *more*
+interesting than the claim it replaces, and it is the reason the page's wording is
+constrained (D9).
 
 ## Goals / Non-Goals
 
@@ -77,20 +90,23 @@ Cost: heavier, and it can be blocked, which D2 handles. The trade is worth it be
 the failure mode of the cheap version is silent and permanent, and the failure mode of
 this one is a visible refusal.
 
-### D2 — A blocked removal is reported, never waited on
+### D2 — A blocked removal is reported rather than waited on
 
 The adapter rejects on `onblocked`, mirroring what `openDatabase` already does for
 the same event.
 
-Waiting was considered and rejected on the measurement: the blocked delete **does not
-complete after the blocker closes**, on this substrate. An implementation that
-awaited it would hang, and the user's only feedback would be a control that stopped
-responding. A real browser queues the delete and finishes it when the connections
-close — which is exactly the behaviour an implementation may not *rely* on, because
-it cannot be observed here and a hang is not a recoverable failure.
+**The reason is not that waiting would hang**, which is what this decision originally
+recorded and what the Context's first version of the measurement claimed. The
+correction is in D2's own terms: a blocked removal is *queued*, so waiting would
+work — eventually. It would end when some **other** tab closes, which a page can
+neither cause nor predict and which may be an hour from now. A user watching a button
+that does nothing for an hour is being given a worse experience than one told to
+close the other tab, so reporting is not a fallback here; it is the only answer
+available.
 
-The refusal is therefore made explicit, and its message names the cause, because
-"another SpectreMail tab is open" is something the user can act on.
+The corollary is the part that constrains the page, and it is in D9: refusing does
+not cancel the queued removal, so the refusal says *not done yet* and must never say
+*still there*.
 
 ### D3 — Removal is idempotent
 
@@ -152,6 +168,30 @@ transitions must leave the save count unchanged. This is the slice's most import
 behaviour and it is exactly the kind of thing that stops being true when someone edits
 a comparison, so it gets an assertion rather than a comment.
 
+**Confirmed by reading `useMailboxSession.ts` during apply, and recorded here because
+task 5.2 asked for it.** The removal path adds no ref of any kind. `handed` is
+touched in three places, none of them in the removal path:
+
+- line 255, in the boot, from the record just read — `handed.current = stored?.id ?? null`
+- line 394, the save effect's early return, which is the rule this decision relies on
+- line 416, claimed **before** the write is awaited
+
+So after a removal `handed.current` still names the mailbox on screen, the save effect
+returns early, and no write is issued. Clearing `handed` in `clearStored` would have
+been the one change that broke it: the mailbox's id would then differ from `handed`, the
+next inbox transition would satisfy the effect, and the address would be written back
+within a few seconds — turning the control into a no-op the user could not detect.
+
+**`handed` is deliberately left alone**, and the reason is not tidiness. It names *the
+mailbox this load was handed*, which remains true after a removal: the record was
+deleted, not the mailbox. The ref records what the session was given, not what the
+device currently holds — which is why `localData` was added as a separate fact (D7)
+rather than by repurposing this one.
+
+The assertion is the one that matters, and it is paired with a positive control in the
+same file: a *replacement* address is a different mailbox, so storing it is correct, and
+if that half stopped saving, the no-re-save half would have stopped meaning anything.
+
 ### D7 — The control is offered only where it can act, and the page says what it holds
 
 The binding gains a third fact beside `boot` and `saving`:
@@ -180,7 +220,7 @@ The confirmation is an inline second step in the page, not a native `confirm()`,
 because a native dialog cannot be styled, is suppressed in some contexts, and is not
 something this repository's tests can drive.
 
-### D9 — A refused removal is shown verbatim, and never as a failure of the page's own making
+### D9 — A refused removal says "not done yet", and never "still there"
 
 The rejection's message reaches the user unchanged, the same way `boot: blocked`
 carries a storage reason. No error code is invented for it.
@@ -190,6 +230,18 @@ the normalized vocabulary in `packages/core` describes **provider** failures, an
 device refusing a deletion is not a provider condition. Inventing a code would widen
 a vocabulary two clients switch over, and matching on a message string in
 presentation is the failure this repository has repeatedly recorded.
+
+**What the page may say is narrowed by the corrected measurement**, and this is the
+clause worth having. Because a refused removal stays queued:
+
+- the page may say the removal **did not happen** — true at the moment it is told;
+- the page may **not** say the data **is still there** — a moment later it may be
+  gone, and the platform is already committed to that;
+- the page may **not** say the data **has been removed** — it was not.
+
+So the copy is a three-way exclusion, and the assertion is on both negatives rather
+than on the sentence, because a sentence can be reworded while the claim stays
+wrong.
 
 ### D10 — The stale `Purpose` is corrected in the promoted spec, not in the delta
 
@@ -228,10 +280,17 @@ distinguishes the two cases from a later reader who finds an edited count.
 
 ## Risks / Trade-offs
 
-- **A blocked removal refuses rather than completing**, and a user with two tabs open
-  will meet a failure. → The message names the cause and the confirmation step
-  mentions it, so the fix is available. This is preferred to a hang (D2), and the
-  measurement is what made the preference forced rather than stylistic.
+- **A blocked removal refuses, and the refusal is not a cancellation.** A user with
+  two tabs open meets a failure, and if they then close the tab the queued removal
+  lands anyway — so the data they believed they had kept may be gone, and vice versa.
+  → The message names the cause and tells them to close other tabs (D2), and the
+  page's copy is forbidden from claiming either outcome (D9). This is a real cost of
+  `deleteDatabase` over deleting one key: a key deletion is never blocked and never
+  queued. It is paid for the guarantee that unknown record kinds are removed too, and
+  the wording is what keeps it from being a surprise.
+- **While a removal is pending, reads cannot complete** — so nothing may try to read
+  back to confirm a refusal. → The binding never reads after a refusal, and the
+  behaviour is asserted directly rather than left to be discovered.
 - **Removing the database is heavier than removing a key** and costs an open and a
   close the per-operation design already accepts. → No measurable difference on a
   path a user takes once, deliberately.

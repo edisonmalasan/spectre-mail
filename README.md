@@ -48,28 +48,37 @@ caught only because the count was re-derived rather than re-read.
 and 31 scenarios, three of which were added by its verification pass.
 
 The website **creates a mailbox, renders its address, lists that mailbox's messages
-while polling for new ones, opens one, and keeps the address so a reload brings it
-back.** That is what a user can see work. It still has **no styling** - a decision
+while polling for new ones, opens one, keeps the address so a reload brings it
+back, and lets you make this browser forget it again.** That is what a user can see
+work. It still has **no styling** - a decision
 rather than an omission, because M7 owns the visual design and markup written now would
-be markup M7 rewrites - and it still has **no control that deletes what it stores**,
-which is M6 slice 3 and is not built.
+be markup M7 rewrites - which is now the only stated limit.
 
-**The website persists a mailbox, and nothing here has run in a browser.** It reads its
+**The website persists a mailbox, removes it on request, and nothing here has run in a
+browser.** It reads its
 own IndexedDB before it asks the provider for anything, offers a stored address back only
-once the provider confirms it, and writes back a mailbox it was not handed. Two limits
+once the provider confirms it, writes back a mailbox it was not handed, and offers a
+two-step confirmed removal of everything this device holds. Three limits
 belong in the same breath. `jsdom` implements no IndexedDB, so **the real storage path
-has been exercised by no test at all** - the client suites inject a store - and **no
+has been exercised by no test at all** - the client suites inject a store - **no
 stored mailbox has ever been reconciled against a live Guerrilla Mail session**, which is
-the entire new operation.
+the entire adoption operation, and the **removal has never run against anything but
+`fake-indexeddb`, which is not a browser**. That last one is the limit worth weighing
+hardest: the adapter's tests establish its behaviour, including what a blocked removal
+does, and they establish nothing about a browser's.
 
-**`packages/storage` exists and the website uses it.** `loadMailbox` and `saveMailbox`,
-nothing else, behind an IndexedDB adapter with 33 tests, and reachable two ways: an
-injected factory for tests and `createBrowserStorage()` for a page. Two properties are
+**`packages/storage` exists and the website uses it.** `loadMailbox`, `saveMailbox`, and
+`clearAll`, behind an IndexedDB adapter with 44 tests, and reachable two ways: an
+injected factory for tests and `createBrowserStorage()` for a page. `clearAll` deletes the
+**whole database** rather than the one key it stores, deliberately: the narrow version
+would pass every test written against today's single record and would silently stop
+clearing everything once a second record kind existed. Two properties are
 settled and worth knowing before anything is built on it: **`null` means "nothing
 stored" and every failure rejects**
 rather than reporting an absence, because a read reported as absent would make a client
 believe this is a first visit, create a mailbox, and overwrite the user's stored
-identity; and a record this build cannot narrow is **neither returned nor deleted**.
+identity; and a record this build cannot narrow is **neither returned nor deleted** by
+`loadMailbox`.
 
 **Opening a message displays what was found and acts on none of it.** The view shows
 the sender, subject, arrival time, readable text, the one-time codes in the parser's
