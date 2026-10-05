@@ -443,9 +443,10 @@ The browser tier closed the storage-path gap and **did not close these**:
   rather than guessed. Chromium was healthy throughout: it launched on the same runner in
   250ms. The hang was this repository's own `webServer` command wrapping `vite` in
   `pnpm`, which left the real server orphaned on Playwright's shutdown and holding the
-  port. Fixed by invoking `vite` directly. Two repairs spent on the wrong theory first — a
-  bigger timeout, then `--disable-dev-shm-usage --no-sandbox` — are recorded in
-  `AGENTS.md` because both were reasonable and both were refuted by measurement.
+  port. Fixed by invoking `vite` directly, and the job now passes in **58 seconds**. Two
+  repairs spent on the wrong theory first — a bigger timeout, then
+  `--disable-dev-shm-usage --no-sandbox` — are recorded in `AGENTS.md` because both were
+  reasonable and both were refuted by measurement.
 
 ---
 

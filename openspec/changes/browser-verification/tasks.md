@@ -346,6 +346,34 @@ maintainer's command, no flags — exits 0 in **7s wall** with `6 passed (4.0s)`
 `webServer` change is confined to how the preview server is spawned and alters no
 assertion.
 
+##### Confirmed in CI
+
+**The `browser` job passes: `6 passed (3.9s)`, whole job green in 58 seconds.** That is
+the first green run after five hangs, and it is the confirmation the fix predicted — the
+`6 passed` summary line is now printed, which is the exact line whose absence exposed
+the cause.
+
+##### A separate failure that is NOT this change, and how it was told apart
+
+`spike self-test` was cancelled on four runs. That job is **untouched by this change** —
+no browser, no Playwright, no `apps/web` code, and it takes **26 seconds** when it runs.
+It was still investigated rather than dismissed, because a red check on a PR is a red
+check.
+
+**The API is what distinguishes it, and the signature is unambiguous.** Every one of those
+runs reports **`runner_name: ""` and `steps: 0`**, and the run's log archive is a
+**22-byte empty zip**. A job that starts and then hangs uploads *partial* logs and
+records its steps; one that **never received a runner** has neither. One rerun waited
+**1215 seconds** in queue before its own `timeout-minutes: 10` expired — which is
+precisely where the repeated **15m0s** duration comes from, and which is why the job
+"takes" 15 minutes while doing nothing at all.
+
+**This is GitHub-hosted runner capacity being exhausted, not a defect in anything under
+test**, and no edit to this repository can fix it. It is recorded rather than left
+unexplained because **a job reporting `cancelled` with no logs is indistinguishable from
+a hang unless you read the job JSON** — and this change had already spent five runs
+building a theory out of missing output.
+
 ## 6. Documentation, correcting only what this change makes false
 
 - [x] 6.1 `AGENTS.md`: the storage-path claims. **Delete** each sentence that became

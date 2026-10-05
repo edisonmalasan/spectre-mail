@@ -107,10 +107,11 @@ are:**
   **measured**: it was this repository's own `webServer` command. `pnpm preview` spawns
   `vite` as a child, so Playwright's shutdown killed the wrapper, orphaned the real
   server, and then blocked on the pipe that orphan still held. Fixed by invoking `vite`
-  directly. **The record worth keeping is the two wrong theories**, each reasonable and
-  each refuted by measurement rather than argument: raising the job ceiling 20 → 30 (the
-  second silence was **longer** at 29m34s, so it is an indefinite hang, not a slow one),
-  and `--disable-dev-shm-usage --no-sandbox` (**Chromium launched on the same runner in
+  directly, and **the job now passes in 58 seconds**. **The record worth keeping is the
+  two wrong theories**, each reasonable and each refuted by measurement rather than
+  argument: raising the job ceiling 20 → 30 (the second silence was **longer** at
+  29m34s, so it is an indefinite hang, not a slow one), and
+  `--disable-dev-shm-usage --no-sandbox` (**Chromium launched on the same runner in
   250ms** and `/dev/shm` there is 7.9G). What actually found it was **per-step
   ceilings**, because a job-level one names no step: those printed the finding the
   earlier kills had destroyed — **all 6 specs passing in 2.6 seconds and then no summary
@@ -120,6 +121,16 @@ are:**
   output were the *reporter* and never a hang; and the first diagnostic ran before the
   build, dying in two seconds on a missing `dist` — a diagnostic that cannot fail for
   the reason it exists is worse than none.
+- **`spike self-test` has been cancelled on four runs, and it is not this change's
+  code.** That job is untouched by `browser-verification` — no browser, no Playwright,
+  and it takes 26 seconds when it runs. Every one of those runs reports
+  **`runner_name` empty and `steps: 0`** from the API, and a **22-byte empty log
+  archive**: the job **never received a runner and never executed a step**. One rerun sat
+  in queue for **1215 seconds** before its own 10-minute `timeout-minutes` expired,
+  which is where the repeated exact 15m duration comes from. **This is GitHub-hosted
+  capacity for this repository being exhausted, not a defect in anything under test**,
+  and it is recorded because a job that reports `cancelled` with **no logs at all** looks
+  like a hang and is not one — the JSON is the only instrument that distinguishes them.
 
 **Two boundary collisions were predicted before they happened and both landed**, which is
 the record worth keeping: the `apps/`-scoped storage-API rule saw test code naming a

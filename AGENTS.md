@@ -451,7 +451,20 @@ Pin versions when exact versions matter.
   picks the **dot** reporter, which prints progress without newlines, and a killed step
   discards it — so *four runs of missing test output were the reporter, not a hang*. And
   a diagnostic is only worth its cycle if it can fail for the reason it exists: the first
-  version ran before the build and died in two seconds on `dist` not existing.
+  version ran before the build and died in two seconds on `dist` not existing. **The
+  `browser` job now passes in 58 seconds.**
+
+  **`spike self-test` is cancelled for an unrelated reason, and the JSON is the only
+  instrument that says so.** That job is untouched by this change — no browser, no
+  Playwright, 26 seconds when it runs — yet it was cancelled on four runs, each at almost
+  exactly 15 minutes with **no log archive at all** (a 22-byte empty zip). The API is
+  what distinguishes this from a hang: **`runner_name` is empty and `steps` is 0**, so the
+  job **never received a runner**. One rerun waited **1215 seconds** in queue before its
+  own 10-minute `timeout-minutes` expired, which is exactly where the repeated 15-minute
+  duration comes from. **This is GitHub-hosted runner capacity being exhausted**, not a
+  defect in anything under test — recorded because a job reporting `cancelled` with no
+  logs is indistinguishable from a hang unless you read the JSON.
+
   No deployment, hosting, or release pipeline exists or is planned for V1.
 
 - External services: `https://api.mail.tm` and `https://api.guerrillamail.com`.
