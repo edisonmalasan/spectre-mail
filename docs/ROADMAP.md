@@ -22,8 +22,17 @@
 > from `provider-role-decision`), `monorepo-foundation` (M1), `shared-domain-model`
 > (M2), `provider-adapters` (M3), `mail-parsing` (M4), `build-and-verification`
 > (M1), `mailbox-session` (M5 slice 1), `website-client` (M5 slice 1), and
-> `spectre-storage` (M6 slice 1). Counted mechanically, they hold **93 requirements and
-> 232 scenarios** in total. M0's own capability spec was archived with
+> `spectre-storage` (M6 slice 1). Counted mechanically at the slice 3 sync stage, they
+> hold **99 requirements and 271 scenarios** in total.
+>
+> **That figure was stale twice before this correction**, and the drift was the same
+> shape both times: a promotion landed and the count was not moved. It read 93
+> requirements and 232 scenarios, which was the figure at slice 1's sync — so it missed
+> all of slice 2 (four requirements added, three amended) *and* all of slice 3 (two
+> requirements, eighteen scenarios). Counting is now re-run mechanically at every sync
+> rather than transcribed.
+>
+> M0's own capability spec was archived with
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
@@ -32,8 +41,8 @@
 `openspec/changes/archive/2026-10-05-spectre-storage/` and
 `openspec/changes/archive/2026-10-05-mailbox-adoption/`. Slice 1 merged as Apply
 **#46** / sync **#47**; slice 2 as Apply **#50** / sync **#51**. **Slice 3
-(`privacy-controls`) is applied and verified**, its proposal having merged as **#53** and
-its Apply as **#54**; sync and archive are the stages still to run.
+(`privacy-controls`) is applied, verified, and synced**, its proposal having merged as
+**#53** and its Apply as **#54**; **archive is the one stage still to run**.
 It is the privacy controls - `clear local SpectreMail data`, and the last thing standing
 between this milestone and a product that can be made to stop storing. `packages/storage`
 holds **44 tests** and the workspace runs **647 across 31 files**, counted from a JSON
@@ -120,13 +129,30 @@ change. Slice 2's three apply-stage amendments are in the delta, so this archive
 not repeat that. Promoted totals move from 93 requirements and 232 scenarios to **97 and
 253**.
 
-**This milestone has added persistence without adding its removal, and that sentence
-belongs in the status block rather than in a task.** There is now a mailbox written to a
-user's browser and **no control anywhere that deletes it**. That is slice 3's job and
-it does not exist yet; the page's own limits list says so, in those words, rather than
-leaving a user to discover it. A product that stores and cannot be made to stop is a
-different product from one that says it stores nothing, and this is the slice where that
-difference became real.
+**Where slice 3's requirements now live.** Two were added — one to `spectre-storage` and
+one to `website-client` — promoted at this sync stage and now in `openspec/specs/`.
+`openspec validate --specs --strict` reports **9 passed, 0 failed**. The promotion was
+done by a script that copies each delta block **verbatim**, and then checked **byte for
+byte** rather than by title: title agreement is the weaker check and a hand-typed
+paraphrase would keep the heading while losing the text. Both blocks are verbatim, **0
+divergent, 0 absent**. Promoted totals move from 97 requirements and 253 scenarios to
+**99 and 271**.
+
+**`spectre-storage`'s `Purpose` was corrected here rather than through the delta, and
+that is a rule rather than an exception.** It read *"delivered but not consumed"* with
+the reason given that no client read or wrote the layer — true when written, false since
+slice 2 — and it claimed the contract names no operation, which slice 3 ended. A
+`## Purpose` inside a delta is **ignored** for a capability that already exists, so a
+delta that carried the correction would have shipped one nobody applied. The correction
+is dated in the promoted file and says why it landed there.
+
+**This milestone added persistence, and slice 3 added its removal.** The sentence that
+stood here in the previous stage — *"no control anywhere that deletes it"* — was true
+when written and is now false, so it is **deleted rather than reworded**, which is the
+same treatment the page's own limits bullet received. What replaced it is the narrower
+truth worth carrying: the product stores a mailbox in a user's browser, offers a
+two-step confirmed removal of the whole database, and **that removal has never been run
+in a browser at all**.
 
 **What slice 2 does not establish, and the list is longer than it was after slice 1.**
 No page under test has ever run in a **real browser**, and this is the first change that

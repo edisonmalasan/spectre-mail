@@ -195,14 +195,22 @@ on the first cannot observe the second.
 
 ## 9. Sync and archive
 
-- [ ] 9.1 At the sync stage, promote both deltas by **copying** delta text into
+- [x] 9.1 At the sync stage, promote both deltas by **copying** delta text into
       `openspec/specs/`, not by retyping it.
-- [ ] 9.2 Correct `spectre-storage`'s `Purpose` in the promoted spec, which still
+- [x] 9.2 Correct `spectre-storage`'s `Purpose` in the promoted spec, which still
       claims the capability is delivered but not consumed and was made false by slice 2
       (D10). A delta's `## Purpose` is ignored for an existing capability, so this
       must be edited directly.
-- [ ] 9.3 Verify delta and promoted spec agree **mechanically** — every requirement
+- [x] 9.3 Verify delta and promoted spec agree **mechanically** — every requirement
       and scenario title in the delta present in the promoted spec — and report the
       count checked.
+
+      **Done, and the check was then made stronger than the task asked for.** Title
+      agreement was verified first: 20 delta titles checked (2 requirements, 18
+      scenarios), **0 missing**. But title agreement is a weak check — a hand-typed
+      paraphrase keeps the heading and loses the text — so a second script compares each
+      delta block **byte for byte** against the promoted spec and reports the first
+      differing line when they differ. **2 verbatim, 0 divergent, 0 absent.** Both
+      scripts live outside the repository, in the temp directory.
 - [ ] 9.4 Archive with `--skip-specs`, since the sync stage has already promoted the
       deltas, and update the roadmap cursor.
