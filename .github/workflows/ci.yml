@@ -105,3 +105,64 @@ jobs:
 
       - name: Spike self-test
         run: pnpm --dir tests/provider-spike spike:selftest
+
+  browser:
+    name: browser
+    runs-on: ubuntu-latest
+    # Its own timeout, and the reason is not politeness. A browser download plus a
+    # Chromium cold start on a clean runner is minutes, and this job must not be
+    # able to fail the `verify` job's budget by sharing it. 15 is `verify`'s value
+    # and is not inherited: the two jobs are siblings, not stages.
+    timeout-minutes: 20
+
+    # The browser tier (pnpm test:browser), run by its maintainer command with no
+    # divergent flags. It is NOT part of `pnpm verify` and is not added to it here.
+    #
+    # That separation is a requirement, not a scheduling preference:
+    # openspec/specs/build-and-verification/spec.md requires `pnpm verify` to run
+    # with no browser installed, which was verified by pointing
+    # PLAYWRIGHT_BROWSERS_PATH at an empty directory. Folding this tier into
+    # `verify` would make that requirement false in CI while leaving it true on a
+    # maintainer's machine - the exact shape of a claim that survives only where it
+    # is not exercised.
+    #
+    # What this job establishes: the built page, in real Chromium, against real
+    # IndexedDB, with provider traffic intercepted from recorded responses. It
+    # establishes NOTHING about a live provider, about `use it externally`, or
+    # about how a real provider responds to being polled every five seconds. All
+    # three remain unverified, and the suite asserts the fourth rather than
+    # claiming it.
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 12.6.0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26.10.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # `--with-deps` installs the shared libraries Chromium needs on a clean
+      # Ubuntu runner. Without it this job fails for a reason that has nothing to
+      # do with the code, which is the kind of failure that trains a team to
+      # ignore a red build.
+      #
+      # Run with `--dir apps/web` because @playwright/test is that package's dev
+      # dependency, and pnpm does not put a workspace member's binaries on the
+      # root's PATH.
+      #
+      # The browser download is deliberately not cached between runs. A cache keyed
+      # on a path that can move is a cache that can silently serve the wrong
+      # bytes; the honest cost is re-downloading, and the job's own timeout
+      # absorbs it.
+      - name: Install Chromium
+        run: pnpm --dir apps/web exec playwright install --with-deps chromium
+
+      - name: Test (browser)
+        run: pnpm test:browser
