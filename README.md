@@ -439,15 +439,13 @@ The browser tier closed the storage-path gap and **did not close these**:
 - **A blocked removal** — still a `fake-indexeddb` measurement; the browser suite does not
   produce that event.
 - **Other browsers** — Chromium only, and on one machine.
-- **The browser tier in CI** — the job **has never passed**. Three runs were killed
-  having produced nothing useful: two by the job timeout (`The operation was canceled.`),
-  and the second silence was _longer_ than the first, which rules out "it was merely
-  slow". Per-step ceilings then made the job name itself — `Running 6 tests using 1
-worker`, the webServer up, and **no test result line at all**, which means Chromium
-  never finished launching rather than a test hanging. The repair is
-  `--disable-dev-shm-usage` and `--no-sandbox`. **That is a hypothesis with a
-  measurement behind it, not a confirmed diagnosis** — Windows has never reproduced the
-  hang.
+- **The browser tier in CI** — the job hung on five runs, and the cause was **measured**
+  rather than guessed. Chromium was healthy throughout: it launched on the same runner in
+  250ms. The hang was this repository's own `webServer` command wrapping `vite` in
+  `pnpm`, which left the real server orphaned on Playwright's shutdown and holding the
+  port. Fixed by invoking `vite` directly. Two repairs spent on the wrong theory first — a
+  bigger timeout, then `--disable-dev-shm-usage --no-sandbox` — are recorded in
+  `AGENTS.md` because both were reasonable and both were refuted by measurement.
 
 ---
 

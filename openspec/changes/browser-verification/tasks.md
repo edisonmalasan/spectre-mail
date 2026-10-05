@@ -260,56 +260,91 @@
       only line it produced was `The operation was canceled.` — 19m35s inside
       `pnpm test:browser`, with **no output at all**.
 
-      **The first repair was wrong, and it is recorded because it is instructive.** Raising
-      the job ceiling 20 → 30 was expected to let the step fail on its own terms. It did
-      not: the second run was silent for **29m34s** and was killed again. That is a
-      **measured refutation of the budget hypothesis** — the hang is indefinite, not slow
-      — and it cost twenty minutes to learn by pushing a bigger number at it.
+      #### The CI hang, diagnosed: five runs, two wrong theories, and the cause
 
-      **What actually diagnoses a hang is a per-step ceiling**, because a job-level
-      timeout kills the whole job and the log's last line is `The operation was canceled.`,
-      naming nothing. The ceilings are now per-step: **5 minutes** for the Chromium
-      install, which was **measured at 24 seconds**, and **10** for the suite. The job's
-      own 25 is a backstop. `CI: "true"` is set at **job** level so Playwright's behaviour
-      does not rest on an ambient step variable.
+**This is the longest debugging record in the change and it is kept whole, because
+every wrong turn was reasonable and each was killed by a measurement rather than by
+argument.**
 
-      #### What the per-step ceiling found, which the job-level one could not
+##### What the symptom was
 
-      **The third run printed the evidence the first two destroyed: `Running 6 tests
-      using 1 worker`, the webServer coming up, and then no test result line at all.**
-      19m35s, then 29m34s, then 10m — all of it *after* the run announced itself.
+Five runs of the `browser` job printed `Running 6 tests using 1 worker` and then produced
+nothing useful for 19m35s, 29m34s, and more. Five runs, and **the tests were never the
+problem.**
 
-      **The absence of a result line is the finding, and it is what located the hang.**
-      A test that hangs still reports a timeout after its own 60 seconds. Producing
-      **nothing** for longer than the per-test timeout means the run never reached the
-      point of running a test, so the wait is **Chromium coming up**, not this
-      repository's logic — which is the one part of this tier not written here.
+##### Wrong theory 1 — the budget
 
-      **The repair is the documented remedy for that symptom:**
-      `--disable-dev-shm-usage` and `--no-sandbox` in `launchOptions.args`. The first
-      stops Chromium using a small runner `/dev/shm` for shared memory, which is the
-      documented cause of a browser that starts and then stops responding; the second
-      is required because the GitHub-hosted Linux runner's environment will not let
-      Chromium's user-namespace sandbox initialise, and it then waits rather than
-      exiting.
+Raising the job ceiling 20 → 30 was expected to let the step fail on its own terms and
+name itself. It did not: the second run was silent for **29m34s**. **The second silence
+being _longer_ refutes the budget hypothesis by measurement** — a hang that scales with
+the budget given it is indefinite, not slow. Twenty minutes spent pushing a bigger number
+at it.
 
-      **Both are unconditional, and that is deliberate.** A flag applied conditionally on
-      something no test can observe is a flag whose absence nothing can notice either.
-      Chromium's sandbox state is not readable from a test, so the configuration under
-      test is the configuration that runs.
+##### Wrong theory 2 — Chromium could not launch
 
-      **What this is, stated precisely.** A hypothesis with a measurement behind it, not
-      a confirmed diagnosis. This machine is Windows and **has never reproduced the
-      hang**. The flags are the documented remedy for a symptom that was measured; if the
-      next run still hangs, **the measurement stands and the hypothesis does not**, and
-      that is the outcome this record is written to survive.
+The per-step ceilings (5 for the install, **measured at 24 seconds**; 10 for the suite,
+with the job's 25 as a backstop) made the job name itself. Two repairs followed:
 
-      **The cost of the flags on this machine was measured rather than assumed: none.**
-      The first run after adding them took 28.8s, which looked like a 6× regression and
-      was **not** — two further runs took **3.7s and 4.2s**, matching the pre-change
-      baseline of about 4s. The 28.8s was a cold first run. **Reported because a single
-      sample said the opposite**, and because "the flags made it six times slower" would
-      have been the natural and wrong conclusion from that one number.
+- **A direct launch probe on the runner itself.** Chromium **started in 250ms**,
+  evaluated JavaScript, and exited 0. `/dev/shm` there is **7.9G**.
+- So `--disable-dev-shm-usage` and `--no-sandbox` were added, described at the time as
+  "a hypothesis with a measurement behind it, not a confirmed diagnosis."
+
+**That hypothesis was refuted by the next run: the same symptom, unchanged.** Both flags
+have since been **removed**, and `--no-sandbox` in particular is a sandboxing boundary
+this repository forbids weakening without an explicit requirement. Flags added for a
+cause that turned out not to exist are still flags, and a conditional-looking repair that
+was never conditional would have left every future run of the tier with an unsandboxed
+browser.
+
+##### The measure that broke it, and it was not the tests
+
+Running the suite with **`--reporter=list`** made the hang report itself. Two lines in
+one log, and together they are the whole finding:
+
+```text
+✓  6 [chromium] › e2e/storage.spec.ts:268:3 › the page still works after the removal… (205ms)
+##[error]The action 'Diagnose suite hang' has timed out after 8 minutes.
+```
+
+**All 6 specs passed in 2.6 seconds, and then nothing — no `6 passed` summary line ever
+printed.** And the following step failed with:
+
+```text
+Error: http://127.0.0.1:4173/ is already used, make sure that nothing is running on the
+port/url or set reuseExistingServer:true in config.webServer.
+```
+
+**So the tests were never the problem, and the missing summary was never evidence about
+them.** Playwright hangs shutting the **webServer** down. `pnpm preview` spawns `vite`
+as a *child of pnpm*, so killing the process Playwright spawned kills the wrapper and
+**orphans the real server**, which goes on holding both the inherited stdout pipe and
+port 4173 — the second symptom above, which is what finally named the mechanism.
+
+**The repair is to invoke `vite` directly** (`node node_modules/vite/bin/vite.js
+preview …`), so **Playwright owns the process it started** and there is no wrapper whose
+death could orphan anything.
+
+#### Two method lessons, recorded because each cost a full cycle
+
+**A missing summary line is not evidence until the reporter is ruled out.** With
+`CI=true` Playwright selects the **dot** reporter, which prints progress **without
+newlines**; the step was killed, and **a kill discards buffered output**. So four runs of
+"no test output" were **the reporter, not the hang** — and this file read that absence as
+a finding, then built a browser-launch theory on it. The suite carried a 60s per-test
+timeout that *should* have printed a failure; it was buffered and lost with everything
+else. **Line-oriented output was what turned the hang into evidence.**
+
+**A diagnostic must be able to fail for the reason it exists.** The first version of the
+diagnostic step ran *before* the build and died in two seconds on
+`The directory "dist" does not exist. Did you build your project?` — a failure of its own
+premises, costing an 11-minute cycle and saying nothing about the hang. It now builds
+first, and the step is deleted entirely now that the cause is known.
+
+**Local cost of the fix: none, and it was measured.** `pnpm test:browser` — the
+maintainer's command, no flags — exits 0 in **7s wall** with `6 passed (4.0s)`. The
+`webServer` change is confined to how the preview server is spawned and alters no
+assertion.
 
 ## 6. Documentation, correcting only what this change makes false
 

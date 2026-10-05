@@ -184,47 +184,17 @@ jobs:
         timeout-minutes: 5
         run: pnpm --dir apps/web exec playwright install --with-deps chromium
 
-      # TEMPORARY DIAGNOSTIC - remove once the hang is explained.
-      #
-      # **Chromium is not the problem, and this run is what established it.** The
-      # previous diagnostic launched Chromium on this runner outside the suite: it
-      # started in 250ms, evaluated JS, and exited 0. `/dev/shm` is 7.9G, so
-      # `--disable-dev-shm-usage` was never going to be the fix. **The hang is ours.**
-      #
-      # **Why five earlier runs produced no clue, which is the real lesson.** With
-      # `CI=true` Playwright selects the **dot** reporter, which prints progress *without
-      # newlines*. The step was then killed, and a kill discards buffered output. So the
-      # absence of test lines was **the reporter, not evidence of a hang** - and this
-      # file read that absence as a finding for four runs before a reporter string
-      # explained it. `#59` had a 60s per-test timeout that should have printed a
-      # failure; it was buffered and lost with everything else.
-      #
-      # So this runs the suite with **line-oriented output and a short timeout**, which
-      # makes a hang report itself instead of being swallowed. Flags here are the point
-      # of a diagnostic; the real step below still runs the maintainer's command with
-      # none.
-      #
-      # **It builds first, and that is a fix rather than a detail.** The first version of
-      # this step ran before any build and died in two seconds on
-      # `The directory "dist" does not exist` - a failure of the diagnostic's own
-      # premises, which cost a full 11-minute cycle and produced nothing about the hang.
-      # A diagnostic that cannot fail for the reason it exists is worse than none.
-      - name: Diagnose suite hang
-        timeout-minutes: 8
-        run: |
-          pnpm build
-          pnpm --filter @spectre-mail/web exec playwright test \
-            --reporter=list --timeout=20000 --workers=1
-        continue-on-error: true
-
       # **A maintainer runs `pnpm test:browser`; this runs the same command.** No
       # extra flags, because the suite's assertions do not vary by environment and a
       # divergent flag here would be a second thing to keep in step.
       #
-      # **The ceiling is per-STEP, and that is what turns a hang into evidence.** Two
-      # runs were killed by a job-level timeout having produced `The operation was
-      # canceled.` and nothing else - a job-level ceiling cannot name the step, because
-      # the runner kills the whole job.
+      # **The ceiling is per-STEP, and that is what turns a hang into evidence.** This
+      # step is where five earlier runs hung. A job-level ceiling cannot diagnose that,
+      # because the runner kills the whole job and the log's last line is
+      # `The action has timed out` - naming no step. Per-step ceilings made it fail in
+      # 11 minutes and print the finding underneath: **all 6 specs passing in 2.6
+      # seconds and then no summary line at all**, with the next step reporting that
+      # port 4173 was still held. The tests had never been the problem.
       - name: Test (browser)
         timeout-minutes: 10
         run: pnpm test:browser

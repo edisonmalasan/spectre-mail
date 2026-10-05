@@ -58,7 +58,34 @@ export default defineConfig({
   // The built page, served over HTTP. A `file://` load would be a different
   // origin from anything a user has, and IndexedDB is partitioned by origin.
   webServer: {
-    command: "pnpm preview --port 4173 --strictPort",
+    // **Node runs vite directly, and this is the repair for a hang this repository
+    // caused.** The command used to be `pnpm preview --port 4173 --strictPort`, and the
+    // `browser` CI job never completed a run because of it. The measured sequence:
+    //
+    // - All 6 specs **passed, in 2.6 seconds**, with per-spec timings printed.
+    // - The run summary (`6 passed`) **never printed.** Playwright was still alive.
+    // - The following step failed with `http://127.0.0.1:4173/ is already used`.
+    //
+    // So the tests were never the problem and the summary's absence was never evidence
+    // about them: **Playwright hangs shutting the webServer down.** `pnpm preview`
+    // spawns `vite` as a *child* of `pnpm`, so killing what Playwright spawned kills the
+    // wrapper, leaving the real server holding the inherited stdout pipe open. Playwright
+    // reads that pipe for EOF and waits for an exit that its own kill caused - and the
+    // orphaned `vite` goes on to hold port 4173, which is the error the next step saw.
+    //
+    // **Invoking the binary directly means Playwright owns the process it started**, so
+    // there is no wrapper whose death could orphan anything. The path is relative to this
+    // file's own directory because Playwright runs the command with the config's
+    // directory as its working directory.
+    //
+    // **What was refuted getting here, and recorded because each was believed
+    // reasonably.** A small `/dev/shm` and a Chromium that cannot start its sandbox were
+    // both plausible and both **measured false**: Chromium launched on the same runner in
+    // 250 ms, evaluated JavaScript, and exited 0. Two earlier repairs were spent on that
+    // theory — raising a timeout, then `--disable-dev-shm-usage` with `--no-sandbox` —
+    // and neither changed anything, which is what eventually made the browser itself the
+    // thing to stop suspecting.
+    command: `node node_modules/vite/bin/vite.js preview --port 4173 --strictPort`,
     url: `${SITE_ORIGIN}/`,
     reuseExistingServer: false,
     timeout: 120_000,
@@ -70,50 +97,20 @@ export default defineConfig({
     // visible to the next. Playwright already isolates contexts; this is stated
     // because the whole suite is about persistence and the isolation is the point.
     trace: "off",
-
-    /**
-     * Chromium launch arguments, and this is the repair for a **measured** CI hang.
-     *
-     * ## What was observed
-     *
-     * Three runs of the `browser` job on `ubuntu-latest` printed
-     * `Running 6 tests using 1 worker` and then produced **no test result line at
-     * all** before the step was killed — 19m35s, 29m34s, and 10m respectively. The
-     * webServer had come up, and the install had finished in 24 seconds.
-     *
-     * **The absence of a result line is the evidence, and it is what points here.** A
-     * test that hangs still reports a timeout after its own 60 seconds. Producing
-     * *nothing* for longer than the test timeout means the run never got as far as
-     * running a test, so the wait is Chromium coming up rather than this suite's
-     * logic — which is the one part of this tier that is not written in this
-     * repository.
-     *
-     * ## Why these two flags
-     *
-     * - `--disable-dev-shm-usage` stops Chromium using `/dev/shm` for shared memory
-     *   and uses `/tmp` instead. A runner with a small `/dev/shm` is the documented
-     *   cause of a browser that starts and then stops responding.
-     * - `--no-sandbox` is required because the GitHub-hosted Linux runner executes
-     *   the browser in an environment where Chromium's user-namespace sandbox cannot
-     *   initialise. Chromium then waits rather than exiting.
-     *
-     * **Neither flag is applied on Windows**, and neither is applied conditionally on
-     * any signal this repository can observe: Chromium's sandbox state is not
-     * something a test can read, and a conditional flag whose condition cannot be
-     * tested is a flag whose absence cannot be noticed either. They are unconditional
-     * so the configuration under test is the configuration that runs.
-     *
-     * **What this does not establish.** That these flags are *the* cause is a
-     * hypothesis with a measurement behind it, not a confirmed diagnosis — this
-     * machine is Windows and has never reproduced the hang. The flags are the
-     * documented remedy for the symptom that was measured; if the next run still
-     * hangs, the measurement stands and the hypothesis does not, and that is recorded
-     * rather than argued away.
-     */
-    launchOptions: {
-      args: ["--disable-dev-shm-usage", "--no-sandbox"],
-    },
   },
+
+  // **No `launchOptions`, and that is a decision rather than an omission.**
+  //
+  // This config once passed `--disable-dev-shm-usage --no-sandbox` on the theory that
+  // Chromium could not launch on a GitHub runner. **That theory was measured false**: the
+  // same runner launched Chromium in 250 ms, evaluated JavaScript, and exited 0, and
+  // `/dev/shm` there is 7.9G. Flags added for a cause that turned out not to exist are
+  // still flags.
+  //
+  // `--no-sandbox` in particular **weakens a security boundary**, which this repository
+  // forbids without an explicit requirement, and the requirement here does not exist.
+  // Leaving it in "just in case" would keep the browser unsandboxed in every future run
+  // of the tier that is supposed to verify real browser behaviour.
 
   // The browser tier is allowed to be slower than the unit tier and is not
   // counted against it — `pnpm verify` does not run these specs at all.

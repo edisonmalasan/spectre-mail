@@ -429,27 +429,29 @@ Pin versions when exact versions matter.
   `build-and-verification` requires `pnpm verify` to run with no browser installed and
   that is verified — with `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory, and
   by reading every script `verify` names.
-  **That job has never passed**, and diagnosing it is the record worth keeping. Run 1
-  **failed at 20m19s** and run 2 at **30m18s**, both killed by the job timeout with
-  `The operation was canceled.` and nothing else — 24 seconds installing Chromium, then
-  silence. Raising the ceiling 20 → 30 was **the wrong repair and was measured to be
-  so**: the second silence was *longer* (29m34s), which refutes "it was merely slow" and
-  establishes an **indefinite** hang.
+  **That job hung five times and the cause is now measured, and it was this repository's
+  own `webServer` command.** Five runs produced `Running 6 tests using 1 worker` and then
+  silence. Two repairs were spent on the wrong theory and are recorded because each was
+  reasonable: raising the job ceiling 20 → 30 was **measured to be useless** (the second
+  silence was *longer*, 29m34s, which refutes "merely slow" and establishes an
+  indefinite hang), and `--disable-dev-shm-usage --no-sandbox` was **measured false** —
+  Chromium launched on the same runner in **250ms** and `/dev/shm` there is **7.9G**.
 
-  **Per-step ceilings are what diagnose it, and a job-level one names nothing.** With
-  them, run 3 failed at 11m11s and printed what the earlier kills destroyed: `Running 6
-  tests using 1 worker`, the webServer up, then **no test result line at all**. **The
-  absence is the finding** — a hanging test still reports a 60s timeout, so *nothing*
-  means the run never reached running a test. The wait is Chromium coming up, which is
-  the one part of this tier not written in this repository. The repair is
-  `--disable-dev-shm-usage` and `--no-sandbox` in `launchOptions.args`, applied
-  **unconditionally** because a flag gated on something no test can read is a flag whose
-  absence nothing can notice. **This is a hypothesis with a measurement behind it, not a
-  confirmed diagnosis**: Windows has never reproduced the hang, and if the next run
-  still hangs, the measurement stands and the hypothesis does not. The flags cost
-  **nothing measurable locally** — a first run at 28.8s looked like a 6× regression and
-  two further runs took 3.7s and 4.2s, the pre-change baseline; the 28.8s was a cold
-  first run. Until a run passes, the browser tier has been observed on one machine only.
+  **What finally diagnosed it was per-step ceilings, because a job-level one names no
+  step.** Under them the job printed the finding the earlier kills had destroyed: **all
+  6 specs passing in 2.6 seconds, then no `6 passed` summary line at all**, and the
+  following step failing with `http://127.0.0.1:4173/ is already used`. So the tests
+  were never the problem and **the summary's absence was never evidence about them** —
+  Playwright hangs shutting the webServer *down*. `pnpm preview` spawns `vite` as a
+  child, so killing what Playwright spawned kills the wrapper and orphans the real
+  server, which then holds the inherited stdout pipe open and port 4173. The fix is to
+  **invoke `vite` directly**, so Playwright owns the process it started.
+
+  **Two lessons are recorded because both cost real time.** With `CI=true` Playwright
+  picks the **dot** reporter, which prints progress without newlines, and a killed step
+  discards it — so *four runs of missing test output were the reporter, not a hang*. And
+  a diagnostic is only worth its cycle if it can fail for the reason it exists: the first
+  version ran before the build and died in two seconds on `dist` not existing.
   No deployment, hosting, or release pipeline exists or is planned for V1.
 
 - External services: `https://api.mail.tm` and `https://api.guerrillamail.com`.

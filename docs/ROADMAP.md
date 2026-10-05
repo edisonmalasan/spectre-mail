@@ -103,20 +103,23 @@ are:**
 - **The blocked-`deleteDatabase` semantics.** Still a `fake-indexeddb` measurement; the
   browser suite does not produce that event.
 - **Other browsers.** Chromium only.
-- **The browser tier in CI.** The job **has never passed**, and the diagnosis is the
-  part worth keeping. Three runs were killed having produced nothing useful; two by the
-  job timeout (`The operation was canceled.`). **Raising the job ceiling 20 → 30 was
-  the first repair and it was wrong**, which is recorded because it cost twenty minutes
-  to learn: the second silence was **longer** (29m34s), which refutes "it was merely
-  slow" and establishes an **indefinite** hang. **Per-step ceilings are what diagnose
-  it**, because a job-level timeout names no step: with them, run 3 failed at 11m11s and
-  printed `Running 6 tests using 1 worker`, the webServer up, and **no test result line
-  at all**. **That absence is the finding** — a hanging test still reports a 60s
-  timeout, so nothing at all means the run never reached running a test, and the wait is
-  Chromium launching. The repair is `--disable-dev-shm-usage` and `--no-sandbox`,
-  unconditional. **This is a hypothesis with a measurement behind it, not a confirmed
-  diagnosis**: Windows has never reproduced the hang, and if the next run still hangs the
-  measurement stands and the hypothesis does not.
+- **The browser tier in CI.** The job hung on **five** runs and the cause is now
+  **measured**: it was this repository's own `webServer` command. `pnpm preview` spawns
+  `vite` as a child, so Playwright's shutdown killed the wrapper, orphaned the real
+  server, and then blocked on the pipe that orphan still held. Fixed by invoking `vite`
+  directly. **The record worth keeping is the two wrong theories**, each reasonable and
+  each refuted by measurement rather than argument: raising the job ceiling 20 → 30 (the
+  second silence was **longer** at 29m34s, so it is an indefinite hang, not a slow one),
+  and `--disable-dev-shm-usage --no-sandbox` (**Chromium launched on the same runner in
+  250ms** and `/dev/shm` there is 7.9G). What actually found it was **per-step
+  ceilings**, because a job-level one names no step: those printed the finding the
+  earlier kills had destroyed — **all 6 specs passing in 2.6 seconds and then no summary
+  line**, with the next step reporting port 4173 still held. **Two further lessons are
+  recorded because both cost a cycle**: with `CI=true` Playwright's **dot reporter**
+  prints progress without newlines and a kill discards it, so four runs of missing test
+  output were the *reporter* and never a hang; and the first diagnostic ran before the
+  build, dying in two seconds on a missing `dist` — a diagnostic that cannot fail for
+  the reason it exists is worse than none.
 
 **Two boundary collisions were predicted before they happened and both landed**, which is
 the record worth keeping: the `apps/`-scoped storage-API rule saw test code naming a
