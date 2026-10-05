@@ -18,25 +18,29 @@
 > source of truth — `openspec/specs/` and the active OpenSpec change artifacts are.
 > Reconcile this block against Git and OpenSpec before trusting it in a later session.
 >
-> `openspec/specs/` holds **nine** capabilities: `provider-abstraction` (promoted
+> `openspec/specs/` holds **ten** capabilities: `provider-abstraction` (promoted
 > from `provider-role-decision`), `monorepo-foundation` (M1), `shared-domain-model`
 > (M2), `provider-adapters` (M3), `mail-parsing` (M4), `build-and-verification`
-> (M1), `mailbox-session` (M5 slice 1), `website-client` (M5 slice 1), and
-> `spectre-storage` (M6 slice 1). Counted mechanically at the slice 3 sync stage, they
-> hold **99 requirements and 271 scenarios** in total.
+> (M1), `mailbox-session` (M5 slice 1), `website-client` (M5 slice 1),
+> `spectre-storage` (M6 slice 1), and **`browser-verification`** (new, promoted at the
+> `browser-verification` sync stage). Counted mechanically at that stage and again after
+> the archive, they hold **110 requirements and 300 scenarios** in total.
 >
-> **That figure was stale twice before this correction**, and the drift was the same
+> **That figure was stale twice before the last correction**, and the drift was the same
 > shape both times: a promotion landed and the count was not moved. It read 93
 > requirements and 232 scenarios, which was the figure at slice 1's sync — so it missed
 > all of slice 2 (four requirements added, three amended) *and* all of slice 3 (two
 > requirements, eighteen scenarios). Counting is now re-run mechanically at every sync
-> rather than transcribed.
+> rather than transcribed, and **re-run once more after the archive**, because archiving
+> is a move and a move is the operation most likely to drop a file.
 >
 > M0's own capability spec was archived with
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor:** **M6 - Website Hardening, complete; `browser-verification` applied.**
+**Roadmap cursor:** **M6 - Website Hardening, complete in scope and closed out;
+`browser-verification` applied, verified, synced, and archived. The next eligible
+objective is M7, Spectral Swiss Design Pass.**
 Slice 1 (`spectre-storage`) and slice 2
 (`mailbox-adoption`) are both applied, verified, synced, and **archived** at
 `openspec/changes/archive/2026-10-05-spectre-storage/` and
@@ -44,8 +48,21 @@ Slice 1 (`spectre-storage`) and slice 2
 **#46** / sync **#47**; slice 2 as Apply **#50** / sync **#51**. **Slice 3
 (`privacy-controls`) is applied, verified, synced, and archived** at
 `openspec/changes/archive/2026-10-05-privacy-controls/`; its proposal merged as **#53**,
-its Apply as **#54**, its sync as **#55**. `openspec status` reports **No active
-changes**, which is the correct end state for a finished slice.
+its Apply as **#54**, its sync as **#55**. **`browser-verification` is archived** at
+`openspec/changes/archive/2026-10-06-browser-verification/`; its proposal merged as
+**#58**, its Apply as **#59**, its sync as **#60**. `openspec list` reports **No active
+changes**, which is the correct end state.
+
+**The archive was checked rather than assumed, because archiving is a move.** All four
+delta files survived it, and each delta's ADDED block was then compared
+**byte for byte against the promoted spec** — against the *archived* copies, not the
+pre-archive ones, since a move is where a file is most likely to be quietly lost. All
+four verbatim, and `openspec validate --specs --strict` reports **10 passed, 0 failed**.
+The archive ran with `--skip-specs` because the sync stage had already promoted all four
+files; without it the delta would have been applied twice. `openspec validate
+browser-verification --type change --strict` now **fails** with *"Change must have at
+least one delta"* — the documented OpenSpec 1.13.2 behaviour for an archived change, and
+not data loss, as the same message appears for every previously archived change here.
 
 **M6's code scope is now complete, and this was established by auditing rather than by
 building.** Slice 4's four items — error states, security, accessibility, and pausing
@@ -60,9 +77,10 @@ every claim. `packages/storage` holds **44 tests** and the workspace runs **649 
 
 ### `browser-verification`: the first real browser run, and what it found
 
-**Proposed** (merged **#58**) and **applied** on this change. It is not product code; it
-is the thing that would close a set of long-standing unproven claims, and **closing them
-is what it did — except that it found a bug first.**
+**Proposed** (merged **#58**), **applied** (**#59**), **synced** (**#60**), and
+**archived** at `openspec/changes/archive/2026-10-06-browser-verification/`. It is not
+product code; it is the thing that would close a set of long-standing unproven claims,
+and **closing them is what it did — except that it found a bug first.**
 
 **The finding, and it invalidates a claim this file has been making.** In real Chromium
 the page **wrote the mailbox and never concluded it had**: measured
@@ -103,7 +121,9 @@ are:**
 - **The blocked-`deleteDatabase` semantics.** Still a `fake-indexeddb` measurement; the
   browser suite does not produce that event.
 - **Other browsers.** Chromium only.
-- **The browser tier in CI.** The job hung on **five** runs and the cause is now
+- **The browser tier in CI — now closed, and it is the one item on this list that was
+  resolved rather than merely recorded.** The job hung on **five** runs and the cause is
+  now
   **measured**: it was this repository's own `webServer` command. `pnpm preview` spawns
   `vite` as a child, so Playwright's shutdown killed the wrapper, orphaned the real
   server, and then blocked on the pipe that orphan still held. Fixed by invoking `vite`
@@ -120,17 +140,25 @@ are:**
   prints progress without newlines and a kill discards it, so four runs of missing test
   output were the *reporter* and never a hang; and the first diagnostic ran before the
   build, dying in two seconds on a missing `dist` — a diagnostic that cannot fail for
-  the reason it exists is worse than none.
-- **`spike self-test` has been cancelled on four runs, and it is not this change's
-  code.** That job is untouched by `browser-verification` — no browser, no Playwright,
+  the reason it exists is worse than none. **The job is green: 58 seconds, and a later run
+  1m35s.** A third item left this list as a consequence of the debugging rather than of
+  the change: `spike self-test` was cancelled on four runs while the browser job was being
+  fixed, and it is **green in 30–37 seconds** now that runner capacity freed up, which is
+  the confirmation that it was never this change's code. It is described below anyway,
+  because the way it presented is worth not misreading a second time.
+- **`spike self-test` was cancelled on four runs, and it was not this change's code.**
+  That job is untouched by `browser-verification` — no browser, no Playwright,
   and it takes 26 seconds when it runs. Every one of those runs reports
   **`runner_name` empty and `steps: 0`** from the API, and a **22-byte empty log
   archive**: the job **never received a runner and never executed a step**. One rerun sat
   in queue for **1215 seconds** before its own 10-minute `timeout-minutes` expired,
   which is where the repeated exact 15m duration comes from. **This is GitHub-hosted
-  capacity for this repository being exhausted, not a defect in anything under test**,
-  and it is recorded because a job that reports `cancelled` with **no logs at all** looks
-  like a hang and is not one — the JSON is the only instrument that distinguishes them.
+  capacity for this repository being exhausted, not a defect in anything under test**.
+  **It now passes in 30–37 seconds**, which is what confirmed the reading after the fact.
+  It is kept on this list because a job that reports `cancelled` with **no logs at all**
+  looks exactly like a hang and is not one — **the job JSON is the only instrument that
+  distinguishes them**, and this change had already spent five runs theorising from
+  missing output before anyone checked it.
 
 **Two boundary collisions were predicted before they happened and both landed**, which is
 the record worth keeping: the `apps/`-scoped storage-API rule saw test code naming a
