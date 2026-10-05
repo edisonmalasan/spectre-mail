@@ -184,6 +184,47 @@ jobs:
         timeout-minutes: 5
         run: pnpm --dir apps/web exec playwright install --with-deps chromium
 
+      # TEMPORARY DIAGNOSTIC - remove once the hang is explained.
+      #
+      # **It runs BEFORE the suite, and that ordering is the whole reason it is useful.**
+      # A step that times out **cancels the entire job**, so a diagnostic placed after
+      # the hanging step never executes - which is exactly what happened on the run that
+      # introduced it. Placed first it always runs, and it costs ~30 seconds on a
+      # passing run against an 11-minute failure.
+      #
+      # It asks the narrowest question that separates the two live hypotheses:
+      # **can Chromium launch on this runner at all, outside this repository's code?**
+      # If it cannot, nothing in `apps/web/e2e/` is implicated. If it can, the hang is
+      # ours and the suite is where to look.
+      #
+      # `DEBUG=pw:browser` makes Playwright print the browser process it spawns and
+      # every pipe it opens, which is what says *which* executable is being launched and
+      # whether the process ever appears.
+      - name: Diagnose browser launch
+        timeout-minutes: 5
+        env:
+          DEBUG: pw:browser
+        run: |
+          echo "node: $(node --version)"
+          echo "cpus: $(nproc)"
+          echo "shm: $(df -h /dev/shm | tail -1)"
+          echo "--- installed browsers ---"
+          ls /home/runner/.cache/ms-playwright 2>&1 || echo "no cache dir"
+          echo "--- launch probe ---"
+          node -e "
+          const { chromium } = require('./apps/web/node_modules/@playwright/test');
+          (async () => {
+            console.log('launching...');
+            const b = await chromium.launch();
+            console.log('LAUNCHED', b.version());
+            const p = await b.newPage();
+            await p.setContent('<h1>ok</h1>');
+            console.log('TEXT', await p.evaluate(() => document.querySelector('h1').textContent));
+            await b.close();
+            console.log('CLOSED OK');
+          })().catch(e => { console.error('LAUNCH FAILED:', e.message); process.exit(1); });
+          "
+
       # **A maintainer runs `pnpm test:browser`; this runs the same command.** No
       # extra flags, because the suite's assertions do not vary by environment and a
       # divergent flag here would be a second thing to keep in step.
@@ -193,28 +234,7 @@ jobs:
       # canceled.` and nothing else - a job-level ceiling cannot name the step, because
       # the runner kills the whole job. With per-step ceilings the job fails in 11
       # minutes and prints `Running 6 tests using 1 worker` followed by **no test result
-      # line at all**, which localises the wait to browser launch.
+      # line at all**, which localises the wait away from the build and the webServer.
       - name: Test (browser)
         timeout-minutes: 10
         run: pnpm test:browser
-
-      # TEMPORARY DIAGNOSTIC - remove once the hang is explained.
-      - name: Diagnose browser launch
-        timeout-minutes: 5
-        run: |
-          echo "node: $(node --version)"
-          echo "cpus: $(nproc)"
-          echo "shm: $(df -h /dev/shm | tail -1)"
-          node -e "
-          const { chromium } = require('./apps/web/node_modules/@playwright/test');
-          (async () => {
-            console.log('launching...');
-            const b = await chromium.launch();
-            console.log('LAUNCHED', b.version());
-            const p = await b.newPage();
-            await p.setContent('<h1>ok</h1>');
-            console.log('TITLE', await p.evaluate(() => document.querySelector('h1').textContent));
-            await b.close();
-            console.log('CLOSED OK');
-          })().catch(e => { console.error('FAILED:', e.message); process.exit(1); });
-          "
