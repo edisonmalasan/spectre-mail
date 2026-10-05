@@ -719,6 +719,11 @@ describe("the website", () => {
 
       render(<App session={session} storage={EMPTY_STORE} />);
       await screen.findByTestId("ready");
+      // **One claim below only becomes true once a write is confirmed**, which is a
+      // later turn of the microtask queue than `ready` — the same ordering that made
+      // this test fail about one run in three until the wait was moved here. The page
+      // is briefly "Ready" while still holding nothing, and it says so.
+      await screen.findByTestId("local-data-stored");
 
       const text = visibleText();
 

@@ -593,12 +593,25 @@ describe("making this device forget the address", () => {
   });
 
   it("offers a removal once it has stored something", async () => {
+    // **And the wait is on the *store*, not on the session.**
+    //
+    // This test was flaky at about one run in three, and the reason is a real ordering
+    // property rather than test noise: `ready` is published by the session the moment
+    // the mailbox exists, while `localData` becomes `stored` only in the `saveMailbox`
+    // success callback — a later turn of the microtask queue. So on a first visit the
+    // page can legitimately be showing "Ready" with nothing stored yet, and
+    // `findByTestId("ready")` is the wrong thing to synchronise on.
+    //
+    // **This is the third time this file has had a wait that was too early**, and the
+    // shape is always the same: a binding publishes what the *user* sees from the
+    // session, and what the *device* holds arrives from a promise afterwards. A wait on
+    // the first cannot observe the second.
     const store = stubStore();
 
     render(<App session={sessionOver(countingProvider())} storage={store.storage} />);
-    await screen.findByTestId("ready");
 
-    expect(screen.getByTestId("local-data-stored")).toBeTruthy();
+    await screen.findByTestId("local-data-stored");
+    expect(store.saves).toHaveLength(1);
     expect(screen.getByRole("button", { name: /clear saved data/i })).toBeTruthy();
   });
 
@@ -780,9 +793,10 @@ describe("making this device forget the address", () => {
     await screen.findByTestId("local-data-removed");
 
     fireEvent.click(screen.getByRole("button", { name: /replace address/i }));
-    await screen.findByTestId("ready");
-
-    expect(store.saves.length).toBeGreaterThan(savesBefore);
+    // **Waited on the save rather than on `ready`, for the same reason as the flaky test
+    // above.** A replacement address is stored by an effect that runs after the session
+    // publishes its new mailbox, so `ready` can be on screen with the write outstanding.
+    await waitFor(() => expect(store.saves.length).toBeGreaterThan(savesBefore));
     // **And the address on screen is the new one**, so the assertion is not satisfied by
     // a save of something the page is no longer showing.
     expect(visibleText()).toContain("guerrilla-1@mail.example");

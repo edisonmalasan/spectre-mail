@@ -396,6 +396,24 @@ function stubFactory(): { factory: IDBFactory; events: EventDriver } {
         request.error = error;
         request.onerror?.({ target: request } as unknown as Event);
       },
+      /**
+       * **A removal that fails without giving a reason.**
+       *
+       * Added because a mutation run found the adapter's `request.error ?? new Error(…)`
+       * fallback was reachable but never exercised: every other `deleteFails` sets an
+       * `error`, so the right-hand side of that `??` had no test and its wording could be
+       * replaced with anything without turning the suite red.
+       *
+       * Whether a real browser fires `onerror` with a null `error` was **not measured** —
+       * `fake-indexeddb` is not a browser. The branch exists because the type allows it,
+       * and this is a test of the adapter's own behaviour on it, not a claim about any
+       * platform.
+       */
+      deleteFailsSilently: () => {
+        const request = requireDeleteRequest();
+        request.error = null;
+        request.onerror?.({ target: request } as unknown as Event);
+      },
       closedConnections: () => closed,
     },
   };
@@ -925,6 +943,45 @@ describe("removing what this device holds", () => {
     await flush();
 
     expect(settled()).toBe("rejected");
+  });
+
+  it("names what failed, when the platform fails without saying why", async () => {
+    // **The branch a mutation run found uncovered.** `deleteDatabase` rejects with
+    // `request.error ?? new Error(...)`, and every other test on this path supplies an
+    // `error` — so the right-hand side of that `??` was reachable and unguarded, and its
+    // wording could be replaced with anything without turning this suite red. That is a
+    // check narrower than its rule: the rule is that a refusal names what went wrong,
+    // and only the half of it where the platform cooperates was asserted.
+    //
+    // **Asserted by content rather than by presence**, because a fallback that says
+    // "something went wrong" satisfies every other assertion in this file. Two things
+    // have to be there: which operation failed, and which database it was.
+    const { factory, events } = stubFactory();
+    const storage = storageOver(factory);
+
+    // **One call, both facts**, because `track` throws the rejection value away and the
+    // reason is the whole subject here. Calling `clearAll` twice would issue two delete
+    // requests and leave the stub reporting on whichever it happened to store last.
+    let settled: "pending" | "resolved" | "rejected" = "pending";
+    let reason = "";
+    void storage.clearAll().then(
+      () => {
+        settled = "resolved";
+      },
+      (cause: unknown) => {
+        settled = "rejected";
+        reason = cause instanceof Error ? cause.message : String(cause);
+      },
+    );
+    events.deleteFailsSilently();
+    await flush();
+
+    expect(settled).toBe("rejected");
+    expect(reason).toContain("Removing");
+    expect(reason).toContain("database");
+    // **And the database name, which is what makes it actionable** — a user with two
+    // SpectreMail origins open cannot otherwise tell which one is refusing.
+    expect(reason).toContain(DATABASE);
   });
 });
 
