@@ -25,7 +25,15 @@
 // @vitest-environment jsdom
 
 import { StrictMode } from "react";
-import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { NormalizedErrorCode } from "@spectre-mail/core";
@@ -525,6 +533,259 @@ describe("whether this device holds the record", () => {
 
     expect(store.clearCount()).toBe(1);
     expect(result.current.localData).toEqual({ kind: "none" });
+  });
+});
+
+/**
+ * The page offering to forget, and saying so honestly.
+ *
+ * ## Why the negatives are asserted on which branch rendered
+ *
+ * Two of the claims here are about what the page must **not** say — that a refused
+ * removal is not described as having happened, and that a store holding nothing is not
+ * offered a removal. Matching those on copy would be brittle in the worst direction: a
+ * reworded sentence could satisfy the regex while the claim stayed wrong.
+ *
+ * So those assertions are on **the branch**. The component has one shape per situation,
+ * a refusal can only produce the refusal shape, and a store holding nothing can only
+ * produce the empty one. An assertion about the shape is an assertion about the claim,
+ * and it survives the copy being improved.
+ *
+ * ## Everything here runs against a stub provider and a stub storage
+ *
+ * Nothing in this block has contacted Guerrilla Mail and nothing has run in a browser.
+ * `jsdom` implements no IndexedDB, so the real `deleteDatabase` path is exercised
+ * nowhere from here — `packages/storage/src/indexeddb.test.ts` is where that is
+ * checked, and neither fact is a claim about a user's device.
+ */
+describe("making this device forget the address", () => {
+  it("says nothing about local data while the read is still out", async () => {
+    // **The defect this block found.** The region was first gated on "anything but
+    // blocked", so it rendered *during* the read with `localData` at its initial `none`
+    // — and said "Nothing is kept in this browser" on a page that had not looked yet.
+    // A region that asserts a store's contents before reading it is the failure
+    // `storage-stub.ts` names, in a different place and a different layer.
+    //
+    // Asserted as the absence of the whole region rather than the presence of a "still
+    // checking" line: the requirement is that the page claim neither way, and a region
+    // that existed at all would be one more place for the claim to leak in.
+    let release!: (value: Mailbox | null) => void;
+    const read = new Promise<Mailbox | null>((resolve) => {
+      release = resolve;
+    });
+    const storage: SpectreStorage = {
+      loadMailbox: () => read,
+      saveMailbox: () => Promise.resolve(),
+      clearAll: () => Promise.resolve(),
+    };
+    const provider = countingProvider();
+
+    render(<App session={sessionOver(provider)} storage={{ kind: "ready", storage }} />);
+
+    expect(screen.queryByRole("heading", { name: /what this browser remembers/i })).toBeNull();
+    // **The page does still say a check is in flight**, from the session's own region —
+    // so nothing is left unsaid by the region being absent.
+    expect(screen.getByTestId("idle")).toBeTruthy();
+    expect(provider.creates()).toBe(0);
+
+    release(null);
+    await screen.findByTestId("ready");
+  });
+
+  it("offers a removal once it has stored something", async () => {
+    const store = stubStore();
+
+    render(<App session={sessionOver(countingProvider())} storage={store.storage} />);
+    await screen.findByTestId("ready");
+
+    expect(screen.getByTestId("local-data-stored")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /clear saved data/i })).toBeTruthy();
+  });
+
+  it("offers no removal, and says nothing is kept, when a write was refused", async () => {
+    // **The reachable way to hold nothing while a mailbox is on screen.** The page
+    // always stores the mailbox it creates, so on a first visit something *is* stored
+    // within moments. The states where nothing is stored are a refused write, and the
+    // window before the boot read lands — which is the test above.
+    const store = stubStore({ saveThrows: new Error("the disk is full") });
+
+    render(<App session={sessionOver(countingProvider())} storage={store.storage} />);
+    await screen.findByTestId("ready");
+    await screen.findByTestId("save-failed");
+
+    expect(screen.getByTestId("local-data-empty")).toBeTruthy();
+    // **The point of the assertion.** Offering to remove something this device never
+    // managed to store is a control that cannot act, and the sentence beside it would
+    // have to claim a record that does not exist.
+    expect(screen.queryByRole("button", { name: /clear saved data/i })).toBeNull();
+  });
+
+  it("removes nothing until a second step is taken", async () => {
+    const store = stubStore({ stored: mailbox("stored-one") });
+    render(<App session={sessionOver(countingProvider())} storage={store.storage} />);
+    await screen.findByTestId("ready");
+
+    fireEvent.click(screen.getByRole("button", { name: /clear saved data/i }));
+
+    // **Asserted after the click, not only at the end.** The slice-2 falsification pass
+    // found a retry test that checked only the state after the retry landed, which the
+    // buggy code also reached — so a control that removed on the first click and asked
+    // afterwards would pass an outcome-only check.
+    expect(screen.getByTestId("local-data-confirmation")).toBeTruthy();
+    expect(store.clearCount()).toBe(0);
+    // And it is irreversible, so the confirmation says so rather than implying a dialog
+    // that can be dismissed later.
+    expect(visibleText()).toMatch(/cannot be undone/i);
+  });
+
+  it("removes nothing when the user keeps it", async () => {
+    const store = stubStore({ stored: mailbox("stored-one") });
+    render(<App session={sessionOver(countingProvider())} storage={store.storage} />);
+    await screen.findByTestId("ready");
+
+    fireEvent.click(screen.getByRole("button", { name: /clear saved data/i }));
+    fireEvent.click(screen.getByRole("button", { name: /keep it/i }));
+
+    expect(store.clearCount()).toBe(0);
+    expect(screen.getByRole("button", { name: /clear saved data/i })).toBeTruthy();
+  });
+
+  it("removes what this device holds, and says what that means for a reload", async () => {
+    const store = stubStore({ stored: mailbox("stored-one") });
+    render(<App session={sessionOver(countingProvider())} storage={store.storage} />);
+    await screen.findByTestId("ready");
+
+    fireEvent.click(screen.getByRole("button", { name: /clear saved data/i }));
+    fireEvent.click(screen.getByRole("button", { name: /remove it/i }));
+
+    await screen.findByTestId("local-data-removed");
+    expect(store.clearCount()).toBe(1);
+    // **The consequence is the half that is easy to omit.** A user who has just removed
+    // their address, with the mailbox still on screen, needs to know what will and will
+    // not still work.
+    expect(visibleText()).toMatch(/reload will not bring/i);
+    // **And it must not claim the address itself is gone** — the provider still has it.
+    expect(visibleText()).toMatch(/still works/i);
+    expect(screen.queryByRole("button", { name: /clear saved data/i })).toBeNull();
+  });
+
+  it("keeps the address and the inbox usable after a removal", async () => {
+    // **Removal deletes this device's note of the address, not the mailbox.** A page
+    // that tore down the inbox as well would trade a privacy action for a data loss the
+    // user did not ask for — and from the outside it would be indistinguishable from a
+    // product that destroys mailboxes.
+    const store = stubStore({ stored: mailbox("stored-one") });
+    render(<App session={sessionOver(countingProvider())} storage={store.storage} />);
+    await screen.findByTestId("ready");
+    await screen.findByTestId("inbox-empty");
+
+    fireEvent.click(screen.getByRole("button", { name: /clear saved data/i }));
+    fireEvent.click(screen.getByRole("button", { name: /remove it/i }));
+    await screen.findByTestId("local-data-removed");
+
+    expect(visibleText()).toContain("stored-one@mail.example");
+    expect(screen.getByTestId("ready")).toBeTruthy();
+    expect(screen.getByTestId("inbox-empty")).toBeTruthy();
+  });
+
+  it("reports a refusal as a refusal, and does not describe the data as removed", async () => {
+    // **The three-way exclusion, asserted on the shape rather than the words.** The page
+    // may say the removal did not happen; it may not say the data is gone, and it may not
+    // say the data is safe. The copy says only the first, and the assertion is that the
+    // removed shape did not render — which a reworded sentence could not fake.
+    const store = stubStore({
+      stored: mailbox("stored-one"),
+      clearThrows: new Error("another connection is holding it open"),
+    });
+    render(<App session={sessionOver(countingProvider())} storage={store.storage} />);
+    await screen.findByTestId("ready");
+
+    fireEvent.click(screen.getByRole("button", { name: /clear saved data/i }));
+    fireEvent.click(screen.getByRole("button", { name: /remove it/i }));
+
+    await screen.findByTestId("local-data-refused");
+    expect(visibleText()).toMatch(/was not removed/i);
+    // **The platform's own words, verbatim.** "another connection is holding it open" is
+    // something a user can act on, and rewriting it here would throw that away.
+    expect(visibleText()).toContain("another connection is holding it open");
+    // **The load-bearing negative.**
+    expect(screen.queryByTestId("local-data-removed")).toBeNull();
+    // Nor is it claimed to have survived: the device still reports what it holds, so the
+    // control stays available for the retry the message asks for.
+    expect(screen.getByRole("button", { name: /clear saved data/i })).toBeTruthy();
+  });
+
+  it("does not write the address back after a removal, however many checks follow", async () => {
+    // **The property this whole slice turns on, and the one most likely to rot.** The
+    // save effect refuses to write a mailbox whose id is the one this load was handed,
+    // so nothing should be written — but that is a comparison nobody would notice
+    // breaking, and a page that quietly undid a removal minutes later is the worst
+    // outcome available here.
+    //
+    // **No new guard was added to make it true**, and that is a claim about the code
+    // rather than about a test. It is recorded here so a later reader who finds this
+    // assertion has two possible explanations and knows which one shipped.
+    //
+    // **A created mailbox, not a stored one — and that is forced, not preferred.** A
+    // failing first listing against a *stored* mailbox fails `restore`, so the session
+    // goes to `restoreFailed` and never reaches `ready`: the test would then be
+    // measuring a failed adoption. Starting from nothing stored means the listing that
+    // fails is the inbox's own, which is also what puts the "Check again" control on
+    // the page — a healthy empty inbox has no control to drive it with.
+    const provider = countingProvider({
+      listMessages: () => Promise.reject(new Error("the listing failed")),
+    });
+    const store = stubStore();
+    render(<App session={sessionOver(provider)} storage={store.storage} />);
+    await screen.findByTestId("ready");
+    await screen.findByTestId("inbox-check-failed");
+    // The page stored what it created, so the removal control is there to be exercised.
+    expect(store.saves.length).toBe(1);
+
+    fireEvent.click(screen.getByRole("button", { name: /clear saved data/i }));
+    fireEvent.click(screen.getByRole("button", { name: /remove it/i }));
+    await screen.findByTestId("local-data-removed");
+    const savesBeforeChecks = store.saves.length;
+
+    // **Three separate transitions, and each is waited for rather than fired blind.** A
+    // single check could pass because the poller had not run yet, which a positive
+    // control alone does not rule out.
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const before = provider.lists();
+      fireEvent.click(screen.getByRole("button", { name: /check again/i }));
+      await waitFor(() => expect(provider.lists()).toBeGreaterThan(before));
+      await screen.findByTestId("inbox-check-failed");
+    }
+
+    expect(store.saves.length).toBe(savesBeforeChecks);
+  });
+
+  it("still stores an address the user asks for after a removal", async () => {
+    // **The positive control for the test above, and it is in this file on purpose.** A
+    // "the page stopped writing" assertion is satisfied just as well by a stub that
+    // records nothing at all, and by a page that never writes — so without this half,
+    // the assertion above would pass on a product that had simply stopped persisting.
+    //
+    // The distinction it turns on: a **replacement** address is a different mailbox from
+    // the one handed to this load, so storing it is correct. That is the same precedence
+    // the spec states — a user's decision to forget beats persistence until they decide
+    // otherwise.
+    const store = stubStore({ stored: mailbox("stored-one") });
+    render(<App session={sessionOver(countingProvider())} storage={store.storage} />);
+    await screen.findByTestId("ready");
+    const savesBefore = store.saves.length;
+
+    fireEvent.click(screen.getByRole("button", { name: /clear saved data/i }));
+    fireEvent.click(screen.getByRole("button", { name: /remove it/i }));
+    await screen.findByTestId("local-data-removed");
+
+    fireEvent.click(screen.getByRole("button", { name: /replace address/i }));
+    await screen.findByTestId("ready");
+
+    expect(store.saves.length).toBeGreaterThan(savesBefore);
+    // **And the address on screen is the new one**, so the assertion is not satisfied by
+    // a save of something the page is no longer showing.
+    expect(visibleText()).toContain("guerrilla-1@mail.example");
   });
 });
 

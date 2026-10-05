@@ -345,7 +345,8 @@ function stubFactory(): { factory: IDBFactory; events: EventDriver } {
   }
 
   function requireDeleteRequest(): StubRequest {
-    if (deleteRequest === undefined) throw new Error("the adapter never asked to remove the database");
+    if (deleteRequest === undefined)
+      throw new Error("the adapter never asked to remove the database");
     return deleteRequest;
   }
 

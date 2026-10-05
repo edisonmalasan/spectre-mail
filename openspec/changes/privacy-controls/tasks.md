@@ -61,31 +61,31 @@
 
 ## 4. The page offers removal and reports it honestly
 
-- [ ] 4.1 Add a local-data region to `apps/web/src/App.tsx`, rendered in every
+- [x] 4.1 Add a local-data region to `apps/web/src/App.tsx`, rendered in every
       session state, stating what is kept, that it is in this browser only, and —
       replacing the current text that says no button can delete it — that it can be
       removed. Verify by a test asserting the region does not claim stored data is
       undeletable.
-- [ ] 4.2 Implement the control with its two-step confirmation (D8) and its own
+- [x] 4.2 Implement the control with its two-step confirmation (D8) and its own
       pending, cleared, and failed states. Offer it only when `localData` is
       `stored`; when it is `none`, say nothing is kept on this device and offer
       nothing. Verify by tests for each of the three states.
-- [ ] 4.3 Keep the mailbox on screen after a removal, keep the inbox usable, and say
+- [x] 4.3 Keep the mailbox on screen after a removal, keep the inbox usable, and say
       that a later visit will not offer this address back (D5). Verify by a test
       asserting the address is still rendered and the inbox still listed after a
       removal.
-- [ ] 4.4 Show a refused removal as a refusal with the platform's reason, never as a
+- [x] 4.4 Show a refused removal as a refusal with the platform's reason, never as a
       removal (D9). Verify by a test asserting the page does not describe the data as
       removed after a rejected `clearAll`.
 
 ## 5. A removal survives the page continuing to run
 
-- [ ] 5.1 Assert that after a removal, inbox transitions do not store the address
+- [x] 5.1 Assert that after a removal, inbox transitions do not store the address
       again, and that a mailbox the user subsequently asks for *is* stored (D6, and
       the spec's precedence clause). Verify by a test counting saves across several
       inbox transitions after a removal, with a positive control in the same file that
       does issue a save — otherwise a stub that never saves would satisfy it.
-- [ ] 5.2 Confirm no re-save guard was added to make this true: the existing
+- [x] 5.2 Confirm no re-save guard was added to make this true: the existing
       id-comparison should already be doing it. Verify by reading `useMailboxSession.ts`
       and recording in the change that no `persist`-style ref was introduced for
       removal, with the reason.

@@ -168,6 +168,30 @@ transitions must leave the save count unchanged. This is the slice's most import
 behaviour and it is exactly the kind of thing that stops being true when someone edits
 a comparison, so it gets an assertion rather than a comment.
 
+**Confirmed by reading `useMailboxSession.ts` during apply, and recorded here because
+task 5.2 asked for it.** The removal path adds no ref of any kind. `handed` is
+touched in three places, none of them in the removal path:
+
+- line 255, in the boot, from the record just read — `handed.current = stored?.id ?? null`
+- line 394, the save effect's early return, which is the rule this decision relies on
+- line 416, claimed **before** the write is awaited
+
+So after a removal `handed.current` still names the mailbox on screen, the save effect
+returns early, and no write is issued. Clearing `handed` in `clearStored` would have
+been the one change that broke it: the mailbox's id would then differ from `handed`, the
+next inbox transition would satisfy the effect, and the address would be written back
+within a few seconds — turning the control into a no-op the user could not detect.
+
+**`handed` is deliberately left alone**, and the reason is not tidiness. It names *the
+mailbox this load was handed*, which remains true after a removal: the record was
+deleted, not the mailbox. The ref records what the session was given, not what the
+device currently holds — which is why `localData` was added as a separate fact (D7)
+rather than by repurposing this one.
+
+The assertion is the one that matters, and it is paired with a positive control in the
+same file: a *replacement* address is a different mailbox, so storing it is correct, and
+if that half stopped saving, the no-re-save half would have stopped meaning anything.
+
 ### D7 — The control is offered only where it can act, and the page says what it holds
 
 The binding gains a third fact beside `boot` and `saving`:
