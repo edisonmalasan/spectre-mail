@@ -49,8 +49,9 @@ stale when corrected: it read 93 requirements and 232 scenarios, and gave
 false from slice 2, which adopted a stored mailbox and from slice 3, which uses all three
 contract members — `loadMailbox` at boot, `saveMailbox` for a mailbox the page was not
 handed, and `clearAll` when a user asks this device to forget the address. **The removal
-has still never been run in a real browser**, so what the adapter's tests establish about
-it is established against `fake-indexeddb`, which is not a browser.
+is now also exercised in a real browser**, alongside the 44 tests that run against
+`fake-indexeddb`; the verification-tiers note below says which claims each tier
+establishes.
 
 `provider-adapters` was promoted at the sync stage of the `provider-layer` change, and
 `mail-parsing` at the sync stage of the `mail-parsing-engine` change — 9 requirements
@@ -63,18 +64,30 @@ work. It still has **no styling** - a decision
 rather than an omission, because M7 owns the visual design and markup written now would
 be markup M7 rewrites - which is now the only stated limit.
 
-**The website persists a mailbox, removes it on request, and nothing here has run in a
+**The website persists a mailbox and removes it on request, and it has now run in a real
 browser.** It reads its
 own IndexedDB before it asks the provider for anything, offers a stored address back only
 once the provider confirms it, writes back a mailbox it was not handed, and offers a
-two-step confirmed removal of everything this device holds. Three limits
-belong in the same breath. `jsdom` implements no IndexedDB, so **the real storage path
-has been exercised by no test at all** - the client suites inject a store - **no
-stored mailbox has ever been reconciled against a live Guerrilla Mail session**, which is
-the entire adoption operation, and the **removal has never run against anything but
-`fake-indexeddb`, which is not a browser**. That last one is the limit worth weighing
-hardest: the adapter's tests establish its behaviour, including what a blocked removal
-does, and they establish nothing about a browser's.
+two-step confirmed removal of everything this device holds.
+
+**A real browser ran that page and found a shipped requirement was false there.** The page
+wrote the record but never concluded it had, so the removal control was never offered —
+measured `records=1 claimsStored=0 offersRemoval=0` in Chromium, while 152 unit tests
+passed. The cause was an unmount guard scoped to one effect invocation, which that
+effect's own cleanup cleared whenever the inbox published new state mid-write. It is fixed,
+pinned by a unit regression test that holds a write open, and now covered in real Chromium
+by `pnpm test:browser` (Playwright `1.63.0`, 6 specs, its own CI job).
+
+Three limits belong in the same breath, and none of them is the one that closed. **No
+stored mailbox has ever been reconciled against a live Guerrilla Mail session** - the
+browser suite serves _recorded_ provider responses, so it reconciles against a recording,
+and `use it externally` stays unverified. **The blocked-removal semantics are still only a
+`fake-indexeddb` measurement**, because the browser suite does not produce that event. And
+**only Chromium was run**, on one machine, in a CI job that has never executed. What the
+browser tier did corroborate is narrow but real: removing "everything this device holds"
+means deleting the whole database rather than clearing one key, and **Chromium and
+`fake-indexeddb` agreed on that** - established by breaking it and watching both tiers go
+red. That is a fact about that behaviour, not a general licence for the fake.
 
 **`packages/storage` exists and the website uses it.** `loadMailbox`, `saveMailbox`, and
 `clearAll`, behind an IndexedDB adapter with 44 tests, and reachable two ways: an
@@ -303,12 +316,26 @@ That installs the workspace. It does **not** install the spike. To run the spike
 pnpm --dir tests/provider-spike install
 ```
 
+**The browser tier needs a Chromium download, and nothing else does.** `pnpm install`
+resolves `@playwright/test` but downloads no browser:
+
+```bash
+pnpm --dir apps/web exec playwright install chromium
+```
+
+`pnpm test:browser` is the only command that requires it. `pnpm verify` must keep working
+without one, and that is verified rather than assumed.
+
 ---
 
 ## Verified commands
 
-Every command below was actually executed on 2026-10-02 and passed. Nothing else
-is verified yet.
+Every command below was actually executed and passed. Nothing else is verified yet.
+**The six gate commands were last run on 2026-10-06**; the spike commands on
+2026-10-02. The counts in the table are taken from a JSON reporter rather than read off
+a summary line — an earlier version of this table said 545 across 26 files with 42
+boundary assertions, which was stale by two milestones and had simply never been
+re-measured. **A number nobody re-ran is a number nobody checked.**
 
 These results were reached **after** a defect was found and fixed. An independent
 verification pass discovered that `pnpm format:check` and `pnpm verify` were
@@ -320,18 +347,44 @@ committed fact; see [`.gitattributes`](.gitattributes). The lesson is recorded
 here rather than quietly dropped: **a green CI run is not evidence that a gate
 works on your machine.**
 
-| Command                              | What it proves                                                                 | What it does **not** prove                                                                                                              |
-| ------------------------------------ | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm install`                       | The workspace resolves and installs from the committed lockfile.               | Anything about providers or product behaviour.                                                                                          |
-| `pnpm typecheck`                     | All 8 workspace projects type check under the shared strict config.            | That the types are useful — that is what the tests are for.                                                                             |
-| `pnpm lint`                          | ESLint passes.                                                                 | Type correctness; `pnpm typecheck` owns that.                                                                                           |
-| `pnpm format:check`                  | Prettier passes on the files this repository governs.                          | That historical documents are formatted; those are deliberately excluded.                                                               |
-| `pnpm test`                          | 545 tests across 26 files pass, including 42 architecture boundary assertions. | Product behaviour against a **live** provider. Every provider test replays recorded responses, and no browser has ever loaded the page. |
-| `pnpm build`                         | The website builds with Vite.                                                  | That packages emit anything — they are consumed as TypeScript source, so there is nothing to emit.                                      |
-| `pnpm dev:web`                       | The website dev server starts and serves the app on `127.0.0.1:5173`.          | That a real browser can reach Guerrilla Mail. No live browser run has been made.                                                        |
-| `pnpm spike:selftest`                | The M0 harness records outcomes correctly and writes its artifacts.            | Anything about real providers — it issues zero network requests.                                                                        |
-| `pnpm verify`                        | typecheck + lint + format + test + build all pass in sequence.                 | Anything beyond those five gates.                                                                                                       |
-| `openspec validate --specs --strict` | The live capability specs are internally consistent.                           | That the implementation matches them.                                                                                                   |
+**There are two test tiers, and they are not interchangeable.** The unit tier runs
+sources under Node and jsdom; the browser tier runs the **built** page in real Chromium
+against real IndexedDB. One runner is not allowed to claim the other's work, and a
+boundary assertion enforces that in both directions.
+
+| Command                              | What it proves                                                                                                                                                               | What it does **not** prove                                                                                                                                                             |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm install`                       | The workspace resolves and installs from the committed lockfile.                                                                                                             | That a browser is installed — `pnpm install` resolves Playwright but downloads none.                                                                                                   |
+| `pnpm typecheck`                     | All 8 workspace projects type check under the shared strict config.                                                                                                          | That the types are useful — that is what the tests are for.                                                                                                                            |
+| `pnpm lint`                          | ESLint passes.                                                                                                                                                               | Type correctness; `pnpm typecheck` owns that.                                                                                                                                          |
+| `pnpm format:check`                  | Prettier passes on the files this repository governs.                                                                                                                        | That historical documents are formatted; those are deliberately excluded.                                                                                                              |
+| `pnpm test`                          | 649 tests across 31 files pass, including 47 architecture boundary assertions.                                                                                               | Product behaviour against a **live** provider. Every provider test replays recorded responses, and `jsdom` implements no IndexedDB.                                                    |
+| `pnpm test:browser`                  | 6 specs pass in **Chromium**: the built page reads and writes real IndexedDB through `createBrowserStorage()`, and a confirmed removal leaves `indexedDB.databases()` empty. | Anything about a live provider — every provider response is a recorded one. Nor about Firefox or WebKit, nor a blocked removal, nor how a real provider tolerates five-second polling. |
+| `pnpm build`                         | The website builds with Vite.                                                                                                                                                | That packages emit anything — they are consumed as TypeScript source, so there is nothing to emit.                                                                                     |
+| `pnpm dev:web`                       | The website dev server starts and serves the app on `127.0.0.1:5173`.                                                                                                        | That a real browser can reach Guerrilla Mail.                                                                                                                                          |
+| `pnpm spike:selftest`                | The M0 harness records outcomes correctly and writes its artifacts.                                                                                                          | Anything about real providers — it issues zero network requests.                                                                                                                       |
+| `pnpm verify`                        | typecheck + lint + format + test + build all pass in sequence, **with no browser installed** — measured by pointing `PLAYWRIGHT_BROWSERS_PATH` at an empty directory.        | The browser tier. It is deliberately not run here, because `build-and-verification` requires `verify` to work without one.                                                             |
+| `openspec validate --specs --strict` | The live capability specs are internally consistent.                                                                                                                         | That the implementation matches them.                                                                                                                                                  |
+
+### What the browser tier is, and what it is not
+
+It is **offline by construction**: provider traffic is intercepted and served from
+recorded responses imported by name from `packages/providers`, and any other origin is
+aborted **and reported by name**, so a page reaching somewhere unrecorded fails loudly
+rather than passing quietly.
+
+That makes it a real browser and **not** a real product test. What it cannot establish:
+that a live provider answers as recorded (`use it externally` stays unverified), how a
+real provider reacts to being polled every five seconds, what Firefox or WebKit do with
+IndexedDB, or what a blocked removal does — it does not produce that event. It also ran
+on **one machine**: the CI job that would make it repeatable has never executed.
+
+**Its first run found a shipped defect, and that is the argument for it.** In Chromium,
+the page wrote the mailbox and never learned it had — `records=1 claimsStored=0
+offersRemoval=0` — so the removal control this README has described as working **was
+never offered at all**, while 152 unit tests passed. 44 tests against
+`fake-indexeddb` could not have found it, because they cannot represent a write that
+stays in flight while the inbox publishes new state.
 
 ### What M0 established
 
@@ -363,12 +416,28 @@ A manifest using the slash-less form would fail with no error, which is the kind
 trap that is invisible until a user reports a feature that "just doesn't work."
 
 The test that exercises the declared pattern against the live provider needs an
-extension and browser-test infrastructure that does not exist yet. It is therefore
+**extension**, which does not exist. Browser-test infrastructure now does — Playwright
+runs the website — but the browser tier deliberately intercepts provider traffic, so it
+is the wrong tool anyway: this check is _about_ reaching a live provider. It is therefore
 **deferred to the milestone that owns extension and provider infrastructure.**
 
 No result is claimed for it, and no throwaway production code was built to
 manufacture one. `apps/extension` has no manifest at all, which is why the trap
 cannot currently be hit.
+
+### Still unverified after the first real browser run
+
+The browser tier closed the storage-path gap and **did not close these**:
+
+- **`use it externally`** — the page has never been used against a live provider, and no
+  stored mailbox has ever been reconciled against a live Guerrilla Mail session.
+- **The live polling cadence** — nothing has observed what a real provider does when a
+  real page polls it every five seconds. The cadence assertions read the delay the
+  scheduler was asked for.
+- **A blocked removal** — still a `fake-indexeddb` measurement; the browser suite does not
+  produce that event.
+- **Other browsers** — Chromium only, and on one machine.
+- **The browser tier in CI** — the job is committed and has never run.
 
 ---
 
