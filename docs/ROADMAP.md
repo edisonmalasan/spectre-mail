@@ -30,11 +30,26 @@
 **Roadmap cursor:** **M6 - Website Hardening.** Slice 1 (`spectre-storage`) and slice 2
 (`mailbox-adoption`) are both applied, verified, synced, and **archived** at
 `openspec/changes/archive/2026-10-05-spectre-storage/` and
-`openspec/changes/archive/2026-10-05-mailbox-adoption/`. `openspec status` reports
-**No active changes**. Slice 1 merged as Apply **#46** / sync **#47**; slice 2 as Apply
-**#50** / sync **#51**. The next objective is **M6 slice 3**, the privacy controls —
-`clear local SpectreMail data`, and the only thing standing between this milestone and a
-product that can be made to stop storing.
+`openspec/changes/archive/2026-10-05-mailbox-adoption/`. Slice 1 merged as Apply
+**#46** / sync **#47**; slice 2 as Apply **#50** / sync **#51**. **Slice 3
+(`privacy-controls`) is now proposed** at `openspec/changes/privacy-controls/` and
+validated `openspec validate privacy-controls --type change --strict`; it is the
+privacy controls - `clear local SpectreMail data`, and the only thing standing between
+this milestone and a product that can be made to stop storing. No implementation has
+been written for it, and nothing in the repository has changed yet.
+
+**What slice 3's proposal measured before proposing anything.** It holds one record
+kind under one key in one database, and **no message history or metadata cache is
+persisted anywhere** - the inbox lives in memory in `packages/mailbox`. So the
+Privacy controls block's three named controls map onto **one** operation:
+`Forget mailbox` and `Clear all local SpectreMail data` are the same removal today,
+and `Clear mailbox history` **has no referent**. Shipping three buttons where two are
+identical and one does nothing would be a fake capability, and inventing a history
+store so a button could delete it would create user data in order to destroy it. One
+control is proposed, named for what it does. `IDBFactory.deleteDatabase` was also
+probed on this repository's own substrate: a blocked delete fires `onblocked` and
+**does not complete afterwards even once the blocker closes**, so the proposal
+requires a blocked removal to be **reported rather than waited on**.
 
 **Slice 2 delivers `return to a recent mailbox`, and that acceptance line is now met.**
 The website reads its own storage before it asks the provider for anything, hands the
@@ -2139,7 +2154,7 @@ Each slice therefore owns exactly one of them, and the table is the assignment.
 | --- | --- | --- | --- |
 | 1 | `spectre-storage` | The `SpectreStorage` contract and its IndexedDB adapter, delivered **with no client**, so the seam existed before anything was wired to it | applied, verified, archived |
 | 2 | `mailbox-adoption` | `MailboxSession.restore`, the four new session states, and website reload recovery - `return to a recent mailbox` | applied, verified, archived |
-| 3 | *(next)* | Privacy controls, verbatim from the block above. **Nothing deletes stored data until this lands.** | not started |
+| 3 | `privacy-controls` | Privacy controls, verbatim from the block above. **Nothing deletes stored data until this lands.** | proposed |
 | 4 | *(later)* | Error states, security and accessibility items, and pausing polling when the page is hidden | not started |
 
 **Slice 1 amends no promoted requirement, and that is a decision rather than an
