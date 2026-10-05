@@ -188,18 +188,33 @@ jobs:
       # extra flags, because the suite's assertions do not vary by environment and a
       # divergent flag here would be a second thing to keep in step.
       #
-      # **The ceiling is per-STEP, and that is the fix for a hang, not a preference.**
-      # Two runs of this job were killed by a job-level timeout having produced
-      # `The operation was canceled.` and nothing else - 19m35s and then 29m34s
-      # inside this command with no output at all. **A job-level ceiling cannot tell you
-      # which command hung**, because the runner kills the whole job and the log's last
-      # line is the cancellation. A step-level ceiling kills one step and names it.
-      #
-      # So the job's own timeout is now only a backstop, and each step carries a ceiling
-      # sized against what it has actually been observed to take: the install is 24s and
-      # gets 5, this step gets 10 for a suite that runs in about 4 seconds warm. **The
-      # generous-looking 10 is not optimism - it is headroom so a first successful run
-      # cannot be mistaken for a hang.**
+      # **The ceiling is per-STEP, and that is what turns a hang into evidence.** Two
+      # runs were killed by a job-level timeout having produced `The operation was
+      # canceled.` and nothing else - a job-level ceiling cannot name the step, because
+      # the runner kills the whole job. With per-step ceilings the job fails in 11
+      # minutes and prints `Running 6 tests using 1 worker` followed by **no test result
+      # line at all**, which localises the wait to browser launch.
       - name: Test (browser)
         timeout-minutes: 10
         run: pnpm test:browser
+
+      # TEMPORARY DIAGNOSTIC - remove once the hang is explained.
+      - name: Diagnose browser launch
+        timeout-minutes: 5
+        run: |
+          echo "node: $(node --version)"
+          echo "cpus: $(nproc)"
+          echo "shm: $(df -h /dev/shm | tail -1)"
+          node -e "
+          const { chromium } = require('./apps/web/node_modules/@playwright/test');
+          (async () => {
+            console.log('launching...');
+            const b = await chromium.launch();
+            console.log('LAUNCHED', b.version());
+            const p = await b.newPage();
+            await p.setContent('<h1>ok</h1>');
+            console.log('TITLE', await p.evaluate(() => document.querySelector('h1').textContent));
+            await b.close();
+            console.log('CLOSED OK');
+          })().catch(e => { console.error('FAILED:', e.message); process.exit(1); });
+          "
