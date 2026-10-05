@@ -176,6 +176,61 @@ export function createIndexedDbStorage(options: IndexedDbStorageOptions): Spectr
     }
   }
 
+  /**
+   * Remove the database.
+   *
+   * **The whole database, and that is the requirement rather than an
+   * implementation detail.** Deleting `CURRENT_MAILBOX_KEY` would be the smaller
+   * function and would pass every test written against today's single record — and
+   * it would quietly stop clearing everything the moment a later build added a
+   * second record kind, with nothing failing to notice. `deleteDatabase` removes
+   * anything that was there, including a store this build has never heard of, which
+   * is what a control described to the user as clearing all local data means.
+   *
+   * **`onblocked` rejects rather than waits, and the reason is not "it would hang".**
+   * That was the reason originally recorded here and it was wrong — it was read off a
+   * probe whose promise had already resolved on `onblocked`, so it could not have
+   * observed what the request did afterwards. Measured properly, a blocked removal is
+   * *queued*: while it is pending a fresh `open` is blocked too, and once the holding
+   * connection closes the removal goes through on its own.
+   *
+   * The real reason to report is that the wait ends when some **other** tab closes — a
+   * page can neither cause that nor predict it, and the user would be watching a
+   * button that does nothing for as long as they left another tab open. `openDatabase`
+   * above rejects on the same event for the same class of reason, and these two paths
+   * behaving alike is the point.
+   *
+   * **And rejecting does not cancel anything**, which is the part a caller has to be
+   * told: the queued removal still lands. The message says what blocked it, because
+   * the fix is something the user can do.
+   *
+   * `fake-indexeddb` is not a browser. The behaviour above is why this path is
+   * exercised rather than trusted, not a claim about what a real browser does — and
+   * rejecting is correct whichever way a real browser goes.
+   */
+  function deleteDatabase(): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const request = factory.deleteDatabase(databaseName);
+
+      request.onsuccess = () => {
+        resolve();
+      };
+
+      request.onerror = () => {
+        reject(request.error ?? new Error(`Removing the "${databaseName}" database failed.`));
+      };
+
+      request.onblocked = () => {
+        reject(
+          new Error(
+            `Removing the "${databaseName}" database was blocked: another connection is ` +
+              `holding it open. Close other SpectreMail tabs and try again.`,
+          ),
+        );
+      };
+    });
+  }
+
   return {
     async loadMailbox() {
       return readStoredMailboxRecord(await readStored());
@@ -202,6 +257,20 @@ export function createIndexedDbStorage(options: IndexedDbStorageOptions): Spectr
       }
 
       await writeStored(toStoredMailboxRecord(mailbox));
+    },
+
+    /**
+     * Remove everything this device holds.
+     *
+     * **No narrowing happens here, and that is deliberate.** Every other method on
+     * this contract validates the value it is given, because `spectre-storage`
+     * requires a stored record to be untrusted input. There is nothing to narrow
+     * when the operation is deletion — which is also why this method has no `TypeError`
+     * branch while `saveMailbox` does, and why adding one to match it would be
+     * inventing a failure the operation cannot have.
+     */
+    async clearAll() {
+      await deleteDatabase();
     },
   };
 }

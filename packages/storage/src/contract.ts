@@ -9,7 +9,7 @@ import type { Mailbox } from "@spectre-mail/core";
 /**
  * Where a client keeps what SpectreMail knows about its own mailbox.
  *
- * ## Why it is two operations and not a key–value bag
+ * ## Why it is three operations and not a key–value bag
  *
  * `M6`'s Storage block names five record kinds — mailboxes, provider credentials,
  * preferences, a message-metadata cache, and provider health — and this contract
@@ -64,4 +64,59 @@ export interface SpectreStorage {
    * @throws {Error} If the write was not committed.
    */
   saveMailbox(mailbox: Mailbox): Promise<void>;
+
+  /**
+   * Remove everything this device holds.
+   *
+   * ## It means *everything*, and that is the whole requirement
+   *
+   * An implementation SHALL NOT satisfy this by removing only the records this build
+   * recognises. Deleting the one key this contract stores today is a smaller function
+   * that passes every test anyone would write against today's single record — and it
+   * becomes a silent lie the moment a record kind is added by a later build, with no
+   * failing test to notice, because nothing tested the guarantee.
+   *
+   * The roadmap's Storage block names four further record kinds. Removing the whole
+   * store removes them too, which is what a control described to the user as clearing
+   * all local data means.
+   *
+   * ## Idempotent on purpose
+   *
+   * Removing when nothing is stored SHALL succeed. The state the user asked for is
+   * the state they are already in, and an error for having reached it is an error
+   * about nothing. It also means clearing twice — or clearing on a device that stored
+   * nothing — is not a failure.
+   *
+   * ## A blocked removal is reported rather than waited on
+   *
+   * Measured against this repository's own test substrate, three things are true of a
+   * removal blocked by a second open connection:
+   *
+   * - `onblocked` fires, and the request does not finish while that connection is open;
+   * - **a fresh read cannot complete either**, so an implementation that tried to
+   *   verify afterwards would hang rather than answer;
+   * - **once the blocking connection closes, the queued removal completes.**
+   *
+   * So reporting is not a substitute for waiting, it is the only available answer: the
+   * wait lasts until some *other* tab closes, which a page can neither cause nor
+   * predict and a user cannot be asked to sit through. A control that stopped
+   * responding for an unbounded time is the outcome this contract exists to prevent.
+   *
+   * **The third point is why a refusal may say "not done yet" and may not say "still
+   * there".** Reporting the refusal does not cancel the queued removal, so at the
+   * moment a caller is told the removal failed, it is genuinely true that nothing has
+   * been removed — and a moment later it may be gone. A caller that told the user
+   * "your address is still saved" would be making a promise the platform is already
+   * in the process of breaking.
+   *
+   * `fake-indexeddb` is **not a browser**, so the above is a statement about the
+   * substrate the tests run on. The design does not depend on which way a real browser
+   * goes: reporting is correct whether the queued removal later lands or not, and the
+   * only claim that would be unsafe is the one this documentation declines to make.
+   *
+   * @returns Nothing. It resolves once the platform has committed the removal.
+   * @throws {Error} If the removal was blocked, refused, or did not complete. A
+   *   refusal SHALL NOT be read as a statement that the data remains.
+   */
+  clearAll(): Promise<void>;
 }

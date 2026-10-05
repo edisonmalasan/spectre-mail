@@ -2,12 +2,12 @@
 
 ## 1. The contract gains a removal operation
 
-- [ ] 1.1 Add `clearAll(): Promise<void>` to `SpectreStorage` in
+- [x] 1.1 Add `clearAll(): Promise<void>` to `SpectreStorage` in
       `packages/storage/src/contract.ts`, documented to mean *everything this device
       holds* and not only the records this build recognises, and update the module
       note that says the contract has two operations. Verify by `pnpm typecheck`,
       which must now fail in every implementation that has not supplied it.
-- [ ] 1.2 Record in the contract's documentation that the operation reaches the whole
+- [x] 1.2 Record in the contract's documentation that the operation reaches the whole
       database rather than one key, with the reason: a control the user was told
       clears all of it must not preserve a record kind a later build adds. Verify by
       reading the requirement in
@@ -16,28 +16,28 @@
 
 ## 2. The adapter removes the database
 
-- [ ] 2.1 Implement `clearAll` in `packages/storage/src/indexeddb.ts` as
+- [x] 2.1 Implement `clearAll` in `packages/storage/src/indexeddb.ts` as
       `deleteDatabase`, resolving on the request's success and rejecting on its error.
       Verify by a test asserting a read after a successful removal finds nothing.
-- [ ] 2.2 Reject on `onblocked` rather than awaiting, mirroring `openDatabase`'s
+- [x] 2.2 Reject on `onblocked` rather than awaiting, mirroring `openDatabase`'s
       handling of the same event, with a message naming another open connection as the
       cause. Verify by a test that drives `onblocked` and asserts the promise rejects;
       assert it does not wait, by racing the rejection against a timer rather than by
       timing out on it.
-- [ ] 2.3 Prove the removal takes the whole database rather than the one key this
+- [x] 2.3 Prove the removal takes the whole database rather than the one key this
       build knows: create a second object store by hand, remove, reopen, and assert
       the unrecognised store is gone. Verify that test fails against an implementation
       that deletes only `CURRENT_MAILBOX_KEY` — that is the positive control which
       makes it worth having.
-- [ ] 2.4 Cover the remaining spec branches in `indexeddb.test.ts`: removal with
+- [x] 2.4 Cover the remaining spec branches in `indexeddb.test.ts`: removal with
       nothing stored succeeds; a refused removal is reported as a failure and leaves
       what was stored intact; storing and reading again after a removal works.
       Verify by `pnpm test` in `packages/storage`.
-- [ ] 2.5 Widen the adapter's *"exposes exactly the two operations"* assertion to
+- [x] 2.5 Widen the adapter's *"exposes exactly the two operations"* assertion to
       three and rename it, recording in its comment that the check caught this change
       rather than being adjusted to accommodate it (D12). Verify by deliberately
       removing `clearAll` from the returned object and observing that test fail.
-- [ ] 2.6 Cover the browser entry point delegating removal in `browser.test.ts`, and
+- [x] 2.6 Cover the browser entry point delegating removal in `browser.test.ts`, and
       verify by `pnpm test`. Note in the change record that this test still does not
       execute against a real browser's IndexedDB, and that no test here will.
 

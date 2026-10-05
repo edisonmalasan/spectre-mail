@@ -47,9 +47,14 @@ and `Clear mailbox history` **has no referent**. Shipping three buttons where tw
 identical and one does nothing would be a fake capability, and inventing a history
 store so a button could delete it would create user data in order to destroy it. One
 control is proposed, named for what it does. `IDBFactory.deleteDatabase` was also
-probed on this repository's own substrate: a blocked delete fires `onblocked` and
-**does not complete afterwards even once the blocker closes**, so the proposal
-requires a blocked removal to be **reported rather than waited on**.
+probed on this repository's own substrate, and **the proposal's first reading of that
+probe was wrong**: it claimed a blocked delete never completes, when a blocked delete
+is in fact *queued* — it cannot finish while another tab holds the database, it blocks
+reads meanwhile, and it goes through as soon as that tab closes. The reason a removal
+must be **reported rather than waited on** is therefore not a hang; it is that the
+wait ends on a condition the page cannot cause, and a refusal is not a cancellation,
+so the page must never tell a user their data is still there after one. Corrected in
+the change's apply stage, with the amendment recorded in the delta.
 
 **Slice 2 delivers `return to a recent mailbox`, and that acceptance line is now met.**
 The website reads its own storage before it asks the provider for anything, hands the

@@ -22,11 +22,13 @@ same responsibility: the ability to take it back.
   removed only today's known record would silently preserve anything a later build
   stored, and the guarantee would rot without anybody noticing.
 - **`clearAll()` reports a blocked delete rather than waiting for it.** A blocked
-  `deleteDatabase` fires `onblocked` and, measured on this repository's own test
-  substrate, **does not complete afterwards even once the blocking connection
-  closes**. Waiting therefore cannot be relied on, and a control that hangs is the
-  outcome `spectre-storage` exists to prevent. This mirrors what `openDatabase`
-  already does for the same event.
+  `deleteDatabase` fires `onblocked`, and the wait ends when some *other* tab closes —
+  which the page can neither cause nor predict, and which may be an hour away.
+  Measured on this repository's own test substrate while writing the tests: while the
+  removal is pending a fresh read is blocked too, and once the holding connection
+  closes the queued removal completes on its own. Reporting is therefore the only
+  available answer rather than a shortcut past a hang. This mirrors what
+  `openDatabase` already does for the same event.
 - **`clearAll()` is idempotent.** Measured: deleting a database that does not exist
   succeeds. Clearing twice, or clearing a device that stored nothing, is not an
   error.

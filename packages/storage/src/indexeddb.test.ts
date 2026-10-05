@@ -170,6 +170,125 @@ function upgradeTo(
 }
 
 /**
+ * Hold a real connection open, so a second operation can meet a blocked one.
+ *
+ * **The adapter closes its connection per operation, so this is the only way to
+ * produce a genuine `onblocked`.** Nothing here is a stub: `fake-indexeddb`
+ * reimplements the specification's blocking behaviour, and a test that fires the
+ * event by hand would prove only that the adapter listens for it.
+ */
+function openConnection(factory: IDBFactory): Promise<IDBDatabase> {
+  return new Promise<IDBDatabase>((resolve, reject) => {
+    const open = factory.open(DATABASE, SPECTRE_DATABASE_VERSION);
+    open.onerror = () => {
+      reject(open.error ?? new Error("could not hold a connection open"));
+    };
+    open.onsuccess = () => {
+      resolve(open.result);
+    };
+  });
+}
+
+/**
+ * The object stores a database currently has, read without creating any.
+ *
+ * **The version is an argument rather than a default.** A read of "what stores are
+ * in here" has to open *some* version, and opening a lower one than the database is
+ * already at is a `VersionError` rather than an empty answer — so a helper that
+ * quietly picked a version would fail on exactly the database whose shape mattered.
+ */
+function storeNames(factory: IDBFactory, version: number): Promise<string[]> {
+  return new Promise<string[]>((resolve, reject) => {
+    const open = factory.open(DATABASE, version);
+    open.onerror = () => {
+      reject(open.error ?? new Error("could not read the store names"));
+    };
+    open.onsuccess = () => {
+      const db = open.result;
+      const names = Array.from(db.objectStoreNames);
+      db.close();
+      resolve(names);
+    };
+  });
+}
+
+/**
+ * Write a value straight into a named store, bypassing the adapter.
+ *
+ * **The version is an argument for the same reason as `storeNames`.** These two
+ * helpers exist to place and read a store this build has no contract for, which means
+ * a database shape at a version the adapter never produces.
+ */
+function putIntoStore(
+  factory: IDBFactory,
+  version: number,
+  storeName: string,
+  key: string,
+  value: unknown,
+): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const open = factory.open(DATABASE, version);
+    createStoreOnUpgrade(open);
+    open.onerror = () => {
+      reject(open.error ?? new Error("could not open"));
+    };
+    open.onsuccess = () => {
+      const db = open.result;
+      const transaction = db.transaction(storeName, "readwrite");
+      transaction.objectStore(storeName).put(value, key);
+      transaction.oncomplete = () => {
+        db.close();
+        resolve();
+      };
+      transaction.onerror = () => {
+        db.close();
+        reject(transaction.error ?? new Error("could not write"));
+      };
+    };
+  });
+}
+
+/** Read a value from a named store, bypassing the adapter. */
+function getFromStore(
+  factory: IDBFactory,
+  version: number,
+  storeName: string,
+  key: string,
+): Promise<unknown> {
+  return new Promise<unknown>((resolve, reject) => {
+    const open = factory.open(DATABASE, version);
+    createStoreOnUpgrade(open);
+    open.onerror = () => {
+      reject(open.error ?? new Error("could not open"));
+    };
+    open.onsuccess = () => {
+      const db = open.result;
+      const transaction = db.transaction(storeName, "readonly");
+      const request = transaction.objectStore(storeName).get(key);
+      let value: unknown;
+      request.onsuccess = () => {
+        value = request.result;
+      };
+      transaction.oncomplete = () => {
+        db.close();
+        resolve(value);
+      };
+      transaction.onerror = () => {
+        db.close();
+        reject(transaction.error ?? new Error("could not read"));
+      };
+    };
+  });
+}
+
+/** Resolve after `ms`, for racing a promise that may never settle. */
+function after(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+/**
  * A stub whose open-lifecycle and transaction events the test fires itself.
  *
  * See the module note for the two things this exists for. It implements the four
@@ -178,6 +297,7 @@ function upgradeTo(
  */
 function stubFactory(): { factory: IDBFactory; events: EventDriver } {
   let openRequest: StubRequest | undefined;
+  let deleteRequest: StubRequest | undefined;
   let transaction: StubTransaction | undefined;
   let storeRequest: StubRequest | undefined;
   let closed = 0;
@@ -208,11 +328,25 @@ function stubFactory(): { factory: IDBFactory; events: EventDriver } {
       openRequest = request;
       return request;
     },
+    deleteDatabase(): StubRequest {
+      // **Added for removal, and only the refusal is exercised through it.** The
+      // blocked and successful paths are driven against `fake-indexeddb` with a real
+      // connection held open, because this stub can only assert that the adapter
+      // listens for an event the test chose to fire — which is wiring, not semantics.
+      const request: StubRequest = { error: null, result: undefined };
+      deleteRequest = request;
+      return request;
+    },
   } as unknown as IDBFactory;
 
   function requireRequest(): StubRequest {
     if (openRequest === undefined) throw new Error("the adapter never opened a database");
     return openRequest;
+  }
+
+  function requireDeleteRequest(): StubRequest {
+    if (deleteRequest === undefined) throw new Error("the adapter never asked to remove the database");
+    return deleteRequest;
   }
 
   function requireTransaction(): StubTransaction {
@@ -256,6 +390,11 @@ function stubFactory(): { factory: IDBFactory; events: EventDriver } {
         const request = requireRequest();
         request.onsuccess?.({ target: request } as unknown as Event);
       },
+      deleteFails: (error: DOMException) => {
+        const request = requireDeleteRequest();
+        request.error = error;
+        request.onerror?.({ target: request } as unknown as Event);
+      },
       closedConnections: () => closed,
     },
   };
@@ -286,6 +425,7 @@ interface EventDriver {
   transactionAborts: (error: DOMException) => void;
   openBlocked: () => void;
   openSucceeds: () => void;
+  deleteFails: (error: DOMException) => void;
   closedConnections: () => number;
 }
 
@@ -324,13 +464,22 @@ async function driveOpen(events: EventDriver): Promise<void> {
 }
 
 describe("the IndexedDB adapter", () => {
-  it("exposes exactly the two operations the contract declares", () => {
+  it("exposes exactly the three operations the contract declares", () => {
     // Counted on the returned value rather than read off the interface, because a
     // type has no members at runtime and an assertion about a declaration cannot
     // fail. **The stated limit:** a member added to the *interface* and not the
     // implementation would not be caught here — that is a type error, which
     // `pnpm typecheck` reports and this file cannot.
+    //
+    // **This assertion caught the change that added `clearAll`, rather than being
+    // written to accommodate it**, and the record is kept because it is the mirror
+    // image of a defect this repository has recorded eighteen times. Those were
+    // checks *narrower* than the rule they documented, which is a check that passes
+    // for the wrong reason. This one was right and the rule grew, and a later reader
+    // finding an edited count deserves to be able to tell the two cases apart rather
+    // than reading every count change as a check that was loosened to pass.
     expect(Object.keys(storageOver(new FakeIndexedDbFactory())).sort()).toEqual([
+      "clearAll",
       "loadMailbox",
       "saveMailbox",
     ]);
@@ -591,6 +740,190 @@ describe("the IndexedDB adapter", () => {
 
     expect(await readRaw(factory)).not.toBeUndefined();
     expect(Object.keys(await readRawByKey(factory, "mailboxes"))).toEqual([CURRENT_MAILBOX_KEY]);
+  });
+});
+
+/**
+ * Removing what this device holds.
+ *
+ * **The happy paths run against `fake-indexeddb` rather than the stub, and that
+ * choice is the point of this block.** The stub exists for the two events a test
+ * cannot otherwise reach — see the module note — but a `deleteDatabase` blocked by
+ * another connection *is* reachable here, because a test can hold a real connection
+ * open. Reaching it for real means the blocked path below is driven by a genuine
+ * `onblocked` from a genuine open connection rather than by a test deciding to fire
+ * one, and the distinction is worth a slower test.
+ */
+describe("removing what this device holds", () => {
+  it("removes the stored mailbox, and a read afterwards finds nothing", async () => {
+    // "Reported complete only once it has happened": resolving the promise is a claim
+    // about the platform's state, and this is what makes the claim true rather than
+    // merely plausible.
+    const { storage } = newStorage();
+    await storage.saveMailbox(MAILBOX);
+
+    await storage.clearAll();
+
+    expect(await storage.loadMailbox()).toBeNull();
+  });
+
+  it("removes a store this build does not recognise, not only the key it stores", async () => {
+    // **This is the test the whole requirement rests on, and it has a control inside
+    // it that the store existed before the removal.** Without the control the
+    // assertion below would be satisfied by an `upgradeTo` that never created the
+    // store — a test that passes because its own setup was wrong.
+    //
+    // The alternative implementation, deleting only `CURRENT_MAILBOX_KEY`, leaves
+    // `preferences` exactly where it was, so this assertion is what separates "the
+    // database is gone" from "the record is gone", and nothing else in this file
+    // distinguishes them.
+    const { storage, factory } = newStorage();
+    await storage.saveMailbox(MAILBOX);
+    await upgradeTo(factory, 2, (db) => {
+      if (!db.objectStoreNames.contains("preferences")) {
+        db.createObjectStore("preferences");
+      }
+    });
+    await putIntoStore(factory, 2, "preferences", "locale", "en-GB");
+
+    // **The control.** Before anything is removed, both the store and its contents
+    // are verifiably there.
+    expect(await storeNames(factory, 2)).toContain("preferences");
+    expect(await getFromStore(factory, 2, "preferences", "locale")).toBe("en-GB");
+
+    await storage.clearAll();
+
+    // At the same version, on a database that is now gone and so is recreated empty
+    // by this read. An implementation that deleted only the key would still find
+    // `preferences` here.
+    expect(await storeNames(factory, 2)).not.toContain("preferences");
+  });
+
+  it("succeeds when nothing is stored", async () => {
+    // Idempotence, measured rather than assumed. A user who clears twice, or clears a
+    // device that stored nothing, has reached the state they asked for; reporting a
+    // failure would be an error about nothing.
+    const { storage } = newStorage();
+
+    await expect(storage.clearAll()).resolves.toBeUndefined();
+    await expect(storage.clearAll()).resolves.toBeUndefined();
+  });
+
+  it("is usable again afterwards", async () => {
+    // Removing the database and then being unable to store anything would be a
+    // control that works once and bricks the page. This asserts the next write
+    // lands and reads back, which is the property `deleteDatabase` does not
+    // obviously have: nothing recreates the database, so the *next* operation has to.
+    const { storage } = newStorage();
+    await storage.saveMailbox(MAILBOX);
+    await storage.clearAll();
+
+    await storage.saveMailbox(MAILBOX);
+
+    expect(await storage.loadMailbox()).toEqual(MAILBOX);
+  });
+
+  it("reports a blocked removal instead of leaving the caller waiting", async () => {
+    // A real second connection, held open, so this is a genuine `onblocked` from
+    // `fake-indexeddb` rather than a stub firing one on demand.
+    //
+    // **Raced rather than timed out on**, and that is the whole assertion. A test that
+    // simply awaited the promise would hang until the runner's own limit and could be
+    // reported as a failure of anything at all; racing it against a timer asks the
+    // question that matters — did the adapter *decide* to report, or is it still
+    // waiting for a browser that will not answer?
+    const { storage, factory } = newStorage();
+    await storage.saveMailbox(MAILBOX);
+    const held = await openConnection(factory);
+
+    const outcome = await Promise.race([
+      storage.clearAll().then(
+        () => "resolved",
+        () => "rejected",
+      ),
+      after(50).then(() => "still waiting"),
+    ]);
+
+    expect(outcome).toBe("rejected");
+    held.close();
+  });
+
+  it("a blocked removal holds back a read as well", async () => {
+    // **Measured while writing this, and it is why there is no "the data survived"
+    // test.** While a deletion is pending, a fresh `open` is itself blocked — so the
+    // adapter cannot read the database to confirm the record is intact, and a test
+    // written to check that would time out rather than fail. Any implementation that
+    // tried to read back after a refused removal would hang on exactly this.
+    const { storage, factory } = newStorage();
+    await storage.saveMailbox(MAILBOX);
+    const held = await openConnection(factory);
+
+    await expect(storage.clearAll()).rejects.toThrow();
+
+    const outcome = await Promise.race([
+      storage.loadMailbox().then(
+        () => "read something",
+        () => "refused",
+      ),
+      after(50).then(() => "still waiting"),
+    ]);
+
+    expect(outcome).toBe("still waiting");
+    held.close();
+  });
+
+  it("a refused removal was not cancelled — it completes once nothing holds the database", async () => {
+    // **This is the correction, and it took a failing test to find.** The claim
+    // written into the proposal was that a blocked delete "does not complete
+    // afterwards even once the blocking connection closes". That was read off a probe
+    // whose promise had already resolved on `onblocked`, so it could not have
+    // observed a later completion — and this test, written the other way round,
+    // failed by finding the record gone after the blocker closed.
+    //
+    // The truth is more interesting than the claim: the removal is *queued*, so it
+    // lands eventually, and refusing to wait for it does not cancel it. That is what
+    // forces the page's wording — a refusal may say "not done yet" and may not say
+    // "still there", because a moment later it may be neither.
+    const { storage, factory } = newStorage();
+    await storage.saveMailbox(MAILBOX);
+    const held = await openConnection(factory);
+
+    await expect(storage.clearAll()).rejects.toThrow();
+    held.close();
+
+    expect(await storage.loadMailbox()).toBeNull();
+  });
+
+  it("says what caused a refusal, in terms the user can act on", async () => {
+    // The message is the product's only communication to a user whose clear did not
+    // work. "Another connection" names a cause the user can close; a generic failure
+    // does not, and this control failed for the first time in this change's history.
+    const { storage, factory } = newStorage();
+    const held = await openConnection(factory);
+
+    const reason = await storage.clearAll().then(
+      () => "",
+      (cause: unknown) => (cause instanceof Error ? cause.message : String(cause)),
+    );
+
+    held.close();
+    expect(reason).toContain("blocked");
+    expect(reason).toContain("tab");
+  });
+
+  it("reports a refused removal as a failure", async () => {
+    // Driven by the stub, because a delete error needs a factory that refuses and
+    // `fake-indexeddb` has no switch for that. It proves the wiring only — that the
+    // adapter settles on `onerror` — and the module note says so of every stub-driven
+    // assertion in this file.
+    const { factory, events } = stubFactory();
+    const storage = storageOver(factory);
+
+    const settled = track(storage.clearAll());
+    events.deleteFails(new DOMException("boom"));
+    await flush();
+
+    expect(settled()).toBe("rejected");
   });
 });
 
