@@ -429,17 +429,27 @@ Pin versions when exact versions matter.
   `build-and-verification` requires `pnpm verify` to run with no browser installed and
   that is verified — with `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory, and
   by reading every script `verify` names.
-  **That job has never passed**, and the reason is worth recording because the first
-  repair was wrong. Run 1 **failed at 20m19s**, killed by the job timeout with
-  `The operation was canceled.` and no other output: 24 seconds installing Chromium, then
-  19m35s inside `pnpm test:browser` producing nothing. Raising the ceiling 20 → 30 was
-  expected to let it fail on its own terms; instead run 2 was silent for **29m34s** and
-  was killed again, which **refutes the budget hypothesis by measurement** — the hang is
-  indefinite, not slow. The ceilings are now **per-step** (5 minutes for the install,
-  measured at 24s; 10 for the suite, measured at ~4s warm) with the job's 25 as a
-  backstop, because a job-level timeout names nothing and a step-level one names the
-  step. **The hang has not been explained** and no cause is guessed at. Until a run
-  passes, the browser tier has been observed on one machine only.
+  **That job has never passed**, and diagnosing it is the record worth keeping. Run 1
+  **failed at 20m19s** and run 2 at **30m18s**, both killed by the job timeout with
+  `The operation was canceled.` and nothing else — 24 seconds installing Chromium, then
+  silence. Raising the ceiling 20 → 30 was **the wrong repair and was measured to be
+  so**: the second silence was *longer* (29m34s), which refutes "it was merely slow" and
+  establishes an **indefinite** hang.
+
+  **Per-step ceilings are what diagnose it, and a job-level one names nothing.** With
+  them, run 3 failed at 11m11s and printed what the earlier kills destroyed: `Running 6
+  tests using 1 worker`, the webServer up, then **no test result line at all**. **The
+  absence is the finding** — a hanging test still reports a 60s timeout, so *nothing*
+  means the run never reached running a test. The wait is Chromium coming up, which is
+  the one part of this tier not written in this repository. The repair is
+  `--disable-dev-shm-usage` and `--no-sandbox` in `launchOptions.args`, applied
+  **unconditionally** because a flag gated on something no test can read is a flag whose
+  absence nothing can notice. **This is a hypothesis with a measurement behind it, not a
+  confirmed diagnosis**: Windows has never reproduced the hang, and if the next run
+  still hangs, the measurement stands and the hypothesis does not. The flags cost
+  **nothing measurable locally** — a first run at 28.8s looked like a 6× regression and
+  two further runs took 3.7s and 4.2s, the pre-change baseline; the 28.8s was a cold
+  first run. Until a run passes, the browser tier has been observed on one machine only.
   No deployment, hosting, or release pipeline exists or is planned for V1.
 
 - External services: `https://api.mail.tm` and `https://api.guerrillamail.com`.

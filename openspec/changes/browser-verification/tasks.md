@@ -269,19 +269,47 @@
       **What actually diagnoses a hang is a per-step ceiling**, because a job-level
       timeout kills the whole job and the log's last line is `The operation was canceled.`,
       naming nothing. The ceilings are now per-step: **5 minutes** for the Chromium
-      install, which was **measured at 24 seconds**, and **10** for the suite, which runs
-      in about **4 seconds** warm. The job's own 25 is a backstop. **The generous-looking
-      numbers are headroom so a first successful run cannot be mistaken for a hang** —
-      sized against what has been observed, not against what would be convenient to
-      observe. `CI: "true"` is set at **job** level so Playwright's behaviour does not
-      rest on an ambient step variable.
+      install, which was **measured at 24 seconds**, and **10** for the suite. The job's
+      own 25 is a backstop. `CI: "true"` is set at **job** level so Playwright's behaviour
+      does not rest on an ambient step variable.
 
-      **What is still unknown, and is not guessed at.** The hang has not been explained.
-      The per-step ceilings exist so the next run **names the step that hangs**, which is
-      the first piece of evidence that can distinguish `pnpm build` from Playwright itself
-      — and both were silent, so nothing here names a cause. Until a run passes, this job
-      has **never passed**, which is why the three documents say that rather than calling
-      it unverified.
+      #### What the per-step ceiling found, which the job-level one could not
+
+      **The third run printed the evidence the first two destroyed: `Running 6 tests
+      using 1 worker`, the webServer coming up, and then no test result line at all.**
+      19m35s, then 29m34s, then 10m — all of it *after* the run announced itself.
+
+      **The absence of a result line is the finding, and it is what located the hang.**
+      A test that hangs still reports a timeout after its own 60 seconds. Producing
+      **nothing** for longer than the per-test timeout means the run never reached the
+      point of running a test, so the wait is **Chromium coming up**, not this
+      repository's logic — which is the one part of this tier not written here.
+
+      **The repair is the documented remedy for that symptom:**
+      `--disable-dev-shm-usage` and `--no-sandbox` in `launchOptions.args`. The first
+      stops Chromium using a small runner `/dev/shm` for shared memory, which is the
+      documented cause of a browser that starts and then stops responding; the second
+      is required because the GitHub-hosted Linux runner's environment will not let
+      Chromium's user-namespace sandbox initialise, and it then waits rather than
+      exiting.
+
+      **Both are unconditional, and that is deliberate.** A flag applied conditionally on
+      something no test can observe is a flag whose absence nothing can notice either.
+      Chromium's sandbox state is not readable from a test, so the configuration under
+      test is the configuration that runs.
+
+      **What this is, stated precisely.** A hypothesis with a measurement behind it, not
+      a confirmed diagnosis. This machine is Windows and **has never reproduced the
+      hang**. The flags are the documented remedy for a symptom that was measured; if the
+      next run still hangs, **the measurement stands and the hypothesis does not**, and
+      that is the outcome this record is written to survive.
+
+      **The cost of the flags on this machine was measured rather than assumed: none.**
+      The first run after adding them took 28.8s, which looked like a 6× regression and
+      was **not** — two further runs took **3.7s and 4.2s**, matching the pre-change
+      baseline of about 4s. The 28.8s was a cold first run. **Reported because a single
+      sample said the opposite**, and because "the flags made it six times slower" would
+      have been the natural and wrong conclusion from that one number.
 
 ## 6. Documentation, correcting only what this change makes false
 

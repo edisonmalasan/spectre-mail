@@ -103,15 +103,20 @@ are:**
 - **The blocked-`deleteDatabase` semantics.** Still a `fake-indexeddb` measurement; the
   browser suite does not produce that event.
 - **Other browsers.** Chromium only.
-- **The browser tier in CI.** The job **has never passed**. Two runs were killed by the
-  job timeout having produced `The operation was canceled.` and nothing else — 19m35s and
-  then 29m34s inside `pnpm test:browser`, no output, after 24 seconds installing
-  Chromium. **The second silence being longer refutes the budget hypothesis by
-  measurement**: this is an indefinite hang, not a slow suite. Raising the job ceiling
-  from 20 to 30 was the first repair and it was wrong, which is recorded because it cost
-  twenty minutes to learn. The ceilings are now **per-step**, because a job-level
-  timeout names no step and a step-level one does. **The hang itself is still unexplained
-  and no cause is guessed at.**
+- **The browser tier in CI.** The job **has never passed**, and the diagnosis is the
+  part worth keeping. Three runs were killed having produced nothing useful; two by the
+  job timeout (`The operation was canceled.`). **Raising the job ceiling 20 → 30 was
+  the first repair and it was wrong**, which is recorded because it cost twenty minutes
+  to learn: the second silence was **longer** (29m34s), which refutes "it was merely
+  slow" and establishes an **indefinite** hang. **Per-step ceilings are what diagnose
+  it**, because a job-level timeout names no step: with them, run 3 failed at 11m11s and
+  printed `Running 6 tests using 1 worker`, the webServer up, and **no test result line
+  at all**. **That absence is the finding** — a hanging test still reports a 60s
+  timeout, so nothing at all means the run never reached running a test, and the wait is
+  Chromium launching. The repair is `--disable-dev-shm-usage` and `--no-sandbox`,
+  unconditional. **This is a hypothesis with a measurement behind it, not a confirmed
+  diagnosis**: Windows has never reproduced the hang, and if the next run still hangs the
+  measurement stands and the hypothesis does not.
 
 **Two boundary collisions were predicted before they happened and both landed**, which is
 the record worth keeping: the `apps/`-scoped storage-API rule saw test code naming a

@@ -439,12 +439,15 @@ The browser tier closed the storage-path gap and **did not close these**:
 - **A blocked removal** — still a `fake-indexeddb` measurement; the browser suite does not
   produce that event.
 - **Other browsers** — Chromium only, and on one machine.
-- **The browser tier in CI** — the job **has never passed**. Two runs were killed by the
-  job timeout with `The operation was canceled.` and nothing else: 19m35s and then 29m34s
-  inside `pnpm test:browser`, no output at all, after installing Chromium in 24 seconds.
-  That the second silence was _longer_ is what refutes the idea that it was merely slow.
-  The ceilings are now per-step so a future run names the step that hangs; the hang
-  itself is still unexplained.
+- **The browser tier in CI** — the job **has never passed**. Three runs were killed
+  having produced nothing useful: two by the job timeout (`The operation was canceled.`),
+  and the second silence was _longer_ than the first, which rules out "it was merely
+  slow". Per-step ceilings then made the job name itself — `Running 6 tests using 1
+worker`, the webServer up, and **no test result line at all**, which means Chromium
+  never finished launching rather than a test hanging. The repair is
+  `--disable-dev-shm-usage` and `--no-sandbox`. **That is a hypothesis with a
+  measurement behind it, not a confirmed diagnosis** — Windows has never reproduced the
+  hang.
 
 ---
 
