@@ -46,20 +46,37 @@
 its Apply as **#54**, its sync as **#55**. `openspec status` reports **No active
 changes**, which is the correct end state for a finished slice.
 
-**Next eligible objective: M6 slice 4** — error states, the security and accessibility
-items, and pausing polling when the page is hidden. M6's own acceptance list has **two
-of four** met (`return to a recent mailbox`, `clear local SpectreMail data`); `use it
-externally` and the security and accessibility items are what remain, and slice 4 is
-where the second of those lives. Nothing here begins that change — the cursor names it
-and stops.
-It is the privacy controls - `clear local SpectreMail data`, and the last thing standing
-between this milestone and a product that can be made to stop storing. `packages/storage`
-holds **44 tests** and the workspace runs **647 across 31 files**, counted from a JSON
-reporter. **The removal has still never run in a browser**: `jsdom` implements no
-IndexedDB, so `createBrowserStorage()` - the function a page calls - is executed by no
-test in the workspace, and the adapter's blocked-delete semantics are measured against
-`fake-indexeddb`, which is not a browser. That verification gap is slice 2's and slice 3
-did not close it.
+**M6's code scope is now complete, and this was established by auditing rather than by
+building.** Slice 4's four items — error states, security, accessibility, and pausing
+polling when the page is hidden — were checked against the tree before any change was
+opened, and **three were already delivered and already specified**; the fourth's two
+undelivered accessibility items are CSS, which this milestone's own promoted requirement
+excludes (*"This milestone builds structure, not visual design"*) and which M7's Accent
+and Motion blocks already place inside M7. **No fourth change was opened**, and the
+audit is recorded under M6's slice table with a file or a promoted requirement named for
+every claim. `packages/storage` holds **44 tests** and the workspace runs **647 across
+31 files**, counted from a JSON reporter.
+
+**Next eligible objective: the first live browser run, as its own OpenSpec change.** It
+is not code the product needs, and it is the only thing that would close three
+long-standing unproven claims:
+
+- `use it externally` is **UNVERIFIED**, because no live browser run and no third-party
+  signup have ever been driven.
+- **The removal has still never run in a browser**: `jsdom` implements no IndexedDB, so
+  `createBrowserStorage()` - the function a page calls - is executed by **no test in the
+  workspace**, and the adapter's blocked-delete semantics are measured against
+  `fake-indexeddb`, which is not a browser. That verification gap is slice 2's and slice
+  3 did not close it.
+- **No claim exists about what a provider does when a real page polls it every five
+  seconds**, because the cadence has never run against a live provider.
+
+It gets a change rather than a chore because **there is no browser-automation suite in
+this repository**: Playwright is a spike-only dev dependency *outside* the workspace, and
+bringing one inside has its own boundary consequences - the `apps/`-scoped storage-API
+rule would then see test code that names a storage API, which is a rule this repository
+has already had to widen twice. Nothing here begins that change; the cursor names it and
+stops.
 
 **What slice 3's proposal measured before proposing anything.** It holds one record
 kind under one key in one database, and **no message history or metadata cache is
@@ -2115,7 +2132,7 @@ its own, and one line in particular is delivered elsewhere:
 | Line | Delivered by |
 | --- | --- |
 | `open SpectreMail`, `receive a working address` | M5 slice 1 — `mailbox-session-layer` (archived) |
-| **`use it externally`** | **M5 slice 1 delivers the address; using it on a third-party site is UNVERIFIED** — see below |
+| **`use it externally`** | **M5 slice 1 delivers the address; using it on a third-party site is UNVERIFIED** — and it stays UNVERIFIED until the first live browser run, which is M6's next eligible objective |
 | `receive a real message` | M5 slice 2 — `inbox-polling` (archived) |
 | `find the OTP` | M5 slice 3 — `message-view` (archived) |
 | **`copy the OTP`** | **M10, the verification workflow** — see below |
@@ -2253,7 +2270,7 @@ Each slice therefore owns exactly one of them, and the table is the assignment.
 | 1 | `spectre-storage` | The `SpectreStorage` contract and its IndexedDB adapter, delivered **with no client**, so the seam existed before anything was wired to it | applied, verified, archived |
 | 2 | `mailbox-adoption` | `MailboxSession.restore`, the four new session states, and website reload recovery - `return to a recent mailbox` | applied, verified, archived |
 | 3 | `privacy-controls` | Privacy controls, verbatim from the block above. **Nothing deletes stored data until this lands.** | applied, verified, synced, archived |
-| 4 | *(later)* | Error states, security and accessibility items, and pausing polling when the page is hidden | not started |
+| 4 | **none opened** | Error states, security, accessibility, and pausing polling when hidden — **audited on 2026-10-05 and found already delivered**, with two accessibility items belonging to M7. No change was opened; see the annotation below. | audited, re-scoped, no build |
 
 **Slice 1 amends no promoted requirement, and that is a decision rather than an
 omission.** `mailbox-session`'s scenario *"A reload loses the session"* becomes false
@@ -2298,6 +2315,63 @@ stores, behind a two-step confirmation in the page's own `LocalData` region. **T
 removal has never been run in a browser** - `jsdom` implements no IndexedDB and the
 adapter's tests run against `fake-indexeddb`, which is not a browser - so the product gap
 is closed while the verification gap from slice 2 stands unchanged.
+
+**Slice 4 was audited instead of built, and three of its four items were already
+delivered (2026-10-05).** That audit is why no fourth change exists, and it is recorded
+here in full because a reader comparing this milestone's text against what shipped will
+look here first. Every claim below is a **file or a promoted requirement**, not an
+inference:
+
+- **Pausing polling when the page is hidden — delivered and specified.**
+  `apps/web/src/useInboxVisibility.ts` subscribes to `visibilitychange`, and
+  `Inbox.test.tsx` drives it against real events (redefining `visibilityState`, because
+  jsdom's is read-only). The promoted requirement *The mailbox is checked again when the
+  page is looked at* carries both scenarios: hidden requests nothing, and visible-again
+  asks promptly without displaying an interval.
+- **Error states — delivered and specified.** Ten `NormalizedErrorCode` members.
+  `MailboxFailure.tsx` and `InboxCheckFailed.tsx` each render eight with distinct
+  messages, and a test asserts that *every* code is covered **so that none falls to a
+  default branch**. Six user-distinguishable codes are asserted to read differently from
+  one another, with the throttle singled out. Nothing user-facing renders `.stack` or a
+  raw response object; the three `String(cause)` sites format a non-`Error` cause, and it
+  is the message that reaches the user.
+- **Security — enforced by architecture rather than by new code.** `dangerouslySetInnerHTML`
+  and `innerHTML` are forbidden under `apps/` by a boundary assertion.
+  `packages/mail-parser`'s `detect-links.ts` allow-lists `http:` and `https:` and drops
+  `javascript:`, `data:`, and protocol-relative destinations, with tests for each. A
+  detected URL is rendered **as text with its host visible and no `href`**, so there is
+  nothing to click into. No remote image loading and no attachment handling, because the
+  client loads no resource at all: there is no `<img>`, no `createObjectURL`, no `src=`.
+  No provider field name appears under `apps/`.
+- **Accessibility, structurally — delivered.** Native `<button>` throughout, with no
+  custom key handling and no `div`-as-button, so keyboard navigation needs no code.
+  14 `aria-*` attributes across five components, 13 of them labels; regions are
+  `<section aria-labelledby>` and `<main>`.
+
+**The two items that are genuinely undelivered are `visible focus states` and
+`reduced-motion handling`, and both are CSS.** There is **no stylesheet in the
+workspace**, and M6's own promoted requirement says this milestone *"builds structure,
+not visual design."* Slice 4 delivering them would write the product's first CSS under a
+milestone that disclaims appearance. **Both were moved to M7, and the move invents no
+ownership**: M7's accent block already lists `focus state` among the places the accent
+should appear, and M7's Motion block defines the animation that a reduced-motion
+preference has to govern. M6 disclaims appearance and M7 owns it, so this is where the
+two items already lived.
+
+**What M6 therefore still owes is not code, and saying so is the point.** Three
+long-standing unproven claims would all be closed by **one thing this repository has
+never done: running the website in a real browser.** `use it externally` is unverified
+because no live browser run and no third-party signup have ever been driven. The storage
+path a user's browser takes — boot, read, create, write, then delete the whole database —
+has never run anywhere, because `jsdom` implements no IndexedDB. And **no claim exists
+about what a provider does when a real page polls it every five seconds.** One
+browser-automation run would close all three, and it is the next eligible objective.
+
+That run is **not begun**, and it is a genuine capability rather than a chore: Playwright
+is a **spike-only** dev dependency outside the workspace, there is **no browser-automation
+test suite in this repository**, and bringing one inside the workspace is a decision with
+its own boundary consequences — an `apps/`-scoped boundary rule would then see test code
+that names a storage API. It gets its own OpenSpec change.
 
 ---
 
@@ -2403,6 +2477,30 @@ Matrix-style visuals
 cartoon ghost overload
 large neon hacker aesthetics
 ```
+
+**Two accessibility requirements are this milestone's, not M6's (added 2026-10-05).**
+M6's Accessibility block lists `visible focus states` and `reduced-motion handling`
+among its targets, and **neither is deliverable there**: both are CSS, the workspace
+contains no stylesheet, and M6's own promoted requirement says it *"builds structure,
+not visual design."* The audit that found this is recorded under M6's slice table. Both
+items already sit inside this milestone's own blocks — `focus state` is listed in the
+Accent block above, and the Motion block above is exactly the animation a reduced-motion
+preference has to govern — so this paragraph **records ownership rather than moving
+anything**:
+
+- **Visible focus states.** Every interactive control gets a focus indicator that is
+  visible against both surfaces, never removed by a reset, and uses the accent. Until this
+  milestone, the product has no stylesheet at all, so `outline: none` is not in play and
+  no control currently shows a focus ring of the product's own making.
+- **Reduced-motion handling.** Honour `prefers-reduced-motion: reduce`, and make the
+  three Motion transitions above stop rather than merely shorten under it. M7 is the
+  milestone that *adds* motion, so M7 is the milestone that must make it optional —
+  shipping animation with no way to opt out would introduce the problem rather than solve
+  it.
+
+**Neither can be verified by assertion in this repository's current suite.** Contrast and
+focus visibility are properties of rendered pixels, and there is no browser-automation
+suite in the workspace. See M6's annotation on what a real browser run would close.
 
 ## Website sections
 
