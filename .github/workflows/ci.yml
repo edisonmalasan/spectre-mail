@@ -186,44 +186,29 @@ jobs:
 
       # TEMPORARY DIAGNOSTIC - remove once the hang is explained.
       #
-      # **It runs BEFORE the suite, and that ordering is the whole reason it is useful.**
-      # A step that times out **cancels the entire job**, so a diagnostic placed after
-      # the hanging step never executes - which is exactly what happened on the run that
-      # introduced it. Placed first it always runs, and it costs ~30 seconds on a
-      # passing run against an 11-minute failure.
+      # **Chromium is not the problem, and this run is what established it.** The
+      # previous diagnostic launched Chromium on this runner outside the suite: it
+      # started in 250ms, evaluated JS, and exited 0. `/dev/shm` is 7.9G, so
+      # `--disable-dev-shm-usage` was never going to be the fix. **The hang is ours.**
       #
-      # It asks the narrowest question that separates the two live hypotheses:
-      # **can Chromium launch on this runner at all, outside this repository's code?**
-      # If it cannot, nothing in `apps/web/e2e/` is implicated. If it can, the hang is
-      # ours and the suite is where to look.
+      # **Why five earlier runs produced no clue, which is the real lesson.** With
+      # `CI=true` Playwright selects the **dot** reporter, which prints progress *without
+      # newlines*. The step was then killed, and a kill discards buffered output. So the
+      # absence of test lines was **the reporter, not evidence of a hang** - and this
+      # file read that absence as a finding for four runs before a reporter string
+      # explained it. `#59` had a 60s per-test timeout that should have printed a
+      # failure; it was buffered and lost with everything else.
       #
-      # `DEBUG=pw:browser` makes Playwright print the browser process it spawns and
-      # every pipe it opens, which is what says *which* executable is being launched and
-      # whether the process ever appears.
-      - name: Diagnose browser launch
-        timeout-minutes: 5
-        env:
-          DEBUG: pw:browser
+      # So this runs the suite with **line-oriented output and a short timeout**, which
+      # makes a hang report itself instead of being swallowed. Flags here are the point
+      # of a diagnostic; the real step below still runs the maintainer's command with
+      # none.
+      - name: Diagnose suite hang
+        timeout-minutes: 8
         run: |
-          echo "node: $(node --version)"
-          echo "cpus: $(nproc)"
-          echo "shm: $(df -h /dev/shm | tail -1)"
-          echo "--- installed browsers ---"
-          ls /home/runner/.cache/ms-playwright 2>&1 || echo "no cache dir"
-          echo "--- launch probe ---"
-          node -e "
-          const { chromium } = require('./apps/web/node_modules/@playwright/test');
-          (async () => {
-            console.log('launching...');
-            const b = await chromium.launch();
-            console.log('LAUNCHED', b.version());
-            const p = await b.newPage();
-            await p.setContent('<h1>ok</h1>');
-            console.log('TEXT', await p.evaluate(() => document.querySelector('h1').textContent));
-            await b.close();
-            console.log('CLOSED OK');
-          })().catch(e => { console.error('LAUNCH FAILED:', e.message); process.exit(1); });
-          "
+          pnpm --filter @spectre-mail/web exec playwright test \
+            --reporter=list --timeout=20000 --workers=1
+        continue-on-error: true
 
       # **A maintainer runs `pnpm test:browser`; this runs the same command.** No
       # extra flags, because the suite's assertions do not vary by environment and a
@@ -232,9 +217,7 @@ jobs:
       # **The ceiling is per-STEP, and that is what turns a hang into evidence.** Two
       # runs were killed by a job-level timeout having produced `The operation was
       # canceled.` and nothing else - a job-level ceiling cannot name the step, because
-      # the runner kills the whole job. With per-step ceilings the job fails in 11
-      # minutes and prints `Running 6 tests using 1 worker` followed by **no test result
-      # line at all**, which localises the wait away from the build and the webServer.
+      # the runner kills the whole job.
       - name: Test (browser)
         timeout-minutes: 10
         run: pnpm test:browser
