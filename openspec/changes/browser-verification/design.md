@@ -171,3 +171,112 @@ requires it to be gone — which is the assertion that distinguishes `deleteData
   new `spectre-storage` scenario says the platform wins.
 - **A second tier is a thing that rots** if CI ever stops running it. → CI is the only
   mitigation; recorded rather than assumed away.
+
+## D9 — BLOCKING FINDING, recorded during apply (2026-10-05): the removal control is unreachable in a real browser
+
+**Measured, not inferred.** `apps/web/e2e/zz-diagnostic.spec.ts` ran the built site in
+Chromium and reported, verbatim:
+
+```text
+MEASURED databases=["spectre-mail"] records=1 claimsStored=0 offersRemoval=0
+```
+
+The database exists, holds exactly one record — the mailbox — and after twelve
+seconds, spanning several polling intervals, the page still says it is holding
+nothing and **never offers the removal control at all**.
+
+### What is broken
+
+`website-client`'s promoted requirement *"The user can make this device forget the
+address"* requires the website to offer removal. In a real browser it offers none,
+because the page never concludes it stored anything, and `LocalData` renders its
+removal branch only from `localData.kind === "stored"`.
+
+### Why, from the code
+
+`useMailboxSession.ts`'s save effect declares `[boot.kind, state, mailboxId, store]` as
+its dependencies, sets `handed.current = mailboxId` *before* awaiting the write, and
+guards its `.then` with a per-invocation `current` flag that the effect's own cleanup
+clears. The inbox listing publishes a **new `ready` state object** while a real
+IndexedDB write is still in flight, so the cleanup runs first, `current` is already
+`false` when the write resolves, and `setLocalData({ kind: "stored" })` is skipped.
+Run two then returns early on `handed.current === mailboxId`, so **no later effect
+invocation can ever set it**.
+
+The guard was reaching for a real protection — a `setState` after unmount — and
+reaching for it wrongly. A state transition is not an unmount. Unmount is a property of
+the **component**, and the flag is a property of the **invocation**.
+
+### Why 152 tests did not catch it
+
+The client suites inject a `SpectreStorage` whose `saveMailbox` resolves immediately, so
+the write completes before the listing lands and the guard is never contradicted. The
+window is real IndexedDB being slower than a resolved promise. **This is the first
+defect in this repository that jsdom's missing IndexedDB caused rather than merely hid,
+and it is the sharpest available argument for the tier this change adds.**
+
+### Measured, before and after the repair
+
+The same instrument, the same platform, the same built site, differing only in the guard's
+scope:
+
+```text
+before   databases=["spectre-mail"] records=1 claimsStored=0 offersRemoval=0
+after    databases=["spectre-mail"] records=1 claimsStored=1 offersRemoval=1
+```
+
+**`records=1` in both, and that is the point.** The storage layer was correct
+throughout; the page's knowledge of its own write was not. A suite that had asserted only
+"a record exists" would have passed on the broken build — which is the argument for
+asserting on what the page *says* as well as what the device *holds*.
+
+### Why this blocks the change rather than being noted in it
+
+The proposal's Impact section committed that **no shipped source file is edited**, and
+`design.md`'s Non-Goals said a defect the suite finds is *"fixed by a later change with
+its own evidence"*. Measurement has falsified the sequencing that promise rested on: the
+defect is not adjacent to this change, it is **on the path this change exists to
+verify**. The removal specs are D6 and D8, the centre of the suite. They cannot be
+weakened, and a suite missing them would be a suite missing its own reason for existing.
+
+So the promise cannot be honoured as written, and the choice is between three shapes
+rather than between proceeding and stopping. It is recorded here, with the measurement,
+rather than decided silently — and no task below section 2 is ticked on the strength of
+it.
+
+### D10 — The change is widened to carry the repair, and the promise is withdrawn
+
+**Decided during apply (2026-10-05), by the maintainer, after being shown D9.** The
+alternative shapes were a separate fix change shipped first, and a suite that omits the
+removal specs; both were rejected, the first because it leaves the defect sitting in
+`main` with no tier watching it, the second because a green suite missing its own reason
+for existing is the failure `build-and-verification` exists to prevent.
+
+**So `proposal.md`'s "no shipped source file is edited" is withdrawn rather than
+reworded**, because it was a claim about scope and a claim that turns out to be wrong
+should not survive as a softer version of itself. What replaces it names the one file
+and the one reason.
+
+**The fix is a mounted ref, and it is small.** `handed.current` is left exactly as it is,
+because that claim — one write per mailbox, taken *before* the write is awaited — is the
+correct protection and is what already prevents the duplicate write this file documents.
+Only the unmount guard changes scope, from the effect invocation to the component:
+
+- **today:** `let current = true` inside the effect; the cleanup sets `current = false`;
+  a re-render during an in-flight write therefore withdraws the guard.
+- **after:** a `useRef(true)` set false by an effect that runs once on mount and cleans
+  up once on unmount. A re-render does not touch it.
+
+**Why not simply drop the guard.** A `setState` after unmount is discarded by React
+without warning, so dropping it would appear to work — and it would do so for the wrong
+reason, leaving a real (if benign) call on a torn-down tree. The guard is worth keeping;
+it is the *scope* that is wrong.
+
+**Why this needs a unit regression test and not only the browser spec.** The browser
+spec proves the behaviour on the platform. The unit test proves the *window*: it must
+hold a write open, publish an inbox transition, and then release the write — which is
+what jsdom's immediately-resolving stub made unrepresentable, and is exactly the reason
+152 existing tests passed. Without it, the browser spec is the only thing standing
+between the defect and a return.
+
+

@@ -266,6 +266,40 @@ function collectSourceFiles(root: string): string[] {
   return found;
 }
 
+/**
+ * Whether a file is a **test**, whatever the runner calls it.
+ *
+ * ## Why this exists rather than an inline `.test.tsx?`
+ *
+ * Several rules here exempt tests, because a test is allowed to do the thing the rule
+ * forbids **in order to verify it** — `clientStorageApiViolations()` says so in its own
+ * documentation: install `fake-indexeddb` on the global, or stub a clipboard. That
+ * sentence means *tests*, and it was spelled as one filename.
+ *
+ * **So the spelling was narrower than the rule — the twenty-first instance of the
+ * defect class this repository has recorded, and the first found by a change that had
+ * to widen a rule rather than add one.** `browser-verification` added a browser suite
+ * under `apps/web/e2e/` whose specs assert on `indexedDB.databases()`: the only way to
+ * ask a browser what is still on the device, and the assertion the whole tier exists
+ * for. Those files are named `*.spec.ts` because Playwright owns that convention, and
+ * the rule reported every one of them.
+ *
+ * ## Why both spellings and not a directory
+ *
+ * A test is a **kind**, and a rule should be written against the kind. An exemption
+ * keyed on a directory would be a boundary around where tests happen to live today,
+ * which is the same mistake as exempting a package list — and it would fail open the
+ * first time a suite appeared somewhere new, silently.
+ *
+ * **The cost, stated rather than discovered later:** a file named `*.spec.ts` that is
+ * not a test would be exempt from these rules. Nothing here can produce one, and the
+ * collection rules below independently require every `*.spec.ts` to be collected by a
+ * browser suite, so an uncollected one fails the build by another route.
+ */
+function isTestFile(file: string): boolean {
+  return /\.(?:test|spec)\.tsx?$/.test(file);
+}
+
 function toRepoPath(absolutePath: string): string {
   return relative(REPO_ROOT, absolutePath).split(sep).join("/");
 }
@@ -762,7 +796,10 @@ function clientStorageApiViolations(): string[] {
   const violations: string[] = [];
 
   for (const file of collectSourceFiles(APPS_DIR)) {
-    if (/\.test\.tsx?$/.test(file)) continue;
+    // **Exempt because it is a test, not because of how it is named.** See `isTestFile`
+    // for why the previous `.test.tsx?` was the twenty-first instance of a check
+    // narrower than its rule, and for what that widening costs.
+    if (isTestFile(file)) continue;
     const repoPath = toRepoPath(file).split("\\").join("/");
     const contents = stripComments(readFileSync(file, "utf8"));
     for (const hit of findPatternOccurrences(contents, CLIENT_STORAGE_API_PATTERN)) {
@@ -1775,9 +1812,35 @@ describe("architecture boundaries", () => {
         "the rule should report each client that must be scanned",
       ).toEqual([...mustScan].sort());
       expect(reported).toHaveLength(mustScan.length);
+
+      // **The exemption itself, planted in every client and asserted by name.** A
+      // widening is only safe if the thing it now permits is load-bearing on real code,
+      // and only meaningful if permitting it is asserted rather than assumed. Both
+      // spellings are planted, because `isTestFile` covers two and a control for one
+      // would leave the other unguarded.
+      //
+      // **Two probes, adjacent, opposite outcomes.** This is the half that makes the
+      // exemption a rule rather than a hole: `__exempt.spec.ts` and `__exempt.test.ts`
+      // must go unreported while `__client-storage-probe.ts` beside them is reported. An
+      // exemption widened to "skip anything in this directory", or to "skip anything",
+      // satisfies both unreported assertions and fails the reported one.
+      for (const app of mustScan) {
+        for (const kind of ["spec", "test"]) {
+          writeFileSync(join(APPS_DIR, app, `__exempt.${kind}.ts`), CLIENT_STORAGE_PROBE, "utf8");
+        }
+      }
+
+      const exemptions = clientStorageApiViolations().filter((hit) => hit.includes("__exempt."));
+      expect(
+        exemptions,
+        "a test may reach a store in order to verify it, and the shipped browser specs do",
+      ).toEqual([]);
     } finally {
       for (const app of planted) {
         rmSync(join(APPS_DIR, app, "__client-storage-probe.ts"), { force: true });
+        for (const kind of ["spec", "test"]) {
+          rmSync(join(APPS_DIR, app, `__exempt.${kind}.ts`), { force: true });
+        }
       }
     }
 

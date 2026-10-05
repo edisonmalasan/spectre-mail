@@ -177,6 +177,39 @@ export function useMailboxSession(
   const handed = useRef<string | null>(null);
 
   /**
+   * Whether the page that started a write is still on screen.
+   *
+   * **A ref on the component, not a flag on an effect invocation — and that scope is
+   * the whole point of it.** This existed as `let current = true` inside the save
+   * effect, cleared by that effect's own cleanup. That is a correct protection against
+   * a `setState` after unmount, scoped to the wrong thing: the cleanup also runs when
+   * the effect **re-runs**, and the save effect depends on `state`, which is a new
+   * object on every inbox transition. So a listing landing while a real IndexedDB
+   * write was still in flight cleared the guard, the resolved write found it false, and
+   * the success branch that records the write as confirmed was skipped. Because the
+   * mailbox is already claimed in `handed`, no later invocation could set it either —
+   * so the page wrote the record and never knew it had, and the removal control
+   * `website-client` requires was never offered.
+   *
+   * **Measured, in a browser, and only there:** `records=1 claimsStored=0
+   * offersRemoval=0`. The unit suite injects a storage whose `saveMailbox` resolves
+   * immediately, so the write finishes before the listing lands and the bug has no
+   * window to appear in. 152 tests passed on a page whose privacy control could not be
+   * reached.
+   *
+   * Unmount is a property of the component; a re-render is not an unmount. Hence the
+   * scope.
+   */
+  const mounted = useRef(true);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  /**
    * Whether this page load should write the mailbox it holds.
    *
    * **A ref, because it is a decision rather than a state.** Nothing renders it and
@@ -415,15 +448,20 @@ export function useMailboxSession(
     // SpectreMail should offer against a device that has said no.
     handed.current = mailboxId;
 
-    let current = true;
     void store.storage.saveMailbox(state.mailbox).then(
       () => {
-        // **Guarded against an unmount, and the guard is not optional.** A
-        // `setState` after unmount is discarded by React without warning, but this one
-        // is not the page's state that matters — it is `handed`, a ref. Writing it
-        // after unmount would be harmless, and `current` exists anyway because the
-        // failure branch below has the same problem with a value the user can see.
-        if (!current) return;
+        // **Guarded against an unmount, and not against a re-render.** A `setState`
+        // after unmount is discarded by React without warning, so this guard is not
+        // load-bearing for React's sake — it is load-bearing because the failure
+        // branch below changes something the user can see, and because writing after
+        // teardown is a call on a tree that no longer exists. What it must not do is
+        // answer a different question, which is what the previous per-invocation
+        // `current` flag did: the save effect depends on `state`, an inbox transition
+        // produces a new `state` object, and the effect's cleanup therefore withdrew
+        // this guard while a real write was still in flight. The write then resolved to
+        // silence, the page never learned it had stored anything, and the removal
+        // control was never offered. `mounted` is scoped to the component instead.
+        if (!mounted.current) return;
         setSaving({ kind: "saved" });
         // **Only on success.** `handed.current` was already claimed above, so the
         // device is *spoken for*; this is where it becomes *known to be there*. A
@@ -435,14 +473,12 @@ export function useMailboxSession(
         // **Reported, not swallowed.** A page that saved quietly would leave the user
         // believing reload recovery works on a device where it does not, which is the
         // same class of claim the whole recovery path exists to avoid.
-        if (!current) return;
+        if (!mounted.current) return;
         setSaving({ kind: "notSaved", reason: describe(cause) });
       },
     );
 
-    return () => {
-      current = false;
-    };
+    return undefined;
   }, [boot.kind, state, mailboxId, store]);
 
   return {

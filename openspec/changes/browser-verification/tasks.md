@@ -1,17 +1,61 @@
 # Tasks
 
+## 0. The repair this change now carries (D9, D10)
+
+- [ ] 0.1 Replace the per-invocation unmount guard in `apps/web/src/useMailboxSession.ts`'s
+      save effect with a **mounted ref**: a `useRef(true)` cleared by an effect that runs
+      once on mount and cleans up once on unmount. **Leave `handed.current` exactly as it
+      is** — it is claimed before the write is awaited, and it is what prevents the
+      duplicate write its own comment documents.
+- [ ] 0.2 Write the **unit regression test that holds the window open**, which is the part
+      jsdom could not represent: a storage whose `saveMailbox` does not resolve until the
+      test says so, an inbox transition published while the write is in flight, and then
+      the release. The assertion is that the page reports holding the address afterwards.
+- [ ] 0.3 Prove 0.2 can fail: mutate the guard back to the per-invocation flag and require
+      the intended test to go red. A regression test never observed failing is not one.
+- [ ] 0.4 Prove the browser tier's removal specs can fail for the **same reason** — revert
+      0.1 in the built site and require the removal spec to go red naming the missing
+      control. Without this, the browser tier is not yet known to cover this defect and its
+      passing would be uninformative.
+- [ ] 0.5 Delete `apps/web/e2e/zz-diagnostic.spec.ts`, keeping its **verbatim measurement**
+      in `design.md` D9. It is an instrument, not a check: its assertions encode the
+      defect, so shipping it would make the suite red on purpose.
+
 ## 1. Dependencies and configuration
 
-- [ ] 1.1 Add Playwright as a pinned dev dependency of `apps/web`, matching the version
+- [x] 1.1 Add Playwright as a pinned dev dependency of `apps/web`, matching the version
       the spike already uses, and add the `pnpm-workspace.yaml` note recording that this
       is the first workspace dependency needing a browser download. Do **not** add
       `tests/provider-spike` to `packages:`.
-- [ ] 1.2 Add `test:browser` to the root `package.json`, running the browser suite
+- [x] 1.2 Add `test:browser` to the root `package.json`, running the browser suite
       against the built site. **It is not added to `verify`** (D3).
-- [ ] 1.3 Add `playwright.config.ts` with the preview-server base URL and the spec
+- [x] 1.3 Add `playwright.config.ts` with the preview-server base URL and the spec
       patterns, and gitignore Playwright's artefacts.
-- [ ] 1.4 Verify `pnpm verify` still exits 0 **with no browser installed**, and record
+- [x] 1.4 Verify `pnpm verify` still exits 0 **with no browser installed**, and record
       that as the result rather than assuming it.
+
+      **Measured, and the condition had to be reconstructed.** Chromium *is* installed
+      on this machine — the M0 spike's `playwright install chromium` put it there on
+      2026-10-01 — so the "no browser" condition could not be observed by doing nothing.
+      It was reproduced by pointing `PLAYWRIGHT_BROWSERS_PATH` at an empty directory,
+      which is the same thing from Playwright's side: no executable findable. Under
+      that condition `pnpm verify` **exited 0**, 31 files and 647 tests, `dist` emitted.
+
+      **And the structural fact, which is the stronger half.** Every script `verify`
+      names was read: `typecheck`, `lint`, `format:check`, `test`, `build`. **None can
+      reach a browser** — none mentions `playwright` or `browser`. A gate that cannot
+      reference a browser cannot fail for want of one, so the empty-directory run above
+      confirms the chain and the chain is what establishes the property.
+
+      **One defect this stage wrote and caught in the same stage.** `playwright.config.ts`
+      set `passWithNoTests: false`, copied from `vitest.config.ts`, and `tsc` rejected
+      it with `TS2769`: `passWithNoTests` is **Vitest's option and Playwright has no such
+      field**. The property wanted is real and is now Playwright's default rather than a
+      flag — observed, not assumed, because Playwright exits non-zero with
+      `No tests found` when `testDir` matches nothing. So the flag is deleted and the
+      comment records that it was wrong. **This is the second time in this repository's
+      history that `tsc` caught what a green run would not have**, after the
+      `SpectreError` fixture missing a `cause` at 469/469.
 
 ## 2. The suite
 

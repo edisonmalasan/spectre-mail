@@ -15,6 +15,14 @@ tests/provider-spike/.env
 tests/provider-spike/.playwright/
 ms-playwright/
 
+# Browser-tier run artifacts. Trace and screenshots are evidence for a failing
+# run only, and committing them would put untrusted binary content in the repo.
+# `test-results/` is Playwright's output directory and `playwright-report/` is its
+# HTML report; neither is a build output that anyone builds on.
+apps/web/test-results/
+apps/web/playwright-report/
+apps/web/.playwright/
+
 # Build output
 dist/
 build/
