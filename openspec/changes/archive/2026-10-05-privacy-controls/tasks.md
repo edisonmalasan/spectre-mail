@@ -212,5 +212,5 @@ on the first cannot observe the second.
       delta block **byte for byte** against the promoted spec and reports the first
       differing line when they differ. **2 verbatim, 0 divergent, 0 absent.** Both
       scripts live outside the repository, in the temp directory.
-- [ ] 9.4 Archive with `--skip-specs`, since the sync stage has already promoted the
+- [x] 9.4 Archive with `--skip-specs`, since the sync stage has already promoted the
       deltas, and update the roadmap cursor.

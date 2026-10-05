@@ -922,6 +922,22 @@ openspec validate --specs --strict                             # all promoted sp
 This window is expected rather than a fault; `openspec archive` closes it. Do not
 respond by deleting the promoted spec to make the bare name resolve again.
 
+**After archiving, `openspec validate <change> --type change --strict` fails — and the
+message reads like data loss.** Verified 2026-10-05 at M6 slice 3: it reports
+*"Change must have at least one delta. No deltas found."* on an archived change whose
+deltas are present, complete, and byte-identical to the promoted specs. **Measured, not
+inferred:** the identical error appears for `mailbox-adoption`, archived in an earlier
+session, so it is OpenSpec 1.13.2's behaviour for a change that is no longer active.
+`openspec list` and `openspec status` both report no active changes, which is the correct
+end state.
+
+The checks that still mean something **after** an archive are `openspec validate --specs
+--strict` and a **byte-for-byte** comparison of each archived delta block against the
+promoted spec — compare the *whole block*, not its title, because a hand-typed paraphrase
+keeps the heading and loses the text. Re-run that comparison against the **archived
+copies**: archiving is a move, and a move is the operation most likely to quietly drop a
+file.
+
 **Archive must run with `--skip-specs` when a sync stage already promoted the delta**,
 or the requirements are applied twice. Verified at M4: the sync stage had already
 written `openspec/specs/mail-parsing/spec.md`, so archive was run as

@@ -41,8 +41,17 @@
 `openspec/changes/archive/2026-10-05-spectre-storage/` and
 `openspec/changes/archive/2026-10-05-mailbox-adoption/`. Slice 1 merged as Apply
 **#46** / sync **#47**; slice 2 as Apply **#50** / sync **#51**. **Slice 3
-(`privacy-controls`) is applied, verified, and synced**, its proposal having merged as
-**#53** and its Apply as **#54**; **archive is the one stage still to run**.
+(`privacy-controls`) is applied, verified, synced, and archived** at
+`openspec/changes/archive/2026-10-05-privacy-controls/`; its proposal merged as **#53**,
+its Apply as **#54**, its sync as **#55**. `openspec status` reports **No active
+changes**, which is the correct end state for a finished slice.
+
+**Next eligible objective: M6 slice 4** — error states, the security and accessibility
+items, and pausing polling when the page is hidden. M6's own acceptance list has **two
+of four** met (`return to a recent mailbox`, `clear local SpectreMail data`); `use it
+externally` and the security and accessibility items are what remain, and slice 4 is
+where the second of those lives. Nothing here begins that change — the cursor names it
+and stops.
 It is the privacy controls - `clear local SpectreMail data`, and the last thing standing
 between this milestone and a product that can be made to stop storing. `packages/storage`
 holds **44 tests** and the workspace runs **647 across 31 files**, counted from a JSON
@@ -153,6 +162,34 @@ same treatment the page's own limits bullet received. What replaced it is the na
 truth worth carrying: the product stores a mailbox in a user's browser, offers a
 two-step confirmed removal of the whole database, and **that removal has never been run
 in a browser at all**.
+
+**The archive ran with `--skip-specs`, and the flag was checked against the artifacts
+rather than assumed to have worked.** All six survive the move — `.openspec.yaml`,
+`proposal.md`, `design.md`, `tasks.md`, and both capability deltas — and the delta blocks
+were re-compared against the promoted specs **after** the move, not before. Archiving is a
+move, and a move is the operation most likely to quietly drop a file or truncate one, and
+the artifacts that survive are exactly the ones a later reader will trust: `design.md`
+records why each decision was made, and the delta records what the change asked for. **2
+verbatim, 0 divergent, 0 absent** against the archived copies. `openspec validate --specs
+--strict` still reports **9 passed, 0 failed**, so the flag did what it exists to do:
+promote nothing a second time.
+
+The archive reported **28/29 tasks**, and the one incomplete was **9.4 — this archive
+itself**. It was ticked in the archived copy rather than left, because a task list
+sitting permanently one short reads as an oversight rather than as the stage that was
+running when the list was read.
+
+**`openspec validate privacy-controls --type change --strict` now fails, and the reason
+is worth measuring rather than reading.** It reports *"Change must have at least one
+delta. No deltas found."* — which reads like the archive dropped them. It did not: both
+delta files are present with their headers and 18 scenarios between them, and both match
+the promoted specs byte for byte. **The same error appears for `mailbox-adoption`,**
+archived a session earlier and verified at the time, so it is OpenSpec 1.13.2's behaviour
+for a change that is no longer active rather than anything about this change. `openspec
+list` and `openspec status` both report **no active changes**, which is the state a
+finished slice is supposed to leave behind. **The checks that still mean something after
+an archive are `openspec validate --specs --strict` and the byte-for-byte delta
+comparison** — not a re-validation of the archived change.
 
 **What slice 2 does not establish, and the list is longer than it was after slice 1.**
 No page under test has ever run in a **real browser**, and this is the first change that
@@ -2215,7 +2252,7 @@ Each slice therefore owns exactly one of them, and the table is the assignment.
 | --- | --- | --- | --- |
 | 1 | `spectre-storage` | The `SpectreStorage` contract and its IndexedDB adapter, delivered **with no client**, so the seam existed before anything was wired to it | applied, verified, archived |
 | 2 | `mailbox-adoption` | `MailboxSession.restore`, the four new session states, and website reload recovery - `return to a recent mailbox` | applied, verified, archived |
-| 3 | `privacy-controls` | Privacy controls, verbatim from the block above. **Nothing deletes stored data until this lands.** | applied, verified |
+| 3 | `privacy-controls` | Privacy controls, verbatim from the block above. **Nothing deletes stored data until this lands.** | applied, verified, synced, archived |
 | 4 | *(later)* | Error states, security and accessibility items, and pausing polling when the page is hidden | not started |
 
 **Slice 1 amends no promoted requirement, and that is a decision rather than an
