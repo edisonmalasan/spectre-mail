@@ -481,6 +481,101 @@ describe("whether this device holds the record", () => {
     await waitFor(() => expect(result.current.localData).toEqual({ kind: "stored" }));
   });
 
+  it("still knows it stored the mailbox when a listing lands mid-write", async () => {
+    // ## Why this test exists, and why 112 tests did not catch the bug
+    //
+    // **The defect was a scope error that only exists while a write is in flight.** The
+    // save effect guarded its `setState` with `let current = true` declared *inside* the
+    // effect, cleared by that effect's own cleanup. A cleanup runs when the effect
+    // **re-runs**, not only on unmount — and this effect depends on `state`, which is a
+    // fresh object on every inbox transition. So a listing landing during a real write
+    // withdrew the guard; the write then resolved to silence; `handed.current` was
+    // already claimed, so no later invocation could recover; and the page wrote the
+    // record while never learning it had.
+    //
+    // **Measured, in a real browser, and there only:** `records=1 claimsStored=0
+    // offersRemoval=0`. The removal control `website-client` requires was never offered.
+    // Every unit test here injected a storage whose `saveMailbox` resolved immediately,
+    // so the write finished before any listing could arrive and **the bug had no window
+    // to appear in**. 112 tests passed on a page whose privacy control could not be
+    // reached. That is not a testing gap that more of the same tests would have closed;
+    // the substrate had to change.
+    //
+    // ## What the window is here
+    //
+    // **A storage that will not resolve until this test says so**, so the write is held
+    // open across a transition that cannot happen by accident. `release` is called only
+    // after `checkInbox()` has published a new `state`, which is the ordering that broke
+    // the page. The provider returns a message rather than an empty listing so the
+    // transition is a genuine content change rather than a republish of the same array.
+    let release!: () => void;
+    let writes = 0;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    // **Wrapped, because the hook takes a `WebsiteStorage` and reads `store.storage`.**
+    // Passing the bare contract instead is a mistake this test made first and it is
+    // worth naming: `store.kind` was `undefined`, so the boot fell through to
+    // `store.storage.loadMailbox()`, which threw on `undefined`, and the boot ended
+    // `blocked`. The session therefore stayed `idle` and the failure read as
+    // "the page never opened a mailbox" — a symptom belonging to the fixture, reported
+    // against the code under test.
+    const working: SpectreStorage = {
+      loadMailbox: () => Promise.resolve(null),
+      saveMailbox: () => {
+        writes += 1;
+        return gate.then(() => undefined);
+      },
+      clearAll: () => Promise.resolve(),
+    };
+    const store: WebsiteStorage = { kind: "ready", storage: working };
+
+    const provider = countingProvider({
+      listMessages: () =>
+        Promise.resolve([
+          {
+            id: "message-1",
+            mailboxId: "guerrilla-1",
+            from: { address: "sender@notice.example", name: "Notice" },
+            subject: "Your code is 123456",
+            receivedAt: Date.parse("2026-10-05T12:01:00.000Z"),
+            hasAttachments: false,
+          },
+        ] as never[]),
+    });
+    const session = sessionOver(provider);
+    const { result } = renderHook(() => useMailboxSession(session, store));
+
+    // **Positive control first: the write really is out and unresolved.** Without it, the
+    // wait below could be satisfied by a page that never started one, and the rest of the
+    // test would be measuring nothing — the same vacuity this repository records four times
+    // over at M5 slice 1.
+    await waitFor(() => expect(result.current.state.kind).toBe("ready"));
+    await waitFor(() => expect(writes).toBe(1));
+    expect(result.current.localData).toEqual({ kind: "none" });
+
+    // **The transition that broke the page, while the write is still in flight.**
+    await act(async () => {
+      result.current.checkInbox();
+    });
+    await waitFor(() => expect(result.current.state.kind).toBe("ready"));
+    // Still unresolved, so nothing may have been claimed yet.
+    expect(result.current.localData).toEqual({ kind: "none" });
+
+    // **And now let it land.**
+    await act(async () => {
+      release();
+    });
+
+    // **The claim is the assertion**, because the claim is what a user acts on: it is what
+    // makes `LocalData` render the removal control at all. `handed.current` is not asserted
+    // — it was already correct when this failed, which is precisely why the bug survived.
+    await waitFor(() => expect(result.current.localData).toEqual({ kind: "stored" }));
+    expect(result.current.saving).toEqual({ kind: "saved" });
+    // One write, still: the transition must not have started a second.
+    expect(writes).toBe(1);
+  });
+
   it("claims no record when the write was refused", async () => {
     // **The reason `localData` is not derived from `handed`.** `handed.current` is
     // claimed *before* the write is awaited, so deriving from it would report a record
