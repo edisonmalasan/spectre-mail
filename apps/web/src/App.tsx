@@ -99,8 +99,12 @@ import { LocalData } from "./LocalData";
 import { MailboxFailure } from "./MailboxFailure";
 import { MailboxLifetime } from "./MailboxLifetime";
 import { MessageView } from "./MessageView";
+import { PageFooter } from "./PageFooter";
+import { Reasons } from "./Reasons";
 import { createWebsiteProviderManager } from "./provider-config";
 import { webScheduler } from "./scheduler";
+import { Steps } from "./Steps";
+import { Wordmark } from "./Wordmark";
 import { useWebsiteStorage } from "./storage";
 import type { WebsiteStorage } from "./storage";
 import { StoredAddressGone } from "./StoredAddressGone";
@@ -178,169 +182,192 @@ export function App({ session, storage }: AppProps = {}) {
   useInboxVisibility(active);
 
   return (
-    <main>
-      <h1>SpectreMail</h1>
-      <p className="page__lead">Temporary email for the web and the browser.</p>
+    // **A fragment, because the footer is a page-level landmark and must not be a
+    //   descendant of `<main>`.** ARIA forbids `contentinfo` inside `main`, and that is
+    //   not a formality — Chromium was measured on 2026-10-06 exposing this footer as
+    //   `sectionfooter` with **zero** `contentinfo` landmarks, while jsdom's role mapping
+    //   said `contentinfo` and `App.test.tsx` passed. The first version of this change
+    //   put the footer inside `<main>` and the client suite was green on a role no user
+    //   would ever receive. A substitute platform hid the defect; the platform named it.
+    //   The footer is a sibling of the page's main content, which is also where it reads
+    //   correctly: it is about the page, not about one section of it.
+    <>
+      <main>
+        {/* **The product is the first region**, and the wordmark carries the brand mark beside
+          it rather than above the address. The roadmap's first section is a *live product
+          hero* and the roadmap then says *"The product itself should remain the main hero"*;
+          both hold because there is no marketing block between here and the address. */}
+        {/* **No class hook, and the one this carried first is gone.** It read
+          `className="product"` with nothing in `styles.css` matching it — and a hero needs no
+          rule of its own to be first on the page. `data-region="product"` is what the order
+          assertion reads this section by, and it is the hook that earns its name. Caught by
+          the boundary rule *"uses every class hook a client renders"*, which is the rule's
+          whole purpose: a hook added to a component and never styled. */}
+        <section aria-labelledby="product-heading" data-region="product">
+          <Wordmark />
+          <p className="page__lead">Temporary email for the web and the browser.</p>
 
-      {boot.kind === "blocked" && <BootFailure reason={boot.reason} onRetry={retryBoot} />}
+          {boot.kind === "blocked" && <BootFailure reason={boot.reason} onRetry={retryBoot} />}
 
-      {boot.kind !== "blocked" && state.kind === "idle" && (
-        // **This region is also the page's "looking for a stored address" state**, and
-        // the two are the same moment: a session that has not been asked for anything
-        // is a session the page is still deciding whether to ask. Gating it behind
-        // `boot === "started"` — which is what this file did first — made `idle`
-        // unreachable, and a requirement to render a state the page cannot be in is a
-        // requirement no test can satisfy.
-        //
-        // **Safe to render the session while the read is still out**, and it is
-        // `blocked` alone that does the gating. The session is only ever asked to do
-        // something *after* a successful read, so during `reading` it cannot hold a
-        // mailbox; the only way to show an address before the page knows whether it
-        // has one would be for the read to succeed and the restore to fail, and that
-        // reaches `restoreFailed`, which shows the address as unconfirmed.
-        <section className="region" aria-labelledby="idle-heading">
-          <h2 id="idle-heading">Looking for a saved address</h2>
-          <p data-testid="idle">Checking what this device has stored.</p>
-        </section>
-      )}
+          {boot.kind !== "blocked" && state.kind === "idle" && (
+            // **This region is also the page's "looking for a stored address" state**, and
+            // the two are the same moment: a session that has not been asked for anything
+            // is a session the page is still deciding whether to ask. Gating it behind
+            // `boot === "started"` — which is what this file did first — made `idle`
+            // unreachable, and a requirement to render a state the page cannot be in is a
+            // requirement no test can satisfy.
+            //
+            // **Safe to render the session while the read is still out**, and it is
+            // `blocked` alone that does the gating. The session is only ever asked to do
+            // something *after* a successful read, so during `reading` it cannot hold a
+            // mailbox; the only way to show an address before the page knows whether it
+            // has one would be for the read to succeed and the restore to fail, and that
+            // reaches `restoreFailed`, which shows the address as unconfirmed.
+            <section className="region" aria-labelledby="idle-heading">
+              <h2 id="idle-heading">Looking for a saved address</h2>
+              <p data-testid="idle">Checking what this device has stored.</p>
+            </section>
+          )}
 
-      {boot.kind !== "blocked" && state.kind === "creating" && (
-        // No address here either, for the same reason as above.
-        <section className="region" aria-labelledby="creating-heading">
-          <h2 id="creating-heading">Creating your address</h2>
-          <p data-testid="creating">Asking Guerrilla Mail for a new address.</p>
-        </section>
-      )}
+          {boot.kind !== "blocked" && state.kind === "creating" && (
+            // No address here either, for the same reason as above.
+            <section className="region" aria-labelledby="creating-heading">
+              <h2 id="creating-heading">Creating your address</h2>
+              <p data-testid="creating">Asking Guerrilla Mail for a new address.</p>
+            </section>
+          )}
 
-      {boot.kind !== "blocked" && state.kind === "adopting" && (
-        // **Its own heading, not `creating`'s.** This is the slowest request a
-        // returning visitor waits through, and the copy difference is the whole reason
-        // `adopting` is a state rather than a flag: this page is checking an address the
-        // user already has, not asking for a new one.
-        <section className="region" aria-labelledby="adopting-heading">
-          <h2 id="adopting-heading">Checking your saved address</h2>
-          <p data-testid="adopting">
-            Asking Guerrilla Mail whether the address stored on this device still works.
-          </p>
-        </section>
-      )}
+          {boot.kind !== "blocked" && state.kind === "adopting" && (
+            // **Its own heading, not `creating`'s.** This is the slowest request a
+            // returning visitor waits through, and the copy difference is the whole reason
+            // `adopting` is a state rather than a flag: this page is checking an address the
+            // user already has, not asking for a new one.
+            <section className="region" aria-labelledby="adopting-heading">
+              <h2 id="adopting-heading">Checking your saved address</h2>
+              <p data-testid="adopting">
+                Asking Guerrilla Mail whether the address stored on this device still works.
+              </p>
+            </section>
+          )}
 
-      {boot.kind !== "blocked" && state.kind === "ready" && (
-        <section className="region" aria-labelledby="ready-heading">
-          <h2 id="ready-heading">Ready</h2>
-          <p data-testid="ready">Your address is below. Nothing was required to create it.</p>
-          <Address mailbox={state.mailbox} />
-          {/*
+          {boot.kind !== "blocked" && state.kind === "ready" && (
+            <section className="region" aria-labelledby="ready-heading">
+              <h2 id="ready-heading">Ready</h2>
+              <p data-testid="ready">Your address is below. Nothing was required to create it.</p>
+              <Address mailbox={state.mailbox} />
+              {/*
             **A failed write is announced next to the address, not in the failure region
             or the limits list.** The address on screen is real and usable; what is in
             doubt is whether it will be here next time, and that is a different claim
             from anything else on the page. Hiding it in a list at the bottom would be a
             way of saying it without saying it.
           */}
-          {saving.kind === "notSaved" && (
-            <p className="notice notice--danger" data-testid="save-failed">
-              This address could not be saved to this device, so a reload will not bring it back.{" "}
-              {saving.reason}
-            </p>
-          )}
-          <MailboxLifetime mailbox={state.mailbox} />
-          {/* Rendered above the inbox, and always: an address the user has to scroll
+              {saving.kind === "notSaved" && (
+                <p className="notice notice--danger" data-testid="save-failed">
+                  This address could not be saved to this device, so a reload will not bring it
+                  back. {saving.reason}
+                </p>
+              )}
+              <MailboxLifetime mailbox={state.mailbox} />
+              {/* Rendered above the inbox, and always: an address the user has to scroll
               to find after a failed check is an address they will assume is gone. */}
-          <Inbox inbox={state.inbox} onCheck={checkInbox} onOpenMessage={openMessage} />
-          {/* The message view sits *after* the inbox rather than replacing it. A user
+              <Inbox inbox={state.inbox} onCheck={checkInbox} onOpenMessage={openMessage} />
+              {/* The message view sits *after* the inbox rather than replacing it. A user
               who opened a message to read one code and finds their list gone has to
               come back to find it again, and the inbox is what tells them the message
               arrived at all. Both on screen also means the "back" control has somewhere
               real to go back to. */}
-          <MessageView
-            opened={state.opened}
-            onClose={closeMessage}
-            onRetry={() => {
-              // **The id is read here, from the state this render already has.** It used
-              // to be handed to `MessageView` as a prop, on the strength of a comment
-              // promising "a test asserting a retry carries the right id" — and no such
-              // test existed. The independent verification pass found the span it fed had
-              // exactly one reader: the span itself. So the prop and the hidden element
-              // are gone, and this closure is the only place an id is needed.
-              const id = openedMessageId(state.opened);
-              if (id !== null) openMessage(id);
-            }}
-          />
-          <button type="button" className="control" onClick={replace}>
-            Replace address
-          </button>
+              <MessageView
+                opened={state.opened}
+                onClose={closeMessage}
+                onRetry={() => {
+                  // **The id is read here, from the state this render already has.** It used
+                  // to be handed to `MessageView` as a prop, on the strength of a comment
+                  // promising "a test asserting a retry carries the right id" — and no such
+                  // test existed. The independent verification pass found the span it fed had
+                  // exactly one reader: the span itself. So the prop and the hidden element
+                  // are gone, and this closure is the only place an id is needed.
+                  const id = openedMessageId(state.opened);
+                  if (id !== null) openMessage(id);
+                }}
+              />
+              {/* **The primary action, and it is filled.**
+              The Accent block asks for an accent on a *primary action*, and slice 1
+              deliberately deferred this surface because nothing on the page was a primary
+              action yet. **This page has no submit** — it creates an address on load — so the
+              only control that moves a visitor forward is the one that replaces the address.
+
+              The filled treatment needs an ink the palette did not have: measured against
+              `--accent`, no other ink in the palette reaches the body threshold in either
+              scheme, so `--ink-on-accent` was declared and paired rather than one being
+              borrowed and mislabelled. Nothing else on the page takes the fill —
+              `LocalData`'s removal is destructive, and a destructive control wearing the
+              product's most emphatic treatment would be a design error. */}
+              <button type="button" className="control control--primary" onClick={replace}>
+                Replace address
+              </button>
+            </section>
+          )}
+
+          {boot.kind !== "blocked" && state.kind === "expired" && (
+            <StoredAddressGone
+              mailbox={state.mailbox}
+              onRetry={startFresh}
+              onReplace={startFresh}
+            />
+          )}
+
+          {boot.kind !== "blocked" && state.kind === "restoreFailed" && (
+            <StoredAddressUnchecked
+              mailbox={state.mailbox}
+              failure={state.failure}
+              onRetry={retry}
+              onStartFresh={startFresh}
+            />
+          )}
+
+          {boot.kind !== "blocked" && state.kind === "failed" && (
+            <MailboxFailure failure={state.failure} onRetry={retry} />
+          )}
+
+          {boot.kind === "started" && (
+            // **Own region, gated on the boot having *finished*, and that gate is the
+            // second version of this decision.** It was first written as "anything but
+            // blocked", which rendered the region while the read was still out — and the
+            // region's honest `none` branch then said *"Nothing is kept in this browser"*
+            // on a page that had not yet looked. That is the same class of false claim as
+            // `boot: blocked` making the session's `idle` unreachable, one layer down: a
+            // branch chosen from a value that has not been established.
+            //
+            // Two reasons for the gate that replaced it. During the read the page knows
+            // nothing, so it may assert neither that something is stored nor that nothing
+            // is — and the session's own region is already telling the user a read is in
+            // flight, so nothing is left unsaid. And where storage is blocked it does not
+            // know either, for the same reason; `BootFailure` says that instead.
+            //
+            // It renders in **every session state** once the boot is done, because what this
+            // browser remembers has nothing to do with what the session is doing — a user
+            // looking at a creation failure with a stored address still needs to remove it.
+            <LocalData localData={localData} clearStored={clearStored} />
+          )}
         </section>
-      )}
 
-      {boot.kind !== "blocked" && state.kind === "expired" && (
-        <StoredAddressGone mailbox={state.mailbox} onRetry={startFresh} onReplace={startFresh} />
-      )}
+        {/* **The two sections between the product and the footer.**
+          Their order is not incidental: the roadmap's sequence puts *what happens* before
+          *why*, because a visitor who has just been handed an address has a question about
+          what it will do before they have a question about whether to trust it. The order
+          itself is data — `PAGE_ORDER` in `sections.ts` — so that "the stated order" is a
+          requirement a browser check can read rather than a description. */}
+        <Steps />
+        <Reasons />
+      </main>
 
-      {boot.kind !== "blocked" && state.kind === "restoreFailed" && (
-        <StoredAddressUnchecked
-          mailbox={state.mailbox}
-          failure={state.failure}
-          onRetry={retry}
-          onStartFresh={startFresh}
-        />
-      )}
-
-      {boot.kind !== "blocked" && state.kind === "failed" && (
-        <MailboxFailure failure={state.failure} onRetry={retry} />
-      )}
-
-      {boot.kind === "started" && (
-        // **Own region, gated on the boot having *finished*, and that gate is the
-        // second version of this decision.** It was first written as "anything but
-        // blocked", which rendered the region while the read was still out — and the
-        // region's honest `none` branch then said *"Nothing is kept in this browser"*
-        // on a page that had not yet looked. That is the same class of false claim as
-        // `boot: blocked` making the session's `idle` unreachable, one layer down: a
-        // branch chosen from a value that has not been established.
-        //
-        // Two reasons for the gate that replaced it. During the read the page knows
-        // nothing, so it may assert neither that something is stored nor that nothing
-        // is — and the session's own region is already telling the user a read is in
-        // flight, so nothing is left unsaid. And where storage is blocked it does not
-        // know either, for the same reason; `BootFailure` says that instead.
-        //
-        // It renders in **every session state** once the boot is done, because what this
-        // browser remembers has nothing to do with what the session is doing — a user
-        // looking at a creation failure with a stored address still needs to remove it.
-        <LocalData localData={localData} clearStored={clearStored} />
-      )}
-
-      <section className="region" aria-labelledby="limits-heading">
-        <h2 id="limits-heading">What this page can and cannot do</h2>
-        <ul>
-          <li>It reaches Guerrilla Mail and nothing else.</li>
-          <li>It lists what is in the address, and marks mail that carries a code or a link.</li>
-          <li>
-            It can open a message and show its text, the codes it found, and the links it found.
-          </li>
-          <li>
-            It does not copy codes or follow links for you. Those are the verification workflow,
-            which this page does not do yet.
-          </li>
-          {/* **The storage bullet is gone rather than reworded, and that is the
-              record worth keeping.** It was rewritten twice before: slice 2 replaced
-              "A reload discards this address. SpectreMail stores nothing on your
-              device yet." with a statement that the address is kept and that *no
-              button anywhere deletes it* — which was true, and was the honest thing to
-              say at the time.
-
-              It stopped being true the moment this slice landed, and a stale claim that
-              reads as a security property is the most damaging kind of wrong on a
-              page. Rather than reword it a third time, the subject moved into its own
-              region with a control in it, and the limits list kept to limits. The two
-              are one subject and were never two claims, so splitting them is what
-              stops the list from needing rewriting again. */}
-          <li>
-            No server is involved. SpectreMail operates no backend and never relays a provider
-            request.
-          </li>
-        </ul>
-      </section>
-    </main>
+      {/** The limits moved here unchanged. The storage bullet that used to stand between
+          the product and the end of the page was removed rather than reworded at the slice
+          that made it false — it stored an address and said no button could take it back —
+          and what this device keeps now belongs to `LocalData`, beside the control that
+          removes it. */}
+      <PageFooter />
+    </>
   );
 }

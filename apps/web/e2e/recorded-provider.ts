@@ -84,6 +84,28 @@ export interface ProviderTraffic {
   readonly served: readonly string[];
   /** URLs the page reached for that had no recorded response, in order. */
   readonly denied: readonly string[];
+  /**
+   * **Every** URL the page requested, the site's own origin included, in order.
+   *
+   * ## Why this exists, and it is a coverage gap this record's own reader found
+   *
+   * `denied` answers *"did the page reach somewhere nobody recorded?"* — a question about
+   * **provider** traffic, and for the site's own assets it is the wrong question. The site
+   * origin was `route.continue()`d and previously **invisible**, so a page that fetched its
+   * brand mark as a file made a real request that no assertion could see.
+   *
+   * **Measured, not assumed.** `sections.spec.ts`'s *"the brand mark is drawn by the page"*
+   * survived replacing the inline `<path>` with `<image href="/mark.svg">`: an `<image>`
+   * inside an `<svg>` is not an `<img>`, so the `img`-count assertion still read zero, and the
+   * 404'd fetch was same-origin, so `denied` was empty too. **Both assertions passed on a page
+   * that had stopped drawing its own mark and started downloading it** — the exact thing the
+   * test is named for. It was asserting a **proxy** (the presence of an `<img>` element)
+   * instead of the thing it names, and the proxy was satisfied by a form nobody had
+   * considered.
+   *
+   * So the record is the whole truth: every URL, whatever its origin.
+   */
+  readonly requested: readonly string[];
 }
 
 /** What a spec may change about how the provider behaves. */
@@ -131,6 +153,10 @@ export function serveRecordedProvider(
 ): ProviderTraffic {
   const served: string[] = [];
   const denied: string[] = [];
+  // **Every request, before any branch decides what to do with it.** Recorded here rather
+  // than in the provider branches precisely so that a request the page should not have made
+  // at all is still visible — see `ProviderTraffic.requested`.
+  const requested: string[] = [];
 
   /**
    * How many listings this handler has been asked for.
@@ -150,6 +176,8 @@ export function serveRecordedProvider(
     // then fail the comparison and be denied, and the suite would fail to load the app
     // rather than test it. The origin is a fact this file's peer already owns —
     // `playwright.config.ts` — so it is imported rather than re-read at the wrong time.
+    requested.push(route.request().url());
+
     if (url.origin === SITE_ORIGIN) {
       await route.continue();
       return;
@@ -189,7 +217,7 @@ export function serveRecordedProvider(
     });
   });
 
-  return { served, denied };
+  return { served, denied, requested };
 
   /** The recorded response for this request, or `undefined` if nothing records it. */
   function stepFor(url: URL): RecordedStep | undefined {

@@ -26,6 +26,7 @@
   --ink-muted: #5e5e68;
   --ink-accent: #4a2fb8;
   --ink-danger: #a4262c;
+  --ink-on-accent: #ffffff;
   --line-subtle: #dcdcd8;
   --line-strong: #6f6f78;
   --accent: #5a3fd0;
@@ -79,6 +80,8 @@
   /* Motion */
   --rise: 4px;
   --blur: 6px;
+  --mark-width: 1.25rem;
+  --mark-height: 1rem;
   --duration-fast: 120ms;
   --duration-base: 200ms;
   --ease-standard: cubic-bezier(0.16, 1, 0.3, 1);
@@ -97,6 +100,7 @@
     --ink-muted: #96969f;
     --ink-accent: #b8a4f7;
     --ink-danger: #f0928f;
+    --ink-on-accent: #0e0e11;
     --line-subtle: #2b2b32;
     --line-strong: #7a7a87;
     --accent: #a48cf5;

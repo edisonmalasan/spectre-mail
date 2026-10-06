@@ -209,3 +209,170 @@ product does, without reading markup.
   with a recorded destination (M8/M11), not an orphan; a reader who objects can see D7.
 - **The composition is judged by someone other than a machine and may be wrong** → unmitigable
   by design, and named rather than papered over.
+---
+
+## Amendments recorded during apply (2026-10-07)
+
+**Every item here is a correction to a decision or a task above, written into this change
+rather than added at sync.** A gap between an archived delta and a promoted spec means an
+amendment was recorded in the wrong artifact, and this repository's own rule is that the
+change is strengthened when verification strengthens it.
+
+### A1 — D7 was scoped wrong, and measurement found it before any test did
+
+D7 promised to *declare* the brand-mark and selected-mailbox pairs. **Measured, both already
+existed.** `accent`/`surface-page` and `accent`/`surface-accent` are in `pairs.ts` from slice 1,
+because a selected mailbox is a marked `accent` control on a `surface-accent` plate and the
+brand mark is an `accent` shape on the page. Declaring them again would have been a second
+copy of a pair that exists.
+
+**What was genuinely new, and it was not in D7 at all:** **no ink in the palette reaches 4.5:1
+on `--accent` in either scheme.** Measured with this package's own contrast function, not
+asserted. So `--ink-on-accent` (`#ffffff` / `#0e0e11`) was declared and paired at `BODY_TEXT`.
+D7's promise is narrowed to that, and its rejected alternative stands.
+
+### A2 — the footer defect: a substitute platform hid it and the platform named it
+
+**The first version of this change put the footer inside `<main>`.** `App.test.tsx` passed.
+Testing Library maps `footer` to `contentinfo` unconditionally, so `getByRole("contentinfo")`
+was green on a role **no user ever receives**.
+
+Chromium, asked directly over CDP's `Accessibility.getFullAXTree`:
+
+```text
+roles: RootWebArea=1  main=1  sectionfooter=1  region=4
+contentinfo landmarks exposed: 0
+```
+
+**Zero, while jsdom said one.** Repaired by making the footer a sibling of `<main>` (a fragment
+wrapper in `App.tsx`), re-measured as `contentinfo=1  region=5`.
+
+**This is the twenty-ninth instance in this repository of a substitute platform hiding a defect
+that the real one names**, and the first one a change wrote *after* learning the lesson in
+`website-client`. Two existing assertions had to move from `region` to `contentinfo` — recorded
+here because a test moved for a reason that is not visible in the diff.
+
+**`apps/web/e2e/sections.spec.ts` now reads Chromium's tree through CDP rather than a role
+query, and carries the defect as its own negative control**: it plants the nesting into the
+running page and requires **the same reader** to report the landmark gone. Without that, a reader
+returning `contentinfo` for any page would pass every landmark assertion in the file.
+
+### A3 — task 3.5 was wrong: `packages/ui`'s count does not rise
+
+The task said the count "rises by exactly the new pair checks". **`pairs.test.ts` is
+table-driven, so a new pair adds no test at all.** Measured: `packages/ui` is **38** before and
+after, `apps/web` **114**, boundaries **51**, `pnpm test` **694** in 35 files — every total
+identical to the baseline. All thirteen new tests are in the **browser** tier (21 → 34).
+
+### A4 — an assertion this change wrote was a duplicate of one that already existed
+
+A falsification mutation appeared to show `packages/ui` had no guard requiring every colour to
+be accounted for. It did: *"accounts for every colour token between the three lists"*.
+
+**The mutation that appeared to demonstrate the gap did not compile.** Deleting a pair entry
+left a dangling `{`, Vitest reported `Failed Suites 2` above a line reading `Tests  18 passed`
+with no failed-tests line anywhere, and the harness read that as **green** and filed it as a
+survivor. **A mutation that cannot compile is not evidence about an assertion.** The duplicate
+I wrote was deleted and `packages/ui` stayed at 38.
+
+### A5 — task 6.5's "unchanged at six" was the wrong claim, and the scan's method matters
+
+Measured over `styles.css` with comments stripped: **14 declarations / 15 literal tokens**, and
+**zero** of them a colour, radius, spacing step, type size, or duration. This change added two
+`grid-template-columns`, two `grid-row: auto`, and one `margin-inline: auto` — **all layout**.
+
+**The task's own figure was not a safe baseline.** `AGENTS.md` records six, measured with a
+pattern that did not strip multi-line comments; re-measured the same way, `120ms`, `0.01ms` and
+`0s` appear in prose in `styles.css` and are not declarations. **A measurement that silently
+measures more than the sentence beside it is the same defect as a check narrower than its
+rule**, so the count is now reported with its method and the requirement is stated against the
+five categories — which is what the requirement was ever about.
+
+### A6 — three "survivors" were broken mutants, not weak assertions
+
+Three of this change's mutations survived first and each was the harness's or the mutant's fault:
+
+- **S03** first did not compile (a stray `</>`). Its second version compiled and reported green
+  because it produced **two** `<PageFooter />` — one misplaced, one still correct, so
+  `contentinfo` was legitimately still 1. **An edit that adds the defect without removing the
+  correct code leaves a page that is not the defect at all.**
+- **S11** first added the fill to a `:hover` rule, which the rest-state assertion correctly does
+  not see. Its second version made it a rest-state rule selecting `.region--alert` — a class
+  **`LocalData` does not render** — so it matched nothing.
+- **S15** reworded a limit rather than removing it.
+
+**A survivor means "the assertion did not catch this", never "the assertion is too weak", until
+the mutant has been read and shown to be the thing it claims.**
+
+### A7 — one real coverage gap, and the proxy that hid it
+
+`"the brand mark is drawn by the page"` survived replacing the inline `<path>` with
+`<image href="/mark.svg">`. Two reasons, both proxies:
+
+- it asserted `page.locator("img").count() === 0`, and an `<image>` inside an `<svg>` is not
+  an `<img>`;
+- `recorded-provider.ts` `continue()`d the site's own origin without recording it, so a real
+  same-origin request was invisible to `traffic.denied`.
+
+**The assertion was a proxy for the thing it names.** Repaired on both sides: the mark must now
+*be* an inline `<svg>` drawing with a `<path>` and containing no `<image>`/`<use>`, and
+`ProviderTraffic` carries **every** URL the page requested whatever its origin, with the
+assertion filtering by file extension so a **webfont** is caught too. Both halves were
+falsified **separately** — the structural half removed, the request record still caught
+`/mark.svg`.
+
+### A8 — three class hooks removed rather than three rules invented
+
+The existing boundary rule *"uses every class hook a client renders"* caught `product`,
+`section--steps`, and `section--reasons`: hooks rendered with nothing in `styles.css` matching
+them, two of them invented so two sibling sections would look symmetric in markup. **They were
+deleted, not styled.** `data-region` is the hook those sections are identified by, and a hero
+needs no rule of its own to be first on the page.
+
+### A9 — D10's premise was measured false, and the control set does not change
+
+D10 named the browser suite's control-set precondition as the thing most at risk, on the theory
+that new sections add controls. **They add none.** The three new regions contain no interactive
+element; the only control this change restyles is `Replace address`, which already existed.
+`focus.spec.ts`'s walk and its settle precondition are therefore **unchanged**, and its six
+cases kept their count.
+
+### A10 — three instrument defects in the falsification harness
+
+The harness reports outcomes, so its own defects have to be recorded with the same weight as
+the code's. Six, in total across this change and slice 2's:
+
+1. **`webServer.command` does not build**, so mutating the browser tier's subject and invoking
+   Playwright directly served a **stale `dist/`.** Twenty of twenty-two mutations were reported
+   as survivors when the tests had never seen the mutation. **A check pointed at a build that
+   does not contain the defect looks exactly like twenty assertions that are too weak.**
+2. **A failed build fell through into the Playwright run and was overwritten with `green`.**
+   The detail line said *"the build failed, so the mutation never reached the browser"* while
+   the tally said the mutation survived. **Evidence against it printed in the same breath as
+   evidence for it** — the most dangerous shape an instrument defect can take.
+3. **A bare argument to `playwright test` is a file filter, not a title filter**, so a title was
+   read as a path and `expected: 0, unexpected: 0` read as green.
+4. **The unit tier's failing "titles" were file paths.** `/FAIL\s+(\S+)/` captures the path and
+   nothing else, so a `expect` naming a test *title* could never match and a working assertion
+   was reported as a `wrongcatch`. Three expectations only ever matched because they named
+   files. Now the whole line is captured and **every failing case is written into the record**
+   so an attribution can be read rather than trusted.
+5. **Restoring a source file is not restoring what the browser serves.** Restoration is
+   SHA-verified per file and every file was genuinely restored — while `dist/` still contained
+   the last mutation, built two seconds before the restore. **No SHA covers a build artefact**,
+   and the state outlives the run. The loop now rebuilds at the end and reports a failed rebuild
+   rather than exiting quietly.
+6. **A transient Windows sharing violation on the restore write** left `pairs.ts` mutated in the
+   working tree. Writes now retry, and a failed restoration is reported loudly rather than
+   counted as a result.
+
+**Final record: 22 of 22 caught by the intended assertion**, with `wrongcatch`, `green`,
+`nocompile`, `noop` and `harness-error` all **zero**, restoration SHA-256 verified for every
+mutated file, and `dist/` rebuilt from the restored source.
+
+### A11 — the ten-run requirement, and what it is not
+
+**Ten consecutive full browser-suite runs: 34 passed on each, zero failures.** Recorded because
+a suite green four times in ten has told this repository nothing before — the twenty-eighth
+instance. **What it does not establish:** that the suite is fast, that it is portable, or
+anything about how the page looks.

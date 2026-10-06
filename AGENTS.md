@@ -55,7 +55,7 @@ provider traffic served from recorded responses: boot reads real IndexedDB throu
 `createBrowserStorage()`, a created mailbox is written and read back through the
 platform's own API, adoption is offered only after the provider confirms it, and removal
 leaves `indexedDB.databases()` empty — including a store this build does not recognise.
-**21** browser test cases in **3** spec files as of M7 slice 2 — **12** as of M7 slice 1 —
+**34** browser test cases in **4** spec files as of M7 slice 3 — **21** as of M7 slice 2 — **12** as of M7 slice 1 —
 `pnpm test:browser`, its own CI job. **The motion spec found a product defect on its first run**
 and then found a defect in *itself* on the change's falsification pass; both are recorded below
 and in the change's `design.md` D17 and D18.
@@ -524,9 +524,10 @@ Pin versions when exact versions matter.
   from `--reporter=json` and grouped by project, so the next reader is measuring rather
   than adding up.
   **Those counts cover one tier only.** There is now a **second runner**: Playwright
-  `1.63.0`, **21 test cases in 3 spec files** in `apps/web/e2e/` — `storage.spec.ts` (**6**,
-  count **unchanged by M7 slice 1**), `focus.spec.ts` (**6**, added by slice 1) and
-  `motion.spec.ts` (**9**, added by slice 2) — run by `pnpm test:browser`,
+  `1.63.0`, **34 test cases in 4 spec files** in `apps/web/e2e/` — `storage.spec.ts` (**6**,
+  count **unchanged by M7 slice 1**), `focus.spec.ts` (**6**, added by slice 1),
+  `motion.spec.ts` (**9**, added by slice 2) and `sections.spec.ts` (**13**, added by slice 3) —
+  run by `pnpm test:browser`,
   **not** part of `pnpm verify`, in its own CI job. That the storage six kept their count is
   the evidence styling changed no behaviour that tier already covered: had a `className`
   altered a control's role or accessible name, one of those six would have stopped finding
@@ -1140,9 +1141,10 @@ pnpm test:browser
 
 ```
 
-Playwright `1.63.0`, **3 spec files and 21 test cases** in `apps/web/e2e/` — `storage.spec.ts`
-(**6**), `focus.spec.ts` (**6**, added by M7 slice 1) and `motion.spec.ts` (**9**, added by
-M7 slice 2) — **Chromium only**. The command builds
+Playwright `1.63.0`, **4 spec files and 34 test cases** in `apps/web/e2e/` — `storage.spec.ts`
+(**6**), `focus.spec.ts` (**6**, added by M7 slice 1), `motion.spec.ts` (**9**, added by
+M7 slice 2) and `sections.spec.ts` (**13**, added by M7 slice 3) — **Chromium only**. The
+command builds
 the site first (`pnpm build`) and then serves `apps/web/dist` with `vite preview` on
 `http://127.0.0.1:4173` with `--strictPort`, because the page under test is the **built**
 `<App />` with no props — the page a user receives, not a composition mounted by a test.
@@ -1176,12 +1178,46 @@ the rebuild defect applied and the hold removed, the suite still catches it in 4
 catches it is the wait. The hold takes a flaky 2-of-3 read to a dependable one. See the change's
 `design.md` D18 and D21.
 
+**And, since M7 slice 3, thirteen cases about the page's composition** — and **one of them is
+the most important assertion in the browser tier.** `sections.spec.ts` reads **Chromium's own
+accessibility tree over CDP's `Accessibility.getFullAXTree`**, not a role query, because a role
+query is the instrument that lied: **Testing Library maps `footer` to `contentinfo`
+unconditionally, so the first version of this change shipped a `<footer>` inside `<main>` and
+`App.test.tsx` passed.** Chromium reported **`sectionfooter` with zero `contentinfo` landmarks**
+— zero, while jsdom said one. That is the **twenty-ninth** instance in this repository of a
+substitute platform hiding a defect the real platform names, and the first one a change made
+*after* `website-client` recorded the lesson.
+
+So the footer is a sibling of `<main>`, and the file carries **the defect as its own negative
+control**: it plants the nesting into the *running* page and requires the same reader to report
+the landmark gone. Without that, a reader that answered `contentinfo` for any page at all would
+satisfy every landmark assertion in the file.
+
+The other twelve read the stated region order from the built DOM, resolve the accent on its
+three surfaces from computed styles, require **no region to name a licence or a second
+provider**, and sweep the **built** stylesheet for literals in the five categories.
+
+**And one assertion there was a proxy until a mutation found it.** *"The brand mark is drawn by
+the page"* asserted `page.locator("img").count() === 0`, which **survived** replacing the inline
+`<path>` with `<image href="/mark.svg">`: an `<image>` inside an `<svg>` is not an `<img>`, and
+the request was same-origin, which `recorded-provider.ts` `continue()`d **without recording it**.
+The assertion is now the thing it names — the mark must *be* an inline `<svg>` drawing a
+`<path>`, with no `<image>`/`<use>`, **and** the page must have requested **no image or font
+file at all**, so a webfont is caught too. `ProviderTraffic` now carries **every** URL the page
+requested whatever its origin. Both halves were falsified separately.
+
 **What it does not establish, and this list is the point:**
 
-- **Nothing about how the page looks.** The focus specs read a **computed style** and the
-  contrast specs read **WCAG arithmetic**; neither reads a rendered pixel's colour. Both
-  are exact about what they measure and silent about whether the result is *good*, and no
-  document in this repository claims otherwise.
+- **Nothing about how the page looks.** The focus specs read a **computed style**, the
+  contrast specs read **WCAG arithmetic**, and since slice 3 the composition specs read the
+  **DOM**, a **computed style**, and **Chromium's accessibility tree**. None of those is a
+  rendered pixel: no test in this repository reads a rendered pixel's **colour or position**,
+  so whether a section is balanced, whether the grid reads as three columns, and whether the
+  hero's hierarchy works are all **outside every gate here**. All of them are exact about what
+  they measure and silent about whether the result is *good*, and no document in this
+  repository claims otherwise. **A human opening the page is the only instrument for that,
+  and it is `tasks.md` 11.2 — deliberately left unticked, because an agent opening the page is
+  not the judgement the task asks for.**
 - **Nothing about a live provider.** Every provider response is a **recorded** one,
   imported by name from `packages/providers`, and any other origin is aborted **and
   reported by name**. `use it externally` remains unverified, and a stored mailbox has
@@ -1459,7 +1495,7 @@ M6 slice 1 apply stage, again after the M6 slice 2 apply stage, and again after 
 M6 slice 3 apply stage, again after the `browser-verification` apply stage, and again after
 the M7 slice 1 apply stage and its verification-pass repair, all on
 2026-10-03
-through 2026-10-06:
+through 2026-10-07:
 
 ```text
 pnpm typecheck     8 of 8 workspace projects run tsc --noEmit
@@ -1470,15 +1506,30 @@ pnpm build         vite 7.3.6, dist emitted
 pnpm verify        exit 0
 ```
 
-**691 was the figure at the slice-1 verification-pass repair and 694 is this slice's, and
-the difference is this slice's two new mailbox tests and one new client test.** `pnpm verify`
-itself exited `1` on its first run here, on `format:check`, for a reason worth recording: the
-Motion prose the generated design document carries quotes the roadmap's own word as
-`*"materialize/disappear"*`, and Prettier normalises asterisk emphasis to underscore emphasis
+**694 is slice 2's figure and it is also slice 3's, and the second time it did not move is
+worth stating.** Measured from `--reporter=json` grouped by project, slice 3 leaves `packages/core`
+54, `packages/providers` 89, `packages/mail-parser` 149, `packages/mailbox` 155, `apps/web` 114,
+`packages/storage` 44, `packages/ui` 38 and the architecture boundaries **51** — **every total
+identical to the baseline it recorded before proposing.** Two reasons, and both are structural
+rather than luck: **`pairs.test.ts` is table-driven, so declaring a new contrast pair adds no
+test**, and slice 3 added **no unit test at all** — all thirteen new cases are in the browser tier,
+because every claim the change makes is about the built page's structure.
+
+**A task predicted the `packages/ui` count would rise and was wrong**, and it is corrected in
+`tasks.md` in place rather than reinterpreted: a task that names a number and is wrong about it
+is worse than one that does not name a number.
+
+
+**The paragraphs above this one are slice 2's, kept because the deltas are only readable
+against each other.** `691` was the figure at slice 1's verification-pass repair and `694`
+was slice 2's, the difference being slice 2's two new mailbox tests and one new client test.
+Slice 2's `pnpm verify` also exited `1` on its first run, on `format:check`, for a reason worth
+recording: the Motion prose the generated design document carries quotes the roadmap's own word
+as `*materialize/disappear*`, and Prettier normalises asterisk emphasis to underscore emphasis
 — so the emitter wrote a region `format:check` rejected while the byte-identity assertion
 forbade hand-correcting it. **Two gates disagreeing is only resolvable in the generator**, the
-emitter now writes `_`…"_`, and `prettier --check .` is clean across the repository with
-`packages/ui`'s **38** tests still passing. See the change's `design.md` D13.
+emitter now writes underscore emphasis, and `prettier --check .` is clean across the repository
+with `packages/ui`'s **38** tests still passing. See that change's `design.md` D13.
 
 **`pnpm test:browser` is deliberately absent from that block and has its own entry
 below.** It is not run by `pnpm verify`, and listing it here would make the two claims
@@ -1710,6 +1761,62 @@ found was not, and four results are worth carrying:
   Because removing a hold is a *mechanism* mutation rather than a forbidden defect, it is
   **recorded as evidence and not counted** — the same treatment a branch no assertion can
   reach gets, and reporting 16 of 16 would have meant something weaker than it appeared to.
+
+**M7 slice 3 (`website-sections`) ran 22 deliberate violations: 22 of 22 caught by the intended
+assertion**, with `wrongcatch`, `green`, `nocompile`, `noop` and `harness-error` **all zero**,
+restoration SHA-256 verified for every mutated file, and `dist/` rebuilt from the restored
+source. **Every one of the thirteen new tests is in the browser tier and `pnpm test` did not move
+at all** — 694 in 35 files, `apps/web` 114, `packages/ui` 38, boundaries 51, every total
+identical to the baseline. **`pairs.test.ts` is table-driven, so a new pair adds no test**, which
+is a task that predicted the count would rise and was wrong; it is corrected in place rather
+than reinterpreted.
+
+**Six defects in the falsification *harness*, and the second is the one worth carrying.**
+
+- **The worst: a failed build fell through into the Playwright run and was overwritten with
+  `green`.** Two mutations did not compile, the browser was served the previous `dist/`, the
+  intended test passed, and both were filed as survivors — **when neither mutation had ever
+  run.** The detail line said *"the build failed, so the mutation never reached the browser"*
+  while the tally beside it said the mutation survived: **evidence against the number printed in
+  the same breath as the evidence for it**, which is the shape a reader is most likely to
+  believe. The guard is now structural — no build, no run, and the outcome is `nocompile`.
+- **Restoring a source file is not restoring what the browser serves.** Restoration is
+  SHA-verified per file and every file *was* genuinely restored, while `dist/` still held the
+  last mutation — built **two seconds before** the restore. **No SHA covers a build artefact, and
+  the state outlives the run**: the next person gets a red suite against a defect nobody wrote,
+  with a clean tree to explain it. The loop now rebuilds at the end and reports a failed
+  rebuild rather than exiting quietly.
+- **The unit tier's failing "titles" were file paths.** `/FAIL\s+(\S+)/` captures the path and
+  nothing else, so a `expect` naming a test **title** could never match and a working assertion
+  was reported as a `wrongcatch`. Three expectations had only ever matched because they named
+  files. The whole line is captured now, and every failing case is written into the record so an
+  attribution can be read rather than trusted.
+- **An assertion this change wrote was a duplicate of one that already existed.** A mutation
+  appeared to show `packages/ui` had no guard requiring every colour to be accounted for. It did
+  — *"accounts for every colour token between the three lists"*. **The mutation that appeared to
+  demonstrate the gap did not compile**, so the harness read it as green and filed a survivor,
+  and the conclusion drawn from it was wrong in the most expensive direction available. The
+  duplicate was deleted and the count stayed at 38. **A mutation that cannot compile is not
+  evidence about an assertion.**
+- **Three "survivors" were broken mutants, and one was an edit that added the defect without
+  removing the correct code** — S03 produced *two* `<PageFooter />` elements, one misplaced and
+  one still correct, so `contentinfo` was legitimately still 1. Another selected
+  `.region--alert`, a class `LocalData` does not render, so it matched nothing. **A survivor means
+  "the assertion did not catch this", never "the assertion is too weak", until the mutant has
+  been read and shown to be the thing it claims.**
+- **The one real coverage gap, and it was a proxy.** `"the brand mark is drawn by the page"`
+  asserted an `<img>` count of zero, which an `<image>` inside an `<svg>` satisfies. Fixed on
+  both sides, above. **And the existing boundary rule caught three class hooks** — `product`,
+  `section--steps`, `section--reasons` — rendered with nothing in `styles.css` matching them,
+  two of them invented so two sibling sections would look symmetric in markup. **They were
+  deleted, not styled**: `data-region` is the hook those sections are identified by, and a hero
+  needs no rule of its own to be first on the page.
+
+**D10's premise was measured false rather than assumed.** It named the browser suite's
+control-set precondition as the thing most at risk, on the theory that new sections add controls.
+**They add none** — the three new regions contain no interactive element, and the only control
+this change restyles already existed. `focus.spec.ts`'s walk, its settle precondition and its
+six cases are therefore unchanged.
 
 **One deliberate non-coverage, recorded rather than left to look like coverage.** The scenario
 *"a new message arrives, so that row materialises"* is **not coverable with recorded

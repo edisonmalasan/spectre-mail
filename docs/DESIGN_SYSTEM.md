@@ -134,6 +134,7 @@ is held to a ratio in the table under it, in **both** schemes, by
 | `--ink-muted`      | `#5e5e68` | `#96969f` |
 | `--ink-accent`     | `#4a2fb8` | `#b8a4f7` |
 | `--ink-danger`     | `#a4262c` | `#f0928f` |
+| `--ink-on-accent`  | `#ffffff` | `#0e0e11` |
 | `--line-subtle`    | `#dcdcd8` | `#2b2b32` |
 | `--line-strong`    | `#6f6f78` | `#7a7a87` |
 | `--accent`         | `#5a3fd0` | `#a48cf5` |
@@ -168,6 +169,7 @@ number in this document cannot disagree with a number in the test.
 | `--accent`        | `--surface-raised` | body-text (4.5:1) | 6.87        | 6.51       | The accent as text inside a raised surface — a marked code in an opened message.                                                                                                                                                                                                                                                                                                          |
 | `--accent`        | `--surface-sunken` | body-text (4.5:1) | 5.65        | 7.29       | The accent as text on a sunken surface.                                                                                                                                                                                                                                                                                                                                                   |
 | `--accent`        | `--surface-accent` | non-text (3:1)    | 5.91        | 6.16       | The accent as a rule or a marker on its own tinted surface. Non-text, because it reinforces a word the row already carries.                                                                                                                                                                                                                                                               |
+| `--ink-on-accent` | `--accent`         | body-text (4.5:1) | 6.87        | 7.02       | The label on a filled accent control — the page's primary action. **This is the only pair in which `--accent` is the background**, and it is why `--ink-on-accent` exists: measured against `--accent` with this package's own contrast function, no other ink in the palette reaches the body threshold in either scheme.                                                                |
 | `--ink-danger`    | `--surface-page`   | body-text (4.5:1) | 6.59        | 8.46       | Failure copy on the page background — a save that did not complete.                                                                                                                                                                                                                                                                                                                       |
 | `--ink-danger`    | `--surface-danger` | body-text (4.5:1) | 6.42        | 7.51       | Failure copy inside a failure region — a refused removal.                                                                                                                                                                                                                                                                                                                                 |
 | `--ink-danger`    | `--surface-raised` | body-text (4.5:1) | 7.26        | 7.84       | Failure copy inside a raised surface.                                                                                                                                                                                                                                                                                                                                                     |
@@ -278,6 +280,8 @@ so the reduced-motion block governs animation alone and nothing here claims othe
 | ----------------- | ------------------------------- |
 | `--rise`          | `4px`                           |
 | `--blur`          | `6px`                           |
+| `--mark-width`    | `1.25rem`                       |
+| `--mark-height`   | `1rem`                          |
 | `--duration-fast` | `120ms`                         |
 | `--duration-base` | `200ms`                         |
 | `--ease-standard` | `cubic-bezier(0.16, 1, 0.3, 1)` |

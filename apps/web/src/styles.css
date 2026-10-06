@@ -656,15 +656,200 @@ li {
   }
 }
 
+/* ── The wordmark ─────────────────────────────────────────────────────────────── */
+
+/*
+ * A mark and a name on one baseline, and the mark is small.
+ *
+ * **The accent lives here**, on one of the three surfaces the Accent block names and that
+ * slice 1 deferred because nothing carried them. The mark's colour comes from the
+ * wordmark's own `color`, so it cannot be a second hand-picked value, and the whole thing is
+ * an inline `<svg>`: no webfont, no image request, nothing for the browser tier's route
+ * handler to deny.
+ */
+.wordmark {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  /* The mark is the only thing on the page in the accent that is not text. */
+  color: var(--accent);
+}
+
+.wordmark__mark {
+  width: var(--mark-width);
+  height: var(--mark-height);
+  flex: none;
+  align-self: center;
+}
+
+/* The heading keeps the page ink; only the mark is accent. Resetting it here rather than
+   nesting the <h1> inside a coloured rule is what keeps "the accent is on the mark" a
+   statement about one element. */
+.wordmark h1 {
+  color: var(--ink-primary);
+  margin: 0 0 var(--space-2);
+}
+
+/* ── The primary action ───────────────────────────────────────────────────────── */
+
+/*
+ * Filled, and the only filled control on the page.
+ *
+ * **`--ink-on-accent` exists because of this rule.** Measured against `--accent` with the
+ * token layer's own contrast function, no other ink in the palette reaches 4.5:1 in either
+ * scheme — the best of them is `--surface-raised`, which is declared as a background and
+ * would be a lie about its role here. So the pair is declared and checked rather than
+ * borrowed.
+ *
+ * The hover and pressed states change the *surface*, never the label's colour, so the text
+ * never leaves the threshold it was checked at.
+ */
+.control--primary {
+  background-color: var(--accent);
+  color: var(--ink-on-accent);
+  border-color: var(--accent);
+}
+
+.control--primary:hover {
+  background-color: var(--surface-sunken);
+  color: var(--ink-on-accent);
+  border-color: var(--accent);
+}
+
+.control--primary:active {
+  background-color: var(--surface-sunken);
+}
+
+/* ── The steps ────────────────────────────────────────────────────────────────── */
+
+/*
+ * Three steps on one baseline, divided by the existing hairline rather than boxed.
+ *
+ * A grid written **here** and not in the token layer: `packages/ui` documents that layout is
+ * a client's business, and a `--grid-columns` token would be the thing that ends that clause.
+ * The breakpoint is the page's existing one, reused rather than a second one added.
+ */
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-5);
+}
+
+.steps__item {
+  max-width: none;
+  padding-inline-start: var(--space-4);
+  border-inline-start: var(--width-hairline) solid var(--line-strong);
+}
+
+.steps__name {
+  /* The step word is the label of a sequence, not a heading to be read at size. */
+  font-size: var(--type-base);
+  font-weight: var(--weight-bold);
+  margin: 0 0 var(--space-1);
+  color: var(--ink-accent);
+}
+
+.steps__does {
+  margin: 0;
+  font-size: var(--type-sm);
+}
+
+/* ── The reasons ──────────────────────────────────────────────────────────────── */
+
+/*
+ * A definition list, because each reason *is* a term and its support sentence is that
+ * term's definition. A bulleted list of bolded claims would drop the structure that makes a
+ * claim checkable.
+ */
+.reasons {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-5) var(--space-6);
+}
+
+.reasons__pair {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.reasons__claim {
+  font-weight: var(--weight-bold);
+  color: var(--ink-accent);
+}
+
+.reasons__support {
+  margin: 0;
+  color: var(--ink-secondary);
+  font-size: var(--type-sm);
+}
+
+/* ── The footer ───────────────────────────────────────────────────────────────── */
+
+/*
+ * A footer, not another region.
+ *
+ * **It is deliberately *not* a `.region`**, because a region is hairline-topped and the last
+ * thing on a page should not open with a rule that says "here begins another section". The
+ * limits moved here from between the product and the end of the page, where a list of things
+ * the product will not do read as an apology partway through; here the same sentences read
+ * as the specification they are.
+ */
+.footer {
+  /* **The measure is repeated here, and that is what moving the footer out of `<main>`
+     costs.** The footer is a sibling of the page's main content rather than a descendant
+     of it, because a `<footer>` inside `<main>` is not a `contentinfo` landmark — measured
+     in Chromium, which exposed the nested one as `sectionfooter` with zero `contentinfo`
+     landmarks on the page. So it no longer inherits `main`'s width and states the same
+     one, from the same token. Two rules reading one token is the right duplication; a
+     second literal measure would be a second number to keep true. */
+  max-width: var(--measure-page);
+  margin-inline: auto;
+  padding: 0 var(--space-5) var(--space-8);
+  border-block-start: var(--width-hairline) solid var(--line-strong);
+}
+
+.footer__heading {
+  font-size: var(--type-lg);
+}
+
+.footer__limits {
+  color: var(--ink-secondary);
+  font-size: var(--type-sm);
+}
+
+.footer__note {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: var(--type-sm);
+}
+
 /* ── Small screens ────────────────────────────────────────────────────────────── */
 
 /*
  * One breakpoint, and it exists because the inbox row's two-column grid is the only
  * multi-column thing on the page. Below it the timestamp moves under the sender rather
  * than being squeezed, because a truncated timestamp is a wrong one.
+ *
+ * **The sections' grids collapse at the same breakpoint rather than adding a second one.**
+ * Two breakpoints on one page means two numbers to keep in agreement, and the reason this
+ * one exists — a truncated timestamp is a wrong timestamp — applies equally to a three-column
+ * step list squeezed onto a phone.
  */
 @media (max-width: 34rem) {
   .inbox-row {
+    grid-template-columns: 1fr;
+  }
+
+  .footer {
+    padding: 0 var(--space-4) var(--space-7);
+  }
+
+  .steps,
+  .reasons {
     grid-template-columns: 1fr;
   }
 

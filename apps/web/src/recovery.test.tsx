@@ -1104,8 +1104,14 @@ describe("the state where a mailbox could not be created", () => {
     );
     await screen.findByTestId("failure-explanation");
 
+    // **By `contentinfo`, not by `region`.** The limits list moved into the page's
+    // `<footer>`, which is a `contentinfo` landmark — and only a landmark because it is not
+    // nested inside another one. The accessible name is unchanged, and this assertion is
+    // still checking the same scoped list rather than the whole page's text; see
+    // `limitsText()` in `App.test.tsx` for why a whole-page search would be satisfied by
+    // the failure prose naming the provider on its own.
     expect(
-      screen.getByRole("region", { name: /what this page can and cannot do/i }).textContent,
+      screen.getByRole("contentinfo", { name: /what this page can and cannot do/i }).textContent,
     ).toContain("Guerrilla Mail");
     // And nothing was stored, because there was nothing to store.
     expect(screen.queryByTestId("save-failed")).toBeNull();

@@ -136,12 +136,23 @@ function visibleText(): string {
  * were therefore passing on unrelated text ++ and a test that passes on unrelated
  * text is not coverage, however true the statement it appears to be checking.
  *
- * The `<section aria-labelledby>` has an accessible name, so it is a `region` and can
- * be addressed directly. A copy change inside the list is fine; moving the line out
- * of this list is not.
+ * **The role changed with the element, and that is the one thing this helper records.**
+ * The limits used to be a `<section aria-labelledby>`, so the element was a `region` and
+ * that is what this looked up. They now live in a `<footer>`, which is a `contentinfo`
+ * landmark — **and which is a landmark only when it is not nested inside another
+ * landmark.** Moving the list into a real footer therefore broke two assertions, and they
+ * broke for a reason worth stating: a helper that finds content by role is asserting
+ * something real about the document, so relocating the content is a change to the contract
+ * rather than a refactor to absorb.
+ *
+ * The accessible name is **unchanged** — "What this page can and cannot do" — and so is the
+ * scoping: a copy change inside the list is fine, moving the line out of this list is not.
+ * Only the element that carries the name changed.
  */
 function limitsText(): string {
-  return screen.getByRole("region", { name: "What this page can and cannot do" }).textContent ?? "";
+  return (
+    screen.getByRole("contentinfo", { name: "What this page can and cannot do" }).textContent ?? ""
+  );
 }
 
 /**

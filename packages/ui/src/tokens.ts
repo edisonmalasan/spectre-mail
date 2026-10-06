@@ -50,6 +50,7 @@ export const COLOUR_NAMES = [
   "ink-muted",
   "ink-accent",
   "ink-danger",
+  "ink-on-accent",
   "line-subtle",
   "line-strong",
   "accent",
@@ -91,6 +92,18 @@ export const SCHEMES: Readonly<Record<Scheme, ColourSet>> = {
     "ink-muted": "#5e5e68",
     "ink-accent": "#4a2fb8",
     "ink-danger": "#a4262c",
+    // Measured 2026-10-06 against `--accent` with this package's own contrast
+    // function: no other ink in the palette reaches the body threshold on the
+    // accent fill. The best of them is `--surface-raised` at 6.87:1 here and
+    // 6.51:1 in the dark scheme, and reusing it would be a lie about its role —
+    // it is declared in `SURFACE_ONLY` as a background, and the checks on that
+    // list run one way, so nothing would catch the misuse except a reader.
+    //
+    // **Not `--surface-page`, which happens to be the same hex in both schemes.**
+    // Declaring it separately is the same reasoning that put `--rise` and
+    // `--blur` in `MOTION` rather than borrowing `--space-1`: so a later change
+    // to the page background cannot silently repaint a button's label.
+    "ink-on-accent": "#ffffff",
     "line-subtle": "#dcdcd8",
     "line-strong": "#6f6f78",
     accent: "#5a3fd0",
@@ -107,6 +120,9 @@ export const SCHEMES: Readonly<Record<Scheme, ColourSet>> = {
     "ink-muted": "#96969f",
     "ink-accent": "#b8a4f7",
     "ink-danger": "#f0928f",
+    // See the light scheme's note. 7.02:1 against `--accent`, declared rather
+    // than borrowed for the reason given there.
+    "ink-on-accent": "#0e0e11",
     "line-subtle": "#2b2b32",
     "line-strong": "#7a7a87",
     accent: "#a48cf5",
@@ -229,6 +245,10 @@ export const MOTION = {
   rise: "4px",
   /** How blurred a materialising element is before it resolves. */
   blur: "6px",
+  /** The brand mark's width beside the wordmark. */
+  "mark-width": "1.25rem",
+  /** The brand mark's height beside the wordmark. */
+  "mark-height": "1rem",
   "duration-fast": "120ms",
   "duration-base": "200ms",
   "ease-standard": "cubic-bezier(0.16, 1, 0.3, 1)",
