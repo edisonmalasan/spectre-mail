@@ -136,6 +136,28 @@ whose **final frame is what the element already computes to** — which is what 
 mode was needed. The block naming all three selectors sits **below** the entrances, and that
 order is load-bearing: equal specificity means source order decides.
 
+**M7 slice 3 (`website-sections`) is applied, verified, and synced**, merged as proposal **#71**
+and Apply **#72**, and **not yet archived** — `openspec list` reports it active until the archive
+stage. It delivers **four** of the roadmap's five sections and asserts the fifth's absence, and
+its sync **added nothing beyond the delta**, the same state slice 2 reached: every amendment was
+written **into the change** during apply, so the delta and the promoted spec are the same
+requirement blocks — verified **verbatim, as whole blocks and not by title**, with each archived
+copy re-checked after the archive rather than trusted, because archiving is a move. **`page-composition`
+is a new capability** at **5 requirements / 14 scenarios** — the first to constrain what the page
+*is made of* rather than what it does; `visual-system` went **8 → 9** and **24 → 28**, and
+`website-client` **20 → 21** and **66 → 69**.
+
+**And the defect slice 3's own work produced is worth more than the sections.** The first version
+put the footer **inside `<main>`**, and `App.test.tsx` **passed** — Testing Library maps `footer`
+to `contentinfo` unconditionally. Chromium, asked over CDP's `Accessibility.getFullAXTree`,
+reported **`sectionfooter` with zero `contentinfo` landmarks**: zero, while jsdom said one. That
+is the **twenty-ninth** instance in this repository of a substitute platform hiding a defect the
+real platform names, and the first one a change made *after* `website-client` recorded the
+lesson. The footer is a sibling of `<main>` now, and `sections.spec.ts` reads the tree through
+CDP **and plants the nesting into the running page as its own negative control** — without which
+a reader answering `contentinfo` for any page at all would satisfy every landmark assertion in
+the file.
+
 **It is also the slice whose own browser spec found a product defect on its first run**, and
 the finding is worth more than the feature. `InboxState`'s `checking` variant carried no
 listing, so it was the one variant that could leave a client with nothing to show for the

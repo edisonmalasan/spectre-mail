@@ -61,8 +61,13 @@ describe the absence as missing or forthcoming.
 
 **Three of its numbers, and two of them are "unchanged" for a reason worth reading.**
 
-- **`page-composition` is a new capability** — 5 requirements, the first one to describe the
-  page's *composition* rather than its behaviour.
+- **`page-composition` is a new capability** — 5 requirements, 14 scenarios, the first one to
+  describe the page's *composition* rather than its behaviour. Promoted at **9 / 28** for
+  `visual-system` and **21 / 69** for `website-client`.
+- **And the sync added nothing beyond the delta**, which is the state the amendment rule exists
+  to produce: every amendment was written **into the change** during apply, so the archived delta
+  and the promoted spec are the same requirement blocks — verified **verbatim, as whole blocks
+  and not by title**, because a hand-typed paraphrase keeps the heading and loses the text.
 - **`pnpm test` did not move: 694 in 35 files, `apps/web` 114, `packages/ui` 38, boundaries 51**,
   every total identical to the baseline. `pairs.test.ts` is table-driven, so a new pair adds no
   test — a task predicted the count would rise and was wrong, and it is corrected in place
