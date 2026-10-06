@@ -45,9 +45,9 @@
 M7 - Spectral Swiss Design Pass - slice 1 (`spectral-swiss-foundation`) is applied,
 verified (with its verification-pass repairs merged as PR **#64**), synced (**#65**), and
 **ARCHIVED** — which closes M7 slice 1 completely. **Slice 2
-(`motion-and-reduced-motion`) is applied, verified, and synced**, and its proposal merged
-as **#67**, its Apply as **#68**; **its archive PR number is recorded at the archive stage,
-as every other slice's is.**
+(`motion-and-reduced-motion`) is applied, verified, synced, and ARCHIVED**, merged as
+proposal **#67**, Apply **#68**, sync **#69**, **and its archive PR number is recorded at
+the archive stage, as every other slice's is.**
 The current objective is **M7 slice 3: the five website sections**, and slice 4, the
 `Extension preview`, remains **blocked on M8**.
 
@@ -104,10 +104,29 @@ headers**, which is exactly what makes a spec structurally invalid — `openspec
 reported it and archive would have refused the delta. The duplicate was removed and the
 promoted spec re-validated at **11 passed, 0 failed**. **A mechanically copied block is not
 finished because it verified; it finished because something read the file back and counted
-headers.** `openspec list` reports
-**No active changes**, which is the correct end state for a completed milestone — **except
-that `motion-and-reduced-motion` is active until its archive stage, and it is the only
-active change.**
+headers.**
+
+**Slice 2 is now archived** at `openspec/changes/archive/2026-10-07-motion-and-reduced-motion/`,
+with `--skip-specs` because the sync stage had already promoted the delta — running it without
+that flag would apply the requirements twice, which is what M4 recorded and what has held
+since. **`openspec list` now reports No active changes**, the correct end state.
+
+**The archive was checked rather than assumed, because archiving is a move.** Every block
+comparison that was true before the archive was re-run against the **archived copies**, not
+against the change directory that no longer exists: all four blocks are **verbatim** in the
+promoted specs, each with its scenario count matching the promoted count (**4/4, 3/3, 3/3,
+4/4**), and each identified by a SHA-256 so a later edit to either copy would show as a
+change rather than pass unnoticed. The archive carried `.openspec.yaml`, `proposal.md`,
+`design.md`, `tasks.md`, and both delta files — **five files plus two directories, all
+present**. `openspec validate --specs --strict` reports **11 passed, 0 failed** after the
+move.
+
+**And one recorded OpenSpec 1.13.2 behaviour, unchanged from M6 slice 3:**
+`openspec validate motion-and-reduced-motion --type change --strict` now reports *"Change must
+have at least one delta"* against an archived change whose deltas are present and
+byte-identical to the promoted specs. `openspec status` and `openspec list` both report no
+active changes, which is the correct end state — **and the checks that still mean something
+after an archive are the `--specs` validation and the byte-for-byte block comparison above.**
 
 **The archive was checked rather than assumed, because archiving is a move.** All four
 delta files survived it, and each delta's ADDED block was then compared
@@ -344,6 +363,15 @@ the 649** and adding them to it would misreport what `pnpm test` covers.
 `pnpm test:browser` exited 0, 6 passed. The gate commands all exited 0, and `pnpm verify`
 was additionally verified **with no browser installed** by pointing
 `PLAYWRIGHT_BROWSERS_PATH` at an empty directory.
+
+### Current numbers, measured 2026-10-06 at `motion-and-reduced-motion`'s archive stage
+
+**Re-verified at the archive stage, with the same property and the same tool.** `pnpm verify`
+exited `0` again with `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory: **694 tests
+across 35 files**, `format:check` clean, `openspec validate --specs --strict` at **11 passed,
+0 failed**, and `openspec list` reporting **No active changes**. Nothing in the workspace
+moved between the apply stage's count and this one — the sync stage touched two spec files and
+this document, which is the state the amendment rule exists to produce.
 
 ### Current numbers, measured 2026-10-06 at `motion-and-reduced-motion`'s apply stage
 
@@ -2912,8 +2940,8 @@ kind would have been reviewed by the standards of the first and would have passe
 
 | Slice | Change | Owns | State |
 | --- | --- | --- | --- |
-| 1 | `spectral-swiss-foundation` | The token layer in `packages/ui`, the page's structural stylesheet, the accent on the surfaces of the Accent block that **exist on this page today** (active status, verification codes, focus state — *primary action* and *brand mark* arrive with the sections in slice 3, and one further use, a detected link's host, is a recorded reading rather than a listed item), **visible focus states**, and the checks that can be asserted about either — contrast as WCAG arithmetic, focus as a resolved outline in a real browser | applied |
-| 2 | **`motion-and-reduced-motion`** | **Motion**, and `prefers-reduced-motion: reduce` governing it. The three transitions named above arrive here — **entrance only**: the Motion block's word is *"materialize/disappear"*, and only the first half is deliverable in CSS, because an element React has unmounted is gone before any transition can run. Also: a row already on the page is never re-materialised by a later poll, since the inbox polls every five seconds and an animation on every row would repeat itself for as long as the tab is open | **applied** |
+| 1 | `spectral-swiss-foundation` | The token layer in `packages/ui`, the page's structural stylesheet, the accent on the surfaces of the Accent block that **exist on this page today** (active status, verification codes, focus state — *primary action* and *brand mark* arrive with the sections in slice 3, and one further use, a detected link's host, is a recorded reading rather than a listed item), **visible focus states**, and the checks that can be asserted about either — contrast as WCAG arithmetic, focus as a resolved outline in a real browser | archived — at `openspec/changes/archive/2026-10-06-spectral-swiss-foundation/` |
+| 2 | **`motion-and-reduced-motion`** | **Motion**, and `prefers-reduced-motion: reduce` governing it. The three transitions named above arrive here — **entrance only**: the Motion block's word is *"materialize/disappear"*, and only the first half is deliverable in CSS, because an element React has unmounted is gone before any transition can run. Also: a row already on the page is never re-materialised by a later poll, since the inbox polls every five seconds and an animation on every row would repeat itself for as long as the tab is open | **archived** — at `openspec/changes/archive/2026-10-07-motion-and-reduced-motion/`; proposal **#67**, Apply **#68**, sync **#69** |
 | 3 | not opened | The **five website sections** below. Composition work, on a foundation slice 1 has already fixed | not started |
 | 4 | **blocked** | The **`Extension preview`** section, below | **blocked on M8** |
 

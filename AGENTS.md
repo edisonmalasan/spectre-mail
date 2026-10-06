@@ -118,7 +118,15 @@ in real Chromium on the built page, compared against the same control unfocused.
 rendered pixel's colour**, so how the product *looks* is still a human judgement and no
 document in this repository claims otherwise.
 
-**M7 slice 2 (`motion-and-reduced-motion`) is applied and verified**, and it is where the
+**M7 slice 2 (`motion-and-reduced-motion`) is applied, verified, synced, and archived** at
+`openspec/changes/archive/2026-10-07-motion-and-reduced-motion/`, merged as proposal **#67**,
+apply **#68**, sync **#69**. **Its sync added nothing**, which is the state the amendment rule
+exists to produce: every amendment was written into the change during apply, so the archived
+delta and the promoted spec are the same requirement blocks — verified **verbatim, as whole
+blocks and not by title**, with each archived copy re-checked after the archive rather than
+trusted, because archiving is a move. `visual-system` went **5 → 8** requirements and
+**14 → 24** scenarios; `mailbox-session` went **22 → 23** and **57 → 61**. `openspec list`
+reports **No active changes**. It is also where the
 sentence above
 stopped being true — **"Motion is declared and used by nothing" was correct through slice 1 and
 is deleted rather than reworded.** Three entrances now animate, on three hooks that already
@@ -1564,6 +1572,18 @@ the reason 44 storage tests were never going to find it.
   drift assertion is **unchanged**: the wait is a precondition, the drift check is the
   property, and neither substitutes for the other. **10 consecutive local runs, 12 passed, 0
   failed**, against roughly one in three failing before. See `design.md` D16.
+
+  **And slice 2's Apply run was green on its first attempt, which is the other half of the
+  same record.** Run `37479366534` (2026-10-06, PR **#68**) carried `motion-and-reduced-motion`'s
+  nine new specs and all three jobs passed — `verify` 49s, `spike self-test` 31s, `browser`
+  **59s**. **This is recorded because it runs against the pattern above, not as a reversal of
+  it**: the two reds were a defect in a spec and a weak precondition, and slice 2's apply stage
+  **authored two of its own and caught both before the push**. A first CI run that is green is
+  a fact about one execution and says nothing about repeatability — **slice 1's first run
+  carrying its specs was red twice**, and its tenth local run was the evidence, not its green
+  one. Neither green run reads a rendered pixel: `verify` is a browser-free tier and `browser`
+  reads computed styles, element identity, and real IndexedDB. The sync run `37498430362`
+  (PR **#69**) passed the same three jobs.
 
   **This is the strongest evidence yet for the two-tier split.** `pnpm verify` was green
   throughout, on this machine, on the commit that carried the defect — **689** unit tests
