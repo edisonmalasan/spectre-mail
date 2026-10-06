@@ -136,16 +136,23 @@ whose **final frame is what the element already computes to** — which is what 
 mode was needed. The block naming all three selectors sits **below** the entrances, and that
 order is load-bearing: equal specificity means source order decides.
 
-**M7 slice 3 (`website-sections`) is applied, verified, and synced**, merged as proposal **#71**
-and Apply **#72**, and **not yet archived** — `openspec list` reports it active until the archive
-stage. It delivers **four** of the roadmap's five sections and asserts the fifth's absence, and
-its sync **added nothing beyond the delta**, the same state slice 2 reached: every amendment was
-written **into the change** during apply, so the delta and the promoted spec are the same
-requirement blocks — verified **verbatim, as whole blocks and not by title**, with each archived
-copy re-checked after the archive rather than trusted, because archiving is a move. **`page-composition`
-is a new capability** at **5 requirements / 14 scenarios** — the first to constrain what the page
-*is made of* rather than what it does; `visual-system` went **8 → 9** and **24 → 28**, and
-`website-client` **20 → 21** and **66 → 69**.
+**M7 slice 3 (`website-sections`) is applied, verified, synced, and archived** at
+`openspec/changes/archive/2026-10-07-website-sections/`, merged as proposal **#71**, Apply
+**#72**, sync **#73**, archive **#74**. Its sync **added nothing beyond the delta**, the same
+state slice 2 reached: every amendment was written **into the change** during apply, so the
+delta and the promoted spec are the same requirement blocks — verified **verbatim, as whole
+blocks and not by title**, **and re-verified against the archived copies after the archive**
+rather than trusted, because archiving is a move: 7 blocks identical both times, and all 7
+archived files byte-identical to their pre-archive originals by SHA-256. **`page-composition`
+is a new capability** at **5 requirements / 14 scenarios** — the first to constrain what the
+page *is made of* rather than what it does; `visual-system` went **8 → 9** and **24 → 28**, and
+`website-client` **20 → 21** and **66 → 69**. `openspec list` reports **No active changes** and
+`openspec validate --specs --strict` is **12 passed, 0 failed**.
+
+**M7 slice 4 is blocked on M8 and is not silently deferred**, so **M7's exit criteria are not
+fully met** and this file does not say otherwise. `apps/extension` is still an empty directory
+with no MV3 manifest, and whether to drop slice 4, carry it into M8, or build M8 first is a
+scope decision for the maintainer. **The cursor points at M8** and no slice 4 work has begun.
 
 **And the defect slice 3's own work produced is worth more than the sections.** The first version
 put the footer **inside `<main>`**, and `App.test.tsx` **passed** — Testing Library maps `footer`

@@ -48,8 +48,19 @@ verified (with its verification-pass repairs merged as PR **#64**), synced (**#6
 (`motion-and-reduced-motion`) is applied, verified, synced, and ARCHIVED**, merged as
 proposal **#67**, Apply **#68**, sync **#69**, **and its archive PR number is recorded at
 the archive stage, as every other slice's is.**
-The current objective is **M7 slice 3: the four website sections**, which is **applied and
-verified**; slice 4, the `Extension preview`, remains **blocked on M8**.
+The current objective is **M7 slice 3: the four website sections**, which is **applied, verified,
+synced and ARCHIVED**; slice 4, the `Extension preview`, remains **blocked on M8**.
+
+**And that block is now load-bearing for M7 itself, so it is stated rather than left implicit.**
+M7's three deliverable slices are archived. **M7's exit criteria are not fully met**, because
+slice 4 is not deferred-and-forgotten — it is **blocked on a milestone that has not been
+started**, and `apps/extension` is still an empty directory with no MV3 manifest. Deciding
+whether to drop slice 4, carry it into M8, or build M8 first is a **scope decision for the
+maintainer**, and this repository does not make it silently: a roadmap sentence cannot amend an
+approved spec, so changing what M7 owes is a decision to be taken and recorded, not one to be
+inferred from a block that has been sitting in a table for a while. **The cursor therefore points
+at M8**, which is the earliest milestone whose work is not blocked, and **no M7 slice 4 work has
+been started.**
 
 **Slice 3 shipped four sections and made the fifth's absence a requirement.** `website-sections`
 adds a **product hero** (the wordmark beside the live address, plus a filled `Replace address`),
@@ -2983,7 +2994,7 @@ kind would have been reviewed by the standards of the first and would have passe
 | --- | --- | --- | --- |
 | 1 | `spectral-swiss-foundation` | The token layer in `packages/ui`, the page's structural stylesheet, the accent on the surfaces of the Accent block that **exist on this page today** (active status, verification codes, focus state — *primary action* and *brand mark* arrive with the sections in slice 3, and one further use, a detected link's host, is a recorded reading rather than a listed item), **visible focus states**, and the checks that can be asserted about either — contrast as WCAG arithmetic, focus as a resolved outline in a real browser | archived — at `openspec/changes/archive/2026-10-06-spectral-swiss-foundation/` |
 | 2 | **`motion-and-reduced-motion`** | **Motion**, and `prefers-reduced-motion: reduce` governing it. The three transitions named above arrive here — **entrance only**: the Motion block's word is *"materialize/disappear"*, and only the first half is deliverable in CSS, because an element React has unmounted is gone before any transition can run. Also: a row already on the page is never re-materialised by a later poll, since the inbox polls every five seconds and an animation on every row would repeat itself for as long as the tab is open | **archived** — at `openspec/changes/archive/2026-10-07-motion-and-reduced-motion/`; proposal **#67**, Apply **#68**, sync **#69** |
-| 3 | **`website-sections`** | The **four website sections below**, plus the product region's wordmark and its primary action. **The `Extension preview` section is absent and that absence is a requirement, not an omission** — slice 4 exists because the section cannot be built before M8, and a preview of an extension with no manifest would be fake UI. All copy is data (`apps/web/src/sections.ts`), so every claim is reviewable beside the requirement it satisfies | **applied** — proposal **#71**, Apply **PR recorded at the archive stage**; delta adds a new `page-composition` capability |
+| 3 | **`website-sections`** | The **four website sections below**, plus the product region's wordmark and its primary action. **The `Extension preview` section is absent and that absence is a requirement, not an omission** — slice 4 exists because the section cannot be built before M8, and a preview of an extension with no manifest would be fake UI. All copy is data (`apps/web/src/sections.ts`), so every claim is reviewable beside the requirement it satisfies | **archived** — at `openspec/changes/archive/2026-10-07-website-sections/`; proposal **#71**, Apply **#72**, sync **#73**, archive **#74**. Adds a new `page-composition` capability; `visual-system` 8 → 9 and `website-client` 20 → 21 requirements |
 | 4 | **blocked** | The **`Extension preview`** section, below | **blocked on M8** |
 
 **Slice 2 shipped entry motion, and only entry motion, and its own browser spec found a
