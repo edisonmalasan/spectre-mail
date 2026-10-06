@@ -314,11 +314,14 @@ This is the part a design document is most tempted to overstate, so it is stated
 
 ## Related
 
-- `openspec/changes/spectral-swiss-foundation/specs/visual-system/spec.md` — the requirement
-  these tokens serve. **It is a delta, not a promoted spec yet.** `visual-system` is new in
-  this change, so `openspec/specs/visual-system/` does not exist until the sync stage moves
-  it there; the link points at the delta deliberately rather than at a path that would 404.
-- `openspec/specs/website-client/spec.md` — the promoted spec this change **amends**: what
-  the page must offer, and how styling changed the existing requirement about structure.
-  The amendment is in the change's own delta and has not been promoted yet.
+- `openspec/specs/visual-system/spec.md` — the promoted requirement these tokens serve.
+  **Promoted at this milestone's sync stage**, so the path is a real spec and not the
+  change's delta; the delta and the promoted spec were compared requirement-block by
+  requirement-block afterwards and came back identical.
+- `openspec/specs/website-client/spec.md` — the promoted spec this milestone **amends**:
+  what the page must offer, and how styling changed the existing requirement about
+  structure. That requirement is now headed _"The page is built with correct structure,
+  accessible names, and states"_ — it was renamed and amended, so the old heading
+  _"This milestone builds structure, not visual design"_ is gone from the promoted spec
+  except as the amendment note that records the rename.
 - `docs/ROADMAP.md` — the milestone slices, and which items this one defers to M8.
