@@ -21,6 +21,24 @@
  * - `NON_TEXT` — 3:1. A boundary, a focus indicator, a control's shape: anything a user
  *   must be able to *perceive* rather than read.
  *
+ * ## Why a threshold is an object and not a number
+ *
+ * **Because `LARGE_TEXT` and `NON_TEXT` are both `3`, and a number cannot say which it is.**
+ * They were exported as bare numbers, which made `ContrastThreshold` collapse to `4.5 | 3`
+ * — a union with one fewer member than it had names, so the name was unrecoverable. The
+ * renderer then recovered one by comparing values, and because `LARGE_TEXT` was tested
+ * first, **every non-text pair in `docs/DESIGN_SYSTEM.md` was labelled "large text (3:1)"**:
+ * a generated compliance table asserting that focus indicators and control boundaries are
+ * held to the large-text standard, which is false and which the document is the authority
+ * on.
+ *
+ * So the standard carries its own `name`, and the union is discriminated on it. The two
+ * 3:1 standards are now distinguishable by construction, the renderer prints the name it was
+ * given rather than one it guessed, and the ratio is pinned to the name by the type — so a
+ * mislabelled threshold is a compile error instead of a wrong cell in a design contract.
+ * `contrast.test.ts` asserts the names differ, which is the assertion this defect would
+ * have failed.
+ *
  * ## What this does not establish
  *
  * It establishes that a declared pair meets its threshold. It establishes nothing about
@@ -31,23 +49,34 @@
  * @module
  */
 
+/**
+ * One WCAG contrast standard: what it is called, and the ratio it demands.
+ *
+ * A discriminated union rather than three bare numbers, so that the name and the ratio
+ * cannot come apart — see the module note for the defect that motivated it.
+ */
+export type ContrastStandard =
+  | { readonly name: "body-text"; readonly ratio: 4.5 }
+  | { readonly name: "large-text"; readonly ratio: 3 }
+  | { readonly name: "non-text"; readonly ratio: 3 };
+
 /** Ordinary text. WCAG 2.1 AA. */
-export const BODY_TEXT = 4.5;
+export const BODY_TEXT: ContrastStandard = { name: "body-text", ratio: 4.5 };
 
 /** Text at 24px, or 18.66px bold. WCAG 2.1 AA. */
-export const LARGE_TEXT = 3;
+export const LARGE_TEXT: ContrastStandard = { name: "large-text", ratio: 3 };
 
 /** A boundary, an indicator, a control's shape. WCAG 2.1 non-text contrast. */
-export const NON_TEXT = 3;
+export const NON_TEXT: ContrastStandard = { name: "non-text", ratio: 3 };
 
 /**
  * The contrast threshold a pair is held to.
  *
- * A named union rather than a free number, so that adding a pair means choosing a
- * category rather than typing a figure — and so a pair cannot quietly claim a threshold
- * it was never measured against.
+ * Named for the field it fills rather than for what it holds, and an alias rather than a
+ * second type: `pairs.ts` and every caller outside this module already say `threshold`, and
+ * two names for one type is the sort of thing that drifts.
  */
-export type ContrastThreshold = typeof BODY_TEXT | typeof LARGE_TEXT | typeof NON_TEXT;
+export type ContrastThreshold = ContrastStandard;
 
 /**
  * An `#rrggbb` or `#rgb` hex colour, without the leading `#`.
@@ -125,8 +154,16 @@ export function contrastRatio(a: HexColour, b: HexColour): number {
 /**
  * Whether a pair meets a threshold.
  *
+ * Takes the standard rather than its ratio, so a caller cannot compare against a figure it
+ * typed beside a name that means something else — which is the defect the module note
+ * records, seen from the other side.
+ *
  * @throws if either colour is not `#rgb` or `#rrggbb`.
  */
-export function meets(foreground: HexColour, background: HexColour, threshold: number): boolean {
-  return contrastRatio(foreground, background) >= threshold;
+export function meets(
+  foreground: HexColour,
+  background: HexColour,
+  threshold: ContrastStandard,
+): boolean {
+  return contrastRatio(foreground, background) >= threshold.ratio;
 }

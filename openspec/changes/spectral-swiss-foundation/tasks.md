@@ -39,15 +39,19 @@ the rules and the checks come before the page is styled.
 - [x] 1.1.3 Spacing as a single scale. Radius as a **single scale** — `AGENTS.md` names
       inconsistent radius, spacing, border, typography, and colour systems as things to
       avoid, and an inconsistency nobody can see is one nobody can keep.
-      **Evidence.** Four scale groups, and no fifth: `TYPOGRAPHY` (two family stacks, seven
+      **Evidence.** Five shared groups: `TYPOGRAPHY` (two family stacks, seven
       type sizes, three line heights, three tracking steps, three weights), `SPACE` on a
-      `4px` base, `RADIUS`, and `MOTION`. Sizes, weights, tracking, and line heights are
+      `4px` base, `RADIUS`, `METRICS`, and `MOTION`. Sizes, weights, tracking, and line heights are
       steps **within** `TYPOGRAPHY` rather than four separate scales, which is the smaller
       structure and the one a reader can hold: `AGENTS.md` names inconsistent radius,
       spacing, border, typography, and colour systems as things to avoid, and a design
       system with thirty-one spacing values has thirty-one spacing values. `SPACE` carries
       that argument in its own comment, and the generated stylesheet emits the groups in
-      declaration order.
+      declaration order. **Corrected from "four scale groups, and no fifth": there are
+      five, and the fifth is `METRICS`** — `measure-page` and `measure-prose`, the two
+      measures the layout needs. The verifier found the shortfall; `SHARED_GROUPS` is the
+      evidence against it, and the correction is here rather than only in the prose because
+      an evidence line that undercounts its own artefact is how "no fifth" survives.
 - [x] 1.1.4 Motion duration and easing tokens **declared but not used**. They are D1's
       seam for slice 2, and a token with no consumer is the honest form of that.
       **Evidence.** `MOTION` holds `duration-fast`, `duration-base`, and `ease-standard`,
@@ -74,12 +78,12 @@ the rules and the checks come before the page is styled.
 
 - [x] 1.2.1 `packages/ui/src/contrast.ts`: `relativeLuminance()` and `contrastRatio()` as
       pure functions over hex/`rgb()`. No DOM, no browser, no clock.
-      **Evidence.** `relativeLuminance`, `contrastRatio`, and `meets` are pure functions over a hex or `rgb()` string. `packages/ui`'s `tsconfig.json` sets no `"DOM"`, and no module in it names `document`, `window`, a clock, or the network. **Falsified by M1**: substituting the wrong exponent for the sRGB gamma turned `contrast.test.ts` red in *agrees with published ratios for two colours whose answer is known* — the assertion is checked against ratios WCAG itself publishes, so a wrong exponent cannot pass.
+      **Evidence.** `relativeLuminance`, `contrastRatio`, and `meets` are pure functions over a hex or `rgb()` string, and no module in the package names `document`, `window`, a clock, or the network. **Corrected: `packages/ui`'s `tsconfig.json` does include `"DOM"`.** An earlier draft of this line claimed it set none, and the verifier checked. The claim mattered because `packages/mailbox` withholds DOM by compiler and this repository treats that as the strong form of the property — so here the difference has to be stated rather than implied. **Nothing in the compiler withholds DOM from this package; the purity property is carried by `contrast.test.ts`'s arithmetic assertions and by the fact that nothing else can observe a browser from these functions.** The honest comparison: `mailbox`'s is enforced by `tsc`, this one is evidenced by tests that would notice a browser being read, and neither is the claim that *no client ever uses these tokens in a browser* — the website does, which is the point. **Falsified by M1**: substituting the wrong exponent for the sRGB gamma turned `contrast.test.ts` red in *agrees with published ratios for two colours whose answer is known* — the assertion is checked against ratios WCAG itself publishes, so a wrong exponent cannot pass.
 - [x] 1.2.2 A declared pair list: every foreground/background pair the page uses, each with
       the threshold that applies to it (4.5:1 text, 3:1 boundary/indicator/large text).
       **Evidence.** `pairs.ts` declares every foreground/background pair the page uses with the threshold that applies to it, **plus** the two exclusion lists — `DECORATIVE` and `SURFACE_ONLY` — with the reason each is held to nothing. The split between those two lists is load-bearing and **was not designed**: the first version had one list, and **`pairs.test.ts` went red** when a surface declared decorative was used by a pair, which is what forced the split.
 - [x] 1.2.3 Tests over **both** schemes, asserting the ratio of each declared pair.
-**Evidence.** 11 tests in `pairs.test.ts`, over both schemes, each naming the pair and printing **both** ratios on failure. `pnpm test` reports `packages/ui` at **36** (12 contrast, 11 pairs, 5 generated stylesheet, 8 design document), counted from `--reporter=json`.
+**Evidence.** 11 tests in `pairs.test.ts`, over both schemes, each naming the pair and printing **both** ratios on failure. `pnpm test` reports `packages/ui` at **38** (13 contrast, 11 pairs, 5 generated stylesheet, 9 design document), counted from `--reporter=json`.
 
 **Evidence:** `pnpm test` reports the new files, and a token moved one step toward its
 neighbour turns the pair red **naming the pair and both ratios**.
@@ -135,9 +139,9 @@ neighbour turns the pair red **naming the pair and both ratios**.
   `green`, `harness-error`, a non-zero exit with no named failure, a no-op mutation, and a
   mutation caught by a *different* test are **five distinct non-passes** and are each
   reported as such.
-  **Evidence.** **28 of 28 caught by the intended assertion**, across both tiers, with `nocompile`, `green`, `wrongcatch`, `noop`, `harness-error`, and `build-failed` each counted as their own outcome and none of them reported as a pass. **Five** of those runs **changed an assertion or a check rather than merely breaking a suite**, and every one is recorded in `design.md` and `AGENTS.md`: **M14** (deleting the focus rule left the specs green on Chromium's `outline: auto`); **M19** (a line-anchored edit missed a fourth `.inbox-row` selector inside a `@media` block, so the tree was half-mutated and reported green); the harness defect where a `to` that is an **array of lines** was read as an array of edits, producing one `green` from a mutation that never applied; and **M26–M28**, which came from the first CI run carrying this change's specs and are the **twenty-third** recorded instance — the traversal repair was green three times before the invariant it rested on was asserted. See design.md D14.
+  **Evidence.** **29 of 29 caught by the intended assertion**, across both tiers, with `nocompile`, `green`, `wrongcatch`, `noop`, `harness-error`, and `build-failed` each counted as their own outcome and none of them reported as a pass. **Six** of those runs **changed an assertion or a check rather than merely breaking a suite**, and every one is recorded in `design.md` and `AGENTS.md`: **M14** (deleting the focus rule left the specs green on Chromium's `outline: auto`); **M19** (a line-anchored edit missed a fourth `.inbox-row` selector inside a `@media` block, so the tree was half-mutated and reported green); the harness defect where a `to` that is an **array of lines** was read as an array of edits, producing one `green` from a mutation that never applied; **M26–M28**, which came from the first CI run carrying this change's specs and are the **twenty-third** recorded instance — the traversal repair was green three times before the invariant it rested on was asserted (D14); and **M29**, from the second red run, which makes the settle wait return on its first comparison and is caught by the control it skips (D16). **Two of the six were authored and caught inside this change, and both were preconditions rather than assertions** — which is the shape worth carrying forward: the checks most likely to be too weak are the ones that decide *when* to start measuring.
 - [x] 2.3.2 Restoration verified by SHA-256 and reported separately from the catch.
-**Evidence.** Restoration is verified by **SHA-256 per mutation** and reported as its own column, separately from the catch. The final run recorded **0 restoration mismatches** across all 28.
+**Evidence.** Restoration is verified by **SHA-256 per mutation** and reported as its own column, separately from the catch. The final run recorded **0 restoration mismatches** across all 28 run by the harness; **M29 was run outside it** and restored by copying the file back, with `git diff` confirming the only remaining change against `HEAD` was the intended repair.
 - [x] 2.3.3 Include at least one **narrowing** mutation per rule — shortening the pattern,
   dropping a form — because a pattern narrowed from under its own rule is the defect class
   this repository has recorded **twenty-two** times. **Amendment, recorded during apply
@@ -299,9 +303,25 @@ neighbour turns the pair red **naming the pair and both ratios**.
       second time, so the check counts and fails rather than passing vacuously. Measured:
       **67 `data-testid` occurrences, every value identical to `main`** — none added, none
       removed, none altered — and **21 `aria-labelledby` occurrences, likewise identical**.
-      Every diff line is the same line with `className` inserted beside the attribute that was
-      already there. So `data-testid` was **touched not at all**, which is the task's wording,
+      So `data-testid` was **touched not at all**, which is the task's wording,
       and the false summary "the client has no `data-testid`" was avoided: it has 67.
+
+      **Corrected: it is not true that every changed line in `apps/web/src` is a `className`
+      insertion.** An earlier draft of this evidence said so, and it was checked hunk by
+      hunk against `53f5f2c`. Fifteen files changed, and `App.tsx`, `Address.tsx`,
+      `BootFailure.tsx`, `Inbox.tsx`, `InboxCheckFailed.tsx`, `InboxRow.tsx`, `LocalData.tsx`,
+      `MailboxFailure.tsx`, `MailboxLifetime.tsx`, `MessageView.tsx`,
+      `StoredAddressGone.tsx` and `StoredAddressUnchecked.tsx` are hook insertions only —
+      but three things are not. `main.tsx` **adds two stylesheet imports** and a module
+      comment, which is how the token layer reaches the page at all and is task 1.2.3's
+      subject rather than a styling of an existing element. `InboxRow.tsx` **adds a
+      `CARRIES_VERIFICATION` set** and corrects two comments, which is the accent-rule
+      decision `visual-system` requires: the set is a closed list of the three verdicts that
+      may be marked, and it is what keeps `carriesNothing` and `undetermined` unmarked. And
+      `styles.css` is a **new file**. None of the three adds, removes, or reorders an
+      element, alters an accessible name, or touches a `data-testid` — which is what 4.2
+      requires — but "add nothing else" is not the same as "changed nothing else", and an
+      evidence line that says the latter is a claim the diff refutes.
 
       Two comments that M7 falsified — one calling the verification mark a tint and one
       describing a time format the page no longer uses — were corrected rather than left
@@ -315,8 +335,11 @@ neighbour turns the pair red **naming the pair and both ratios**.
 are unchanged where they had to be**: `apps/web` holds **113**, exactly as before the slice,
 and the browser tier's **six storage specs are still six**. A changed count there would mean
 markup moved and would have to be explained before anything else is looked at. The browser
-tier now holds **eleven** specs in total — the same six plus five focus specs — and it is
-the six that is the evidence, because those are the ones that already existed.
+tier now holds **twelve** specs in total — the same six plus six focus specs — and it is
+the six that is the evidence, because those are the ones that already existed. **The sixth
+focus spec was added by the verification-pass repair**, and it is not a focus *claim* — it is
+the positive control for the settle precondition `design.md` D16 records, so the tier
+distinguishes *the control set was stable* from *the wait returned*.
 
 ---
 
@@ -354,7 +377,7 @@ the six that is the evidence, because those are the ones that already existed.
       **Evidence.** **Positive control per control kind** — a button, a link, an interactive row (`<button>` inside a row, so both are reachable), and the confirm/cancel pair — and a **negative control**: the spec plants a control whose indicator is removed and requires the assertion to fail on it. **That negative control is what proved the first version of the assertion was wrong**: with only `outlineStyle !== "none"` the suite was green on a page whose `:focus-visible` rule had been deleted, because Chromium supplies `outline: auto`. The spec now also asserts `expect.soft(focused.style).not.toBe("auto")`.
 - [x] 5.1.4 The suite's no-origin assertion still passes. Per design D3, a remote font
       would fail all six existing specs; confirm the new spec adds no origin of its own.
-      **Evidence.** The suite's no-origin assertion still passes, and the five new specs add **no origin of their own**: `recorded-provider.ts` aborts and **reports by name** any request outside the recorded set, so a CDN font would fail all **eleven** specs. **The storage specs' count is unchanged at 6**, which is the evidence that styling disturbed no behaviour that tier already covered.
+      **Evidence.** The suite's no-origin assertion still passes, and the six new specs add **no origin of their own**: `recorded-provider.ts` aborts and **reports by name** any request outside the recorded set, so a CDN font would fail all **twelve** specs. **The storage specs' count is unchanged at 6**, which is the evidence that styling disturbed no behaviour that tier already covered.
 
 ### 5.2 Contrast, in `packages/ui`
 
@@ -400,36 +423,79 @@ the six that is the evidence, because those are the ones that already existed.
       **Evidence.** `AGENTS.md`: **three** instances of the *no styling* claim, and all three are **deleted rather than reworded** — the Stack bullet, the Frontend/client bullet, and the entry-point section. The Frontend/client replacement states what the styling establishes and states the limit in the same breath; the entry-point replacement says plainly that *styled* is the weakest claim in the file and that no gate here stands in for a human looking at the page. The *Visual design work starts at M7* sentence is replaced with the fact that the extension's half of the visual work is **blocked on M8**.
 - [x] 6.4 Test counts **measured from `--reporter=json` and grouped by project**, never
       added up. Boundary assertions recounted the same way.
-      **Evidence.** **689 tests across 35 files, counted from `--reporter=json` and grouped by project:** 54 `core`, 89 `providers`, 149 `mail-parser`, 153 `mailbox`, 113 `apps/web`, 44 `storage`, **36 `packages/ui`**, **51 architecture**. Boundary assertions recounted the same way rather than by adding four to the previous figure. Before this slice: 649 across 35→31 files, 47 boundary, 36→28 in a package that did not exist.
+      **Evidence.** **691 tests across 35 files, counted from `--reporter=json` and grouped by project:** 54 `core`, 89 `providers`, 149 `mail-parser`, 153 `mailbox`, 113 `apps/web`, 44 `storage`, **38 `packages/ui`**, **51 architecture**. Boundary assertions recounted the same way rather than by adding four to the previous figure. Before this slice: 649 across 35→31 files, 47 boundary, 36→28 in a package that did not exist.
 - [x] 6.5 `README.md` if it describes the page as unstyled.
-**Evidence.** `README.md` — the *no styling* sentence is replaced, and the verification-tiers table's `pnpm test` and `pnpm test:browser` rows are updated to **689 / 35 / 51** and **11 specs**, the latter gaining *nor about how the page looks* in its **does not establish** column.
+**Evidence.** `README.md` — the *no styling* sentence is replaced, and the verification-tiers table's `pnpm test` and `pnpm test:browser` rows are updated to **691 / 35 / 51** and **11 specs**, the latter gaining *nor about how the page looks* in its **does not establish** column.
 
 ---
 
 ## 7. Gates
 
 - [x] 7.1 `pnpm verify` exits 0.
-**Evidence.** `pnpm verify` exits `0`: typecheck (8 of 8 projects), lint, `format:check`, test (35 files, 689 tests), build.
+**Evidence.** `pnpm verify` exits `0`: typecheck (8 of 8 projects), lint, `format:check`, test (35 files, 691 tests), build.
 - [x] 7.2 `pnpm test:browser` exits 0, **with Chromium present**, and `pnpm verify` is
       re-confirmed to pass **with `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty
       directory** — the property that keeps the two tiers separate.
-      **Evidence.** `pnpm test:browser` exits `0` with Chromium present, **11 passed**. `pnpm verify` was re-confirmed with `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory — the property that keeps the two tiers separate, and the reason `test:browser` is not folded into `verify`.
+      **Evidence.** `pnpm test:browser` exits `0` with Chromium present, **12 passed**. `pnpm verify` was re-confirmed with `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory — the property that keeps the two tiers separate, and the reason `test:browser` is not folded into `verify`.
 - [x] 7.3 `openspec validate spectral-swiss-foundation --strict` passes.
 **Evidence.** `openspec validate spectral-swiss-foundation --strict` passes, and `openspec validate --specs --strict` remains **10 passed, 0 failed** — this slice **adds** `visual-system` rather than amending a promoted spec, so nothing existing moves.
 - [x] 7.4 Record the **before/after counts** of every suite, measured.
-**Evidence.** Before and after, measured: **649 → 689 tests**, **31 → 35 files**, **47 → 51 boundary assertions**, **`apps/web` 113 → 113** (required unchanged), **`packages/ui` 0 → 36**, **browser specs 6 → 11** of which the 6 are unchanged. Falsification: **25 → 28 mutations, all caught by the intended assertion, 0 restoration mismatches** — the three added because the first `browser` CI run carrying this change's specs was red and found a defect in its own traversal (design.md D14, which also records that two of the three claims made about that job were false until a log query settled them). **CI: run `37442961830` green** — `verify`, `spike self-test` and `browser` all SUCCESS on the commit carrying the repair.
+**Evidence.** Before and after, measured: **649 → 691 tests**, **31 → 35 files**, **47 → 51 boundary assertions**, **`apps/web` 113 → 113** (required unchanged), **`packages/ui` 0 → 38**, **browser specs 6 → 12** of which the 6 are unchanged. Falsification: **25 → 29 mutations, all caught by the intended assertion, 0 restoration mismatches** — the three added because the first `browser` CI run carrying this change's specs was red and found a defect in its own traversal (design.md D14, which also records that two of the three claims made about that job were false until a log query settled them). **CI: run `37442961830` green** — `verify`, `spike self-test` and `browser` all SUCCESS on the commit carrying the repair.
+      **The final `691` and `38` come from the verification pass, not from slice work** — `design.md` D15 records both new tests and why they exist. The apply stage measured 689 and 36, and **those figures were wrong about the package they named**: 36 was the count before the two tests that catch the mislabelled threshold table existed.
 
 ---
 
 ## 8. Verification pass (separate, after apply)
 
-- [ ] 8.1 Compare the implementation against `proposal.md`, `design.md`, and these tasks.
+- [x] 8.1 Compare the implementation against `proposal.md`, `design.md`, and these tasks.
       **Not against the ticked boxes** — a ticked box is a claim about the work, not
       evidence for it.
-- [ ] 8.2 Re-check **every limit in design D12** against the finished change. A limit true
+      **Evidence.** Run by a **separate agent** against the artifacts, explicitly
+      instructed that a ticked box is not evidence and that it must not edit a file. Its
+      verdict on 8.1 was **partial pass**: every delta requirement is implemented and
+      asserted, counts and markup invariance match, and both tiers agree — with **one
+      CRITICAL** and **five WARNINGs**, all in this change's own work, all resolved here and
+      written up in **`design.md` D15**. The CRITICAL was a false claim in `AGENTS.md` about
+      `styles.css` (D15c); the WARNINGs were a missing `--focus` pair (D15b), three evidence
+      lines that described something other than what was measured (D15d), and a rule whose
+      scope was narrower than it read (D15e). **While repairing the first warning the pass's
+      own finding surfaced something neither it nor the slice had looked for**: because
+      `LARGE_TEXT` and `NON_TEXT` are both `3`, the generated compliance table in
+      `docs/DESIGN_SYSTEM.md` had been labelling **every non-text pair** `large text (3:1)`
+      since it was written — a generated document asserting that focus indicators are held to
+      the wrong WCAG standard, with correct ratios beside a wrong label. That is **D15a**, it
+      is the reason `packages/ui` went 36 → 38, and it is the one finding in this change that
+      a re-run of any existing gate could not have surfaced: three separate checks agreed
+      with each other and were consistently wrong together.
+- [x] 8.2 Re-check **every limit in design D12** against the finished change. A limit true
       at proposal and false after implementation is a limit nobody recorded.
-- [ ] 8.3 Confirm each deferred item is recorded **with an owner**, not quietly dropped.
-- [ ] 8.4 Any CRITICAL blocks completion. Any WARNING blocks unless explicitly accepted.
+      **Evidence.** Verdict **pass**: **all nine limits still hold**, and none was quietly
+      relaxed to accommodate the implementation. Each was re-read against the merged tree
+      rather than against the apply-stage prose. Two of them became *narrower* because of the
+      repairs rather than weaker — the literal-values limit in D15c now says exactly which
+      categories are enforced and names the literals outside them, and the appearance limit is
+      restated in **D15f** as the one thing the pass could not test: its largest finding was
+      a mislabelled number, which a machine can read, and whether a restrained column and a
+      hairline rule read as *trustworthy* is not a machine's subject.
+- [x] 8.3 Confirm each deferred item is recorded **with an owner**, not quietly dropped.
+      **Evidence.** Verdict **pass**. Every deferral has a named owner and a slice: **M7
+      slice 2** (motion, landing atomically with `prefers-reduced-motion`), **M7 slice 3** (the
+      five website sections), **M8** (the extension build — and the `Extension preview`
+      section recorded as **blocked on M8**, because a preview of an extension with no
+      manifest would be fake UI), **M10** (OTP copy/fill). The two accent surfaces the roadmap
+      names that have **no home on the page yet** — *primary action* and *brand mark* — are
+      **recorded as absent and arrive with slice 3, not stubbed**; `apps/extension` remains an
+      empty placeholder. Recorded in `docs/DESIGN_SYSTEM.md`'s Accent section, outside the
+      generated region, and in `design.md` D13a.
+- [x] 8.4 Any CRITICAL blocks completion. Any WARNING blocks unless explicitly accepted.
+      **Evidence.** **One CRITICAL and five WARNINGs were raised, and all six are resolved in
+      this change rather than accepted.** None was accepted by a human waiver, because the
+      rules do not permit one without explicit authorisation and no such authorisation was
+      given. The CRITICAL and each WARNING are written up in `design.md` D15 with the
+      measurement that found it, the fix, and — where a fix needed proving — the mutation that
+      turns the suite red. Two new tests resulted (`contrast.test.ts` 12 → 13,
+      `design-doc.test.ts` 8 → 9); **no boundary rule was added or weakened**, and
+      `apps/web` is **still 113**.
 
 ---
 

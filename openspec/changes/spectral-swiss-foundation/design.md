@@ -451,13 +451,20 @@ already passed. That is the second time this repository has had a real instrumen
 something a unit suite was green about, and the reason the browser tier is a separate runner
 with its own CI job rather than a folder inside `pnpm test`.
 
-**The repair is now verified in CI, and the run id is the claim.** It is mutation-falsified
-(§2.3), the tier passes locally, and **run `37442961830` carried the repair and came back
-green** on a GitHub-hosted Linux runner — `verify`, `spike self-test` and `browser` all
-SUCCESS. It is stated as a run id rather than as "CI is green", because a claim about CI
-that outruns a run is the exact failure this repository's `spike self-test` notes describe:
-four cancelled jobs with **no log archive at all**, and the JSON the only instrument that
-could tell a starved runner queue from a hang.
+**The repair ran green in CI once, and that is all a green run is.** It is
+mutation-falsified (§2.3), the tier passes locally, and **run `37442961830` carried the
+repair and came back green** on a GitHub-hosted Linux runner — `verify`, `spike self-test` and
+`browser` all SUCCESS. It is stated as a run id rather than as "CI is green", because a claim
+about CI that outruns a run is the exact failure this repository's `spike self-test` notes
+describe: four cancelled jobs with **no log archive at all**, and the JSON the only instrument
+that could tell a starved runner queue from a hang.
+
+**Corrected by D16.** That sentence read as though a green run verified the repair. A
+subsequent run of the same suite on the same commit's successor — `37446193779` — was **red**,
+on a defect the repair had not looked for, and it reproduces locally about **one run in three**.
+So `37442961830` was green **once**, and the honest form of the claim is *"the repair reached a
+green `browser` job"* rather than *"the repair is verified in CI"*. A passing run reports no
+history, and **nothing in its own output could have said otherwise.**
 
 Four limits are unchanged and none of them is the one that just closed:
 
@@ -467,3 +474,231 @@ Four limits are unchanged and none of them is the one that just closed:
 - **Nothing about a blocked `deleteDatabase`.** The suite does not produce that event.
 - **Nothing about how the page looks.** The specs read a computed style; nothing reads a
   rendered pixel.
+
+---
+
+## D15 � What the verification pass found, and the one that was not a document defect
+
+**Recorded after the apply stage was merged, so these are findings against shipped code
+rather than review notes.** The pass was run by a separate agent against `proposal.md`,
+`design.md`, `tasks.md` and both deltas, and instructed not to treat a ticked box as
+evidence. It returned one CRITICAL, five WARNINGs and a set of NOTEs. Every one is
+resolved in this change; the shape of them is the reason they are recorded.
+
+### D15a � The generated compliance table mislabelled every non-text pair
+
+**The worst finding in the pass, and the one nothing would have caught by re-running
+anything.** `LARGE_TEXT` and `NON_TEXT` are both WCAG `3:1`. They were exported as bare
+numbers, so:
+
+- `ContrastThreshold` was `typeof BODY_TEXT | typeof LARGE_TEXT | typeof NON_TEXT`, which is
+  **`4.5 | 3 | 3`** � a union with one fewer member than it had names. Its doc comment called
+  it *"a named union rather than a free number"*, which was the second false claim in the
+  same file: it was not named, it was collapsed.
+- `design-doc.ts` recovered a label by comparing values, in the order body, large, non-text.
+  Because large is tested first and both are `3`, **every non-text pair in
+  `docs/DESIGN_SYSTEM.md` was printed as `large text (3:1)`** � five focus-indicator rows and
+  the `--accent`-on-tinted-surface row, plus `--line-strong` on every surface. The document
+  asserted that focus indicators and control boundaries are held to the large-text standard.
+  They are held to the non-text standard. The ratios printed beside the wrong label were
+  correct.
+
+**The suite was green throughout, and every test in it passed for a reason.** The
+`ratio` assertions in `contrast.test.ts` pass identically on collapsed constants � `3` is
+`3`. The pair-threshold test compares against the same constant the pair was declared with,
+so a collapsed constant is self-consistent. The byte-identity test compares the renderer to
+the committed document, and **both were wrong together**, so it agreed. That is three
+independent-looking checks, none of which can distinguish *correct* from *consistently wrong*.
+
+**The fix is that the standard carries its own name.**
+
+```ts
+export type ContrastStandard =
+  | { readonly name: "body-text"; readonly ratio: 4.5 }
+  | { readonly name: "large-text"; readonly ratio: 3 }
+  | { readonly name: "non-text"; readonly ratio: 3 };
+```
+
+The union is discriminated on `name`, so the two 3:1 standards are distinguishable **by
+construction**; the ratio is pinned to the name by the type, so a mislabelled threshold is a
+compile error rather than a wrong cell; and `thresholdName` now prints what it was handed
+rather than recovering a name by comparison. `meets()` takes the standard rather than its
+ratio, so a caller cannot compare against a figure typed beside a name that means something
+else.
+
+**The assertion that would have caught it is the one that was missing**, and it is now in
+`contrast.test.ts`: `expect(NON_TEXT.name).not.toBe(LARGE_TEXT.name)`, plus a check that the
+rendered label is `"non-text (3:1)"`. It fails on the old constants � `.name` is `undefined`
+on both. **Falsified**: reverting `thresholdName` to a value comparison turns the byte-identity
+test red with `large text (3:1)` in the diff.
+
+**Why it belongs in this change rather than a later one.** `docs/DESIGN_SYSTEM.md` is the
+document a future client reads before styling, and the sync stage is about to promote
+`visual-system` into `openspec/specs/` as the authority on colour. A promoted requirement
+carrying a mislabelled compliance table is worse than no requirement: it is the sentence a
+reader cites without re-deriving.
+
+### D15b � The declared pair list omitted a surface the stylesheet paints
+
+`styles.css` paints `--surface-danger` on `.region--alert` and `.notice--danger`. Four
+`--focus` pairs were declared � against page, raised, sunken and accent � and none against
+danger. The delta requirement holds **in fact**, because no focusable control sits on
+`--surface-danger` today: `.control` paints its own opaque `--surface-raised`, so the ring
+lands there. The declaration was incomplete rather than wrong.
+
+It is now declared, with the reason attached rather than only the number: **no focusable
+control sits on one today, and a surface the stylesheet can paint is a surface a future
+control can end up on.** Measured `6.07` light and `6.24` dark. **Falsified**: raising the
+threshold turns `pairs.test.ts` red naming the pair. No test count moved � the per-pair
+assertions loop inside one fixed test, which is worth stating because a count that does not
+move when a declaration grows is itself the thing to check.
+
+### D15c � A false claim in `AGENTS.md` about the shipped stylesheet, twice
+
+This file said **no literal value appears in `apps/web/src/styles.css`**, twice. Literals do
+appear: `translateY(1px)`, `max-height: 28rem`, `1fr auto`, `width: 100%`, and
+`@media (max-width: 34rem)`. The claim that is true and that the boundary rule enforces is
+narrower � **not one colour, radius, spacing step, type size, or duration** � and
+`styles.css`'s own header comment, `tasks.md` and `README.md` already said it correctly. So
+the defect was two sentences in `AGENTS.md` claiming more than the code, on a property whose
+whole value is that a reader can check it. Both are corrected, and the correction states the
+literals rather than quietly dropping the word, because a reader who finds `28rem` and a file
+that promised no literals will distrust every other sentence in it.
+
+**The interesting part is why the overclaim survived review.** It is *easier* to read
+"no literal" than the five categories, it is the sentence a design-system document wants to
+say, and no test could refute it � a boundary rule for the five categories is satisfied by a
+file that also contains `28rem`. **A check narrower than its rule is normally the defect; here
+the check was right and the prose was the defect**, which is the shape worth remembering.
+
+### D15d � Three evidence lines that described something other than what was measured
+
+- **`tasks.md` 1.1.3 said "Four scale groups, and no fifth."** There are five; the fifth is
+  `METRICS`, holding `measure-page` and `measure-prose`. An evidence line that undercounts its
+  own artefact is how "no fifth" survives a change that added one.
+- **`tasks.md` 1.2.1 said `packages/ui`'s `tsconfig.json` sets no `"DOM"`.** It sets
+  `"DOM"`. This matters more than a stale count, because `packages/mailbox` withholds DOM by
+  compiler and this repository treats that as the strong form of the property � so a reader
+  would have believed this package had the same guarantee. **It does not**, and the corrected
+  line says which form applies: `mailbox`'s is enforced by `tsc`, this one is evidenced by
+  tests that would notice a browser being read.
+- **`tasks.md` 4.2 said every changed line in `apps/web/src` is a `className` insertion.**
+  Checked hunk by hunk against `53f5f2c`: twelve components are hook insertions only, but
+  `main.tsx` adds two stylesheet imports, `InboxRow.tsx` adds the `CARRIES_VERIFICATION` set
+  that keeps `carriesNothing` and `undetermined` unmarked, and `styles.css` is a new file.
+  **None of the three adds, removes, or reorders an element, alters an accessible name, or
+  touches a `data-testid`** � which is what 4.2 requires � but *"add nothing else"* is not
+  *"changed nothing else"*, and the evidence line said the latter.
+
+### D15e � A rule whose scope was narrower than it read, and the assertion that now holds it
+
+`design-doc.test.ts` asserts the `.ts` extension on relative imports in three named files �
+and its pattern matches `import � from` and **not** `export � from`. Four re-exports exist and
+all four are in `index.ts`, which is correctly outside the emitter's run-time graph, so
+nothing is unguarded today. But a rule a reader cannot place is a rule they will either
+extend wrongly or ignore.
+
+Rather than widen it � an assertion about a module no command resolves is decoration � the
+scope is now **asserted**. A second test walks `packages/ui/src/` from the directory, and
+fails if any module holding a relative re-export is inside the scanned set, or if any module
+outside it imports relatively. **So a gap in the pattern becomes a red test instead of an
+omission**, and a new file is covered by being created rather than by being listed.
+**Falsified**: planting a relative `export � from` in the scanned `pairs.ts` turns it red
+naming the file and the reason.
+
+### D15f � What the pass found that was right
+
+Its verdicts on 8.2 and 8.3 were **pass**: all nine D12 limits still hold, and every deferred
+item has a named owner � slice 2 (motion with `prefers-reduced-motion`), slice 3 (the five
+sections), M8 (the extension, and `Extension preview` recorded as blocked on it), M10 (OTP
+copy/fill). The two accent surfaces with no home on the page yet are **recorded, not
+stubbed**, which is the outcome 8.3 exists to distinguish from a placeholder.
+
+**The one limit the pass could not test is unchanged and is restated rather than resolved:**
+nothing here says how SpectreMail looks. Its largest finding was a mislabelled number in a
+generated table, and it found that by reading code against artifacts. A number is a machine's
+subject; whether a restrained column and a hairline rule read as *trustworthy* is not, and no
+gate in this repository stands in for the judgement.
+
+---
+
+## D16 � A green CI run that was luck, and the precondition it was green by accident of
+
+### D16a � What happened
+
+The repair for run `37439940701` shipped in `592d03c` and **run `37442961830` came back
+green** on all three jobs. This change recorded that as *"the fact this sentence waited
+for"*, and it was **not a fact about the suite**. It was a fact about one run.
+
+Run `37446193779`, carrying the verification-pass repair, was **red** again � and this time
+the failure was the **drift reporter the repair itself added** doing exactly its job:
+
+```text
+position 1 was "Back to the inbox" (index 1), now "Open Message with no subject. �" (index 1)
+position 2 was "Replace address"  (index 2), now "Back to the inbox"        (index 2)
+position 3 was "Clear saved data"  (index 3), now "Replace address"        (index 3)
+position 4 appeared: "Clear saved data"
+```
+
+**Read as a diff rather than as a failure, that is one element inserted above index 1** � the
+inbox row gaining a layout box after the walk had already begun. It reproduces locally on
+**roughly one run in three**, which is why `37442961830` passing was luck rather than a
+property.
+
+### D16b � What it is not
+
+**It is not the product's control set being unstable.** Read eight times a second apart with
+nothing touching it, the list is identical every time. The window is between the `ready` state
+rendering and the inbox row being laid out, and a walk's worth of Tab presses is long enough
+to fall inside it. Nothing in `apps/web` changed to cause this; the cause is a precondition
+the spec asserted rather than established.
+
+### D16c � The fix, and the part that matters more
+
+`settledFocusableControls()` waits until the control list has **held for five consecutive
+100ms reads** before the walk begins, and **throws** if it never does � reporting the list it
+last saw. A bounded loop that returned its last read on timeout would leave every caller
+believing the page had settled.
+
+**The first version of that wait was wrong, and its own positive control caught it.** It
+required two agreeing reads 100ms apart. The control plants a control that gains a layout box
+**150ms** in, so the first two reads agree without it and a two-read wait returns a list that
+does not contain it:
+
+```text
+Error: the wait returned before the late control appeared
+1 failed | 5 passed
+```
+
+**That is the second time in this change that a precondition was narrower than the property
+it stood for** � and like the traversal repair, it was authored here and caught here. The
+lesson is the specific one: **two agreeing reads is not evidence of settledness, it is a delay
+with a comparison in it.** The window has to be a duration chosen against the observed failure,
+and the observed failure was seconds, not 200ms.
+
+**And the honest limit, which is why the drift assertion was not weakened to compensate.** No
+duration makes this certain � on a slower runner the row could appear after the window closes.
+What the wait buys is that the common case is covered. What **guarantees** the reading is the
+post-walk drift check, which is unchanged and still fails the spec if the set moved while it
+was being read. **The two are not substitutes: one is a precondition, one is the property.**
+
+**Measured after**: **10 consecutive local runs, 12 passed, 0 failed**, against roughly one in
+three failing before.
+
+### D16d � The falsification
+
+**M29** replaces the agreement count with "return on the first comparison". Caught by the
+intended assertion � *the wait returned before the late control appeared* � naming the
+control it missed. **29 of 29** deliberate violations are now caught by the assertion written
+for them.
+
+### D16e � What a green run is, restated
+
+`37442961830` was green and this document recorded it as the repair being verified. It was
+**green once**, on a suite with an intermittent failure, and the record did not say so because
+nothing in the run's output could say so � a passing run reports no history.
+
+**The only instrument that could have caught it was re-running**, and the repository's own
+rule already says a green CI run is not evidence of much: it is a claim about one execution. The
+sentence this replaces, that the repair is *"verified in CI"*, is corrected below to name the
+run **and** the fact that a subsequent run of the same suite on a slower machine was red.

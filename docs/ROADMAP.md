@@ -262,11 +262,13 @@ was additionally verified **with no browser installed** by pointing
 
 ### Current numbers, measured 2026-10-06 at `spectral-swiss-foundation`'s apply stage
 
-**689 tests across 35 files, of which 51 are architecture boundary assertions.** 54 in
+**691 tests across 35 files, of which 51 are architecture boundary assertions.** 54 in
 `packages/core`, 89 in `packages/providers`, 149 in `packages/mail-parser`, 153 in
-`packages/mailbox`, **113 in `apps/web`**, 44 in `packages/storage`, **36 in `packages/ui`**
-(12 contrast, 11 pairs, 5 generated-stylesheet, 8 design document), 51 boundary. Counted
-from `--reporter=json` grouped by project, not added by hand.
+`packages/mailbox`, **113 in `apps/web`**, 44 in `packages/storage`, **38 in `packages/ui`**
+(13 contrast, 11 pairs, 5 generated-stylesheet, 9 design document), 51 boundary. Counted
+from `--reporter=json` grouped by project, not added by hand. **`packages/ui` moved 36 → 38
+after the apply stage was merged**, from the verification pass rather than from slice work;
+the two tests are recorded in `design.md` D15.
 
 **`apps/web` is 113 and that is the load-bearing number in this paragraph.** The slice adds
 `className` to twelve components and changes no element, no accessible name, and no
@@ -275,14 +277,14 @@ have meant markup moved, and it would have to be explained before anything else 
 at. It is unchanged. Boundary 47 → **51** for the four new rules; `packages/storage`, the
 provider layer, the parser, the session layer, and the domain model are all untouched.
 
-**The second tier moved, and it moved in the direction the claim required.** **11** Playwright
+**The second tier moved, and it moved in the direction the claim required.** **12** Playwright
 specs in `apps/web/e2e/`, up from 6: the six storage specs are **unchanged in count**, and
-five focus specs were added. That the existing six kept their count is the evidence that
+six focus specs were added. That the existing six kept their count is the evidence that
 styling changed no behaviour the browser tier already covered — had adding `className`
 altered a control's role or its accessible name, one of those six would have stopped
 finding its target.
 
-**28 of 28 deliberate violations were caught by the intended assertion, with restoration
+**29 of 29 deliberate violations were caught by the intended assertion, with restoration
 verified by SHA-256**, across both tiers. **Four** of those mutations are worth naming
 because each one changed an assertion rather than merely breaking a suite:
 
@@ -338,9 +340,30 @@ assertion narrower than its rule**, and the reason `M26`–`M28` exist.
 **Run `37442961830` carried the repair and came back green** — `verify`, `spike self-test`
 and `browser` all SUCCESS on a GitHub-hosted Linux runner.
 
+**And that green run was luck, which is the part worth keeping.** Run `37446193779`, on the
+next commit, was **red again** — on the drift reporter the repair itself added, firing
+correctly. The page's control set gained the inbox row *after* the walk had begun: `ready`
+renders a few hundred milliseconds before the row has a layout box, and a walk of Tab presses
+is long enough to fall inside that window. **It reproduces locally on roughly one run in
+three**, so the green above was a fact about one execution rather than a property of the
+suite, and *"the repair is verified in CI"* was broader than the evidence supported. **A
+passing run reports no history, so nothing in its own output could have said otherwise** — the
+only instrument that could catch it is re-running, which is also the only instrument that
+proves a fix for a race.
+
+The fix is a **precondition the spec now establishes rather than assumes**: wait until the
+control list has held for five consecutive 100ms reads, or throw reporting what it last saw.
+**The first version of that wait required two agreeing reads and its own positive control
+caught it** — a control gaining a layout box 150ms in is missed by a 200ms window, so *two
+agreeing reads is a delay with a comparison in it, not a precondition*. The post-walk drift
+assertion is **unchanged**: the wait is a precondition, the drift check is the property, and
+neither substitutes for the other. **10 consecutive local runs, 12 passed, 0 failed**,
+against roughly one in three failing before. See `design.md` D16.
+
 **This is the strongest argument yet for the two-tier split.** `pnpm verify` was green
-throughout, on this machine, on the commit carrying the defect — 689 unit tests and 51
-boundary assertions — while a spec `pnpm verify` never reads held a bug.
+throughout, on this machine, on the commit carrying the defect — **689** unit tests and 51
+boundary assertions — while a spec `pnpm verify` never reads held a bug. (691 is the count
+after the verification-pass repair; 689 is what that commit actually ran.)
 
 **What this slice does not establish, and the list is the point.** **How SpectreMail
 looks** — no test reads a rendered pixel's colour, so the palette is arithmetic and the ring

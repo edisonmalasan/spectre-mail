@@ -267,6 +267,139 @@ async function blurEverything(page: Page): Promise<void> {
   });
 }
 
+/** How long to wait between reads while the page settles. */
+const SETTLE_POLL_MS = 100;
+
+/**
+ * How many reads must agree, in a row, before the page counts as settled.
+ *
+ * **Five, which is a 400ms window, and the number comes from the failure rather than from
+ * taste.** The row that CI caught appeared *during* a walk lasting seconds, so "two agreeing
+ * reads" would not have caught it — and the first version of this wait did exactly that and
+ * failed its own positive control, which plants a control that gains a box 150ms in. **A
+ * precondition of two agreeing reads 100ms apart is not a precondition**; it is a coin toss
+ * with a delay.
+ *
+ * **The honest limit, which is why the drift assertion was not weakened to compensate.** No
+ * duration makes this certain: on a slower runner the row could appear after the window. What
+ * the wait buys is that the common case is covered, and what *guarantees* the reading is the
+ * post-walk drift check, which still fails the spec if the set moved while it was being read.
+ */
+const SETTLE_STABLE_READS = 5;
+
+/** How many reads to allow before calling a page unsettled rather than waiting forever. */
+const SETTLE_ATTEMPTS = 40;
+
+/** A settled control list, and how many reads it took to get one. */
+interface Settled {
+  readonly controls: ControlRef[];
+  readonly attempts: number;
+}
+
+/**
+ * Wait until the page's control set stops moving, and return it.
+ *
+ * ## Why this exists, and it is a real observation rather than a guess
+ *
+ * **CI run `37446193779` caught it.** The drift reporter added after run `37439940701`
+ * fired on a page whose control set was *not* moving for any reason the product controls:
+ *
+ * ```text
+ * position 1 was "Back to the inbox" (index 1), now "Open Message with no subject. …"
+ * position 2 was "Replace address"  (index 2), now "Back to the inbox"        (index 2)
+ * position 4 appeared: "Clear saved data"
+ * ```
+ *
+ * Read as a diff rather than as a failure, that is **one element inserted above index 1** —
+ * the inbox row gaining a layout box after the walk had already begun. Instrumenting the
+ * traversal locally showed the same thing on roughly one run in three: the walk started with
+ * four controls and the row appeared part-way through. **The page is not unstable** — read
+ * eight times a second apart with nothing touching it, the list is identical every time. The
+ * window is between the `ready` state rendering and the inbox row being laid out, and the
+ * walk's own Tab presses are long enough to fall inside it.
+ *
+ * So this is a **precondition**, not a retry: the readings in a traversal are only about
+ * anything if the set they index is still the set that was enumerated, and waiting for it to
+ * stop moving is the only way to establish that. **The drift assertion stays exactly as it
+ * was** — it still fails if the set moves *during* the walk, which is the property that
+ * matters and the one the browser job originally found a defect through.
+ *
+ * ## Why it fails rather than returning whatever it last saw
+ *
+ * A bounded loop that returned its last read on timeout would make every caller believe the
+ * page had settled. It throws instead, and the message carries both lists, because a page
+ * that genuinely never settles is a fact this suite should report rather than absorb.
+ */
+async function settledFocusableControls(page: Page): Promise<Settled> {
+  let previous = await focusableControls(page);
+  let agreeing = 1;
+
+  for (let attempt = 1; attempt < SETTLE_ATTEMPTS; attempt += 1) {
+    await page.waitForTimeout(SETTLE_POLL_MS);
+    const current = await focusableControls(page);
+
+    if (sameNames(previous, current)) {
+      agreeing += 1;
+      if (agreeing >= SETTLE_STABLE_READS) return { controls: current, attempts: attempt + 1 };
+    } else {
+      // **A disagreement restarts the count rather than being absorbed.** A control that
+      // flickers in and out must not be read as settled between two of its own appearances.
+      agreeing = 1;
+    }
+    previous = current;
+  }
+
+  throw new Error(
+    `the page's controls never held for ${SETTLE_STABLE_READS} reads in ${SETTLE_ATTEMPTS}: ` +
+      `${JSON.stringify(previous.map((control) => control.name))}`,
+  );
+}
+
+/** Whether two control lists name the same controls in the same order. */
+function sameNames(left: readonly ControlRef[], right: readonly ControlRef[]): boolean {
+  return (
+    left.length === right.length && left.every((control, i) => control.name === right[i]?.name)
+  );
+}
+
+/** The settle loop's own positive control, and the reason it is not just a retry. */
+test("the control set is not walked until it has stopped moving", async ({ page }) => {
+  await openSettledMailbox(page);
+
+  // **A control that gains a layout box while the wait is already running.**
+  //
+  // `display: none` at insertion, made visible 150ms later. The wait reads at 0ms and
+  // 100ms — both before it gains a box, so both reads agree — and at 200ms, where it
+  // does not. **A wait that returned on the first agreeing pair would return without this
+  // control**, and that is precisely the defect the CI run exposed: a traversal that starts
+  // on a list that is about to change.
+  await page.evaluate(() => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.lateProbe = "";
+    button.textContent = "Late probe";
+    button.style.display = "none";
+    document.body.append(button);
+    setTimeout(() => {
+      button.style.display = "block";
+    }, 150);
+  });
+
+  const settled = await settledFocusableControls(page);
+  await page.evaluate(() => {
+    document.querySelector("button[data-late-probe]")?.remove();
+  });
+
+  expect(
+    settled.controls.map((control) => control.name),
+    "the wait returned before the late control appeared",
+  ).toContain("Late probe");
+  expect(
+    settled.attempts,
+    "the wait returned before it had compared the page enough times",
+  ).toBeGreaterThanOrEqual(SETTLE_STABLE_READS);
+});
+
 /**
  * Read every keyboard-reachable control, unfocused and then focused.
  *
@@ -297,7 +430,7 @@ async function blurEverything(page: Page): Promise<void> {
  * reader that threw on a missing indicator would have made that impossible.
  */
 async function readFocusableOutlines(page: Page): Promise<Traversal> {
-  const controls = await focusableControls(page);
+  const controls = (await settledFocusableControls(page)).controls;
   const readings: ControlFocus[] = [];
 
   for (const control of controls) {
