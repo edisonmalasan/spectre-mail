@@ -264,8 +264,9 @@ export function renderDesignDoc(): string {
    * Every shared group except Motion.
    *
    * **Motion is emitted separately below, with prose.** It is in `SHARED_GROUPS` so the
-   * generated stylesheet emits it in the right order, but the table needs the note saying it
-   * is used by nothing yet, and a loop cannot attach prose to one row of five.
+   * generated stylesheet emits it in the right order, but the table needs the paragraphs saying
+   * what the motion is and what `prefers-reduced-motion` does to it, and a loop cannot attach
+   * prose to one row of five.
    */
   for (const [name, group] of SHARED_GROUPS) {
     if (name === "Motion") continue;
@@ -286,11 +287,23 @@ export function renderDesignDoc(): string {
     [
       "### Motion",
       "",
-      "**Declared and used by nothing in this slice.** The motion itself arrives in M7 slice 2,",
-      "atomically with `prefers-reduced-motion` handling — shipping an animation with no way to",
-      "stop it would create the exact problem this milestone exists to solve. The tokens are",
-      "here so that slice has one place to read, and so the first animation's duration is not",
-      "chosen at the moment someone writes the animation.",
+      "**One materialisation, three entrances.** The mailbox address, an inbox row, and a",
+      "rendered verification code each arrive the same way: `opacity 0 → 1`, the declared blur",
+      "to zero, the declared rise to nothing, on `--ease-standard`. The two singular moments use",
+      "`--duration-base`; the inbox row uses `--duration-fast`, because rows arrive in bursts and",
+      "a queue of half-materialised rows reads as lag rather than as arrival.",
+      "",
+      "**`prefers-reduced-motion: reduce` removes the animation.** Not a shorter duration and not",
+      "a `0.01ms` substitute — no animation at all, so \"stopped\" is the literal rendering rather",
+      "than a duration small enough to be called stopped. No fill mode is declared, and none is",
+      "needed: each element's own declarations already equal the animation's final frame, so",
+      "finishing the animation and having no animation are the same rendering. That is what makes",
+      "removal correct rather than a compromise.",
+      "",
+      "**Two things this table does not describe.** Motion is **entrance only** — an element the",
+      "client has unmounted is gone before any transition can run, so the roadmap's",
+      "*\"materialize/disappear\"* delivers only the first half. And there is **no `transition`**,",
+      "so the reduced-motion block governs animation alone and nothing here claims otherwise.",
       "",
       table(
         ["Token", "Value"],

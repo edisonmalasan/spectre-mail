@@ -208,27 +208,37 @@ starts reporting rather than the requirement silently becoming true.
 
 ### D10. Two instruments, chosen because they measure different things
 
-**Static, Node-side, in the spec: what the stylesheet declares.** The browser spec runs in
-Node and can read `apps/web/src/styles.css`. It asserts that the `@keyframes materialise`
-`from` frame declares `opacity: 0` and references `var(--blur)` and `var(--rise)`; that the
-`to` frame declares `opacity: 1`, `blur(0)` and `none`; that every `animation` declaration
-in the motion section takes its duration from `var(--duration-*)` and its easing from
-`var(--ease-standard)`; that no literal time value and no literal `cubic-bezier(` appears
-anywhere in the file; and that the reduced-motion block's selector list names **the same
-selectors** as the entrance block's.
+**Static, Node-side, in the spec: what the file says.** The browser spec runs in Node and
+can read `apps/web/src/styles.css`. It asserts that no literal time value and no literal
+`cubic-bezier(` appears anywhere in the file, and that the reduced-motion block's selector
+list names **the same selectors** as the entrance block's.
 
 That last one is the tripwire for the next entrance, and it is only cheap because D3 groups
 the entrances. It is also **narrow on purpose**: it compares two lists this slice writes, so
 it cannot see an animation declared in some future component rule. The general check is the
 browser sweep below, and neither substitutes for the other.
 
+The file-wide sweep is a text claim and stays a text claim: it is about the absence of a
+spelling anywhere in a file, which the CSSOM would answer rule by rule and would have to be
+asked a second time to be sure.
+
+**Keyframes, Chromium, in the CSSOM: what the keyframes say.** The `@keyframes materialise`
+block's frames are read from `document.styleSheets` rather than parsed out of the text,
+because the CSSOM distinguishes the case the requirement turns on **exactly**: a frame
+declared with the token reads back `blur(var(--blur))` and a frame declared with a literal
+reads back `blur(6px)`. A text scan would have to decide that difference with a pattern; the
+browser makes it. Frames are selected by **offset** (`0%`, `100%`), which is what Chromium
+reports — see D12 for why `from` and `to` are the wrong keys.
+
 **Empirical, Chromium, in the page: what the page resolves.** Under
 `prefers-reduced-motion: no-preference`, each of the three elements' resolved
 `animation-name`, `animation-duration` and `animation-timing-function` are compared against
-the values the **token layer declares on that page** — read with
-`getComputedStyle(document.documentElement).getPropertyValue(...)`, the same instrument
-`apps/web/e2e/focus.spec.ts` already uses for `--focus`. Under `reduce`, every element in
-the document is swept and none may report a running animation.
+a **probe element** the spec injects, whose own declarations are written entirely in terms of
+`var(--duration-*)` and `var(--ease-standard)`. Durations are compared as parsed seconds
+because Chromium shortens the leading zero on the token and not on the computed value; the
+easing is compared as a whole string against the probe, because that is spelling-independent
+in a way a comparison against the token is not. Under `reduce`, every element in the
+document is swept and none may report a running animation.
 
 **What neither instrument establishes.** Neither reads a rendered pixel. Both are exact about
 what they read and silent about whether the materialise is any good. `packages/ui`'s contrast
@@ -262,32 +272,75 @@ It is also falsifiable in the right direction: the mutation that gives each row 
 makes the marker vanish and the assertion goes red, and no mutation can make it green while
 the marker is still there.
 
-### D12. Three assumptions to measure before any assertion is written
+**Amendment, recorded during apply (2026-10-06).** This decision was correct and the
+implementation violated it, which is the only kind of finding worth this much space.
+`packages/mailbox/src/inbox.ts` publishes `{ kind: "checking" }` before **every** listing,
+that variant carried no listing at all, and `Inbox.tsx` rendered it as its own branch — so
+every poll unmounted the list and rebuilt it, and the rebuilt row re-ran its entrance.
+Measured in Chromium on the built page with a `MutationObserver`:
 
-Recorded here as assumptions because they are **not yet measured**, and this repository does
-not write an assertion against an instrument it has not used:
+```text
+5153ms DOM -[UL.inbox-rows]
+5153ms DOM +[P.]
+5156ms DOM -[P.]
+5156ms DOM +[UL.inbox-rows]
+5187ms START materialise on inbox-row
+```
 
-1. **Duration serialisation.** Chromium reports `animation-duration` resolved from `200ms`
-   as `"0.2s"`. The comparison needs a `ms`→`s` normalisation in the spec, and the
-   normalisation is three lines and has to be right for the comparison to mean anything.
-2. **Easing serialisation.** That `cubic-bezier(0.16, 1, 0.3, 1)` round-trips through
-   computed style in that exact spelling. If Chromium re-serialises it (say as
-   `cubic-bezier(0.16, 1, 0.3, 1)` with different spacing, or numerically normalised), the
-   assertion compares strings and has to compare the right thing — or compare against a
-   **probe element** the spec injects using `var(--ease-standard)`, which is relative and
-   immune to serialisation.
-3. **`prefers-reduced-motion` emulation.** That `page.emulateMedia({ reducedMotion })`
-   re-evaluates a live page's media queries **without a reload**, which the third scenario
-   of the reduced-motion requirement depends on.
+The spec caught it on its first run, which is the strongest argument for the identity
+observable: a screenshot or a text assertion would have shown a correct-looking inbox
+several times a minute. D17 is the repair.
 
-**Fallback if (2) is not a clean round-trip:** the probe-element comparison above. It is
-strictly better where it applies — it compares the product's resolved easing against a
-declaration that uses the token, so it tests the linkage and not the spelling. If
-measurement shows the probe approach is the only sound one, the assertion is rewritten to
-use it and **this decision is amended in the change**, not silently in the diff.
+### D12. Three assumptions, measured before any assertion was written
 
-Each of the three is measured first, and a failed assumption produces an amendment here
-rather than an assertion bent to fit the instrument.
+**Measured 2026-10-06**, Chromium via `apps/web`'s Playwright config, against a throwaway
+spec that injected a probe `<style>` into the built page and was deleted in the same task.
+Every figure below is what the browser reported, not what it was expected to report.
+
+1. **Duration serialisation — holds, and needs no normalisation function.** An
+   `animation-duration` declared as `var(--duration-base)` resolves to `"0.2s"`. Reading
+   `--duration-base` off the live document element resolves to `".2s"` — Chromium also
+   shortens the *token's own* leading zero, so the two strings differ and a string comparison
+   would fail on a page that is entirely correct. **The comparison therefore parses both as
+   seconds and compares numbers**, which is total over both spellings and is one expression
+   rather than a hand-rolled serialiser.
+2. **Easing serialisation — does NOT hold. The probe fallback is in force.** The token reads
+   `cubic-bezier(.16, 1, .3, 1)` while the element's computed `animation-timing-function`
+   reads `cubic-bezier(0.16, 1, 0.3, 1)`. Same function, different spelling, so a string
+   comparison would report a defect that does not exist. As D12 anticipated, the comparison
+   is now made against a **probe element** the spec injects using `var(--ease-standard)`: the
+   product's resolved timing function is compared to the probe's, and the probe is the
+   declaration that uses the token. That tests the **linkage** rather than the spelling,
+   which is the property the requirement is about, and it is immune to normalisation on
+   either side.
+3. **`prefers-reduced-motion` emulation — holds, without a reload.** After
+   `page.emulateMedia({ reducedMotion: "reduce" })` on an already-loaded page, a probe
+   element's `animation-name` went from `"probe-materialise"` to `"none"` and its
+   `animation-duration` to `"0s"`, with the element still in the document and the URL
+   unchanged. No reload, no navigation.
+
+**Two further measurements, taken because the first probe returned something surprising and
+a surprising result is not a fact until it is explained.**
+
+- **The CSSOM *does* expose keyframe declarations faithfully, with `var()` intact** — and the
+  first probe read an empty object. The cause was in the probe, not the browser: Chromium
+  reports a keyframe's selector as `"0%"` and `"100%"`, never as the `from` and `to` this
+  document had been written in terms of. Matching on `"from"` found nothing. This is the
+  twenty-sixth recorded instance of a check narrower than the thing it read, and it was
+  authored *and caught* inside this change, before any shipped assertion existed.
+  The consequence is a design change rather than a spelling change: the keyframe half of D10
+  is read from the **CSSOM**, keyed on offset, not parsed as text — and the CSSOM
+  distinguishes the two cases exactly, reporting `blur(var(--blur))` for the token and
+  `blur(6px)` for a literal. That is the distinction the requirement turns on, obtained
+  without a text parse at all.
+- **`AnimationEffect.getKeyframes()` does not carry `computedStyle` in this Chromium**, so
+  the Web Animations API cannot be used to read a *resolved* keyframe value. Measured, and
+  the route is therefore not used. The two frames it did return reported `offset: null` and
+  `easing: "linear"`.
+- **An element with no transition reports `transition-property: all` and
+  `transition-duration: 0s`**, so a sweep asserting the second would pass on a page with no
+  transitions whatsoever. D9 predicted exactly this and the measurement confirms it: the
+  tripwire is real, and the requirement says nothing about transitions.
 
 ### D13. What changes in the generated document, and one test that changes with it
 
@@ -369,6 +422,80 @@ generated and must be re-emitted in the same commit as `tokens.ts` and `design-d
 the two byte-identity assertions fail — which is the intended behaviour and is why both files
 are named in the same task.
 
+### D17. The inbox was torn down on every poll, and this slice is what found it
+
+**Recorded during apply (2026-10-06).** Landing an entrance on `.inbox-row` made a
+pre-existing defect impossible to ignore: the inbox list was destroyed and rebuilt on every
+poll, so the entrance re-ran every five seconds for as long as the tab stayed open.
+
+The cause spans two layers, and naming which is which is most of the value:
+
+- **In the session**, `InboxState`'s `checking` variant carried no listing. It was the one
+  variant that could leave a caller with nothing to show for the length of a request.
+  `checkFailed` already kept the last known listing and `state.ts` gives the reason — *"a
+  failed check is a condition of the inbox, not the loss of it"* — and that reason applies
+  here with more force, because "is being checked" is a weaker reason to hide what is known
+  than "the check failed". The two variants differed for no stated reason.
+- **In the client**, `Inbox.tsx` rendered `checking` as its own branch, so a different
+  subtree meant a different element tree, and a different element tree means an unmount.
+
+**Why the session and not a client-side cache.** This was a genuine fork and it was put to
+the user rather than decided silently. `Inbox.tsx` states that it is *"presentational and
+nothing else"* and that *"every judgement about what is true belongs to the session"*. A
+`useRef` holding the last non-`checking` state would have been a smaller diff — it keeps
+the change inside `apps/web` and touches no shared contract — but it would make the list's
+identity a fact the **presentation layer remembers**, duplicating what the session already
+owns, and it would put a what-is-true judgement in the one layer that disclaims having one.
+The cost of the chosen repair is that the change now spans two capabilities and adds a
+requirement to `mailbox-session`. That is the cost, stated rather than absorbed.
+
+**The client half is a tree-shape requirement, and that is the part that is easy to get
+wrong.** `checked` and `checking` must produce the same elements at the same indices, with
+the re-checking sentence **appended**:
+
+```tsx
+<InboxRows … />                              // index 0, in both states
+<p data-testid="inbox-cadence-note">…</p>     // index 1, in both states
+{inbox.kind === "checking" ? <p … /> : null} // appended, so it cannot shift the others
+```
+
+A sentence placed *before* the list would move the `<ul>` to a new index, and a node at a
+new index is a node React rebuilds — which is the remount this decision exists to prevent.
+So the placement is a correctness requirement, not a layout preference, and the assertion
+that proves it is element identity rather than appearance (D11).
+
+**Three assertions carry this, and each covers a layer that the others cannot:**
+
+| Assertion | Layer | What only it can catch |
+| --- | --- | --- |
+| `packages/mailbox` — `checking` carries the previous messages *and* verdicts | session | A session that drops the listing, with a client that would render it correctly |
+| `apps/web` — the row is the same DOM node across a held-open second check | client | A correct session whose client still rebuilds the list |
+| `motion.spec.ts` — the marker survives a second listing in Chromium | built page | Both of the above, on what a user receives |
+
+The `apps/web` assertion needs the second listing **held open**, and that is not
+bookkeeping: a stub that resolves in the same microtask publishes `checking` and then
+`checked` before React renders, so both updates batch into one render and the intermediate
+state never reaches the DOM. A test asserting on `checking` without a gate would be
+asserting on something else — the first version of it did, and passed.
+
+**Two instances of this repository's recurring defect were authored here and caught here**,
+and both are in the browser spec's CSS walker — the third and fourth recorded instances:
+
+1. The prelude was carried in one variable and read when the block closed, by which time
+   the block's own children had cleared it. Every rule came back with an empty selector, so
+   the test failed reporting *no rules* rather than the wrong ones.
+2. Fixed with a parallel stack, the *selector* was still read at close time — now it read
+   the block's declarations instead of its prelude.
+3. Fixed again, the selector was read **after** `flush()`, which empties `prelude` into the
+   enclosing block. Top-level rules survived, because `flush()` is a no-op at depth zero, so
+   this presented as "the media query's rule has no selector" rather than as "no rule has a
+   selector" — and only a nested rule could reveal it.
+
+Each one under-reported, which is the direction that invites deleting a check rather than
+fixing it. The walker is now a stack of preludes captured at open time, and the test
+asserts that **neither** filter came back empty, so a walker that loses its own nesting
+fails loudly instead of reporting a clean sheet.
+
 ## Risks / Trade-offs
 
 - **A blur on text is a legibility cost for 120–200ms.** Accepted: the effect is the roadmap's
@@ -377,6 +504,15 @@ are named in the same task.
 - **Motion the product chose, for mail the user did not.** `.inbox-row` animates because
   something arrived, which is user-caused, but it happens on a cadence the product chose.
   Mitigation is the third requirement and D11; it is the reason that requirement exists.
+  **This was measured to be violated before D17 repaired it**, which is the strongest
+  statement this risk list can carry: the requirement was not decorative, and the test that
+  enforces it is the only thing that noticed.
+- **The change now spans two capabilities** (`visual-system` and `mailbox-session`) and
+  touches `packages/mailbox`, which slice 2 otherwise would not have. Accepted with the
+  fork recorded in D17 and the user's decision attached; the alternative was a client-side
+  cache that contradicted `Inbox.tsx`'s own stated contract. **A reader who disagrees now
+  has the reasoning and the measurement**, which is the part that was missing when this was
+  found.
 - **The static assertion compares two selector lists this slice writes** (D10) and is blind to
   an animation declared elsewhere. Mitigation is the browser sweep, which is general. The
   narrowness is recorded rather than hidden.
