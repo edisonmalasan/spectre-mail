@@ -207,7 +207,14 @@ export function createInboxTracker(options: InboxTrackerOptions): InboxTracker {
 
     // Every check passes through `checking`, including the first, so "has not been
     // checked yet" and "is being checked now" are never rendered from the same value.
-    publish({ kind: "checking" });
+    //
+    // **It carries the last known listing, and that is what `motion-and-reduced-motion`
+    // had to repair.** This used to publish a bare `{ kind: "checking" }`, which is the
+    // one variant that could blank the inbox for the length of a request - and a client
+    // rendering it as its own branch therefore tore the list down and rebuilt it on
+    // every poll. See `state.ts` for why the reasoning `checkFailed` already used
+    // applies here too.
+    publish({ kind: "checking", listing: lastKnownListing() });
 
     let summaries: readonly MessageSummary[];
     try {
@@ -313,11 +320,9 @@ export function createInboxTracker(options: InboxTrackerOptions): InboxTracker {
   function refusalOf(cause: unknown, provider: MailProvider): InboxState {
     const failure = toSessionFailure(cause, provider.id);
     const listing: InboxListing = {
-      // The last thing actually learned, not an empty list. Blanking a user's inbox
-      // because one request failed destroys information the product still has, in
-      // exchange for dramatising a problem they cannot do anything about.
-      messages: lastListing?.messages ?? [],
-      verdicts: new Map(verdicts),
+      // The last thing actually learned, not an empty list - see `lastKnownListing`,
+      // which is shared with the `checking` publish for the same reason.
+      ...lastKnownListing(),
       ...(failure.rateLimit === undefined ? {} : { rateLimit: failure.rateLimit }),
     };
     // **`lastListing` deliberately not updated.** It holds the last thing a check
@@ -337,6 +342,31 @@ export function createInboxTracker(options: InboxTrackerOptions): InboxTracker {
     }
 
     return publish({ kind: "checkFailed", listing, failure });
+  }
+
+  /**
+   * The last thing actually learned, as a listing.
+   *
+   * **Shared by the `checking` publish and by `refusalOf` on purpose, because the two
+   * are one question asked at two moments:** what does this tracker still know? Two
+   * spellings of one answer is how they would drift, and the drift would not be visible
+   * in either - a `checking` that quietly dropped the verdicts would look identical to
+   * one that kept them, right up until a row claimed nothing about a message that does
+   * in fact hold a code.
+   *
+   * No rate limit, deliberately. A limit belongs to the moment it was stated, so
+   * `refusalOf` attaches the one the failure just reported rather than the one an
+   * earlier listing happened to carry, and a check in progress has no limit of its own
+   * to report.
+   */
+  function lastKnownListing(): InboxListing {
+    return {
+      // Not an empty list once there has been a listing. Blanking a user's inbox
+      // because one request is in flight destroys information the product still has, in
+      // exchange for dramatising a moment the user cannot act on.
+      messages: lastListing?.messages ?? [],
+      verdicts: new Map(verdicts),
+    };
   }
 
   return {

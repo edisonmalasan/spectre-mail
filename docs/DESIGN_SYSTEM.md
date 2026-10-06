@@ -256,14 +256,28 @@ person to move one of these into a pair list would find a red test with no expla
 
 ### Motion
 
-**Declared and used by nothing in this slice.** The motion itself arrives in M7 slice 2,
-atomically with `prefers-reduced-motion` handling — shipping an animation with no way to
-stop it would create the exact problem this milestone exists to solve. The tokens are
-here so that slice has one place to read, and so the first animation's duration is not
-chosen at the moment someone writes the animation.
+**One materialisation, three entrances.** The mailbox address, an inbox row, and a
+rendered verification code each arrive the same way: `opacity 0 → 1`, the declared blur
+to zero, the declared rise to nothing, on `--ease-standard`. The two singular moments use
+`--duration-base`; the inbox row uses `--duration-fast`, because rows arrive in bursts and
+a queue of half-materialised rows reads as lag rather than as arrival.
+
+**`prefers-reduced-motion: reduce` removes the animation.** Not a shorter duration and not
+a `0.01ms` substitute — no animation at all, so "stopped" is the literal rendering rather
+than a duration small enough to be called stopped. No fill mode is declared, and none is
+needed: each element's own declarations already equal the animation's final frame, so
+finishing the animation and having no animation are the same rendering. That is what makes
+removal correct rather than a compromise.
+
+**Two things this table does not describe.** Motion is **entrance only** — an element the
+client has unmounted is gone before any transition can run, so the roadmap's
+_"materialize/disappear"_ delivers only the first half. And there is **no `transition`**,
+so the reduced-motion block governs animation alone and nothing here claims otherwise.
 
 | Token             | Value                           |
 | ----------------- | ------------------------------- |
+| `--rise`          | `4px`                           |
+| `--blur`          | `6px`                           |
 | `--duration-fast` | `120ms`                         |
 | `--duration-base` | `200ms`                         |
 | `--ease-standard` | `cubic-bezier(0.16, 1, 0.3, 1)` |
@@ -292,6 +306,21 @@ This is the part a design document is most tempted to overstate, so it is stated
   indicator**, in real Chromium, on the built page. The reading is the _resolved_ outline,
   compared against the same control unfocused — which is what makes a permanent outline
   fail rather than pass.
+- **The three entrances carry the token layer's own motion values, and
+  `prefers-reduced-motion: reduce` removes every animation on the page.** The durations and
+  the easing are read from what each element _resolves to_ and compared against a probe
+  declaration written in terms of `var(--duration-*)` and `var(--ease-standard)`, so the
+  claim is the linkage and not a restatement of the numbers. Under the preference, the check
+  sweeps **every element in the document** rather than the three selectors — and a
+  **positive control** runs the same sweep without the preference and requires it to find
+  the animations, which is what stops "nothing animates" from passing on a page where nothing
+  animates either.
+- **A row already on the page is not re-materialised by a later poll.** Established by
+  **element identity**, not by appearance: a marker is set on a row's node before a second
+  listing and must still be on it afterwards. A settled row and a re-materialised row look
+  identical, so a visual check would have passed on the defect this rule exists to catch.
+- **The keyframes reference the token layer rather than a literal.** Read from the CSSOM,
+  which reports `blur(var(--blur))` and `blur(6px)` as the two different things they are.
 
 ### **Not** verified, and stated rather than implied
 
@@ -299,6 +328,16 @@ This is the part a design document is most tempted to overstate, so it is stated
   The palette is arithmetic and the ring is a computed style; both are exact about what they
   measure and silent about whether the result is _good_. Judging that is a human looking at
   the page, and this change does not automate it or pretend to.
+- **How the motion looks.** The same shape, a third time. The motion checks read resolved
+  values and the CSSOM, so they establish that the right animation runs for the right length
+  and stops when asked. Whether 4px of rise and 6px of blur read as _restrained_ or as
+  _fussy_ is a human judgement, and the roadmap's word for it — _"subtle"_ — has no
+  instrument here. A blur on text is also a real legibility cost for the length of the
+  entrance; that cost is accepted, and accepted is not the same as verified.
+- **Exit motion.** The roadmap says _"materialize/disappear"_ and only the first half ships.
+  An element the client has unmounted is gone before any transition can run, so the second
+  half is not a CSS omission to be tidied up later — it is a different piece of work with
+  its own verification. Nothing in this document implies it exists.
 - **Firefox and WebKit.** One engine is configured, deliberately. Adding a project per engine
   would turn "verified" into "verified somewhere" without adding evidence about the claim.
 - **A real provider.** The browser tier serves **recorded** provider responses, so nothing
@@ -309,8 +348,11 @@ This is the part a design document is most tempted to overstate, so it is stated
   watched a real provider respond to being polled every five seconds.
 - **Blocked `deleteDatabase`.** Still a `fake-indexeddb` measurement. The browser tier does
   not produce that event.
-- **Motion.** Declared, used by nothing. It arrives in M7 slice 2, atomically with
-  `prefers-reduced-motion` handling.
+- **`transition`.** This slice declares none, so the reduced-motion block governs animation
+  alone. An element with no transition reports `transition-duration: 0s`, which means a check
+  asserting that would pass on a page with no transitions at all — so the requirement says
+  nothing about transitions, and the browser sweep carries it as a tripwire that starts
+  reporting the day one exists.
 
 ## Related
 

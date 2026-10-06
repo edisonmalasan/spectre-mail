@@ -76,16 +76,37 @@ describe("the design document's generated region", () => {
     }
   });
 
-  it("states every motion token's being unused, since that is the slice-2 constraint", () => {
+  it("states what the motion is and what stops it, so a token cannot imply more than ships", () => {
     const region = renderDesignDoc();
 
-    for (const token of ["duration-fast", "duration-base", "ease-standard"]) {
+    for (const token of ["rise", "blur", "duration-fast", "duration-base", "ease-standard"]) {
       expect(region).toContain(`\`--${token}\``);
     }
 
-    // The tokens exist and are consumed by nothing, and the document says so. A reader
-    // finding motion tokens in a design contract would reasonably assume something moves.
-    expect(region).toContain("used by nothing");
+    // **This assertion changed with the behaviour it describes, and the change is
+    // authorised by `motion-and-reduced-motion`'s delta rather than made to accommodate a
+    // diff.** Its previous form read "states every motion token's being unused, since that
+    // is the slice-2 constraint" and asserted the region contained "used by nothing", which
+    // was true for exactly one milestone and false the moment the motion shipped.
+    //
+    // The test's *purpose* is unchanged and is why it was worth keeping rather than
+    // deleting: a reader finding `--duration-base` in a design contract would reasonably
+    // assume something moves, so the table has to say what moves and under what preference
+    // it does not. It now asserts both halves rather than one.
+    expect(region).toContain("One materialisation, three entrances");
+    expect(region).toContain("`prefers-reduced-motion: reduce` removes the animation");
+
+    // **And it asserts the limits, which is the half a table is most tempted to omit.**
+    // The roadmap's phrase is "materialize/disappear" and only the first half ships, so a
+    // document that said "motion" without saying "entrance only" would be describing a
+    // capability the product does not have.
+    expect(region).toContain("entrance only");
+    expect(region).toContain("no `transition`");
+
+    // The sentence the previous version required is now positively absent. Asserting the
+    // replacement while leaving the old claim merely unreplaced would let a future edit
+    // restore "used by nothing" alongside the new prose.
+    expect(region).not.toContain("used by nothing");
   });
 
   it("keeps both exclusion lists, so a deliberate omission cannot read as an oversight", () => {

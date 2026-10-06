@@ -80,6 +80,11 @@ function listingOf(state: InboxState) {
 /** The verdict map of an inbox that has one, or an empty one. */
 function verdictsOf(state: InboxState): ReadonlyMap<string, MessageVerdict> {
   if (state.kind === "checked" || state.kind === "checkFailed") return state.listing.verdicts;
+  // `checking` is here because it now carries a listing too. It was left out by the
+  // change that added it, and an omission like that fails silently - the helper hands
+  // back an empty map, the assertion passes, and the reading it was supposed to check
+  // was never made.
+  if (state.kind === "checking") return state.listing.verdicts;
   return new Map<string, MessageVerdict>();
 }
 
@@ -139,6 +144,52 @@ describe("the inbox", () => {
       expect(inboxOf(session).kind).toBe("checked");
     });
 
+    it("keeps what it already knows while the next check is in flight", async () => {
+      // **The amendment `motion-and-reduced-motion` D17 forced, and the two tests
+      // below it are a pair on purpose.** A `checking` state that always carried an
+      // empty listing would satisfy "carries a listing" while blanking the inbox for
+      // the length of every request, which is the defect. So the positive half and the
+      // empty-half are asserted together, and neither means anything alone.
+      await start(holding([makeSummary("m1")], { m1: CODE_BODY }));
+
+      const first = await session.checkInbox();
+      expect(listingOf(first).messages.map((message) => message.id)).toEqual(["m1"]);
+
+      // Observed *during* the second request. Asserting after it resolved would read
+      // the `checked` state and pass whatever `checking` carried.
+      const pending = session.checkInbox();
+      const during = inboxOf(session);
+      expect(during.kind).toBe("checking");
+      if (during.kind !== "checking") throw new Error("expected a checking inbox");
+      expect(during.listing.messages.map((message) => message.id)).toEqual(["m1"]);
+      // Verdicts too, not just ids: a listing that kept the messages and dropped the
+      // map would render every kept row as `undetermined`, which is a claim about a
+      // message the product has read.
+      expect(verdictFor(during.listing.verdicts, "m1").kind).toBe("carriesCode");
+
+      await pending;
+      expect(listingOf(inboxOf(session)).messages.map((message) => message.id)).toEqual(["m1"]);
+    });
+
+    it("has nothing to keep before anything has been learned", async () => {
+      // The other half of the pair above, and the reason an empty listing is the
+      // honest answer for a first check rather than a placeholder.
+      await start(stubProvider("guerrilla"));
+
+      const pending = session.checkInbox();
+      const during = inboxOf(session);
+      expect(during.kind).toBe("checking");
+      if (during.kind !== "checking") throw new Error("expected a checking inbox");
+      expect(during.listing.messages).toEqual([]);
+      expect(during.listing.verdicts.size).toBe(0);
+      // No rate limit, and that is deliberate: a check in progress has none of its own
+      // to report, and carrying an earlier one forward would attribute a stale limit to
+      // the moment being described.
+      expect(during.listing.rateLimit).toBeUndefined();
+
+      await pending;
+    });
+
     it("holds no field belonging to another variant, for any of the four", async () => {
       // The exact key set, per variant, rather than a subset: a leaked field cannot
       // pass by being unmentioned. The `failed` *session* state had exactly this gap
@@ -148,7 +199,13 @@ describe("the inbox", () => {
       expect(Object.keys(inboxOf(session)).sort()).toEqual(["kind"]);
 
       const pending = session.checkInbox();
-      expect(Object.keys(inboxOf(session)).sort()).toEqual(["kind"]);
+      // **`checking` grew a `listing`, and this is the amendment that records it.**
+      // It used to hold `kind` alone, which made it the one variant a client could
+      // render by replacing the inbox with something else - so every poll tore the list
+      // down and rebuilt it. `motion-and-reduced-motion` D17 changed the shape; the
+      // assertion is unchanged in *form* (exact key set, no leaks) and only the expected
+      // keys moved, which is what a test asserting a shape is for.
+      expect(Object.keys(inboxOf(session)).sort()).toEqual(["kind", "listing"]);
       await pending;
       expect(Object.keys(inboxOf(session)).sort()).toEqual(["kind", "listing"]);
 

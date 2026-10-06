@@ -67,6 +67,22 @@ interface StubOptions {
   readonly listings?: readonly (readonly MessageSummary[])[];
   readonly bodies?: Readonly<Record<string, string>>;
   readonly listFailsWith?: readonly (SpectreError | undefined)[];
+  /**
+   * A gate a particular listing waits on, and the test releases.
+   *
+   * **Without one, `checking` is invisible to a test that calls `checkInbox()`**, and
+   * that is not a quirk of this stub — it is how React behaves. A stub that resolves in
+   * the same microtask publishes `checking` and then `checked` before the framework has
+   * rendered anything, so both updates batch into a single render of the final state and
+   * the intermediate one never reaches the DOM. A test asserting on `checking` against
+   * such a stub would be asserting on something else, and would pass or fail for reasons
+   * that have nothing to do with `checking`.
+   *
+   * A function rather than one promise, because a gate that has been opened cannot be
+   * closed: a test needs the *first* listing to land and the *second* to hang, and a
+   * single promise can only do one of those. `call` is 1-based, matching `listCalls`.
+   */
+  readonly holdListing?: (call: number) => Promise<unknown> | undefined;
 }
 
 /** Counts nothing, runs nothing: the inbox must not keep polling during a test. */
@@ -85,6 +101,8 @@ function providerReturning(options: StubOptions = {}): MailProvider {
     createMailbox: () => Promise.resolve(mailbox()),
     listMessages: async () => {
       calls += 1;
+      const gate = options.holdListing?.(calls);
+      if (gate !== undefined) await gate;
       const queue = options.listFailsWith;
       if (queue !== undefined && queue[calls - 1] !== undefined) {
         throw queue[calls - 1];
@@ -337,6 +355,55 @@ describe("the inbox on the page", () => {
 
       expect(screen.queryByTestId("inbox-empty")).toBeNull();
       expect(screen.queryByTestId("inbox-checking")).toBeNull();
+    });
+
+    it("keeps the very same row element while a further check is in flight", async () => {
+      // **The repair `motion-and-reduced-motion` D17 forced, and the half only a real
+      // browser could have found.** Rendering the rows is not the property; the rows
+      // being the *same nodes* is. A component that rebuilt identical markup from
+      // scratch on every poll would render correctly, read correctly, and satisfy every
+      // text assertion in this file — while destroying focus, hover, and selection, and,
+      // now that there is an entrance, re-running the materialisation several times a
+      // minute. Measured on the built page before the repair: each poll removed the
+      // list and put it back.
+      let releaseSecond = (): void => undefined;
+      const secondCheck = new Promise<void>((resolve) => {
+        releaseSecond = resolve;
+      });
+
+      const message = summary("a");
+      const { session } = await renderPage(
+        providerReturning({
+          // The same listing on both calls, so the second check teaches nothing and any
+          // change on the page is the poller's doing rather than mail arriving.
+          listings: [[message], [message]],
+          bodies: { a: "Ordinary mail." },
+          // Held for the second listing only, so the first lands immediately and the
+          // page has rows before the state under test happens.
+          holdListing: (call) => (call === 2 ? secondCheck : undefined),
+        }),
+      );
+      await screen.findByTestId("inbox-rows");
+      const before = screen.getByTestId("inbox-row-open");
+
+      // **Started, and not awaited.** Waiting for it would return the page to `checked`,
+      // so the property would never be observed at all — which is what the first version
+      // of this test did, and why it passed against the defect.
+      const pending = session.checkInbox();
+      await screen.findByTestId("inbox-rechecking");
+
+      expect(screen.getAllByTestId("inbox-row-open")).toHaveLength(1);
+      expect(screen.getByTestId("inbox-row-open")).toBe(before);
+      // And it was still showing its mail rather than a sentence about checking.
+      expect(screen.queryByTestId("inbox-checking")).toBeNull();
+      expect(screen.getByTestId("inbox-row-subject").textContent).toBeTruthy();
+
+      await act(async () => {
+        releaseSecond();
+        await pending;
+      });
+      expect(screen.queryByTestId("inbox-rechecking")).toBeNull();
+      expect(screen.getByTestId("inbox-row-open")).toBe(before);
     });
   });
 

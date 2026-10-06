@@ -201,16 +201,34 @@ export const METRICS = {
 } as const;
 
 /**
- * Motion. **Declared, and used by nothing in this slice.**
+ * Motion.
  *
- * That is deliberate and it is D1's ordering constraint made concrete. Reduced-motion
- * handling arrives in the next slice **atomically with the motion it governs**, because
- * shipping an animation with no way to stop it would introduce the problem `AGENTS.md`
- * and `docs/ROADMAP.md` both say this milestone exists to solve. The tokens exist now so
- * that slice has one place to read, and so the duration of the first animation is not
- * chosen at the moment someone writes the animation.
+ * **The order is effect first, then timing**, because a reader meeting
+ * `blur(var(--blur))` inside a keyframes block wants to know how far something travels
+ * before it wants to know how long that takes.
+ *
+ * ## Why the two distances are declared here and not borrowed from `SPACE`
+ *
+ * `--space-1` is `0.25rem`, which is exactly this milestone's 4px rise, so reusing it
+ * would have added no token at all. It is still wrong. `--space-1` is read by roughly a
+ * dozen layout rules, so a change made to a spacing step for layout reasons would
+ * silently move the motion — and `docs/DESIGN_SYSTEM.md` would then describe a motion
+ * nobody chose. These two are declared so the motion and the spacing scale can move
+ * independently.
+ *
+ * They are pixels rather than `rem` because they are optical offsets on the way in, not
+ * typographic or layout measures, and because the roadmap specifies them as pixels.
+ *
+ * **This is the second kind of value to test the layer's "not layout" clause**, after the
+ * two `measure-*` tokens. The argument is the same and it holds: at rest the transform is
+ * `none` and the filter is absent, so neither value affects where anything is. They are
+ * what an element *does on the way in*, not what it *is*.
  */
 export const MOTION = {
+  /** How far a materialising element travels before it settles. */
+  rise: "4px",
+  /** How blurred a materialising element is before it resolves. */
+  blur: "6px",
   "duration-fast": "120ms",
   "duration-base": "200ms",
   "ease-standard": "cubic-bezier(0.16, 1, 0.3, 1)",

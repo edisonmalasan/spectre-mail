@@ -77,6 +77,8 @@
   --measure-page: 46rem;
 
   /* Motion */
+  --rise: 4px;
+  --blur: 6px;
   --duration-fast: 120ms;
   --duration-base: 200ms;
   --ease-standard: cubic-bezier(0.16, 1, 0.3, 1);

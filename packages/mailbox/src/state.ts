@@ -103,10 +103,26 @@ export type MessageVerdict =
  * about. What a failure must never do is touch the mailbox: that lives on
  * `SessionState`, which is why a requirement can say a failed check leaves the
  * address alone.
+ *
+ * **`checking` keeps it too, and this is the amendment `motion-and-reduced-motion`
+ * forced (2026-10-06).** It used to carry no listing at all, which made it the one
+ * variant that could blank the inbox for the length of a request - so a client
+ * rendering it as its own branch tore the list down and rebuilt it on *every* poll.
+ * The reasoning above applies here verbatim, and more strongly: "is being checked" is
+ * a weaker reason to hide what is known than "the check failed", because the rows are
+ * still true and are merely possibly out of date. Measured on the shipped page before
+ * this change, a poll removed the whole `<ul>`, inserted a sentence, and put the list
+ * back - every five seconds, for as long as the tab stayed open.
+ *
+ * It is `InboxListing` rather than `InboxListing | undefined` because a first check
+ * genuinely has nothing, and an empty listing says exactly that: the same value
+ * `checkFailed` has always used for a check that failed before anything was learned.
+ * An optional would have put a second spelling of that one fact in the type, and a
+ * client branch that had to decide between them.
  */
 export type InboxState =
   | { readonly kind: "notStarted" }
-  | { readonly kind: "checking" }
+  | { readonly kind: "checking"; readonly listing: InboxListing }
   | { readonly kind: "checked"; readonly listing: InboxListing }
   | {
       readonly kind: "checkFailed";

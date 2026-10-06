@@ -10,10 +10,33 @@
  * ## Everything is stated in words
  *
  * No state, marking, or unread flag is signalled by colour or shape alone. Each is a
- * text node. There is no stylesheet at this milestone — M7 owns that — so anything
- * conveyed visually would convey nothing at all today, and a row whose only signal was
- * a coloured dot would be a row that says nothing to a screen reader, in print, or on
- * a monochrome display.
+ * text node, and M7 slice 1 has now given those words an accent *rule* to reinforce
+ * them - the words are still the marking. A row whose only signal was a coloured dot
+ * would be a row that says nothing to a screen reader, in print, or on a monochrome
+ * display, and the stylesheet does not change that.
+ *
+ * ## A check in progress does not take the rows away
+ *
+ * **`checking` renders the rows it already has, and this is the repair
+ * `motion-and-reduced-motion` forced (2026-10-06).** The session publishes `checking`
+ * before every listing, and this file used to render that state as its own branch with
+ * no rows at all - so every poll unmounted the `<ul>`, flashed a sentence, and rebuilt
+ * it. Measured on the built page: the list was removed and recreated on each poll,
+ * every five seconds, for as long as the tab stayed open.
+ *
+ * That was visible before motion existed and it is worse now, for two reasons that
+ * needed two layers to fix and this file is the outer one. **In this file**, the branch
+ * structure: an element is torn down and rebuilt whenever its parent returns a
+ * different subtree, and a rebuilt row re-runs its entrance, so the inbox
+ * re-materialised several times a minute. **In the session**, the reason the state
+ * carried no rows to keep (`state.ts`, `motion-and-reduced-motion` D17).
+ *
+ * The tree below is therefore arranged so that `checked` and `checking` produce
+ * **the same elements in the same order**, with the re-checking sentence *appended*
+ * rather than inserted. That is not a stylistic preference: a `<p>` placed before the
+ * list would shift its index, and a shifted index is a remount. The rows and the note
+ * that follow them are keyed by position, so appending is what keeps the list alive
+ * across a poll.
  *
  * ## No number about checking
  *
@@ -60,16 +83,13 @@ export function Inbox({ inbox, onCheck, onOpenMessage }: InboxProps) {
   // different facts: the first says a provider answered and there was nothing, the
   // second says nobody has asked yet. Collapsing them would report "no mail" about a
   // mailbox that was never looked at.
-  if (inbox.kind === "notStarted" || inbox.kind === "checking") {
-    return (
-      <section className="region" aria-labelledby="inbox-heading">
-        <h3 id="inbox-heading">Inbox</h3>
-        <p data-testid="inbox-checking">Checking this address for mail.</p>
-        <p data-testid="inbox-cadence-note">
-          This page checks while it is open and stops when you switch away.
-        </p>
-      </section>
-    );
+  //
+  // **`notStarted` and an empty `checking` render the same component, and that is now
+  // a claim rather than a coincidence.** They are the same fact — a check is under way
+  // or has not begun, and nothing has been learned either way — and `checking` only
+  // starts carrying rows once there are some (see the module doc).
+  if (inbox.kind === "notStarted") {
+    return <CheckingInbox />;
   }
 
   if (inbox.kind === "checkFailed") {
@@ -98,22 +118,55 @@ export function Inbox({ inbox, onCheck, onOpenMessage }: InboxProps) {
     );
   }
 
+  // **Everything below is `checked` or `checking`, and both carry a listing.** Which is
+  // the whole point of the change: a check in progress is not a state that takes the
+  // rows away. An empty listing under `checking` is what a first check looks like, and
+  // it says the same sentence an empty listing under `checked` does *not* — because
+  // there the provider answered and reported nothing, which is a different claim.
   if (inbox.listing.messages.length === 0) {
-    return (
-      <section className="region" aria-labelledby="inbox-heading">
-        <h3 id="inbox-heading">Inbox</h3>
-        <p data-testid="inbox-empty">No mail has arrived at this address yet.</p>
-        <p data-testid="inbox-cadence-note">
-          This page checks while it is open and stops when you switch away.
-        </p>
-      </section>
-    );
+    return inbox.kind === "checking" ? <CheckingInbox /> : <EmptyInbox />;
   }
 
   return (
     <section className="region" aria-labelledby="inbox-heading">
       <h3 id="inbox-heading">Inbox</h3>
       <InboxRows listing={inbox.listing} onOpenMessage={onOpenMessage} />
+      <p data-testid="inbox-cadence-note">
+        This page checks while it is open and stops when you switch away.
+      </p>
+      {/*
+        **Appended, and never inserted.** The three elements above are at the same
+        indices in both states, so this one appearing cannot shift them; a `<p>` before
+        the list would move the `<ul>` to a new index, and a node at a new index is a
+        node React rebuilds — which is the remount this branch structure exists to
+        avoid. Measured before the repair: every poll removed and recreated the list.
+      */}
+      {inbox.kind === "checking" ? (
+        <p data-testid="inbox-rechecking">Checking again for new mail.</p>
+      ) : null}
+    </section>
+  );
+}
+
+/** A check nobody has answered yet, whether or not one is running. */
+function CheckingInbox() {
+  return (
+    <section className="region" aria-labelledby="inbox-heading">
+      <h3 id="inbox-heading">Inbox</h3>
+      <p data-testid="inbox-checking">Checking this address for mail.</p>
+      <p data-testid="inbox-cadence-note">
+        This page checks while it is open and stops when you switch away.
+      </p>
+    </section>
+  );
+}
+
+/** A check that finished and reported nothing. */
+function EmptyInbox() {
+  return (
+    <section className="region" aria-labelledby="inbox-heading">
+      <h3 id="inbox-heading">Inbox</h3>
+      <p data-testid="inbox-empty">No mail has arrived at this address yet.</p>
       <p data-testid="inbox-cadence-note">
         This page checks while it is open and stops when you switch away.
       </p>

@@ -32,7 +32,7 @@
 
 import { expect, test, type Page } from "@playwright/test";
 
-import { serveRecordedProvider } from "./recorded-provider";
+import { deferred, serveRecordedProvider } from "./recorded-provider";
 import { openFreshMailbox } from "./open-mailbox";
 
 /**
@@ -41,13 +41,6 @@ import { openFreshMailbox } from "./open-mailbox";
  * Used to hold a provider answer open so an ordering claim can be inspected while it
  * is still undecided. No duration, so nothing here can flake on a slow machine.
  */
-function deferred(): { promise: Promise<void>; release: () => void } {
-  let release!: () => void;
-  const promise = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  return { promise, release };
-}
 
 /**
  * Every IndexedDB database this origin currently holds, by name.
@@ -184,7 +177,11 @@ test.describe("the storage a page actually uses", () => {
     // Hold the provider's answer open so the ordering can be inspected while it is
     // still undecided, rather than inferred from a race that happened to resolve fast.
     const gate = deferred();
-    const traffic = serveRecordedProvider(page, { listingGate: gate.promise });
+    // **The first listing, and every listing after it, because a stored mailbox is
+    // reconciled by one listing and the claim is about that one.** The gate is a
+    // per-call function for that reason: `motion.spec.ts` holds a *later* listing while
+    // answering the first, which a single promise could not express.
+    const traffic = serveRecordedProvider(page, { listingGate: () => gate.promise });
 
     await page.reload();
 

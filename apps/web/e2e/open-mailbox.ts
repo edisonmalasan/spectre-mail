@@ -23,6 +23,37 @@ import { expect, type Page } from "@playwright/test";
 
 import { serveRecordedProvider, type ProviderTraffic } from "./recorded-provider";
 
+/** How a spec joins "load the page and wait for a mailbox" without copying it. */
+export interface OpenMailboxOptions {
+  /**
+   * Run once the document has loaded, and **before** `ready` is awaited.
+   *
+   * **Here and not afterwards, and the placement is measured.** `ready` appears before
+   * the inbox has rendered its rows — checked on 2026-10-06, the page had **zero**
+   * `.inbox-row` elements at the moment `ready` became visible, and the first row
+   * appeared a moment later. So a listener installed after this hook returns can miss
+   * the one event it exists to record, and a test would then read its own timing rather
+   * than the page's behaviour.
+   *
+   * **A hook and not a second copy of the navigation.** This module's reason for
+   * existing is that two spellings of "load the page and wait for a mailbox" would drift
+   * apart silently, and a spec that navigated for itself would be exactly that.
+   */
+  readonly onDocumentLoaded?: (page: Page) => Promise<void>;
+
+  /**
+   * Hold a listing response open, by its one-based count.
+   *
+   * **Plumbed rather than re-installed, because installing a second handler over the
+   * first would give two `denied` records for one request** and make the denial
+   * assertion in 8.3 read as though the page had reached two unrecorded origins.
+   *
+   * Forwarded verbatim to `serveRecordedProvider`; see `RecordedProviderOptions` for why
+   * it is a function of the call number.
+   */
+  readonly listingGate?: (call: number) => Promise<unknown> | undefined;
+}
+
 /**
  * Load the page and wait until it has finished creating a mailbox.
  *
@@ -32,13 +63,28 @@ import { serveRecordedProvider, type ProviderTraffic } from "./recorded-provider
  * is actually on the page. Waiting for the address alone would pass while the inbox had
  * not yet rendered, and the controls below are part of the inbox.
  *
+ * **`ready` is not the inbox.** See `OpenMailboxOptions.onDocumentLoaded` for the
+ * measurement: a spec that needs a *row* waits for the row, because no single state
+ * covers both.
+ *
  * Provider traffic is installed **before** `goto`, so the very first document request is
  * already covered by the handler that denies unrecorded origins. See
  * `recorded-provider.ts` for why that ordering is not optional.
  */
-export async function openFreshMailbox(page: Page): Promise<ProviderTraffic> {
-  const traffic = serveRecordedProvider(page);
+export async function openFreshMailbox(
+  page: Page,
+  options: OpenMailboxOptions = {},
+): Promise<ProviderTraffic> {
+  // **`exactOptionalPropertyTypes` is why this is conditional rather than
+  // `{ listingGate: options.listingGate }`.** Passing an explicit `undefined` is not the
+  // same as omitting the key under this compiler setting, and the error it produces reads
+  // like a type mismatch rather than a decision about spelling.
+  const traffic = serveRecordedProvider(
+    page,
+    options.listingGate === undefined ? {} : { listingGate: options.listingGate },
+  );
   await page.goto("/");
+  if (options.onDocumentLoaded !== undefined) await options.onDocumentLoaded(page);
   await expect(page.getByTestId("ready")).toBeVisible();
   return traffic;
 }

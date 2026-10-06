@@ -44,13 +44,23 @@
 **Roadmap cursor:** **M6 - Website Hardening, complete in scope and closed out.
 M7 - Spectral Swiss Design Pass - slice 1 (`spectral-swiss-foundation`) is applied,
 verified (with its verification-pass repairs merged as PR **#64**), synced (**#65**), and
-**ARCHIVED** — which closes M7 slice 1 completely. The current objective is **M7
-slice 2: motion, landing atomically with `prefers-reduced-motion` handling**, and it is
-owed rather than optional: the motion tokens are declared and used by nothing, and the fix
-for the media query has to land *with* the motion rather than after it. It is **proposed**
-as change **`motion-and-reduced-motion`**; its slice row below records what it does and, in
-the same place, the half of the roadmap's phrase it will **not** deliver. Slice 3 is the five
-website sections; slice 4, the `Extension preview`, is **blocked on M8**.**
+**ARCHIVED** — which closes M7 slice 1 completely. **Slice 2
+(`motion-and-reduced-motion`) is applied and verified**, and its proposal merged as **#67**;
+**its Apply PR number is recorded at the archive stage, as every other slice's is.**
+The current objective is **M7 slice 3: the five website sections**, and slice 4, the
+`Extension preview`, remains **blocked on M8**.
+
+**Two sentences this cursor carried are deleted rather than reworded, because slice 2 made
+both false.** *"The motion tokens are declared and used by nothing"* was true through slice 1
+and stopped being true the moment three entrances landed on hooks the page already had.
+*"The fix for the media query has to land with the motion rather than after it"* was the
+reason slice 2 could not be deferred, and it did not defer — but as a statement of the
+cursor's intent it is now spent. **What slice 2 actually cost is recorded where it belongs**,
+in the change's `design.md` D17: landing the entrance on `.inbox-row` exposed a defect that
+had been in the product since M5, where every poll unmounted the inbox list and rebuilt it, so
+the row re-materialised every five seconds for as long as the tab stayed open. **That widened
+the change to a second capability**, and the alternative was put to the user rather than
+decided silently.
 Slice 1 (`spectre-storage`) and slice 2
 (`mailbox-adoption`) are both applied, verified, synced, and **archived** at
 `openspec/changes/archive/2026-10-05-spectre-storage/` and
@@ -303,6 +313,69 @@ the 649** and adding them to it would misreport what `pnpm test` covers.
 `pnpm test:browser` exited 0, 6 passed. The gate commands all exited 0, and `pnpm verify`
 was additionally verified **with no browser installed** by pointing
 `PLAYWRIGHT_BROWSERS_PATH` at an empty directory.
+
+### Current numbers, measured 2026-10-06 at `motion-and-reduced-motion`'s apply stage
+
+**`pnpm verify` exited `0` with `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory**,
+so every gate in it ran with **no browser installed** — which is the property that block
+exists to keep true. It exited `1` on its **first** run here, on `format:check`, and the
+reason is recorded in the change's `design.md` D13: the Motion prose the generated design
+document carries emitted `*"materialize/disappear"*`, Prettier normalises asterisk emphasis
+to underscore emphasis, and the byte-identity assertion forbids hand-correcting the document
+the emitter wrote. **Two gates disagreeing is only resolvable in the generator.**
+
+**694 tests across 35 files, of which 51 are architecture boundary assertions.** 54 in
+`packages/core`, 89 in `packages/providers`, 149 in `packages/mail-parser`, **155 in
+`packages/mailbox`, 114 in `apps/web`**, 44 in `packages/storage`, 38 in `packages/ui`,
+51 boundary. **The deltas from the previous stage are two mailbox tests and one client
+test, and the two counts that did not move are the interesting ones:** `packages/ui` stayed
+at **38** and the boundary count stayed at **51**. The second is a decision rather than an
+omission — D14 records why adding a rule for literal motion values would have meant a
+hand-rolled CSS scanner, and the requirement is enforced in the browser tier against a
+*resolved* duration instead, which catches a literal and an indirect substitution both.
+
+**The second tier grew by nine cases, and `21` is the figure that matters.** **21** Playwright
+test cases in **3** spec files — `storage.spec.ts` (**6**, count unchanged), `focus.spec.ts`
+(**6**), `motion.spec.ts` (**9**). **A `13` figure appears in this change's own
+`tasks.md` and was a miscount**: 12 cases predate this slice and the motion file adds nine,
+which is what Playwright's own `Running 21 tests` reports. The harness that ran the ten
+consecutive suites then compared against `13` and printed `0 of 10` on **ten green runs** —
+**the same class of instrument answering confidently and wrongly as the count defect recorded
+in `design.md` D20**, in the throwaway script rather than in the suite.
+
+**10 consecutive full-suite runs, 21 collected and 21 passing every time.** The first
+version of the wait this slice added was **red in 6 of those 10**, on one line, and the cause
+was arithmetic rather than a race in the ordinary sense: it left Playwright's 5-second default
+while the session schedules its second check `INBOX_POLL_PROMPT_MS` — **5 000ms** — after the
+first. The fix imports `INBOX_POLL_CEILING_MS` rather than picking a number big enough.
+**A suite green four times in ten has told us nothing**, which is why the task asks for ten:
+the four greens in the failing run were luck, and only re-running could have said so.
+
+**16 deliberate violations; 15 counted and caught by the intended assertion, with restoration
+verified by SHA-256 for every mutated file, and the sixteenth recorded as evidence rather than
+counted.** Four results are worth naming, and the count is not one of them:
+
+- **The browser test carrying this slice's own requirement passed on a build that rebuilt the
+  row on every poll.** It waited for the recorded handler to be *asked* for a second listing,
+  and the handler records a request before fulfilling it — so the marker was read before the
+  page had published `checking`, that is, before the defect existed. **This is the third
+  recorded instance of this repository's recurring defect and the third recorded
+  *precondition*; four were found in this slice**, and the fourth was the ceiling above.
+- **A mutation the test this change *named* for it caught in only 4 of 5 runs**, because
+  `notStarted` and an empty `checking` render the same component **by design** — so no
+  assertion on what is on the page can tell them apart. The record now leads with the catcher
+  that never missed.
+- **The obvious inference about the held listing was wrong twice in one session.** Removing
+  the hold reads like it should defeat the assertion, and it does only two times in three.
+  Applying the rebuild defect *and* removing the hold together is caught in **4 runs of 4** —
+  so **the wait is what catches the defect and the hold only makes the wait dependable.** A
+  first draft of the design record credited the hold, and a first draft of the experiment
+  script printed its own conclusion with the branches swapped; both were corrected against the
+  measurement rather than kept because they were the newer claim.
+- **The harness itself was wrong before the tests were**, reading `Test Files 5 passed (5)`
+  as five tests when 114 had run.
+
+**No CI claim is made here, because no run has reported one for this branch yet.**
 
 ### Current numbers, measured 2026-10-06 at `spectral-swiss-foundation`'s archive stage
 
@@ -2809,9 +2882,29 @@ kind would have been reviewed by the standards of the first and would have passe
 | Slice | Change | Owns | State |
 | --- | --- | --- | --- |
 | 1 | `spectral-swiss-foundation` | The token layer in `packages/ui`, the page's structural stylesheet, the accent on the surfaces of the Accent block that **exist on this page today** (active status, verification codes, focus state — *primary action* and *brand mark* arrive with the sections in slice 3, and one further use, a detected link's host, is a recorded reading rather than a listed item), **visible focus states**, and the checks that can be asserted about either — contrast as WCAG arithmetic, focus as a resolved outline in a real browser | applied |
-| 2 | **`motion-and-reduced-motion`** | **Motion**, and `prefers-reduced-motion: reduce` governing it. The three transitions named above arrive here — **entrance only**: the Motion block's word is *"materialize/disappear"*, and only the first half is deliverable in CSS, because an element React has unmounted is gone before any transition can run. Also: a row already on the page is never re-materialised by a later poll, since the inbox polls every five seconds and an animation on every row would repeat itself for as long as the tab is open | proposed |
+| 2 | **`motion-and-reduced-motion`** | **Motion**, and `prefers-reduced-motion: reduce` governing it. The three transitions named above arrive here — **entrance only**: the Motion block's word is *"materialize/disappear"*, and only the first half is deliverable in CSS, because an element React has unmounted is gone before any transition can run. Also: a row already on the page is never re-materialised by a later poll, since the inbox polls every five seconds and an animation on every row would repeat itself for as long as the tab is open | **applied** |
 | 3 | not opened | The **five website sections** below. Composition work, on a foundation slice 1 has already fixed | not started |
 | 4 | **blocked** | The **`Extension preview`** section, below | **blocked on M8** |
+
+**Slice 2 shipped entry motion, and only entry motion, and its own browser spec found a
+product defect on its first run.** Three entrances on hooks that already existed
+(`.address__value`, `.inbox-row`, `.code`), one `@keyframes materialise` whose `to`
+frame is the value the element already computed to — which is what makes
+`prefers-reduced-motion: reduce` a **removal** rather than a substitute timing. The block
+naming all three selectors sits **below** the entrances, and that order is load-bearing:
+equal specificity means source order decides. **Nothing about how the motion looks is
+verified** — the spec reads a computed style and an event log, and no test reads a rendered
+pixel.
+
+The defect is recorded because it is worth more than the feature. `InboxState`'s
+`checking` variant carried no listing, so every poll unmounted the inbox list and rebuilt
+it, and the row **re-materialised every five seconds for as long as the tab stayed open** —
+destroying focus inside the list and showing the flash to a user who had asked for no
+motion. `checkFailed` already kept the last known listing, so `checking` now does too,
+through one helper shared with `refusalOf`. **That widened this change to a second
+capability**, and the alternative — a client-side cache in `Inbox.tsx` — was a real fork
+put to the user rather than decided silently, because `Inbox.tsx` disclaims judging what is
+true and a cache would duplicate what the session already owns.
 
 **Slice 1's boundary is the split between "held to a threshold" and "looks right", and it
 is drawn by what an assertion can measure.** Every colour pair it declares is checked as a

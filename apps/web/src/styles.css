@@ -19,10 +19,10 @@
  *   fails the build if it ever does — with the honest limit recorded there: a *transparent*
  *   outline defeats an indicator just as thoroughly and is caught only by the browser
  *   tier, which is why that spec is not optional.
- * - **No animation and no transition.** Reduced-motion handling belongs to the next slice
- *   and must arrive *with* the motion it governs, so that no state of this repository
- *   ever contains animation with no way to stop it. The duration and easing tokens exist
- *   and are unused for that reason.
+ * - **No transition, and no `!important`.** Motion arrived with this milestone and the
+ *   reduced-motion block that governs it arrived with the motion, which is the ordering
+ *   `visual-system` requires; see the Motion section below for why it is removal rather
+ *   than a shorter duration.
  * - **No utility framework, no preprocessor, no `!important`.**
  *
  * ## The layout, in one paragraph
@@ -30,7 +30,20 @@
  * One constrained column. Hairline rules rather than shadow. Type scale doing the work
  * that decoration usually does. Whitespace in the gaps between regions rather than
  * padding inside them. The mailbox is a working surface a person waits on, so nothing
- * here moves on its own and nothing competes for attention with the address.
+ * here competes for attention with the address.
+ *
+ * ## What moves, and what that sentence used to claim
+ *
+ * This paragraph once ended "nothing here moves on its own". That was true through M7 slice 1
+ * and is **false** from the Motion section below: an arriving message materialises, and so
+ * does a created address and a rendered code.
+ *
+ * It is replaced rather than reworded because the distinction that matters is not "moving"
+ * but **who caused it**. Nothing on this page moves on a cadence the product invented. An
+ * inbox row materialises because mail arrived, once, and a browser spec proves a row already
+ * on the page is never re-materialised by a later poll — which matters here more than
+ * anywhere, because the inbox polls every five seconds. That requirement, not this
+ * sentence's absence of a claim, is what keeps the page still.
  *
  * @module
  */
@@ -538,6 +551,109 @@ li {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+}
+
+/* ── Motion ───────────────────────────────────────────────────────────────────── */
+
+/*
+ * One materialisation, three entrances.
+ *
+ * The mailbox address, an inbox row, and a rendered verification code each arrive the
+ * same way. Three entrances and one keyframes block, because the only thing that differs
+ * between them is duration — and the `animation` shorthand below already carries that, so
+ * three blocks would state one decision three times.
+ *
+ * ## No fill mode, and why none is needed
+ *
+ * Every `to` value below is **what the element already computes to**: `.address__value`,
+ * `.inbox-row` and `.code` declare no `opacity`, no `filter` and no `transform`, so they
+ * compute to `opacity: 1`, `filter: none` (identical in rendering to `blur(0)`) and
+ * `transform: none`. With the default `animation-fill-mode: none`, **finishing the
+ * animation and having no animation at all are therefore the same rendering** — which is
+ * what lets the reduced-motion block below remove the animation outright and be correct
+ * rather than a compromise. A fill mode would pin the final frame explicitly and make the
+ * two states differ again.
+ *
+ * The `to` frame is written out rather than left implicit for a second reason: a keyframes
+ * block whose last frame omits a property interpolates from that property's *initial*
+ * value, not from the element's own declaration, which would make the two states differ.
+ */
+@keyframes materialise {
+  from {
+    opacity: 0;
+    filter: blur(var(--blur));
+    transform: translateY(var(--rise));
+  }
+
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: none;
+  }
+}
+
+/*
+ * The entrances.
+ *
+ * **Two rules rather than one, and this is a correction rather than a preference.** The
+ * first version of this block was one selector list of three carrying `--duration-base`,
+ * with a lone `.inbox-row { animation-duration: var(--duration-fast) }` after it — which
+ * split the motion's governing declaration across two places while the comment above it
+ * claimed the motion stayed "one list of three". A comment that contradicts the rule it
+ * describes is the same defect this repository keeps recording in checks, in prose.
+ *
+ * So the two durations are stated in two rules, and the rule that gives them their shape is
+ * the one below: **the set of selectors carrying an `animation` here is the set the
+ * reduced-motion block names.** Both rules sit directly above that block, so adding a
+ * fourth entrance and forgetting the stop is a visible omission rather than a silent one.
+ *
+ * The inbox row takes `--duration-fast` and the other two take `--duration-base`. The row is
+ * the thing the user is watching, so its arrival should register without holding the eye for
+ * the longer of the two; the address and a code are single, isolated events and things a
+ * person reads, so they get the time the blur needs to resolve into something legible.
+ *
+ * **No `will-change`.** It would promote a compositing layer per row, permanently, on a list
+ * that grows for as long as the page is open. The animation is 120ms and runs once per row;
+ * the promotion would outlive it by minutes.
+ */
+.address__value,
+.code {
+  animation: materialise var(--duration-base) var(--ease-standard);
+}
+
+.inbox-row {
+  animation: materialise var(--duration-fast) var(--ease-standard);
+}
+
+/*
+ * `prefers-reduced-motion: reduce` stops the motion.
+ *
+ * **`animation: none`, not a shorter duration, and not `0.01ms`.** The widely published
+ * workaround for this problem is a near-zero duration, which is not a stop: it is an
+ * animation that finishes before a frame can be composited, so it makes a claim about
+ * timing rather than about the page. Removal is the only form whose result reads back — an
+ * element with no animation reports `none`.
+ *
+ * **The block's position below the entrances is load-bearing.** Equal specificity means
+ * source order decides, so moving this above would leave all three animating under a
+ * reduced-motion preference — the exact defect this milestone exists to prevent, introduced
+ * by reordering two blocks. Nothing in the page would look broken; it would simply move when
+ * the user asked it not to.
+ *
+ * No script reads the preference. That is deliberate: there is then no JS path that could
+ * honour it on one route and not another, and nothing to test beyond the page itself.
+ *
+ * This governs `animation` only. **There is no `transition` in this stylesheet**, so
+ * nothing here claims otherwise — and a check asserting `transition-duration: 0s` would
+ * pass on a page with no transitions at all, which is why the browser sweep carries it as a
+ * tripwire rather than the requirement claiming it.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .address__value,
+  .inbox-row,
+  .code {
+    animation: none;
+  }
 }
 
 /* ── Small screens ────────────────────────────────────────────────────────────── */
