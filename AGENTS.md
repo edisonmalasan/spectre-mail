@@ -34,8 +34,9 @@ the M0 spike probed `api.mail.tm` and `api.guerrillamail.com` live and recorded 
 they actually do, and every architectural rule below is a consequence of a recorded
 observation rather than of an assumption about how such an API ought to behave.
 
-**M0-M6 are complete in scope, and no user has ever seen this product — but a real
-browser has.**
+**M0-M6 are complete in scope, and M7 slice 1 is complete through its whole OpenSpec
+lifecycle — proposal, apply, verification pass with repairs, sync, and archive. No user has
+ever seen this product — but a real browser has.**
 The website creates an address, lists what arrives in it, opens a message, and - since
 M6 slice 2 - **keeps that address in the browser and offers it back on a reload**.
 `browser-verification` has since run that page in **real Chromium against real IndexedDB**,
@@ -105,10 +106,12 @@ The current state, in dependency order:
   to be able to survive one group of measure tokens existing.
 
 The target state is two clients (website, extension) over that shared core. **M7 slice 1
-(`spectral-swiss-foundation`) is applied.** Its two claims are verified by two different
-instruments, deliberately: **contrast** is pure WCAG arithmetic over two hex values in
-`packages/ui/src/pairs.test.ts`, and **focus** is a **resolved** outline read in real
-Chromium on the built page, compared against the same control unfocused. **No test reads a
+(`spectral-swiss-foundation`) is applied, verified, synced, and archived** at
+`openspec/changes/archive/2026-10-06-spectral-swiss-foundation/`, merged as proposal **#62**,
+apply **#63**, verification-pass repair **#64**, sync **#65**. Its two claims are verified
+by two different instruments, deliberately: **contrast** is pure WCAG arithmetic over two
+hex values in `packages/ui/src/pairs.test.ts`, and **focus** is a **resolved** outline read
+in real Chromium on the built page, compared against the same control unfocused. **No test reads a
 rendered pixel's colour**, so how the product *looks* is still a human judgement and no
 document in this repository claims otherwise. Motion is **declared and used by nothing**
 until slice 2, because the fix for `prefers-reduced-motion` has to land *with* the motion
@@ -126,17 +129,23 @@ records the audit with a file or a promoted requirement named for every claim. *
 earlier sentence in this file — "the roadmap's next milestone is M6, Website Hardening —
 storage behind a shared `SpectreStorage` contract, the privacy controls, and the
 error-state work" — was deleted rather than reworded**, because the error-state work it
-named was already delivered by M3 and M5 and never owed by M6. **M6's next eligible
-objective is the first live browser run**, which is what would close `use it externally`,
-the real IndexedDB path, and the unobserved polling cadence; it gets its own change
-because there is no browser-automation suite in this repository. **M5 is complete in
-scope**: all four of its slices are archived, and the three acceptance lines it could not
-deliver itself (`copy the OTP`, `return to a recent mailbox`, `clear local SpectreMail
-data`) are M10's and M6's, as `docs/ROADMAP.md`'s table now records. Reading M5 as
-unfinished is what kept three blocked slices being selected; that correction is recorded
-in the roadmap's Project Status block. The extension build is M8 and the verification
-workflow (notifications, OTP copy/fill) is M10. Those numbers come from
-`docs/ROADMAP.md` and must be read from there, not recalled: an earlier draft of this
+named was already delivered by M3 and M5 and never owed by M6. **That audit also leaned on
+a promoted requirement header which no longer exists** — *"This milestone builds structure,
+not visual design"* — and M7's sync **renamed and amended it**, removing its
+"SHALL NOT have introduced a design token or theme system" clause, which became false the
+day slice 1 landed. The audit's conclusion is unaffected and `docs/ROADMAP.md` now says so
+explicitly rather than quoting a heading that has been replaced.
+**M6's first live browser run was delivered by `browser-verification`**, which closed the
+real IndexedDB path and found the defect recorded above; it got its own change because at
+the time there was no browser-automation suite in this repository. **One thing it did not
+close: `use it externally`** and the unobserved polling cadence, and neither does anything
+in M7. **M5 is complete in scope**: all four of its slices are archived, and the three
+acceptance lines it could not deliver itself (`copy the OTP`, `return to a recent mailbox`,
+`clear local SpectreMail data`) are M10's and M6's, as `docs/ROADMAP.md`'s table now
+records. Reading M5 as unfinished is what kept three blocked slices being selected; that
+correction is recorded in the roadmap's Project Status block. The extension build is M8
+and the verification workflow (notifications, OTP copy/fill) is M10. Those numbers come
+from `docs/ROADMAP.md` and must be read from there, not recalled: an earlier draft of this
 file put storage at "M5–M6", which named a milestone from the layer it felt should come
 next rather than the one the roadmap schedules.
 

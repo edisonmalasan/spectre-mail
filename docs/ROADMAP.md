@@ -43,10 +43,12 @@
 
 **Roadmap cursor:** **M6 - Website Hardening, complete in scope and closed out.
 M7 - Spectral Swiss Design Pass - slice 1 (`spectral-swiss-foundation`) is applied,
-verified (with its verification-pass repairs merged as PR **#64**), and **SYNCED**, and
-awaits its archive stage. The next eligible objective after it is M7 slice 2, which is
-motion and `prefers-reduced-motion`; slice 3 is the five website sections; slice 4, the
-`Extension preview`, is blocked on M8.**
+verified (with its verification-pass repairs merged as PR **#64**), synced (**#65**), and
+**ARCHIVED** — which closes M7 slice 1 completely. The next eligible objective is **M7
+slice 2: motion, landing atomically with `prefers-reduced-motion` handling**, and it is
+owed rather than optional: the motion tokens are declared and used by nothing, and the fix
+for the media query has to land *with* the motion rather than after it. Slice 3 is the five
+website sections; slice 4, the `Extension preview`, is **blocked on M8**.**
 Slice 1 (`spectre-storage`) and slice 2
 (`mailbox-adoption`) are both applied, verified, synced, and **archived** at
 `openspec/changes/archive/2026-10-05-spectre-storage/` and
@@ -57,10 +59,12 @@ Slice 1 (`spectre-storage`) and slice 2
 its Apply as **#54**, its sync as **#55**. **`browser-verification` is archived** at
 `openspec/changes/archive/2026-10-06-browser-verification/`; its proposal merged as
 **#58**, its Apply as **#59**, its sync as **#60**. `spectral-swiss-foundation`'s proposal
-merged as **#62**, its Apply as **#63**, and its **verification-pass repair** — one CRITICAL
+merged as **#62**, its Apply as **#63**, its **verification-pass repair** — one CRITICAL
 and five WARNINGs, all corrected, plus a mislabelled contrast standard found while
-correcting one of them — as **#64**. This block is written at that change's **sync** stage,
-so `openspec list` still reports one active change; the archive stage is next.
+correcting one of them — as **#64**, and its sync as **#65**. **M7 slice 1 is now
+applied, verified, synced, and archived** at
+`openspec/changes/archive/2026-10-06-spectral-swiss-foundation/`. `openspec list` reports
+**No active changes**, which is the correct end state for a completed milestone.
 
 **The archive was checked rather than assumed, because archiving is a move.** All four
 delta files survived it, and each delta's ADDED block was then compared
@@ -86,6 +90,22 @@ against the existing spec by exact header text, so a renamed header matching not
 have left *both* headings in the promoted spec — and the stale one is a claim this
 milestone falsifies. A single `Select-String` for the old heading returns one hit, and it
 is inside the amendment note that records the rename.
+
+**The archive was re-checked afterwards, because archiving is a move and a move is the
+operation most likely to drop a file.** All **six** files arrived —
+`.openspec.yaml`, `proposal.md`, `design.md`, `tasks.md`, and both deltas — and both
+requirement-block comparisons were re-run against the **archived copies** rather than the
+pre-archive ones: **`visual-system` 5 of 5 identical, `website-client` 1 of 1 identical,
+0 differing**, `openspec/specs/` still holding **11 capabilities, 115 requirements, 314
+scenarios**, and `openspec validate --specs --strict` at **11 passed, 0 failed**. The
+archive ran with `--skip-specs` because the sync stage had already promoted both deltas;
+without it each would have been applied a second time. `openspec validate
+spectral-swiss-foundation --type change --strict` now **fails** with *"Change must have at
+least one delta"* — the documented OpenSpec 1.13.2 behaviour for an archived change whose
+deltas are present and byte-identical, not data loss, as the same message appears for every
+previously archived change here. **The check that still means something after an archive is
+`openspec validate --specs --strict` plus that block comparison**, and both were run
+against the moved files rather than trusted.
 
 **M6's code scope is now complete, and this was established by auditing rather than by
 building.** Slice 4's four items — error states, security, accessibility, and pausing
@@ -282,7 +302,11 @@ the 649** and adding them to it would misreport what `pnpm test` covers.
 was additionally verified **with no browser installed** by pointing
 `PLAYWRIGHT_BROWSERS_PATH` at an empty directory.
 
-### Current numbers, measured 2026-10-06 at `spectral-swiss-foundation`'s apply stage
+### Current numbers, measured 2026-10-06 at `spectral-swiss-foundation`'s archive stage
+
+**The figures below are from the verification-pass repair and were re-confirmed at the
+archive stage**, which moved documentation and promoted one capability without touching
+`packages/*` or `apps/*` — `pnpm verify` ran at every stage and reported the same counts.
 
 **691 tests across 35 files, of which 51 are architecture boundary assertions.** 54 in
 `packages/core`, 89 in `packages/providers`, 149 in `packages/mail-parser`, 153 in
