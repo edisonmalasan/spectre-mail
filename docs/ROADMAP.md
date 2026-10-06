@@ -18,13 +18,16 @@
 > source of truth — `openspec/specs/` and the active OpenSpec change artifacts are.
 > Reconcile this block against Git and OpenSpec before trusting it in a later session.
 >
-> `openspec/specs/` holds **ten** capabilities: `provider-abstraction` (promoted
+> `openspec/specs/` holds **eleven** capabilities: `provider-abstraction` (promoted
 > from `provider-role-decision`), `monorepo-foundation` (M1), `shared-domain-model`
 > (M2), `provider-adapters` (M3), `mail-parsing` (M4), `build-and-verification`
 > (M1), `mailbox-session` (M5 slice 1), `website-client` (M5 slice 1),
-> `spectre-storage` (M6 slice 1), and **`browser-verification`** (new, promoted at the
-> `browser-verification` sync stage). Counted mechanically at that stage and again after
-> the archive, they hold **110 requirements and 300 scenarios** in total.
+> `spectre-storage` (M6 slice 1), `browser-verification`, and **`visual-system`**
+> (new, promoted at the `spectral-swiss-foundation` sync stage — M7 slice 1). Counted
+> mechanically at each sync and again after each archive, they hold **115 requirements
+> and 314 scenarios** in total: 110/300 before this promotion, plus `visual-system`'s
+> **5 requirements and 14 scenarios**, with `website-client` at **20 / 66** after the
+> rename and amendment its delta carried.
 >
 > **That figure was stale twice before the last correction**, and the drift was the same
 > shape both times: a promotion landed and the count was not moved. It read 93
@@ -38,11 +41,11 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor:** **M6 - Website Hardening, complete in scope and closed out;
-`browser-verification` applied, verified, synced, and archived. M7 - Spectral Swiss Design
-Pass - slice 1 (`spectral-swiss-foundation`) is APPLIED and awaiting its verification pass.
-The next eligible objective after it is M7 slice 2, which is motion and
-`prefers-reduced-motion`; slice 3 is the five website sections; slice 4, the
+**Roadmap cursor:** **M6 - Website Hardening, complete in scope and closed out.
+M7 - Spectral Swiss Design Pass - slice 1 (`spectral-swiss-foundation`) is applied,
+verified (with its verification-pass repairs merged as PR **#64**), and **SYNCED**, and
+awaits its archive stage. The next eligible objective after it is M7 slice 2, which is
+motion and `prefers-reduced-motion`; slice 3 is the five website sections; slice 4, the
 `Extension preview`, is blocked on M8.**
 Slice 1 (`spectre-storage`) and slice 2
 (`mailbox-adoption`) are both applied, verified, synced, and **archived** at
@@ -54,9 +57,10 @@ Slice 1 (`spectre-storage`) and slice 2
 its Apply as **#54**, its sync as **#55**. **`browser-verification` is archived** at
 `openspec/changes/archive/2026-10-06-browser-verification/`; its proposal merged as
 **#58**, its Apply as **#59**, its sync as **#60**. `spectral-swiss-foundation`'s proposal
-merged as **#62**; its Apply is the stage this block was written at.
-`openspec list` reported **No active changes** before that proposal and reports the one
-active change now.
+merged as **#62**, its Apply as **#63**, and its **verification-pass repair** — one CRITICAL
+and five WARNINGs, all corrected, plus a mislabelled contrast standard found while
+correcting one of them — as **#64**. This block is written at that change's **sync** stage,
+so `openspec list` still reports one active change; the archive stage is next.
 
 **The archive was checked rather than assumed, because archiving is a move.** All four
 delta files survived it, and each delta's ADDED block was then compared
@@ -69,16 +73,34 @@ browser-verification --type change --strict` now **fails** with *"Change must ha
 least one delta"* — the documented OpenSpec 1.13.2 behaviour for an archived change, and
 not data loss, as the same message appears for every previously archived change here.
 
+**The `spectral-swiss-foundation` sync made two promotions, and both were compared the
+same way.** `visual-system` is **new**, so it was created from its delta's five ADDED
+requirements with the delta's `## Purpose` copied verbatim; `website-client` carried a
+`RENAMED` plus a `MODIFIED`, so the requirement is now headed **"The page is built with
+correct structure, accessible names, and states"** and its `SHALL NOT have introduced a
+design token or theme system` clause is **gone**. Comparing every requirement block,
+whitespace-normalised: **`visual-system` 5 of 5 identical, `website-client` 1 of 1
+identical, 0 differing**, and `openspec validate --specs --strict` reports **11 passed,
+0 failed**. **The rename is the part worth checking by name**: `MODIFIED` is matched
+against the existing spec by exact header text, so a renamed header matching nothing would
+have left *both* headings in the promoted spec — and the stale one is a claim this
+milestone falsifies. A single `Select-String` for the old heading returns one hit, and it
+is inside the amendment note that records the rename.
+
 **M6's code scope is now complete, and this was established by auditing rather than by
 building.** Slice 4's four items — error states, security, accessibility, and pausing
 polling when the page is hidden — were checked against the tree before any change was
 opened, and **three were already delivered and already specified**; the fourth's two
 undelivered accessibility items are CSS, which this milestone's own promoted requirement
-excludes (*"This milestone builds structure, not visual design"*) and which M7's Accent
-and Motion blocks already place inside M7. **No fourth change was opened**, and the
+excluded at the time (*"This milestone builds structure, not visual design"*) and which M7's
+Accent and Motion blocks already place inside M7. **No fourth change was opened**, and the
 audit is recorded under M6's slice table with a file or a promoted requirement named for
 every claim. `packages/storage` holds **44 tests** and the workspace runs **649 across
-31 files**, counted from a JSON reporter.
+31 files**, counted from a JSON reporter. **The requirement that audit leaned on has since
+been renamed and amended by the `spectral-swiss-foundation` sync**, so the sentence above
+is a historical claim about the spec as it stood; the clause it quotes no longer exists,
+and the `visual-system` capability that replaced it is the reason M7 was allowed to proceed
+at all.
 
 ### `browser-verification`: the first real browser run, and what it found
 
