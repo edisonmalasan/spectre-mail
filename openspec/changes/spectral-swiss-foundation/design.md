@@ -451,13 +451,20 @@ already passed. That is the second time this repository has had a real instrumen
 something a unit suite was green about, and the reason the browser tier is a separate runner
 with its own CI job rather than a folder inside `pnpm test`.
 
-**The repair is now verified in CI, and the run id is the claim.** It is mutation-falsified
-(§2.3), the tier passes locally, and **run `37442961830` carried the repair and came back
-green** on a GitHub-hosted Linux runner — `verify`, `spike self-test` and `browser` all
-SUCCESS. It is stated as a run id rather than as "CI is green", because a claim about CI
-that outruns a run is the exact failure this repository's `spike self-test` notes describe:
-four cancelled jobs with **no log archive at all**, and the JSON the only instrument that
-could tell a starved runner queue from a hang.
+**The repair ran green in CI once, and that is all a green run is.** It is
+mutation-falsified (§2.3), the tier passes locally, and **run `37442961830` carried the
+repair and came back green** on a GitHub-hosted Linux runner — `verify`, `spike self-test` and
+`browser` all SUCCESS. It is stated as a run id rather than as "CI is green", because a claim
+about CI that outruns a run is the exact failure this repository's `spike self-test` notes
+describe: four cancelled jobs with **no log archive at all**, and the JSON the only instrument
+that could tell a starved runner queue from a hang.
+
+**Corrected by D16.** That sentence read as though a green run verified the repair. A
+subsequent run of the same suite on the same commit's successor — `37446193779` — was **red**,
+on a defect the repair had not looked for, and it reproduces locally about **one run in three**.
+So `37442961830` was green **once**, and the honest form of the claim is *"the repair reached a
+green `browser` job"* rather than *"the repair is verified in CI"*. A passing run reports no
+history, and **nothing in its own output could have said otherwise.**
 
 Four limits are unchanged and none of them is the one that just closed:
 
@@ -612,3 +619,86 @@ nothing here says how SpectreMail looks. Its largest finding was a mislabelled n
 generated table, and it found that by reading code against artifacts. A number is a machine's
 subject; whether a restrained column and a hairline rule read as *trustworthy* is not, and no
 gate in this repository stands in for the judgement.
+
+---
+
+## D16 � A green CI run that was luck, and the precondition it was green by accident of
+
+### D16a � What happened
+
+The repair for run `37439940701` shipped in `592d03c` and **run `37442961830` came back
+green** on all three jobs. This change recorded that as *"the fact this sentence waited
+for"*, and it was **not a fact about the suite**. It was a fact about one run.
+
+Run `37446193779`, carrying the verification-pass repair, was **red** again � and this time
+the failure was the **drift reporter the repair itself added** doing exactly its job:
+
+```text
+position 1 was "Back to the inbox" (index 1), now "Open Message with no subject. �" (index 1)
+position 2 was "Replace address"  (index 2), now "Back to the inbox"        (index 2)
+position 3 was "Clear saved data"  (index 3), now "Replace address"        (index 3)
+position 4 appeared: "Clear saved data"
+```
+
+**Read as a diff rather than as a failure, that is one element inserted above index 1** � the
+inbox row gaining a layout box after the walk had already begun. It reproduces locally on
+**roughly one run in three**, which is why `37442961830` passing was luck rather than a
+property.
+
+### D16b � What it is not
+
+**It is not the product's control set being unstable.** Read eight times a second apart with
+nothing touching it, the list is identical every time. The window is between the `ready` state
+rendering and the inbox row being laid out, and a walk's worth of Tab presses is long enough
+to fall inside it. Nothing in `apps/web` changed to cause this; the cause is a precondition
+the spec asserted rather than established.
+
+### D16c � The fix, and the part that matters more
+
+`settledFocusableControls()` waits until the control list has **held for five consecutive
+100ms reads** before the walk begins, and **throws** if it never does � reporting the list it
+last saw. A bounded loop that returned its last read on timeout would leave every caller
+believing the page had settled.
+
+**The first version of that wait was wrong, and its own positive control caught it.** It
+required two agreeing reads 100ms apart. The control plants a control that gains a layout box
+**150ms** in, so the first two reads agree without it and a two-read wait returns a list that
+does not contain it:
+
+```text
+Error: the wait returned before the late control appeared
+1 failed | 5 passed
+```
+
+**That is the second time in this change that a precondition was narrower than the property
+it stood for** � and like the traversal repair, it was authored here and caught here. The
+lesson is the specific one: **two agreeing reads is not evidence of settledness, it is a delay
+with a comparison in it.** The window has to be a duration chosen against the observed failure,
+and the observed failure was seconds, not 200ms.
+
+**And the honest limit, which is why the drift assertion was not weakened to compensate.** No
+duration makes this certain � on a slower runner the row could appear after the window closes.
+What the wait buys is that the common case is covered. What **guarantees** the reading is the
+post-walk drift check, which is unchanged and still fails the spec if the set moved while it
+was being read. **The two are not substitutes: one is a precondition, one is the property.**
+
+**Measured after**: **10 consecutive local runs, 12 passed, 0 failed**, against roughly one in
+three failing before.
+
+### D16d � The falsification
+
+**M29** replaces the agreement count with "return on the first comparison". Caught by the
+intended assertion � *the wait returned before the late control appeared* � naming the
+control it missed. **29 of 29** deliberate violations are now caught by the assertion written
+for them.
+
+### D16e � What a green run is, restated
+
+`37442961830` was green and this document recorded it as the repair being verified. It was
+**green once**, on a suite with an intermittent failure, and the record did not say so because
+nothing in the run's output could say so � a passing run reports no history.
+
+**The only instrument that could have caught it was re-running**, and the repository's own
+rule already says a green CI run is not evidence of much: it is a claim about one execution. The
+sentence this replaces, that the repair is *"verified in CI"*, is corrected below to name the
+run **and** the fact that a subsequent run of the same suite on a slower machine was red.

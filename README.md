@@ -81,7 +81,7 @@ measured `records=1 claimsStored=0 offersRemoval=0` in Chromium, while 152 unit 
 passed. The cause was an unmount guard scoped to one effect invocation, which that
 effect's own cleanup cleared whenever the inbox published new state mid-write. It is fixed,
 pinned by a unit regression test that holds a write open, and now covered in real Chromium
-by `pnpm test:browser` (Playwright `1.63.0`, now 11 specs, its own CI job).
+by `pnpm test:browser` (Playwright `1.63.0`, now 12 specs, its own CI job).
 
 **And a CI run carrying this page's new specs went red on 2026-10-06** — see below.
 
@@ -367,7 +367,7 @@ boundary assertion enforces that in both directions.
 | `pnpm lint`                          | ESLint passes.                                                                                                                                                                                                                                                                                                               | Type correctness; `pnpm typecheck` owns that.                                                                                                                                                                                                                     |
 | `pnpm format:check`                  | Prettier passes on the files this repository governs.                                                                                                                                                                                                                                                                        | That historical documents are formatted; those are deliberately excluded.                                                                                                                                                                                         |
 | `pnpm test`                          | 691 tests across 35 files pass, including 51 architecture boundary assertions.                                                                                                                                                                                                                                               | Product behaviour against a **live** provider. Every provider test replays recorded responses, and `jsdom` implements no IndexedDB.                                                                                                                               |
-| `pnpm test:browser`                  | 11 specs pass in **Chromium**: the built page reads and writes real IndexedDB through `createBrowserStorage()`, a confirmed removal leaves `indexedDB.databases()` empty, and every control the page offers is keyboard-reachable with a focus indicator whose **resolved** outline differs from the same control unfocused. | Anything about a live provider — every provider response is a recorded one. Nor about Firefox or WebKit, nor a blocked removal, nor how a real provider tolerates five-second polling. **Nor about how the page looks**: no test reads a rendered pixel's colour. |
+| `pnpm test:browser`                  | 12 specs pass in **Chromium**: the built page reads and writes real IndexedDB through `createBrowserStorage()`, a confirmed removal leaves `indexedDB.databases()` empty, and every control the page offers is keyboard-reachable with a focus indicator whose **resolved** outline differs from the same control unfocused. | Anything about a live provider — every provider response is a recorded one. Nor about Firefox or WebKit, nor a blocked removal, nor how a real provider tolerates five-second polling. **Nor about how the page looks**: no test reads a rendered pixel's colour. |
 | `pnpm build`                         | The website builds with Vite.                                                                                                                                                                                                                                                                                                | That packages emit anything — they are consumed as TypeScript source, so there is nothing to emit.                                                                                                                                                                |
 | `pnpm dev:web`                       | The website dev server starts and serves the app on `127.0.0.1:5173`.                                                                                                                                                                                                                                                        | That a real browser can reach Guerrilla Mail.                                                                                                                                                                                                                     |
 | `pnpm spike:selftest`                | The M0 harness records outcomes correctly and writes its artifacts.                                                                                                                                                                                                                                                          | Anything about real providers — it issues zero network requests.                                                                                                                                                                                                  |
@@ -402,7 +402,16 @@ no layout box shifted every later reading and truncated the end of the list — 
 `Clear saved data` missing while `Copy address` was present. It did **not reproduce
 locally**, across repeated runs at two workers; it was diagnosed by reading.
 
-**`pnpm verify` was green the whole time.** 691 unit tests and 51 boundary assertions, all
+**And the run after the repair went red again, which is the more useful fact.** Run
+`37442961830` was green on all three jobs. Run `37446193779` was red on the `browser` job
+again, on the drift reporter that same repair added — the page gained its inbox row _after_
+the walk had begun. It reproduces locally about **one run in three**, so the green run was
+luck rather than a property, and **a passing run reports no history**: nothing in its own
+output could have said. The fix is a precondition rather than a retry — wait until the
+control list has held for five consecutive reads, and fail loudly if it never does. 10
+consecutive local runs now pass.
+
+**`pnpm verify` was green the whole time.** 689 unit tests and 51 boundary assertions, all
 passing on the very commit that carried the defect. That is the whole argument for a
 second runner: one suite cannot report coverage it did not execute.
 
@@ -467,7 +476,8 @@ The browser tier closed the storage-path gap and **did not close these**:
   wrong theory first — a bigger timeout, then `--disable-dev-shm-usage --no-sandbox` — are
   recorded in `AGENTS.md` because both were reasonable and both were refuted by
   measurement. **The first run carrying the new focus specs was red**, for the reason
-  described above; the repair landed in run `37442961830` and all three jobs came back green.
+  described above, and the run after the repair was red again for a second reason — two
+  defects, both in the specs, neither in the page. See above.
 
 ---
 

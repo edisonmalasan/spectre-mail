@@ -139,9 +139,9 @@ neighbour turns the pair red **naming the pair and both ratios**.
   `green`, `harness-error`, a non-zero exit with no named failure, a no-op mutation, and a
   mutation caught by a *different* test are **five distinct non-passes** and are each
   reported as such.
-  **Evidence.** **28 of 28 caught by the intended assertion**, across both tiers, with `nocompile`, `green`, `wrongcatch`, `noop`, `harness-error`, and `build-failed` each counted as their own outcome and none of them reported as a pass. **Five** of those runs **changed an assertion or a check rather than merely breaking a suite**, and every one is recorded in `design.md` and `AGENTS.md`: **M14** (deleting the focus rule left the specs green on Chromium's `outline: auto`); **M19** (a line-anchored edit missed a fourth `.inbox-row` selector inside a `@media` block, so the tree was half-mutated and reported green); the harness defect where a `to` that is an **array of lines** was read as an array of edits, producing one `green` from a mutation that never applied; and **M26–M28**, which came from the first CI run carrying this change's specs and are the **twenty-third** recorded instance — the traversal repair was green three times before the invariant it rested on was asserted. See design.md D14.
+  **Evidence.** **29 of 29 caught by the intended assertion**, across both tiers, with `nocompile`, `green`, `wrongcatch`, `noop`, `harness-error`, and `build-failed` each counted as their own outcome and none of them reported as a pass. **Six** of those runs **changed an assertion or a check rather than merely breaking a suite**, and every one is recorded in `design.md` and `AGENTS.md`: **M14** (deleting the focus rule left the specs green on Chromium's `outline: auto`); **M19** (a line-anchored edit missed a fourth `.inbox-row` selector inside a `@media` block, so the tree was half-mutated and reported green); the harness defect where a `to` that is an **array of lines** was read as an array of edits, producing one `green` from a mutation that never applied; **M26–M28**, which came from the first CI run carrying this change's specs and are the **twenty-third** recorded instance — the traversal repair was green three times before the invariant it rested on was asserted (D14); and **M29**, from the second red run, which makes the settle wait return on its first comparison and is caught by the control it skips (D16). **Two of the six were authored and caught inside this change, and both were preconditions rather than assertions** — which is the shape worth carrying forward: the checks most likely to be too weak are the ones that decide *when* to start measuring.
 - [x] 2.3.2 Restoration verified by SHA-256 and reported separately from the catch.
-**Evidence.** Restoration is verified by **SHA-256 per mutation** and reported as its own column, separately from the catch. The final run recorded **0 restoration mismatches** across all 28.
+**Evidence.** Restoration is verified by **SHA-256 per mutation** and reported as its own column, separately from the catch. The final run recorded **0 restoration mismatches** across all 28 run by the harness; **M29 was run outside it** and restored by copying the file back, with `git diff` confirming the only remaining change against `HEAD` was the intended repair.
 - [x] 2.3.3 Include at least one **narrowing** mutation per rule — shortening the pattern,
   dropping a form — because a pattern narrowed from under its own rule is the defect class
   this repository has recorded **twenty-two** times. **Amendment, recorded during apply
@@ -335,8 +335,11 @@ neighbour turns the pair red **naming the pair and both ratios**.
 are unchanged where they had to be**: `apps/web` holds **113**, exactly as before the slice,
 and the browser tier's **six storage specs are still six**. A changed count there would mean
 markup moved and would have to be explained before anything else is looked at. The browser
-tier now holds **eleven** specs in total — the same six plus five focus specs — and it is
-the six that is the evidence, because those are the ones that already existed.
+tier now holds **twelve** specs in total — the same six plus six focus specs — and it is
+the six that is the evidence, because those are the ones that already existed. **The sixth
+focus spec was added by the verification-pass repair**, and it is not a focus *claim* — it is
+the positive control for the settle precondition `design.md` D16 records, so the tier
+distinguishes *the control set was stable* from *the wait returned*.
 
 ---
 
@@ -374,7 +377,7 @@ the six that is the evidence, because those are the ones that already existed.
       **Evidence.** **Positive control per control kind** — a button, a link, an interactive row (`<button>` inside a row, so both are reachable), and the confirm/cancel pair — and a **negative control**: the spec plants a control whose indicator is removed and requires the assertion to fail on it. **That negative control is what proved the first version of the assertion was wrong**: with only `outlineStyle !== "none"` the suite was green on a page whose `:focus-visible` rule had been deleted, because Chromium supplies `outline: auto`. The spec now also asserts `expect.soft(focused.style).not.toBe("auto")`.
 - [x] 5.1.4 The suite's no-origin assertion still passes. Per design D3, a remote font
       would fail all six existing specs; confirm the new spec adds no origin of its own.
-      **Evidence.** The suite's no-origin assertion still passes, and the five new specs add **no origin of their own**: `recorded-provider.ts` aborts and **reports by name** any request outside the recorded set, so a CDN font would fail all **eleven** specs. **The storage specs' count is unchanged at 6**, which is the evidence that styling disturbed no behaviour that tier already covered.
+      **Evidence.** The suite's no-origin assertion still passes, and the six new specs add **no origin of their own**: `recorded-provider.ts` aborts and **reports by name** any request outside the recorded set, so a CDN font would fail all **twelve** specs. **The storage specs' count is unchanged at 6**, which is the evidence that styling disturbed no behaviour that tier already covered.
 
 ### 5.2 Contrast, in `packages/ui`
 
@@ -433,11 +436,11 @@ the six that is the evidence, because those are the ones that already existed.
 - [x] 7.2 `pnpm test:browser` exits 0, **with Chromium present**, and `pnpm verify` is
       re-confirmed to pass **with `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty
       directory** — the property that keeps the two tiers separate.
-      **Evidence.** `pnpm test:browser` exits `0` with Chromium present, **11 passed**. `pnpm verify` was re-confirmed with `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory — the property that keeps the two tiers separate, and the reason `test:browser` is not folded into `verify`.
+      **Evidence.** `pnpm test:browser` exits `0` with Chromium present, **12 passed**. `pnpm verify` was re-confirmed with `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory — the property that keeps the two tiers separate, and the reason `test:browser` is not folded into `verify`.
 - [x] 7.3 `openspec validate spectral-swiss-foundation --strict` passes.
 **Evidence.** `openspec validate spectral-swiss-foundation --strict` passes, and `openspec validate --specs --strict` remains **10 passed, 0 failed** — this slice **adds** `visual-system` rather than amending a promoted spec, so nothing existing moves.
 - [x] 7.4 Record the **before/after counts** of every suite, measured.
-**Evidence.** Before and after, measured: **649 → 691 tests**, **31 → 35 files**, **47 → 51 boundary assertions**, **`apps/web` 113 → 113** (required unchanged), **`packages/ui` 0 → 38**, **browser specs 6 → 11** of which the 6 are unchanged. Falsification: **25 → 28 mutations, all caught by the intended assertion, 0 restoration mismatches** — the three added because the first `browser` CI run carrying this change's specs was red and found a defect in its own traversal (design.md D14, which also records that two of the three claims made about that job were false until a log query settled them). **CI: run `37442961830` green** — `verify`, `spike self-test` and `browser` all SUCCESS on the commit carrying the repair.
+**Evidence.** Before and after, measured: **649 → 691 tests**, **31 → 35 files**, **47 → 51 boundary assertions**, **`apps/web` 113 → 113** (required unchanged), **`packages/ui` 0 → 38**, **browser specs 6 → 12** of which the 6 are unchanged. Falsification: **25 → 29 mutations, all caught by the intended assertion, 0 restoration mismatches** — the three added because the first `browser` CI run carrying this change's specs was red and found a defect in its own traversal (design.md D14, which also records that two of the three claims made about that job were false until a log query settled them). **CI: run `37442961830` green** — `verify`, `spike self-test` and `browser` all SUCCESS on the commit carrying the repair.
       **The final `691` and `38` come from the verification pass, not from slice work** — `design.md` D15 records both new tests and why they exist. The apply stage measured 689 and 36, and **those figures were wrong about the package they named**: 36 was the count before the two tests that catch the mislabelled threshold table existed.
 
 ---

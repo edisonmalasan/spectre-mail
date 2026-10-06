@@ -54,7 +54,7 @@ provider traffic served from recorded responses: boot reads real IndexedDB throu
 `createBrowserStorage()`, a created mailbox is written and read back through the
 platform's own API, adoption is offered only after the provider confirms it, and removal
 leaves `indexedDB.databases()` empty — including a store this build does not recognise.
-**11** browser specs as of M7 slice 1, `pnpm test:browser`, its own CI job.
+**12** browser specs as of M7 slice 1, `pnpm test:browser`, its own CI job.
 
 **What is still unverified, and the list is the point.** **`use it externally` remains
 unverified** — a recorded provider is not a provider. **The live polling cadence remains
@@ -437,8 +437,8 @@ Pin versions when exact versions matter.
   from `--reporter=json` and grouped by project, so the next reader is measuring rather
   than adding up.
   **Those counts cover one tier only.** There is now a **second runner**: Playwright
-  `1.63.0`, **11** browser specs in `apps/web/e2e/` — the 6 storage specs, whose count is
-  **unchanged by M7 slice 1**, and 5 focus specs added by it — run by `pnpm test:browser`,
+  `1.63.0`, **12** browser specs in `apps/web/e2e/` — the 6 storage specs, whose count is
+  **unchanged by M7 slice 1**, and 6 focus specs added by it — run by `pnpm test:browser`,
   **not** part of `pnpm verify`, in its own CI job. That the storage six kept their count is
   the evidence styling changed no behaviour that tier already covered: had a `className`
   altered a control's role or accessible name, one of those six would have stopped finding
@@ -1014,7 +1014,7 @@ pnpm test:browser
 
 ```
 
-Playwright `1.63.0`, **11** specs in `apps/web/e2e/` — the 6 storage specs plus **5 focus
+Playwright `1.63.0`, **12** specs in `apps/web/e2e/` — the 6 storage specs plus **6 focus
 specs added by M7 slice 1** — **Chromium only**. The command builds
 the site first (`pnpm build`) and then serves `apps/web/dist` with `vite preview` on
 `http://127.0.0.1:4173` with `--strictPort`, because the page under test is the **built**
@@ -1397,9 +1397,25 @@ the reason 44 storage tests were never going to find it.
   and truncated the tail. It did not reproduce locally across repeated runs. Repaired,
   mutation-falsified, and passing locally — and then **run `37442961830` carried the repair
   and came back green** on a GitHub-hosted Linux runner: `verify`, `spike self-test` and
-  `browser` all SUCCESS. **That is the fact this sentence waited for**, and it is stated as
-  a run id rather than as "CI is green" because a claim about CI that outruns a run is the
-  failure mode.
+  `browser` all SUCCESS.
+
+  **And that green run was luck, which is the part worth keeping.** Run `37446193779`, on the
+  next commit, was **red again** — this time on the drift reporter the repair itself added,
+  firing correctly: the page's control set gained the inbox row *after* the walk had begun,
+  because `ready` renders a few hundred milliseconds before the row has a layout box and a
+  walk of Tab presses is long enough to fall inside that window. **It reproduces locally
+  about one run in three**, so the green above was a fact about one execution rather than a
+  property of the suite, and the sentence it replaced — *the repair is verified in CI* — was
+  broader than the evidence. **A passing run reports no history, so nothing in its own output
+  could have said otherwise; the only instrument that could catch this is re-running.**
+  The fix is a precondition the spec now establishes rather than assumes: wait until the
+  control list has **held for five consecutive 100ms reads**, or throw reporting what it last
+  saw. **The first version of that wait required two agreeing reads and its own positive
+  control caught it** — a control that gains a box 150ms in is missed by a 200ms window, so
+  two agreeing reads is a delay with a comparison in it, not a precondition. The post-walk
+  drift assertion is **unchanged**: the wait is a precondition, the drift check is the
+  property, and neither substitutes for the other. **10 consecutive local runs, 12 passed, 0
+  failed**, against roughly one in three failing before. See `design.md` D16.
 
   **This is the strongest evidence yet for the two-tier split.** `pnpm verify` was green
   throughout, on this machine, on the commit that carried the defect — **689** unit tests
@@ -1407,7 +1423,7 @@ the reason 44 storage tests were never going to find it.
   (691 is the current count; 689 is what that commit actually ran.)
 
 **M7 slice 1 added a fourth limit to that list, and it is the only one about
-appearance.** `packages/ui`'s 38 tests and the five focus specs between them establish
+appearance.** `packages/ui`'s 38 tests and the six focus specs between them establish
 that **every declared colour pair meets its declared threshold in both schemes** and that
 **every control is reachable with a resolved outline this product drew**. Neither reads a
 rendered pixel. **So "the styling is verified" would be a false summary of both**, and
@@ -1419,8 +1435,8 @@ machine. A human opening the page is the only instrument for it, and building on
 slice 3's subject, not a missing test.
 
 **The change's own falsification record, because a count of caught mutations proves
-nothing without what they were.** **28 of 28 deliberate violations were caught by the
-*intended* assertion, with restoration verified by SHA-256**, across both tiers. Four
+nothing without what they were.** **29 of 29 deliberate violations were caught by the
+*intended* assertion, with restoration verified by SHA-256**, across both tiers. Six
 results are worth keeping:
 
 - **Deleting the `:focus-visible` rule left the focus specs green.** They asserted an
@@ -1456,6 +1472,15 @@ results are worth keeping:
   so `focus.unfocused.name === focus.name` holds only if the two agree. **A property no
   mutation can break is not a property**, and three greens in a row is what finding that out
   costs when the assertion is aimed at the file instead of at the property.
+- **The twenty-fourth and twenty-fifth instances were both *preconditions* rather than
+  assertions, which is the shape worth carrying forward.** A precondition decides *when* to
+  start measuring, so a weak one does not fail — it measures the wrong thing and passes.
+  The first (recorded above) asserted the enumeration and the readers agreed about which
+  element an index addressed. The second was the settle wait the second red run forced: it
+  required **two agreeing reads 100ms apart**, and its own positive control — a control that
+  gains a layout box 150ms in — failed it, because 200ms of agreement is a delay with a
+  comparison in it rather than a precondition. **Both were authored and caught inside this
+  change.** The checks most likely to be too weak are the ones that decide when to measure.
 
 **`pnpm test` and `pnpm typecheck` catch different defects, and this repository has
 now been bitten by that in both directions.** Vitest does not typecheck, so a
