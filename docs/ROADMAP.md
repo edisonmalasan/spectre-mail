@@ -45,10 +45,21 @@
 M7 - Spectral Swiss Design Pass - slice 1 (`spectral-swiss-foundation`) is applied,
 verified (with its verification-pass repairs merged as PR **#64**), synced (**#65**), and
 **ARCHIVED** — which closes M7 slice 1 completely. **Slice 2
-(`motion-and-reduced-motion`) is applied and verified**, and its proposal merged as **#67**;
-**its Apply PR number is recorded at the archive stage, as every other slice's is.**
+(`motion-and-reduced-motion`) is applied, verified, and synced**, and its proposal merged
+as **#67**, its Apply as **#68**; **its archive PR number is recorded at the archive stage,
+as every other slice's is.**
 The current objective is **M7 slice 3: the five website sections**, and slice 4, the
 `Extension preview`, remains **blocked on M8**.
+
+**And one correction that only a measured CI run could have produced.** Slice 2's Apply
+job `browser` **passed on its first CI run carrying this change's specs** — run
+`37479366534`, with `verify` (49s), `spike self-test` (31s) and `browser` (59s) all SUCCESS.
+That is recorded because slice 1's history runs the other way: its first run carrying its
+specs was red twice, once on a defect in a spec and once on the settle precondition the
+repair added. **A green first run is a fact about one execution, not a property of the
+suite**, and the ten consecutive local runs recorded at apply stage remain the evidence for
+repeatability. Neither run says anything about how the page looks; `verify` is a browser-free
+tier and `browser` reads computed styles and element identity, not pixels.
 
 **Two sentences this cursor carried are deleted rather than reworded, because slice 2 made
 both false.** *"The motion tokens are declared and used by nothing"* was true through slice 1
@@ -75,8 +86,28 @@ merged as **#62**, its Apply as **#63**, its **verification-pass repair** — on
 and five WARNINGs, all corrected, plus a mislabelled contrast standard found while
 correcting one of them — as **#64**, and its sync as **#65**. **M7 slice 1 is now
 applied, verified, synced, and archived** at
-`openspec/changes/archive/2026-10-06-spectral-swiss-foundation/`. `openspec list` reports
-**No active changes**, which is the correct end state for a completed milestone.
+`openspec/changes/archive/2026-10-06-spectral-swiss-foundation/`.
+
+**Slice 2's sync promoted four requirements and added nothing at the sync stage**, which is
+the state the amendment rule exists to produce: `visual-system` went **5 → 8** requirements
+and **14 → 24** scenarios, and `mailbox-session` went **22 → 23** and **57 → 61**. Every
+delta block was compared against the promoted spec **as whole blocks and is byte-identical**,
+and the check was repaired once — the first version sliced each block to end-of-file, which
+absorbed the provenance note appended after the last requirement and reported two blocks as
+differing when the text was identical. **The comparison now requires verbatim containment and
+reports how much text surrounds it**, so a check that measures less than the rule beside it
+is visible rather than quietly narrow.
+
+The sync also surfaced a real defect in the mechanical merge itself: the append script and a
+following prose edit both inserted the requirement, leaving **two identical requirement
+headers**, which is exactly what makes a spec structurally invalid — `openspec validate`
+reported it and archive would have refused the delta. The duplicate was removed and the
+promoted spec re-validated at **11 passed, 0 failed**. **A mechanically copied block is not
+finished because it verified; it finished because something read the file back and counted
+headers.** `openspec list` reports
+**No active changes**, which is the correct end state for a completed milestone — **except
+that `motion-and-reduced-motion` is active until its archive stage, and it is the only
+active change.**
 
 **The archive was checked rather than assumed, because archiving is a move.** All four
 delta files survived it, and each delta's ADDED block was then compared
