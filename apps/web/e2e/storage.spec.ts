@@ -32,7 +32,8 @@
 
 import { expect, test, type Page } from "@playwright/test";
 
-import { serveRecordedProvider, type ProviderTraffic } from "./recorded-provider";
+import { serveRecordedProvider } from "./recorded-provider";
+import { openFreshMailbox } from "./open-mailbox";
 
 /**
  * A promise the spec resolves when it chooses.
@@ -140,14 +141,6 @@ async function soleDatabaseName(page: Page): Promise<string> {
   const names = await databaseNames(page);
   expect(names).toHaveLength(1);
   return names[0] as string;
-}
-
-/** Load the page and wait for it to finish creating a mailbox. */
-async function openFreshMailbox(page: Page): Promise<ProviderTraffic> {
-  const traffic = serveRecordedProvider(page);
-  await page.goto("/");
-  await expect(page.getByTestId("ready")).toBeVisible();
-  return traffic;
 }
 
 test.describe("the storage a page actually uses", () => {

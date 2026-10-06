@@ -62,7 +62,7 @@ export function Inbox({ inbox, onCheck, onOpenMessage }: InboxProps) {
   // mailbox that was never looked at.
   if (inbox.kind === "notStarted" || inbox.kind === "checking") {
     return (
-      <section aria-labelledby="inbox-heading">
+      <section className="region" aria-labelledby="inbox-heading">
         <h3 id="inbox-heading">Inbox</h3>
         <p data-testid="inbox-checking">Checking this address for mail.</p>
         <p data-testid="inbox-cadence-note">
@@ -74,7 +74,7 @@ export function Inbox({ inbox, onCheck, onOpenMessage }: InboxProps) {
 
   if (inbox.kind === "checkFailed") {
     return (
-      <section aria-labelledby="inbox-heading">
+      <section className="region" aria-labelledby="inbox-heading">
         <h3 id="inbox-heading">Inbox</h3>
         <InboxCheckFailed failure={inbox.failure} rateLimit={inbox.listing.rateLimit} />
         {/* The messages already learned are still true, so they are still shown. A
@@ -91,7 +91,7 @@ export function Inbox({ inbox, onCheck, onOpenMessage }: InboxProps) {
             Nothing had been listed before the check failed, so there is nothing to show yet.
           </p>
         )}
-        <button type="button" onClick={onCheck}>
+        <button type="button" className="control" onClick={onCheck}>
           Check again
         </button>
       </section>
@@ -100,7 +100,7 @@ export function Inbox({ inbox, onCheck, onOpenMessage }: InboxProps) {
 
   if (inbox.listing.messages.length === 0) {
     return (
-      <section aria-labelledby="inbox-heading">
+      <section className="region" aria-labelledby="inbox-heading">
         <h3 id="inbox-heading">Inbox</h3>
         <p data-testid="inbox-empty">No mail has arrived at this address yet.</p>
         <p data-testid="inbox-cadence-note">
@@ -111,7 +111,7 @@ export function Inbox({ inbox, onCheck, onOpenMessage }: InboxProps) {
   }
 
   return (
-    <section aria-labelledby="inbox-heading">
+    <section className="region" aria-labelledby="inbox-heading">
       <h3 id="inbox-heading">Inbox</h3>
       <InboxRows listing={inbox.listing} onOpenMessage={onOpenMessage} />
       <p data-testid="inbox-cadence-note">
@@ -131,7 +131,7 @@ interface InboxRowsProps {
 
 function InboxRows({ listing, onOpenMessage }: InboxRowsProps) {
   return (
-    <ul data-testid="inbox-rows">
+    <ul className="inbox-rows" data-testid="inbox-rows">
       {listing.messages.map((message) => (
         <li key={message.id}>
           <InboxRow

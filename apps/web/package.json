@@ -16,6 +16,7 @@
     "@spectre-mail/mailbox": "workspace:*",
     "@spectre-mail/providers": "workspace:*",
     "@spectre-mail/storage": "workspace:*",
+    "@spectre-mail/ui": "workspace:*",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },

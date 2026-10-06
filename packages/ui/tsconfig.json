@@ -1,7 +1,15 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["ES2023", "DOM", "DOM.Iterable"]
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    // The emitters in `scripts/` run under Node's own type stripping, which resolves
+    // imports as ESM does and therefore needs the explicit `.ts` specifier. The shared
+    // config sets `moduleResolution: "bundler"`, under which an extensionless import would
+    // typecheck and then fail to run — so this option buys nothing for the sources and
+    // something real for the scripts. Found by running `node scripts/emit-design-doc.ts`,
+    // which failed with `ERR_MODULE_NOT_FOUND` while `pnpm typecheck` was green: one gate
+    // does not imply another, and "it type checks" is not "it runs".
+    "allowImportingTsExtensions": true
   },
-  "include": ["src"]
+  "include": ["src", "scripts"]
 }

@@ -14,7 +14,9 @@
  *
  * "Contains a one-time code" is a text node, not a colour or an icon. Three reasons,
  * in order of how much they matter: a screen reader announces it, it survives a
- * monochrome display, and it survives the stylesheet M7 has not written yet.
+ * monochrome display, and it survives the stylesheet — which M7 slice 1 has now
+ * written, and which marks the row with an accent **rule** rather than recolouring it.
+ * The words are still the marking; the accent reinforces them.
  *
  * ## Undetermined is a distinct state, not an absence
  *
@@ -22,6 +24,15 @@
  * Those are different claims — the first says the message was read and held nothing,
  * the second says it was never read — and rendering them the same way would state
  * about a message this product never looked at that it contains no code.
+ *
+ * ## Which verdicts get the accent rule, and why `carriesNothing` is not among them
+ *
+ * The three `carries*` verdicts are the ones where the product knows a verification is
+ * there. `carriesNothing` and `undetermined` are **not** marked, and the difference is
+ * the whole point of the enum: a rule beside a row is a claim that something is in it.
+ * Marking a row whose message could not be read would tell the user to go and look for
+ * a code in a message nobody has read, which is the one false claim this inbox exists to
+ * avoid.
  *
  * @module
  */
@@ -46,7 +57,21 @@ export interface InboxRowProps {
 }
 
 /**
- * What a verdict says, in words.
+ * Whether this row's verdict is one where a verification is actually known to be there.
+ *
+ * **A closed list rather than "any marking".** `carriesNothing` and `undetermined` both
+ * render a marking or nothing at all, and including them would put the accent rule beside
+ * a row whose message could not be read — telling the user to go and find a code in a
+ * message nobody has opened. Naming the three positive verdicts makes the omission a
+ * decision rather than an oversight.
+ */
+const CARRIES_VERIFICATION: ReadonlySet<MessageVerdict["kind"]> = new Set([
+  "carriesCode",
+  "carriesLink",
+  "carriesCodeAndLink",
+]);
+
+/** What a verdict says, in words.
  *
  * Every kind is listed, including the ones that render nothing, because "the row shows
  * no marking" is a deliberate outcome here rather than a missing case.
@@ -85,15 +110,18 @@ export function InboxRow({ message, verdict, onOpen }: InboxRowProps) {
     // their subjects rather than by their position.
     <button
       type="button"
+      className={
+        CARRIES_VERIFICATION.has(verdict.kind) ? "inbox-row inbox-row--carries" : "inbox-row"
+      }
       aria-label={accessibleName(message, verdict)}
       onClick={onOpen}
       data-testid="inbox-row-open"
     >
-      <p data-testid="inbox-row-sender">
+      <p className="inbox-row__sender" data-testid="inbox-row-sender">
         {message.from === "" ? "No sender reported" : message.from}
       </p>
 
-      <p data-testid="inbox-row-subject">
+      <p className="inbox-row__subject" data-testid="inbox-row-subject">
         {message.subject === "" ? "No subject" : message.subject}
       </p>
 
@@ -101,18 +129,29 @@ export function InboxRow({ message, verdict, onOpen }: InboxRowProps) {
         An ISO 8601 instant in UTC rather than a formatted local time. It is
         unambiguous whatever the reader's locale and time zone, and it is the same
         string on every machine — which is what lets a test assert a row's contents
-        without pinning a locale. M7 owns how a time should *look*; a fixed zone here
-        is the honest default, not the designed one.
+        without pinning a locale.
+
+        **M7 kept it, and that is the decision rather than an omission.** Rendering this
+        as the reader's local time would be ambiguous across locales and would make a
+        row's contents unpinnable in a test; the design answer is to treat an arrival
+        instant as what it is — a technical datum — and set it in monospace at the
+        smallest size, right-aligned, where it reads as metadata rather than as prose.
       */}
-      <p data-testid="inbox-row-time">
+      <p className="inbox-row__time" data-testid="inbox-row-time">
         <time dateTime={new Date(message.receivedAt).toISOString()}>
           {new Date(message.receivedAt).toISOString()}
         </time>
       </p>
 
-      <p data-testid="inbox-row-unread">{unreadWording(message)}</p>
+      <p className="inbox-row__unread" data-testid="inbox-row-unread">
+        {unreadWording(message)}
+      </p>
 
-      {marking !== "" && <p data-testid="inbox-row-verdict">{marking}</p>}
+      {marking !== "" && (
+        <p className="inbox-row__verdict" data-testid="inbox-row-verdict">
+          {marking}
+        </p>
+      )}
     </button>
   );
 }

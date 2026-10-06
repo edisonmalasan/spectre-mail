@@ -1,0 +1,573 @@
+/**
+ * The website's own styles.
+ *
+ * ## Every design value comes from a token
+ *
+ * There is not one colour, radius, spacing step, type size, or duration in this file.
+ * `visual-system` requires it and `tests/architecture/boundaries.test.ts` enforces it,
+ * because a value written here is a value that exists in two places and will be changed
+ * in one of them.
+ *
+ * ## What is deliberately absent
+ *
+ * - **No `@import` and no `url()`.** The page loads no third-party origin. That is a
+ *   promoted requirement of `build-and-verification` and a promise this product's own
+ *   Local Data region makes in words: nothing is sent anywhere. A webfont from a CDN
+ *   would break both while appearing in no file a reader would think to check.
+ * - **No `outline: none`, and no `outline-width: 0`.** The focus indicator is a
+ *   requirement, not a preference, and this file never suppresses one. A boundary rule
+ *   fails the build if it ever does — with the honest limit recorded there: a *transparent*
+ *   outline defeats an indicator just as thoroughly and is caught only by the browser
+ *   tier, which is why that spec is not optional.
+ * - **No animation and no transition.** Reduced-motion handling belongs to the next slice
+ *   and must arrive *with* the motion it governs, so that no state of this repository
+ *   ever contains animation with no way to stop it. The duration and easing tokens exist
+ *   and are unused for that reason.
+ * - **No utility framework, no preprocessor, no `!important`.**
+ *
+ * ## The layout, in one paragraph
+ *
+ * One constrained column. Hairline rules rather than shadow. Type scale doing the work
+ * that decoration usually does. Whitespace in the gaps between regions rather than
+ * padding inside them. The mailbox is a working surface a person waits on, so nothing
+ * here moves on its own and nothing competes for attention with the address.
+ *
+ * @module
+ */
+
+/* ── The page ─────────────────────────────────────────────────────────────────── */
+
+html {
+  /* `box-sizing: border-box` on the root, so a width means what it looks like it means
+     everywhere below. The alternative is a padding-inclusive bug on every future rule,
+     which is the kind of thing that survives review because it looks correct in one
+     place. */
+  box-sizing: border-box;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: inherit;
+}
+
+body {
+  margin: 0;
+  background-color: var(--surface-page);
+  color: var(--ink-primary);
+  font-family: var(--font-sans);
+  font-size: var(--type-base);
+  line-height: var(--leading-normal);
+  /* Optical sizing rather than smoothing: it is a one-line declaration whose absence is
+     invisible and whose presence is what makes a grotesk look like itself. */
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+main {
+  /* The measure. Not centred with a marketing hero's width — this is a working column,
+     and the roadmap says the product remains the main hero, which means the product gets
+     the width it needs rather than the width a headline would want. */
+  max-width: var(--measure-page);
+  margin-inline: auto;
+  padding: var(--space-7) var(--space-5) var(--space-8);
+}
+
+/* ── Type ─────────────────────────────────────────────────────────────────────── */
+
+h1 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--type-3xl);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  /* Tight negative tracking on a large grotesk is what stops it reading as a default
+     heading. It is a token because the amount is the decision, not the property. */
+  letter-spacing: var(--tracking-tight);
+}
+
+h2 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--type-xl);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+}
+
+h3 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--type-lg);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-tight);
+}
+
+h4 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--type-base);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-normal);
+}
+
+p {
+  margin: 0 0 var(--space-3);
+  /* A measure on prose. Without it a line runs the full column and the eye loses the
+     return sweep — the single most common reason a working page reads as a document. */
+  max-width: var(--measure-prose);
+  line-height: var(--leading-relaxed);
+}
+
+ul,
+ol {
+  margin: 0 0 var(--space-3);
+  padding-inline-start: var(--space-5);
+}
+
+li {
+  margin-block-end: var(--space-1);
+  max-width: var(--measure-prose);
+  line-height: var(--leading-relaxed);
+}
+
+/* ── The lead line under the wordmark ─────────────────────────────────────────── */
+
+.page__lead {
+  margin: 0 0 var(--space-7);
+  color: var(--ink-secondary);
+  font-size: var(--type-lg);
+}
+
+/* ── Regions ──────────────────────────────────────────────────────────────────── */
+
+/*
+ * A region is a hairline-topped block, not a card.
+ *
+ * The direction asks for thin or precise borders instead of heavy depth effects, and
+ * `design-taste-frontend`'s own rule is that a card earns its elevation by communicating
+ * hierarchy — here the hierarchy is the order of the regions, and a border-top plus
+ * whitespace says that without a container around everything.
+ */
+.region {
+  padding-block-start: var(--space-6);
+  margin-block-start: var(--space-6);
+  border-block-start: var(--width-hairline) solid var(--line-subtle);
+}
+
+/* The first region after the page lead sits closer, because the lead is its caption
+   rather than a sibling section heading. */
+.page__lead + .region {
+  margin-block-start: 0;
+}
+
+/*
+ * A region reporting a failure or a refusal.
+ *
+ * **Tinted, and never tinted alone.** `visual-system` requires that a failure be
+ * identifiable in words, and the words are in the component. The tint reinforces them; a
+ * user who cannot see the tint reads the same sentence. The boundary is `--line-strong`
+ * rather than `--line-subtle` because this region's edge carries meaning, unlike a
+ * separator.
+ */
+.region--alert {
+  padding: var(--space-4);
+  background-color: var(--surface-danger);
+  border: var(--width-hairline) solid var(--line-strong);
+  border-radius: var(--radius-md);
+}
+
+.region--alert > :last-child {
+  margin-block-end: 0;
+}
+
+/* ── Technical metadata ───────────────────────────────────────────────────────── */
+
+/*
+ * Monospace, for the four things the direction assigns to it.
+ *
+ * Applied through a class rather than to `code`, `time`, and `pre` by element, because
+ * the direction names four *kinds of content* and an element selector would sweep in
+ * every `<code>` on the page — including one inside a message body, which is the
+ * provider's text and not our metadata.
+ */
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--type-sm);
+  /* Slightly loose: monospace is denser per character than a grotesk at the same size,
+     and at the same tracking it reads as heavier. */
+  letter-spacing: var(--tracking-normal);
+  font-variant-ligatures: none;
+}
+
+/* The mailbox address. The one thing on the page that is a value the user came for, so
+   it is the largest monospace on the page and the only thing that gets its own border. */
+.address {
+  margin-block-end: var(--space-4);
+}
+
+.address__value {
+  display: inline-block;
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--surface-raised);
+  border: var(--width-hairline) solid var(--line-strong);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: var(--type-xl);
+  line-height: var(--leading-tight);
+  /* A long address has to break somewhere, and `overflow-wrap` breaks it at any
+     character rather than only at punctuation — an address is one unbroken token to a
+     browser, so without this the box scrolls horizontally on a narrow screen. */
+  overflow-wrap: anywhere;
+}
+
+/* A polite live region that has nothing to say must not occupy a line. */
+.status {
+  margin-block-start: var(--space-3);
+  margin-block-end: 0;
+  color: var(--ink-secondary);
+  font-size: var(--type-sm);
+}
+
+.status:empty {
+  display: none;
+}
+
+/* ── An inline notice ─────────────────────────────────────────────────────────── */
+
+/*
+ * One sentence reporting something about the page, inside a region that is otherwise
+ * about a capability.
+ *
+ * Its own shape rather than the region's, because a whole region tinted for failure
+ * would be wrong here: the region is not failing, one statement inside it is. And its
+ * edge is `--line-strong`, because an edge that carries meaning is not a separator.
+ */
+.notice {
+  margin-block: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--surface-raised);
+  border: var(--width-hairline) solid var(--line-strong);
+  border-radius: var(--radius-md);
+  font-size: var(--type-sm);
+}
+
+.notice--danger {
+  background-color: var(--surface-danger);
+  color: var(--ink-danger);
+}
+
+/* ── Controls ─────────────────────────────────────────────────────────────────── */
+
+/*
+ * One control shape, everywhere.
+ *
+ * Buttons on this page are quiet: the mailbox is the subject, and a row of high-contrast
+ * buttons would compete with it. The boundary is `--line-strong`, which is held to
+ * non-text contrast — a control with a transparent fill is identified by its edge, so
+ * the edge has to be perceivable rather than decorative.
+ */
+.control {
+  display: inline-block;
+  padding: var(--space-2) var(--space-4);
+  background-color: var(--surface-raised);
+  color: var(--ink-primary);
+  border: var(--width-hairline) solid var(--line-strong);
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: var(--type-sm);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-normal);
+  text-align: center;
+  /* `cursor: pointer` is set on the row itself, because a row is a button and a button
+     that does not say so is a control a mouse user has to hunt for. */
+  cursor: pointer;
+}
+
+.control:hover {
+  background-color: var(--surface-sunken);
+}
+
+.control:active {
+  /* A physical press. One pixel, which is enough to feel and small enough that it does
+     not read as a bug when a screenshot is taken mid-click. */
+  transform: translateY(1px);
+}
+
+.control:disabled {
+  /* Dimmed by removing the boundary rather than by `opacity`, which would also dim the
+     label below the 4.5:1 it is held to. The label keeps its contrast; only the
+     affordance goes. */
+  color: var(--ink-muted);
+  border-color: var(--line-subtle);
+  cursor: not-allowed;
+}
+
+/*
+ * The focus indicator.
+ *
+ * On `:focus-visible`, not `:focus`, so a mouse click does not leave a ring behind —
+ * while a keyboard press always does. `:focus-visible` is honoured by every browser the
+ * browser tier runs, and by the ones it does not, which fall back to `:focus` and show
+ * the ring always. Both are acceptable; silently showing none is not.
+ */
+.control:focus-visible,
+.inbox-row:focus-visible {
+  outline: var(--width-focus) solid var(--focus);
+  outline-offset: var(--offset-focus);
+  /* An outline drawn inside the element's own edge is partly hidden by it, so the
+     indicator is forced out. Without this the ring can read as a thinner border. */
+  border-radius: var(--radius-md);
+}
+
+/* ── The inbox ────────────────────────────────────────────────────────────────── */
+
+.inbox-rows {
+  margin: 0;
+  padding: 0;
+  /* A list of controls is not a bulleted list. */
+  list-style: none;
+  border-block-start: var(--width-hairline) solid var(--line-subtle);
+}
+
+.inbox-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-1) var(--space-4);
+  width: 100%;
+  padding: var(--space-4) var(--space-3);
+  background-color: var(--surface-raised);
+  color: var(--ink-primary);
+  border: 0;
+  border-block-end: var(--width-hairline) solid var(--line-subtle);
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: var(--type-base);
+  text-align: start;
+  cursor: pointer;
+}
+
+.inbox-row:hover {
+  background-color: var(--surface-sunken);
+}
+
+/*
+ * A row that carries a verification is marked by a rule, not by a recolour.
+ *
+ * The direction puts the accent on verification codes and on active status, and it puts
+ * **nothing** on the words themselves — so the row's text colour is unchanged and a
+ * `border-inline-start` in the accent does the marking. The words still say what is
+ * there; the accent reinforces them. This is `visual-system`'s requirement about colour
+ * not being the only carrier, and it is why the rule is additive rather than a tint:
+ * a tinted row would be unreadable by a user who cannot tell the tint apart.
+ */
+.inbox-row--carries {
+  border-inline-start: var(--width-focus) solid var(--accent);
+  padding-inline-start: var(--space-4);
+}
+
+.inbox-row__sender {
+  grid-column: 1;
+  margin: 0;
+  font-weight: var(--weight-medium);
+  overflow-wrap: anywhere;
+}
+
+.inbox-row__subject {
+  grid-column: 1;
+  margin: 0;
+  color: var(--ink-secondary);
+  overflow-wrap: anywhere;
+}
+
+.inbox-row__time {
+  grid-column: 2;
+  grid-row: 1;
+  margin: 0;
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: var(--type-xs);
+  /* Right-aligned and never wrapped onto a second line, because a timestamp that
+     reflows is a timestamp two rows of the grid now disagree with. */
+  text-align: end;
+  white-space: nowrap;
+}
+
+.inbox-row__unread {
+  grid-column: 1;
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: var(--type-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+}
+
+.inbox-row__verdict {
+  grid-column: 2;
+  grid-row: 3;
+  margin: 0;
+  /* The accent, on words — and the words are the primary signal. This is the accent's
+     second of six permitted surfaces; the first is the rule above. */
+  color: var(--ink-accent);
+  font-size: var(--type-xs);
+  font-weight: var(--weight-medium);
+}
+
+/* ── An opened message ────────────────────────────────────────────────────────── */
+
+.message {
+  margin-block-start: var(--space-6);
+  padding-block-start: var(--space-6);
+  border-block-start: var(--width-hairline) solid var(--line-strong);
+}
+
+.message__meta {
+  margin-block-end: var(--space-4);
+  color: var(--ink-secondary);
+  font-size: var(--type-sm);
+}
+
+.message__subject {
+  margin: 0 0 var(--space-1);
+  font-size: var(--type-lg);
+  font-weight: var(--weight-medium);
+  overflow-wrap: anywhere;
+}
+
+/*
+ * The readable body.
+ *
+ * `<pre>` because it preserves the line breaks the message arrived with, and the reason
+ * it reads as a sunken slab rather than as prose is that it **is** the provider's text,
+ * laid out as it was sent. Setting it in the grotesk at body measure would imply the page
+ * wrote it; the monospace and the sunken surface say the opposite.
+ */
+.message__body {
+  max-width: none;
+  margin: 0 0 var(--space-5);
+  padding: var(--space-4);
+  max-height: 28rem;
+  overflow: auto;
+  background-color: var(--surface-sunken);
+  border: var(--width-hairline) solid var(--line-subtle);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: var(--type-sm);
+  line-height: var(--leading-relaxed);
+  /* The provider's text may contain very long unbroken tokens — a base64 blob, a tracking
+     pixel URL — and a `<pre>` does not break them by default. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.finding {
+  margin-block-end: var(--space-4);
+  padding: var(--space-4);
+  background-color: var(--surface-raised);
+  border: var(--width-hairline) solid var(--line-subtle);
+  border-radius: var(--radius-md);
+}
+
+.finding > :last-child {
+  margin-block-end: 0;
+}
+
+.finding__caveat {
+  color: var(--ink-secondary);
+  font-size: var(--type-sm);
+}
+
+/* The codes. The accent's third permitted surface, and the reason it is set as a filled
+   block rather than as coloured text: a code is a value to read and retype, and a value
+   that changes shape when copied is a value that gets mistyped. */
+.codes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.code {
+  display: inline-block;
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--surface-accent);
+  color: var(--ink-accent);
+  border: var(--width-hairline) solid var(--accent);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: var(--type-lg);
+  /* Wide tracking on a numeric code: it separates the glyphs, which is what makes a code
+     that a person reads at a glance legible, and it is the reason a code is not set in
+     the grotesk. */
+  letter-spacing: var(--tracking-wide);
+}
+
+.links {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.link {
+  margin-block-end: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--type-sm);
+  overflow-wrap: anywhere;
+}
+
+.link__host {
+  color: var(--ink-accent);
+  font-weight: var(--weight-medium);
+}
+
+.link__url {
+  color: var(--ink-secondary);
+}
+
+/* ── The two-step removal ─────────────────────────────────────────────────────── */
+
+.confirmation {
+  margin-block-start: var(--space-4);
+  padding: var(--space-4);
+  /* The accent tint, not the danger tint. This step is a question, not a report, and
+     tinting it as a failure would state that something has already gone wrong. */
+  background-color: var(--surface-accent);
+  border: var(--width-hairline) solid var(--line-strong);
+  border-radius: var(--radius-md);
+}
+
+.confirmation__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* ── Small screens ────────────────────────────────────────────────────────────── */
+
+/*
+ * One breakpoint, and it exists because the inbox row's two-column grid is the only
+ * multi-column thing on the page. Below it the timestamp moves under the sender rather
+ * than being squeezed, because a truncated timestamp is a wrong one.
+ */
+@media (max-width: 34rem) {
+  .inbox-row {
+    grid-template-columns: 1fr;
+  }
+
+  .inbox-row__time {
+    grid-column: 1;
+    grid-row: auto;
+    text-align: start;
+  }
+
+  .inbox-row__verdict {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  main {
+    padding: var(--space-5) var(--space-4) var(--space-7);
+  }
+
+  .address__value {
+    font-size: var(--type-lg);
+  }
+}

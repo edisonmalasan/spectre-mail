@@ -51,8 +51,8 @@ token over fonts the platform already provides, or shipped with the product.
 **Note, recorded during proposal (2026-10-06).** Three reasons, each of which stands
 without the others. A remote font **breaks a promoted requirement**: `build-and-verification`
 requires a browser check to contact no third-party origin, the browser route handler denies
-every origin it has no recorded response for, and a font request would fail all six specs
-naming the font's host. It **breaks the product**: a page whose stated subject is what is
+every origin it has no recorded response for, and a font request would fail every spec in
+the suite. It **breaks the product**: a page whose stated subject is what is
 kept on this device hands a third party the visitor's IP address and User-Agent on load,
 before the visitor has done anything, and no control on the page can prevent it. And it
 **adds a binary** this milestone has not measured.

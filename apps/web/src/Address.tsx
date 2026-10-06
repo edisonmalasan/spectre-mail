@@ -43,19 +43,26 @@ export function Address({ mailbox }: AddressProps) {
   }
 
   return (
-    <section aria-labelledby="address-heading">
+    <section className="region" aria-labelledby="address-heading">
       <h2 id="address-heading">Your address</h2>
 
       {/*
         A plain text node inside a labelled element. Selecting, copying by hand, and
         announcing all work because this is text and not an image or an input whose
         value would have to be read out separately.
+
+        **The border and the monospace are the design, and neither replaces the text.**
+        The address is the one value on this page the user came for, so it is set in
+        monospace at the largest size the page uses and given a panel to sit in — and it
+        is still selectable text in a `<code>` element, so `website-client`'s requirement
+        that the address be presentable as text the user can take is satisfied by the
+        markup rather than by the styling.
       */}
-      <p data-testid="address">
-        <code>{mailbox.address}</code>
+      <p className="address" data-testid="address">
+        <code className="address__value">{mailbox.address}</code>
       </p>
 
-      <button type="button" onClick={() => void copyAddress()}>
+      <button type="button" className="control" onClick={() => void copyAddress()}>
         Copy address
       </button>
 
@@ -64,8 +71,13 @@ export function Address({ mailbox }: AddressProps) {
         without interrupting whatever the user is doing. The text names what
         happened in words: the outcome never depends on colour, because none is
         applied.
+
+        **And it occupies no line when there is nothing to say.** A live region that
+        reserves space reports its own emptiness as a gap on a page whose whole argument
+        is that it says only what it knows — so it collapses rather than sitting there
+        blank between the button and the inbox.
       */}
-      <p role="status">
+      <p role="status" className="status">
         {copy === "copied" && "The address is on your clipboard."}
         {copy === "failed" &&
           "The clipboard refused, so the address was not copied. Select the address above to copy it by hand."}

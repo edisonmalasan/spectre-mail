@@ -39,7 +39,7 @@ export interface BootFailureProps {
 
 export function BootFailure({ reason, onRetry }: BootFailureProps) {
   return (
-    <section aria-labelledby="boot-failure-heading">
+    <section className="region region--alert" aria-labelledby="boot-failure-heading">
       <h2 id="boot-failure-heading">SpectreMail cannot check what it has saved</h2>
 
       <p data-testid="boot-failure-explanation">
@@ -49,7 +49,7 @@ export function BootFailure({ reason, onRetry }: BootFailureProps) {
 
       <p data-testid="boot-failure-reason">{reason}</p>
 
-      <button type="button" onClick={onRetry}>
+      <button type="button" className="control" onClick={onRetry}>
         Check again
       </button>
     </section>

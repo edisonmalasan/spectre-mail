@@ -76,7 +76,11 @@ export function InboxCheckFailed({ failure, rateLimit }: InboxCheckFailedProps) 
   const stated = rateLimit ?? failure.rateLimit;
 
   return (
-    <section aria-labelledby="inbox-failure-heading" data-testid="inbox-check-failed">
+    <section
+      className="region region--alert"
+      aria-labelledby="inbox-failure-heading"
+      data-testid="inbox-check-failed"
+    >
       <h4 id="inbox-failure-heading">This address could not be checked</h4>
 
       <p data-testid="inbox-failure-explanation">{explain(failure)}</p>

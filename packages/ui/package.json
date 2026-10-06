@@ -3,11 +3,14 @@
   "name": "@spectre-mail/ui",
   "description": "Reusable product UI and design tokens. Not marketing-only website sections.",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./tokens.css": "./src/tokens.css"
   },
   "type": "module",
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "tokens:emit": "node scripts/emit-tokens.ts",
+    "design-doc:emit": "node scripts/emit-design-doc.ts"
   },
   "private": true
 }

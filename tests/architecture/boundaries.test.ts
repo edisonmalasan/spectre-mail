@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
+
+import ts from "typescript";
 
 /**
  * Architecture boundary enforcement.
@@ -58,7 +60,54 @@ const PACKAGES_DIR = join(REPO_ROOT, "packages");
 const APPS_DIR = join(REPO_ROOT, "apps");
 const SPIKE_DIR = join(REPO_ROOT, "tests", "provider-spike");
 
-const SOURCE_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"];
+/**
+ * File extensions every directory-walking rule treats as shipped source.
+ *
+ * ## `.css` joined this list at M7 slice 1, and that is a widening, not an addition
+ *
+ * Until then the list held no stylesheet extension, which was correct only while the
+ * repository contained no stylesheet — measured, before this change: the single `.css`
+ * file under `apps/` or `packages/` outside `node_modules` was jsdom's own. The moment
+ * `packages/ui/src/tokens.css` and `apps/web/src/styles.css` landed, the largest piece of
+ * shipped source in the repository became invisible to every rule in this file — the
+ * silent-skip failure M5 slice 1 was bitten by, arriving through a file *type* rather
+ * than a directory.
+ *
+ * **It joins this list rather than a second "and also CSS" list**, because this
+ * repository has recorded twice that a second spelling of a set is the defect: the
+ * collection rule that resolved `apps/` only, and the allowance constant two rules
+ * shared so that widening one silenced the other.
+ *
+ * **Widening a scan is not free, and the obligation it creates is checked rather than
+ * assumed.** The recorded false positive here is real: when the storage rule was
+ * generalised from `packages/mailbox` to every shared package it immediately fired on a
+ * `set-cookie` response header that `packages/providers` legitimately holds from the M0
+ * spike, and read it as a cookie jar. CSS is full of words those patterns match. So the
+ * existing rules were re-proven against the widened scan before this line was kept, by
+ * running the whole suite with the two stylesheets present — **677 tests green, 47
+ * boundary assertions green** — which is the only evidence that matters for a claim of
+ * the form "this widening introduced no finding".
+ */
+const SOURCE_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".css"];
+
+/** The one extension a *stylesheet* is, so a CSS rule need not restate the list. */
+const CSS_EXTENSION = ".css";
+
+/**
+ * The generated token layer, by repository-relative path.
+ *
+ * **Named, not discovered, and the reason is a real limitation.** A custom property is
+ * declared on `:root`, so it is globally visible to every stylesheet on the page — a read
+ * resolves against the token layer *or* against a declaration earlier in its own file.
+ * Which is precisely why this is one path rather than "whichever stylesheet has the most
+ * `--` in it": a resolver that guessed the token layer would be guessing, and a rule
+ * that guesses is a rule whose behaviour depends on file naming.
+ *
+ * There is exactly one token layer because there is exactly one token source of truth
+ * (`packages/ui/src/tokens.ts`). If a second is ever added, the right fix is to make
+ * both clients read both, not to make this rule enumerate them.
+ */
+const TOKEN_LAYER = "packages/ui/src/tokens.css";
 
 // `.git` and `.agents` matter because two rules below scan the whole repository
 // rather than only `packages/` and `apps/`. Walking either would be slow, and
@@ -559,6 +608,19 @@ function findPatternOccurrences(contents: string, pattern: RegExp): string[] {
   });
 
   return hits;
+}
+
+/**
+ * How many findings carry a label.
+ *
+ * **Added for the stylesheet rules, and the reason is that `toContain` is not enough for
+ * them.** Those rules match several forms of one thing, so the assertion has to be about
+ * *how many*, or a rule matching three of the four ways a CSS author can name a URL would
+ * satisfy an assertion written for one of them. Counting by label also makes a rule that
+ * silently began double-reporting fail, which a `toContain` cannot.
+ */
+function countMatching(violations: readonly string[], label: string): number {
+  return violations.filter((violation) => violation.includes(`(${label})`)).length;
 }
 
 /**
@@ -1136,6 +1198,349 @@ const MESSAGE_VIEW = `export function View({ readable, link, code }: Props) {
  * green while guarding nothing four separate times; a list of forms with a control
  * each is the only shape that does not rot that way.
  */
+// ═══════════════════════════════════════════════════════════════════════════════
+// Stylesheets
+//
+// Three rules, added together because the milestone that needed them added all three
+// facilities at once — and each of them can be satisfied by leaving the repository the
+// same, so they are proven by the probes planted inside the same assertions that read
+// the real tree.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Every stylesheet the product ships.
+ *
+ * ## Why the roots come from the disk and not from a list
+ *
+ * A list here would be a second spelling of "which stylesheets exist", and this file has
+ * recorded what happens when a set gets two spellings: a rule becomes narrow in the
+ * direction nobody re-reads. The directories are the same two every other rule here
+ * already walks, so a new client's stylesheet is covered **by being created** rather than
+ * by being listed.
+ *
+ * The control for that is not a comment. It is the fact that `apps/extension` has no
+ * `src/` directory yet: the walk is over the client *root*, so the day M8 gives it a
+ * stylesheet the rule covers it with no edit.
+ */
+function shippedStylesheets(): string[] {
+  return [...collectSourceFiles(PACKAGES_DIR), ...collectSourceFiles(APPS_DIR)].filter((file) =>
+    file.endsWith(CSS_EXTENSION),
+  );
+}
+
+/**
+ * A remote reference in a stylesheet, in every form that resolves one.
+ *
+ * Four forms, because a CSS author has four ways to name the same URL and a rule that
+ * matches one of them matches a quarter of the ways this milestone's product would phone
+ * a third party:
+ *
+ * - `@import url("https://…")`  the form a Google Fonts snippet ships in
+ * - `@import "https://…"`      the bare-string form, no `url()`
+ * - `url(https://…)`           a background, a mask, a `src` in `@font-face`
+ * - `url("//…")`               protocol-relative, which is the same request
+ *
+ * **It says `http` as well as `https`, because a plain-`http` stylesheet is not a
+ * conservative choice** — it is the same third-party request over a channel any network
+ * on the path can rewrite, and this is a product whose page tells the user what is kept
+ * on their device.
+ *
+ * **It cannot see an asset loaded from markup**, and says so rather than implying
+ * coverage: a `<link href="https://fonts…">` in `index.html` is not a stylesheet, this
+ * scan does not read HTML, and `markupAssetViolations()` exists because this one cannot
+ * do that job. Neither check covers the other.
+ */
+const REMOTE_CSS_PATTERNS: readonly { readonly label: string; readonly pattern: RegExp }[] = [
+  { label: "@import of a URL", pattern: /@import\s+url\(\s*['"]?\s*https?:\/\//i },
+  { label: "@import of a bare string", pattern: /@import\s+['"]\s*(?:https?:)?\/\//i },
+  { label: "url() pointing at an origin", pattern: /url\(\s*['"]?\s*(?:https?:)?\/\//i },
+];
+
+/**
+ * A declaration that removes a focus indicator.
+ *
+ * ## What this catches, and the one thing it does not
+ *
+ * `outline: none`, `outline: 0`, and `outline-width: 0` — the three ways an author
+ * silences an indicator, and the three the approved direction forbids outright.
+ *
+ * **It does not catch `outline: 2px solid transparent`, which defeats an indicator just
+ * as thoroughly.** That is stated in the rule because it is the honest limit, and it is
+ * why the browser spec asserting a *rendered* ring is not optional: only rendering
+ * distinguishes a visible indicator from a declared one. A gate that catches the common
+ * accident plus a spec that catches the class is better than either alone, and a gate
+ * claiming to catch both would be claiming the second one.
+ *
+ * A custom property named `--outline-none` cannot reach this: the pattern requires
+ * `outline` followed by a colon, and `--focus` / `--width-focus` are what the token layer
+ * actually declares.
+ */
+const FOCUS_SUPPRESSION_PATTERNS: readonly { readonly label: string; readonly pattern: RegExp }[] =
+  [
+    { label: "outline removed", pattern: /(?:^|[;{\s])outline\s*:\s*(?:none|0)\s*(?:;|!|$)/i },
+    {
+      label: "outline width removed",
+      pattern: /(?:^|[;{\s])outline-width\s*:\s*0(?:[a-z%]*)\s*(?:;|!|$)/i,
+    },
+  ];
+
+/** A custom-property read, captured. */
+const CSS_VARIABLE_READ = /var\(\s*(--[A-Za-z0-9_-]+)/g;
+
+/** A custom-property declaration. */
+const CSS_VARIABLE_DECLARATION = /(?:^|[;{\s])(--[A-Za-z0-9_-]+)\s*:/g;
+
+/**
+ * Every custom property a stylesheet reads, with where it was read.
+ *
+ * ## Why the token layer and the reading file are both consulted
+ *
+ * Because that is what the platform does. A declaration on `:root` is visible to every
+ * stylesheet; a declaration inside a selector is visible only within it. So a read
+ * resolves if the name is declared **in the token layer** (anywhere in it) **or above the
+ * read in the same file** (a local declaration) — and the rule is checked in that order
+ * rather than by consulting every stylesheet for every read, which would let a local
+ * declaration in one file satisfy a typo'd read in another.
+ */
+function collectUnresolvedTokens(repoPath: string, contents: string): string[] {
+  const code = stripComments(contents);
+  const tokenLayer = readFileSync(join(REPO_ROOT, TOKEN_LAYER), "utf8");
+
+  const declaredGlobally = new Set<string>();
+  const perLine = new RegExp(CSS_VARIABLE_DECLARATION.source, "g");
+  for (const match of tokenLayer.matchAll(perLine)) {
+    declaredGlobally.add(match[1] as string);
+  }
+
+  const lines = code.split("\n");
+  /** Declared so far *in this file*, which is what a local declaration means. */
+  const declaredLocally = new Set<string>();
+  const violations: string[] = [];
+
+  lines.forEach((line, index) => {
+    for (const match of line.matchAll(new RegExp(CSS_VARIABLE_DECLARATION.source, "g"))) {
+      declaredLocally.add(match[1] as string);
+    }
+    for (const match of line.matchAll(new RegExp(CSS_VARIABLE_READ.source, "g"))) {
+      const name = match[1] as string;
+      if (!declaredGlobally.has(name) && !declaredLocally.has(name)) {
+        // Carries its rule's label in the same `(…)` form every other finding here
+        // uses. **That consistency is load-bearing, and it was arrived at by a failed
+        // assertion rather than by foresight**: the first version of this rule ended
+        // its message at "never declared" while the assertion counted findings by the
+        // label the other rules carry, so a rule that was working perfectly reported
+        // zero and the assertion read that as "the rule found nothing". Two lessons,
+        // both of which this file has learned before — a finding without its rule's
+        // name cannot be counted or attributed, and a zero that arrives from a mismatch
+        // between two conventions is indistinguishable from a rule that stopped
+        // working.
+        violations.push(
+          `${repoPath} line ${index + 1}: ${name} is read but never declared (${UNRESOLVED_TOKEN_LABEL})`,
+        );
+      }
+    }
+  });
+
+  return violations;
+}
+
+/**
+ * The label every unresolved-token finding carries.
+ *
+ * **A named constant rather than an inline string, because it is written in two places
+ * that must agree** — the rule that produces the finding and the assertion that counts
+ * it. Written twice as a literal, it would be exactly the "two rules share one
+ * allowance constant" defect in a new dress: changing one side silences the other and
+ * the suite stays green.
+ */
+const UNRESOLVED_TOKEN_LABEL = "an undeclared custom property";
+
+/**
+ * Every violation of the three stylesheet rules, plus the markup rule that covers what
+ * this one cannot see.
+ *
+ * **One entry point, deliberately.** The three rules read the same files, so a caller
+ * that reached them separately could plant a probe in one file and read the result of a
+ * different rule — which is the shape of the recorded defect where two rules shared one
+ * allowance constant and widening it silenced the other. One function, one file list,
+ * every finding labelled with the rule that produced it.
+ */
+function stylesheetViolations(): string[] {
+  const violations: string[] = [];
+
+  for (const file of shippedStylesheets()) {
+    const repoPath = toRepoPath(file);
+    const contents = readFileSync(file, "utf8");
+    const code = stripComments(contents);
+
+    for (const { label, pattern } of REMOTE_CSS_PATTERNS) {
+      for (const hit of findPatternOccurrences(code, pattern)) {
+        violations.push(`${repoPath} ${hit} (${label})`);
+      }
+    }
+
+    for (const { label, pattern } of FOCUS_SUPPRESSION_PATTERNS) {
+      for (const hit of findPatternOccurrences(code, pattern)) {
+        violations.push(`${repoPath} ${hit} (${label})`);
+      }
+    }
+
+    violations.push(...collectUnresolvedTokens(repoPath, contents));
+  }
+
+  // The markup rule is here rather than beside it because it is the same requirement —
+  // "the page loads no third-party asset" — reached from the other direction. A `<link>`
+  // in HTML and a `@import` in CSS are the two ways to ship a font, and each rule can see
+  // only one of them.
+  for (const html of markupFiles()) {
+    const repoPath = toRepoPath(html);
+    const code = stripComments(readFileSync(html, "utf8"));
+
+    for (const hit of findPatternOccurrences(code, REMOTE_HTML_ASSET_PATTERN)) {
+      violations.push(`${repoPath} ${hit} (a remote asset in markup)`);
+    }
+  }
+
+  return violations;
+}
+
+/**
+ * A client entry document.
+ *
+ * **Found rather than named.** `apps/web/index.html` is the only one today; naming it
+ * would make a second client's remote webfont invisible, which is the exact shape of the
+ * narrow-rule defect this file has recorded twenty-one times. `apps/extension` has no
+ * `index.html` yet and is covered the day M8 writes one.
+ */
+function markupFiles(): string[] {
+  return readdirSync(APPS_DIR).flatMap((entry) => {
+    const absolute = join(APPS_DIR, entry);
+    if (!statSync(absolute).isDirectory()) return [];
+    const document = join(absolute, "index.html");
+    return existsSync(document) ? [document] : [];
+  });
+}
+
+/**
+ * A `src` or `href` on the entry document that resolves to another origin.
+ *
+ * Covers both schemes and the protocol-relative form, for the same reason the CSS rule
+ * does: all three are the same request and only one of them would look encrypted.
+ */
+const REMOTE_HTML_ASSET_PATTERN = /(?:src|href)\s*=\s*['"](?:https?:)?\/\//i;
+
+/**
+ * Every class hook a client actually renders, read from the **syntax tree**.
+ *
+ * ## Why a parser and not a pattern, and what that costs
+ *
+ * Because `className` is not a string in this codebase and a pattern over it is a guess.
+ * The shapes in use are `className="control"`, `className="notice notice--danger"`, and
+ * `className={condition ? "inbox-row inbox-row--carries" : "inbox-row"}` — a regular
+ * expression matching the first would read the third as one unrecognised token and either
+ * report a false violation or, worse, report nothing at all. That is the twenty-second
+ * instance of the defect class this file exists to prevent, and it is cheaper to prevent
+ * here than to discover.
+ *
+ * `typescript` is already a workspace dev dependency — `pnpm typecheck` cannot run without
+ * it — so reading the tree costs nothing and is exact about comments and string
+ * boundaries, which is where a hand-written pattern goes wrong.
+ *
+ * ## What it still does not see
+ *
+ * A `class` composed at runtime by string concatenation of a variable the parser cannot
+ * follow is not collected, so such a token would go unstyled *and* unreported. **There is
+ * none today**, which is a fact about this repository measured by reading it, not a
+ * property this function guarantees. The rule below says so rather than implying coverage.
+ */
+function clientClassHooks(): { readonly file: string; readonly hooks: readonly string[] }[] {
+  const found: { file: string; hooks: string[] }[] = [];
+
+  const walk = (directory: string): void => {
+    for (const entry of readdirSync(directory)) {
+      if (SKIP_DIRECTORIES.has(entry)) continue;
+
+      const absolute = join(directory, entry);
+      if (statSync(absolute).isDirectory()) {
+        walk(absolute);
+        continue;
+      }
+      if (!entry.endsWith(".tsx")) continue;
+
+      const hooks = new Set<string>();
+      const tree = ts.createSourceFile(
+        absolute,
+        readFileSync(absolute, "utf8"),
+        ts.ScriptTarget.Latest,
+        true,
+        ts.ScriptKind.TSX,
+      );
+
+      const collectFrom = (node: ts.Node): void => {
+        if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+          for (const token of node.text.split(/\s+/)) {
+            // **A token that cannot be a class is not treated as one.** `className=""`
+            // is legal and renders nothing; a conditional may also carry a non-class
+            // string that the JSX happens to place there. Filtering to identifier-shaped
+            // tokens keeps a finding a finding.
+            if (/^[A-Za-z][\w-]*$/.test(token)) hooks.add(token);
+          }
+          return;
+        }
+        if (ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node)) {
+          for (const token of node.text.split(/\s+/)) {
+            if (/^[A-Za-z][\w-]*$/.test(token)) hooks.add(token);
+          }
+        }
+        ts.forEachChild(node, collectFrom);
+      };
+
+      const visit = (node: ts.Node): void => {
+        if (ts.isJsxAttribute(node) && node.name.text === "className" && node.initializer) {
+          collectFrom(node.initializer);
+        }
+        ts.forEachChild(node, visit);
+      };
+
+      visit(tree);
+
+      if (hooks.size > 0) found.push({ file: toRepoPath(absolute), hooks: [...hooks] });
+    }
+  };
+
+  walk(APPS_DIR);
+  return found;
+}
+
+/**
+ * Class hooks a client renders that no shipped stylesheet selects.
+ *
+ * **One entry point and one direction.** The direction matters: this asks whether a hook
+ * is *used*, not whether a stylesheet rule is *live*. The converse — a class selector in a
+ * stylesheet that nothing renders — is dead CSS, which is untidy rather than wrong, and
+ * several tokens here are legitimately applied by more than one component.
+ */
+function unstyledClassHooks(): string[] {
+  const stylesheets = shippedStylesheets()
+    .map((file) => stripComments(readFileSync(file, "utf8")))
+    .join("\n");
+
+  const violations: string[] = [];
+
+  for (const { file, hooks } of clientClassHooks()) {
+    for (const hook of hooks) {
+      // Matched as a class selector, not as a substring: `.inbox-row` appearing in
+      // `.inbox-rows` would satisfy a `includes` check for the shorter name, so the
+      // probe below is written to be exactly the failure that substitution would cause.
+      if (!new RegExp(`\\.${hook}(?![\\w-])`).test(stylesheets)) {
+        violations.push(`${file}: \`${hook}\` is rendered but no stylesheet selects it`);
+      }
+    }
+  }
+
+  return violations;
+}
+
 const CLOCK_GLOBAL_PATTERNS: readonly { readonly label: string; readonly pattern: RegExp }[] = [
   { label: "Date.now", pattern: /(?<![\w.$])Date\.now\s*\(/g },
   { label: "Date.parse", pattern: /(?<![\w.$])Date\.parse\s*\(/g },
@@ -2299,6 +2704,250 @@ describe("architecture boundaries", () => {
     ).toEqual([]);
     // And the real file, not only a probe shaped like it.
     expect(clientViolationsWithIntroducedModule(MESSAGE_VIEW, findCodeClipboardWrites)).toEqual([]);
+  });
+
+  it("keeps a remote origin and a removed focus indicator out of a shipped stylesheet", () => {
+    /**
+     * One assertion, one scan, four forms planted per rule.
+     *
+     * The shape is the one M6 slice 1's rules were driven to, and for the same reason: a
+     * rule whose assertion is *negative* — no stylesheet may reach an origin — can be
+     * satisfied by narrowing its own file list, its pattern, or its scan loop, because
+     * every package it stopped scanning happens to be clean. So the planted probes come
+     * **first**, through the **same** `stylesheetViolations()` call the real tree is read
+     * with, and the tree's silence is only claimed afterwards.
+     */
+    const probeDir = join(APPS_DIR, "web", "src");
+    const probe = join(probeDir, "__boundary-probe.css");
+    /** Where a planted remote origin went, so the finding can be checked by identity. */
+    const probeContent = [
+      /* A comment describing the import below. Comments must not be able to satisfy — or
+         trip — the rule, which is why every pattern reads the comment-stripped source. */
+      '/* @import url("https://example.invalid/fonts.css"); */',
+      '@import url("https://fonts.example.invalid/geist.css");',
+      '@import "https://fonts.example.invalid/inter.css";',
+      "body { background: url(https://cdn.example.invalid/pixel.png); }",
+      'body { background: url("//cdn.example.invalid/pixel.png"); }',
+      ".a { outline: none; }",
+      ".b { outline: 0; }",
+      ".c { outline-width: 0; }",
+      ".d { color: var(--ink-primary); }",
+      ".e { color: var(--colour-primary); }",
+    ].join("\n");
+
+    try {
+      writeFileSync(probe, probeContent, "utf8");
+
+      const violations = stylesheetViolations();
+
+      // ── Every form of the remote-origin rule, by its own label. ───────────────────
+      // Four forms rather than one, because a CSS author has four ways to name the same
+      // URL and this milestone's whole point is that a CDN webfont must not ship.
+      expect(countMatching(violations, "@import of a URL")).toBe(1);
+      expect(countMatching(violations, "@import of a bare string")).toBe(1);
+      // `url()` matches the https form and the protocol-relative form — two probes, two
+      // hits — and a rule that matched only one would report one.
+      expect(countMatching(violations, "url() pointing at an origin")).toBe(2);
+
+      // ── Every form of the focus-suppression rule. ─────────────────────────────────
+      expect(countMatching(violations, "outline removed")).toBe(2);
+      expect(countMatching(violations, "outline width removed")).toBe(1);
+
+      // ── The undeclared custom property, and the declared one beside it. ───────────
+      // The control is the second declaration: a rule that flagged every `var()` would
+      // report `--ink-primary` too, so the assertion below is on the *count* of
+      // unresolved reads and not merely on the probe being present.
+      expect(countMatching(violations, UNRESOLVED_TOKEN_LABEL)).toBe(1);
+      expect(violations.some((v) => v.includes("--colour-primary"))).toBe(true);
+      expect(violations.some((v) => v.includes("--ink-primary"))).toBe(false);
+
+      // ── And the finding names the file, so a reader knows where to open. ───────────
+      expect(violations.some((v) => v.includes("__boundary-probe.css"))).toBe(true);
+
+      // ── The comment on the probe's first line must not have counted. ───────────────
+      // The probe opens with an `@import url("https://…")` written **inside a comment**.
+      // If comments were not stripped, that line would produce a second finding with the
+      // same label and the count above would be 2 instead of 1 — so this asserts on the
+      // line the finding names, not on a total the earlier assertion already checked.
+      // Restating the count here would have been an assertion that could not fail.
+      const importUrlFindings = violations.filter((v) => v.includes("(@import of a URL)"));
+      expect(importUrlFindings).toHaveLength(1);
+      expect(importUrlFindings[0]).toContain("line 2");
+      expect(importUrlFindings[0]).not.toContain("line 1");
+    } finally {
+      rmSync(probe, { force: true });
+    }
+
+    // ── The negative half, through the same call site. ─────────────────────────────
+    // The probe is gone, so the shipped stylesheets are the only input left. A rule that
+    // reported nothing here because it stopped looking would be indistinguishable from
+    // one that found nothing, which is exactly the distinction the planted probes above
+    // exist to prevent.
+    expect(stylesheetViolations()).toEqual([]);
+  });
+
+  it("keeps a remote asset out of the client's own markup", () => {
+    /**
+     * A separate assertion rather than a fourth form of the one above, because this is a
+     * genuinely different job: the CSS rules read `**\/*.css` and **cannot see an HTML
+     * document**, and a `<link href="https://fonts…">` in `index.html` reaches the same
+     * third party the `@import` rules forbid. Folding it in would produce one rule that
+     * appears to cover both and in fact covers neither.
+     */
+    const document = join(APPS_DIR, "web", "index.html");
+    const original = readFileSync(document, "utf8");
+
+    try {
+      for (const attribute of ["src", "href"]) {
+        writeFileSync(
+          document,
+          original.replace(
+            '<div id="root"></div>',
+            `<link ${attribute}="https://fonts.example.invalid/geist.css" /><div id="root"></div>`,
+          ),
+          "utf8",
+        );
+
+        const violations = stylesheetViolations();
+        expect(countMatching(violations, "a remote asset in markup")).toBe(1);
+        expect(violations.some((v) => v.includes("index.html"))).toBe(true);
+      }
+
+      // Protocol-relative and plain `http`, which are the same request as `https`.
+      writeFileSync(
+        document,
+        original.replace(
+          '<div id="root"></div>',
+          '<link href="//fonts.example.invalid/geist.css" /><div id="root"></div>',
+        ),
+        "utf8",
+      );
+      expect(countMatching(stylesheetViolations(), "a remote asset in markup")).toBe(1);
+    } finally {
+      writeFileSync(document, original, "utf8");
+    }
+
+    // The real document names no origin. Measured rather than assumed — and it is the
+    // half that would otherwise go unrecorded, because a rule with no violation is
+    // indistinguishable from a rule that was never run.
+    expect(stylesheetViolations()).toEqual([]);
+  });
+
+  it("uses every class hook a client renders", () => {
+    /**
+     * The direction that matters, with a probe that proves the direction.
+     *
+     * A rule that asked only "does every class in the stylesheet exist in the markup?"
+     * would pass on a stylesheet full of dead rules and would say nothing about the
+     * failure that actually happens — a hook added to a component, and never styled. So
+     * the planted probe is an **unstyled** hook, and the control beside it is a styled one
+     * whose name is a **prefix** of another class in the stylesheet.
+     *
+     * That prefix is the whole reason the selector match uses a negative lookahead rather
+     * than `includes`. `.inbox-rows` contains `.inbox-row` as a substring, so a check
+     * written with `includes` would report a hook as styled because a *different* hook's
+     * selector contains its name — and this repository's own stylesheet is full of
+     * `x`/`x__y`/`x--z` triples, so it is not a hypothetical.
+     */
+    const probe = join(APPS_DIR, "web", "src", "__BoundaryProbe.tsx");
+    const probeSource = [
+      "export function Probe() {",
+      "  return (",
+      "    <div>",
+      '      <p className="control" />',
+      '      <p className="inbox-row" />',
+      '      <p className="hook-never-styled" />',
+      "    </div>",
+      "  );",
+      "}",
+      "",
+    ].join("\n");
+
+    /**
+     * **The non-vacuity guard, and it names the shape that a pattern would have missed.**
+     *
+     * Every hook above the probe is a plain string literal, so the probe alone would be
+     * satisfied by a collector that only understood `className="…"`. The real page's
+     * hardest case is `className={CARRIES_VERIFICATION.has(verdict.kind) ? "inbox-row
+     * inbox-row--carries" : "inbox-row"}` — two hooks behind a condition, neither of them
+     * written where a regex would see a value. So the guard asserts that the *conditional*
+     * shape was collected, by name.
+     *
+     * Without it, a collector that read nothing at all would pass every assertion in this
+     * test, including the negative half: "no hook is unstyled" is trivially true of an
+     * empty set. That is the recorded failure mode for a negative rule, and it is the
+     * reason the positive half is asserted first and through the same function.
+     */
+    const collected = clientClassHooks().flatMap((entry) => entry.hooks);
+    expect(collected.length).toBeGreaterThan(0);
+    expect(collected).toContain("inbox-row--carries");
+    expect(collected).toContain("notice--danger");
+
+    try {
+      writeFileSync(probe, probeSource, "utf8");
+
+      const violations = unstyledClassHooks();
+
+      // The unstyled hook, named — so a rule that reported nothing for a different reason
+      // cannot be mistaken for a rule that found nothing.
+      const unstyled = violations.filter((violation) => violation.includes("hook-never-styled"));
+      expect(unstyled).toHaveLength(1);
+      expect(unstyled[0]).toContain("__BoundaryProbe.tsx");
+
+      // **And the two beside it, which are styled.** `.control` is a real selector;
+      // `.inbox-row` is satisfied only because the lookahead stops `.inbox-rows` from
+      // answering for it.
+      expect(violations.some((violation) => violation.includes('"control"'))).toBe(false);
+      expect(violations.some((violation) => violation.includes('"inbox-row"'))).toBe(false);
+    } finally {
+      rmSync(probe, { force: true });
+    }
+
+    // The shipped page, read the same way.
+    expect(unstyledClassHooks()).toEqual([]);
+  });
+
+  it("resolves a custom property read against a declaration above it in the same file", () => {
+    /**
+     * The local-declaration half of the rule, and the one a naive implementation drops.
+     *
+     * A read must resolve against `:root` **or** against a declaration earlier in its
+     * own file. A resolver that consulted only the token layer would report a legitimate
+     * locally-declared variable as undeclared, and a resolver that consulted every
+     * stylesheet for every read would accept a typo'd read in one file because an
+     * unrelated file declares the name — so both directions are checked here, in the same
+     * file, with the ordering that makes them different.
+     */
+    const probeDir = join(APPS_DIR, "web", "src");
+    const probe = join(probeDir, "__boundary-local-token.css");
+    const probeContent = [
+      /* Declared here, below, so this read must be reported: CSS is order-dependent
+         within a file and this is the case that proves the rule is order-sensitive. */
+      ".late { color: var(--declared-below); }",
+      ".local { --declared-here: 1rem; }",
+      ".use { padding: var(--declared-here); }",
+      ".global { color: var(--ink-primary); }",
+    ].join("\n");
+
+    try {
+      writeFileSync(probe, probeContent, "utf8");
+
+      const unresolved = stylesheetViolations().filter((v) =>
+        v.includes(`(${UNRESOLVED_TOKEN_LABEL})`),
+      );
+
+      // Two of the four reads are satisfied: one by the token layer, one by the local
+      // declaration above it. Two are reported: the undeclared name, and the one read
+      // *before* its local declaration.
+      expect(unresolved.filter((v) => v.includes("--declared-below"))).toHaveLength(1);
+      expect(unresolved.some((v) => v.includes("--declared-here"))).toBe(false);
+      expect(unresolved.some((v) => v.includes("--ink-primary"))).toBe(false);
+      expect(unresolved).toHaveLength(1);
+    } finally {
+      rmSync(probe, { force: true });
+    }
+
+    expect(stylesheetViolations()).toEqual([]);
   });
 
   it("catches a detected link rendered as an anchor, in every form", () => {

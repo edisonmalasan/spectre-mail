@@ -57,7 +57,7 @@ export function StoredAddressUnchecked({
   onStartFresh,
 }: StoredAddressUncheckedProps) {
   return (
-    <section aria-labelledby="restore-failed-heading">
+    <section className="region region--alert" aria-labelledby="restore-failed-heading">
       <h2 id="restore-failed-heading">SpectreMail could not check your saved address</h2>
 
       <p data-testid="restore-failed-explanation">
@@ -78,10 +78,10 @@ export function StoredAddressUnchecked({
         </p>
       )}
 
-      <button type="button" onClick={onRetry}>
+      <button type="button" className="control" onClick={onRetry}>
         Check again
       </button>
-      <button type="button" onClick={onStartFresh}>
+      <button type="button" className="control" onClick={onStartFresh}>
         Use a new address for now
       </button>
     </section>

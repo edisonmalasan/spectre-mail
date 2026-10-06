@@ -62,7 +62,7 @@ function assertNever(failure: SessionFailure): never {
 
 export function MailboxFailure({ failure, onRetry }: MailboxFailureProps) {
   return (
-    <section aria-labelledby="failure-heading">
+    <section className="region region--alert" aria-labelledby="failure-heading">
       <h2 id="failure-heading">No address yet</h2>
 
       <p data-testid="failure-explanation">{explain(failure)}</p>
@@ -85,7 +85,7 @@ export function MailboxFailure({ failure, onRetry }: MailboxFailureProps) {
         </p>
       )}
 
-      <button type="button" onClick={onRetry}>
+      <button type="button" className="control" onClick={onRetry}>
         Try again
       </button>
     </section>

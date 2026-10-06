@@ -298,3 +298,172 @@ false after implementation is a limit nobody recorded.
 - **No claim about a live provider.** Unchanged by this change, and worth restating because
   a milestone that adds a stylesheet is a good place to quietly forget it: `use it
   externally` and the live polling cadence remain unverified.
+- **Nothing about `data-testid` being absent.** This was written into the apply stage's
+  evidence notes by mistake — the client holds **67** of them and held them before. What is
+  true, and verified mechanically rather than read, is that **no `data-testid` value and no
+  `aria-labelledby` value was added, removed, or altered**. The false form of a claim is
+  recorded here because it is the kind that reads as a security property and is not one.
+- **Nothing about a failure state being identifiable with colour removed.** 3.1.5's
+  requirement that no verdict, status, or error is distinguishable only by colour is
+  satisfied by the **regions' own wording and structure**, and that wording is asserted by
+  `apps/web`'s existing tests. No test renders the page with the colour removed and checks
+  the words still carry it.
+
+## D13 — Three amendments recorded during apply (2026-10-06)
+
+This repository's rule is that an amendment is written into the change rather than added at
+sync, so these live here and not in a changelog.
+
+### D13a — The accent is used in five declarations, not exactly the six named surfaces
+
+Task 3.1.4 said the accent appears on the roadmap's six surfaces and nowhere else. That is
+**false against the file**, and it was found by counting `var(--accent)` and
+`var(--ink-accent)` rather than by reading the stylesheet:
+
+| Declaration | Surface | On the roadmap's list |
+| --- | --- | --- |
+| `.inbox-row--carries` `border-inline-start` | a row carrying a verification marking | yes — active status |
+| `.inbox-row__verdict` `color` | the marking's own words | yes — active status |
+| `.code` `color` + `border` | a detected one-time code | yes — verification codes |
+| `:focus-visible` `outline` | every focusable control | yes — focus state, and `--focus` is the same hex as `--accent` in both schemes |
+| **`.link__host` `color`** | **the host of a detected verification link** | **no** |
+
+**Two of the six have no home on the page yet**: *primary action* (there is no
+`.control--primary`, because no control on this page is a primary action) and *brand mark*
+(the wordmark is set in `--ink-primary`). Both arrive with slice 3's sections. Neither is
+stubbed: a primary button that does nothing yet is fake UI, and an accent-coloured wordmark
+with no brand to mark is decoration.
+
+`.link__host` is a **reading**, not compliance. `packages/mail-parser` returns verification
+*links* as a first-class result beside codes, so the direction's "verification codes" is
+read as covering the family; a reader who reads that item literally deletes this one
+declaration. Recorded as a reading so that it can be disagreed with.
+
+**`docs/ROADMAP.md`'s slice table was corrected to say this too**, because a slice table
+claiming "the six named surfaces" is the same false claim one file over.
+
+### D13b — The twenty-second instance of an assertion narrower than its rule, in this change's own code
+
+Deleting the `:focus-visible` rule from `styles.css` left all five focus specs **green**. The
+specs asserted an indicator was present and that `outlineStyle !== "none"`, and with the
+product's own rule gone Chromium's user-agent stylesheet supplies `outline: auto`, which
+satisfies both.
+
+That is the defect class this repository has recorded twenty-one times, and it is the
+**first time the change that introduced the check also caught it**. The specs now require
+`expect.soft(focused.style).not.toBe("auto")` — so a ring the browser invented cannot
+satisfy a claim about a ring this product drew — and the reasoning sits beside the assertion
+rather than in a document nobody reads.
+
+### D13c — The falsification harness produced two false greens, and both were repaired
+
+Both are recorded because a harness that reports green on a mutation that never applied is
+worse than no harness: it files a dead check as coverage.
+
+- A `to` written as an **array of lines** was read as an array of separate edits. One
+  mutation reported seventeen `noop`s and then a `green` — a mutation recorded as surviving
+  because its own text had failed to apply. The three shapes of `to` are now told apart by
+  element type.
+- A **line-anchored** edit missed a fourth `.inbox-row` selector inside a `@media` block, so
+  the tree was only partly mutated and the result was reported green. A missing edit site now
+  records `noop` **and skips the run** rather than running a half-mutated tree.
+
+Final: **25 of 25 caught by the intended assertion**, restoration verified by SHA-256 with
+**0 mismatches**. `nocompile`, `green`, `wrongcatch`, `noop`, `harness-error`, and
+`build-failed` are each their own outcome and none is ever reported as a pass.
+
+A third defect is worth one line because it was not in the harness: the first check of
+`data-testid` invariance was a PowerShell pipeline whose `git grep -o` pattern had its
+`[^"]*` stripped before `git` saw it. Both sides came back empty, `Compare-Object` on two
+empty lists is vacuously equal, and it printed `IDENTIAL` having compared nothing. The
+check now counts and **refuses to compare two empty sets**.
+
+## D14 — A CI run carrying this change's specs was red, and two claims about it were false
+
+PR #63 ran `37439940701`: `verify` and `spike self-test` green, **`browser` failed**, 10 of 11
+specs passing.
+
+**First, the claims — because two of the three were false and the instrument that settled
+both was a log query.** This repository carried the sentence that the `browser` job *"has
+never run in CI; the job is committed unexecuted"*. It was **false before this change
+began**: `gh run list` shows the job executing and **passing** in `37374154930`,
+`37376921511`, `37377218976` and `37426170806`, the last on `main` on 2026-10-06, hours
+before this branch. A first correction was then written into `AGENTS.md`, `README.md` and
+the roadmap asserting the job *"ran in CI for the first time during this change"* — **also
+false** — and it was retracted against the same run list.
+
+**Why this is recorded rather than quietly fixed.** Both false claims were written in the
+register this repository already distrusts: confident, specific, and about something a
+reader would have no way to check without a log query. The narrower claim, *"the first run
+carrying these specs was red"*, is the one that survives, and it is narrower because a log
+query produced it. **A correction is not evidence**, and neither is the correction of a
+correction.
+
+**Then the defect.** The failing spec reported `names.some((name) =>
+name.includes("Clear saved data"))` as `false`, while `names.length > 0` and
+`names.some(… "Copy address")` both passed. It did **not reproduce** on the machine that
+wrote it, across repeated runs at two workers.
+
+**The defect was in the spec, and it was found by reading rather than by rerunning.**
+`focusableNames()` enumerated the focusable set filtered by `getClientRects()`, while
+`outlineAt()` and `focusIsAt()` indexed `document.querySelectorAll(selector)` **unfiltered**.
+Any element matching the selector with no layout box shifted every later reading by one and
+pushed the tail of the list off the end — which is exactly the observed signature: head
+correct, tail missing, length non-zero. The fix is **one place that decides which elements
+count**, handing out the index that reaches the element it counted, rather than two places
+that could disagree.
+
+### D14a — The repair was green three times before a mutation could catch it
+
+This is the part worth keeping, and it is the **twenty-third** recorded instance of an
+assertion that cannot fail.
+
+1. With the split reintroduced as mutation **M27**, the suite passed. Nothing on the page as
+   shipped is unrenderable, so the filtered position and the element index are identical and
+   the two indexings cannot be told apart.
+2. So the spec plants a `display: none` control — **after** the walk. Green: a probe added
+   once the walk is over shifts nothing.
+3. Planted by **appending** to `body`. Still green, and caught only by a *different* test
+   that happened to plant its own probe earlier in the document — a `wrongcatch`, which is
+   why the harness attributes a catch to the test it named.
+4. Planted by **prepending**, so it precedes every real control. **Still green.** The
+   enumeration's `name` was correct — it came from the same read — so every name-based
+   assertion passed, while `outlineAt()` read a *different* element's outline. A wrong
+   control's outline still looks focused or unfocused, so every indicator assertion passed
+   too.
+
+**What finally made it falsifiable was asserting the invariant that was actually violated.**
+A reading's name is read from the element its outline was read from, so
+`focus.unfocused.name === focus.name` holds **only** if the enumeration and the readers agree
+about which element an index addresses. One assertion, and the mutation is caught by the
+intended test.
+
+**Two controls came out of this and both are now in the spec**: a control with no layout box
+must be dropped by the filter, asserted **before** the walk so the two indexings genuinely
+disagree during it; and a **renderable** added control must be named by `describeDrift`,
+because `expect(drift).toEqual([])` is satisfied by a reporter that reports nothing.
+
+### D14b — What this establishes, and what it does not
+
+The `browser` job is **repeatable in CI** — it has run and passed on GitHub-hosted runners
+since 2026-10-05 — and this change's specs met it **red**, in a spec `pnpm verify` had
+already passed. That is the second time this repository has had a real instrument find
+something a unit suite was green about, and the reason the browser tier is a separate runner
+with its own CI job rather than a folder inside `pnpm test`.
+
+**The repair is now verified in CI, and the run id is the claim.** It is mutation-falsified
+(§2.3), the tier passes locally, and **run `37442961830` carried the repair and came back
+green** on a GitHub-hosted Linux runner — `verify`, `spike self-test` and `browser` all
+SUCCESS. It is stated as a run id rather than as "CI is green", because a claim about CI
+that outruns a run is the exact failure this repository's `spike self-test` notes describe:
+four cancelled jobs with **no log archive at all**, and the JSON the only instrument that
+could tell a starved runner queue from a hang.
+
+Four limits are unchanged and none of them is the one that just closed:
+
+- **Nothing about a live provider.** Every response is a recorded one.
+- **Nothing about another engine.** Chromium only, on purpose — and repeatability on one
+  engine is not coverage of the others.
+- **Nothing about a blocked `deleteDatabase`.** The suite does not produce that event.
+- **Nothing about how the page looks.** The specs read a computed style; nothing reads a
+  rendered pixel.
