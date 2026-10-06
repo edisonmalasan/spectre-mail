@@ -48,7 +48,7 @@ export interface StoredAddressGoneProps {
 
 export function StoredAddressGone({ mailbox, onRetry, onReplace }: StoredAddressGoneProps) {
   return (
-    <section aria-labelledby="expired-heading">
+    <section className="region region--alert" aria-labelledby="expired-heading">
       <h2 id="expired-heading">Your saved address is gone</h2>
 
       <p data-testid="expired-explanation">
@@ -60,10 +60,10 @@ export function StoredAddressGone({ mailbox, onRetry, onReplace }: StoredAddress
         The address that has gone is <code>{mailbox.address}</code>.
       </p>
 
-      <button type="button" onClick={onReplace}>
+      <button type="button" className="control" onClick={onReplace}>
         Get a new address
       </button>
-      <button type="button" onClick={onRetry}>
+      <button type="button" className="control" onClick={onRetry}>
         Check the saved address again
       </button>
     </section>

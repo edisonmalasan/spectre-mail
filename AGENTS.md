@@ -54,7 +54,7 @@ provider traffic served from recorded responses: boot reads real IndexedDB throu
 `createBrowserStorage()`, a created mailbox is written and read back through the
 platform's own API, adoption is offered only after the provider confirms it, and removal
 leaves `indexedDB.databases()` empty — including a store this build does not recognise.
-6 browser specs, `pnpm test:browser`, its own CI job.
+**11** browser specs as of M7 slice 1, `pnpm test:browser`, its own CI job.
 
 **What is still unverified, and the list is the point.** **`use it externally` remains
 unverified** — a recorded provider is not a provider. **The live polling cadence remains
@@ -80,15 +80,30 @@ The current state, in dependency order:
 - A persistence layer (`packages/storage`) holding a real `SpectreStorage` contract,
   an IndexedDB adapter, and a browser entry point - **which the website now uses** and
   the extension does not.
-- A website client (`apps/web`) that renders all of it, with **no styling** but with
-  persistence.
+- A website client (`apps/web`) that renders all of it, with **persistence** and, since
+  M7 slice 1, **the first styling in the product's history**.
+- A design-token layer (`packages/ui`) that both clients will consume, holding colour for
+  **two declared schemes**, type, spacing, radius, and motion, and **no** layout and no
+  component styles.
 
-The target state is two clients (website, extension) over that shared core. **M6,
-Website Hardening, is complete in scope**: its three slices are archived, and its fourth
-candidate was **audited rather than built** — three of its four items were already
+The target state is two clients (website, extension) over that shared core. **M7 slice 1
+(`spectral-swiss-foundation`) is applied.** Its two claims are verified by two different
+instruments, deliberately: **contrast** is pure WCAG arithmetic over two hex values in
+`packages/ui/src/pairs.test.ts`, and **focus** is a **resolved** outline read in real
+Chromium on the built page, compared against the same control unfocused. **No test reads a
+rendered pixel's colour**, so how the product *looks* is still a human judgement and no
+document in this repository claims otherwise. Motion is **declared and used by nothing**
+until slice 2, because the fix for `prefers-reduced-motion` has to land *with* the motion
+rather than after it.
+
+**M6, Website Hardening, is complete in scope**: its three slices are archived, and its
+fourth candidate was **audited rather than built** — three of its four items were already
 delivered and specified, and its two genuinely undelivered accessibility items (`visible
 focus states`, `reduced-motion handling`) are CSS that M7's own Accent and Motion blocks
-already place inside M7, so no fourth change was opened. `docs/ROADMAP.md`'s slice table
+already place inside M7, so no fourth change was opened. **One of those two has now
+landed**, at M7 slice 1: every interactive control draws a visible focus indicator, and it
+is asserted rather than claimed. `reduced-motion handling` has **not**, and M7 slice 2 is
+where it is owed. `docs/ROADMAP.md`'s slice table
 records the audit with a file or a promoted requirement named for every claim. **The
 earlier sentence in this file — "the roadmap's next milestone is M6, Website Hardening —
 storage behind a shared `SpectreStorage` contract, the privacy controls, and the
@@ -159,11 +174,17 @@ Pin versions when exact versions matter.
   **The website offers no provider selector, and `website-client` now requires that
   absence rather than merely permitting it**: the page names the provider it reaches,
   offers no control for choosing one, and does not describe the absence as missing or
-  forthcoming. A control over one reachable option cannot act. It has
-  **no styling**. Styling is
-  absent by decision, not by omission; M7 owns it
-  under the approved Spectral Swiss Utility direction, and markup written now would be
-  markup M7 rewrites.
+  forthcoming. A control over one reachable option cannot act. **It is styled, since M7
+  slice 1, and every value it uses comes from the token layer.** `packages/ui/src/tokens.ts`
+  is the single source; `packages/ui/src/tokens.css` is **generated** from it and
+  `tokens-css.test.ts` asserts the committed stylesheet is byte-for-byte what its source
+  renders, and **no literal appears in `apps/web/src/styles.css`**. The claims this
+  establishes are narrow and are stated so: the page's colours are declared values with
+  computed ratios, and its controls are reachable with a **resolved** outline this product
+  drew. **It establishes nothing about how any of it looks** — no test in this repository
+  reads a rendered pixel's colour. The line above's "**no styling**" sentence was true
+  through M6 and is **deleted rather than reworded**; styling is absent at slice 3's
+  successor for a different reason, recorded there.
   **It keeps this device's address and can be made to forget it.** One mailbox is written
   to the browser's own storage and offered back on the next visit **after the provider
   confirms it**. M6 slice 3 added `LocalData`, a region of its own, which states what is
@@ -190,8 +211,10 @@ Pin versions when exact versions matter.
   cadence is the product's own choice and no provider limit was measured for this
   provider, so a figure on screen would be an invention presented as a measurement;
   a provider's own verbatim limit statement *is* shown, attributed, with its scope
-  disclaimed. `apps/extension` remains an empty placeholder. Visual design work starts
-  at M7.
+  disclaimed. `apps/extension` remains an empty placeholder, and **that is still where the
+  extension's half of the visual work waits**: the M7 `Extension preview` section is
+  **blocked on M8**, because a preview of an extension that has no manifest would be fake
+  UI.
   **Opening a message displays what was found and acts on none of it.** `MessageView`
   renders the sender, subject, arrival time, readable text, the codes in the parser's
   rank order, and each link as text with its host visible. There is no copy control
@@ -362,17 +385,26 @@ Pin versions when exact versions matter.
   `pnpm typecheck`, which is a separate gate. There is still no extension build
   step — that is M8.
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running **649 tests across
-  31 files** via `pnpm test` (2026-10-06, after the `browser-verification` apply stage),
+- Testing: Vitest `3.2.7` at the workspace root, verified running **689 tests across
+  35 files** via `pnpm test` (2026-10-06, at the `spectral-swiss-foundation` apply stage),
   counted from a JSON reporter rather than read off a summary line:
   54 in `packages/core`, 89 in `packages/providers`, **149 in `packages/mail-parser`**,
   **153 in `packages/mailbox`** (19 of them adoption), **113 in `apps/web`**,
   **44 in `packages/storage`** (7 stored record, 30 IndexedDB adapter, 7 browser entry
-  point), and **47 architecture boundary assertions**.
-  **Two of those numbers are this change's, and both are the interesting ones.**
-  `apps/web` went 112 → 113 for the regression test that holds a write open across an
-  inbox transition, and the boundary count went 46 → 47 for the rule requiring every
-  shipped browser spec to be collected by the browser suite and by nothing else.
+  point), **36 in `packages/ui`** (12 contrast, 11 pairs, 5 generated stylesheet, 8 design
+  document), and **51 architecture boundary assertions**.
+  **`apps/web` is 113 and that is the number that matters most in this paragraph.** M7
+  slice 1 adds `className` to twelve components and changes **no** element, no accessible
+  name, and no `data-testid`, so the client suite's count is **required** to be unchanged; a
+  movement would have meant markup moved and would have to be explained before anything else
+  was looked at. The boundary count went 47 → 51 for the four new CSS rules, and
+  `packages/storage`, `providers`, `mail-parser`, `mailbox`, and `core` are untouched.
+  **The two preceding figures in this paragraph are the previous stage's**, and they are
+  kept here rather than replaced so that the deltas are readable: 649 across 31 with 47
+  boundary was the `browser-verification` measurement, where `apps/web` went 112 → 113 for
+  the regression test that holds a write open across an inbox transition and the boundary
+  count went 46 → 47 for the rule requiring every shipped browser spec to be collected by
+  the browser suite and by nothing else.
   **The previous figures in this paragraph were wrong in two ways, and both were found
   by measuring rather than by reading**: it recorded `apps/web` at 96 when the real count
   was 108 before this slice, and it recorded 3 provider-configuration tests when there
@@ -380,8 +412,12 @@ Pin versions when exact versions matter.
   from `--reporter=json` and grouped by project, so the next reader is measuring rather
   than adding up.
   **Those counts cover one tier only.** There is now a **second runner**: Playwright
-  `1.63.0`, 6 browser specs in `apps/web/e2e/`, run by `pnpm test:browser`, **not** part
-  of `pnpm verify`, in its own CI job. It is a separate suite because two tiers execute
+  `1.63.0`, **11** browser specs in `apps/web/e2e/` — the 6 storage specs, whose count is
+  **unchanged by M7 slice 1**, and 5 focus specs added by it — run by `pnpm test:browser`,
+  **not** part of `pnpm verify`, in its own CI job. That the storage six kept their count is
+  the evidence styling changed no behaviour that tier already covered: had a `className`
+  altered a control's role or accessible name, one of those six would have stopped finding
+  its target. It is a separate suite because two tiers execute
   different code against different platforms, and a single runner claiming both would let
   a browser-free `pnpm test` report as covering a browser suite — a boundary rule asserts
   they are disjoint in both directions.
@@ -759,13 +795,21 @@ static shell.
 
 The website creates a mailbox, renders its address, lists that mailbox's messages
 while polling for new ones, opens one, and - since M6 slice 2 - **reads its own storage
-first and offers a stored address back after the provider confirms it**. It has **no
-styling** - that is M7 - and since M6 slice 3 it **offers a two-step confirmed control
-that makes this browser forget that address**, with the mailbox left on screen and the
-page saying a later visit will not offer it back. `LocalData.tsx` is the only new
-component; the limits bullet that said no button could delete the stored address was
-**removed rather than reworded**, because it became false the moment the button landed.
-The remaining stated limit is styling, not an unfinished screen. The
+first and offers a stored address back after the provider confirms it**. Since M6 slice 3 it
+**offers a two-step confirmed control that makes this browser forget that address**, with
+the mailbox left on screen and the page saying a later visit will not offer it back.
+`LocalData.tsx` is the only new component; the limits bullet that said no button could
+delete the stored address was **removed rather than reworded**, because it became false the
+moment the button landed. **It is styled as of M7 slice 1**, and that sentence's former
+form - *"It has **no** styling - that is M7"* - was true through M6 and is **deleted rather
+than reworded**. **What the styling changes here is worth stating precisely, because
+"styled" is the weakest claim in this file**: the page's colours are **declared** values
+whose pairs are asserted as WCAG ratios in both schemes; every control is keyboard-reachable
+with a **resolved** outline this product drew, read in real Chromium on the **built** page;
+and no literal value appears in `styles.css`, so every colour and size it uses is one a test
+can name. **None of that is a claim about appearance.** A human opening this page is the
+only thing that can say whether it looks right, and no gate in this repository stands in for
+that. The
 page's provider configuration is reachable and testable without a network
 (`apps/web/src/provider-config.test.ts`), but **nothing has been verified against the
 live Guerrilla Mail API from a browser**, so no claim is made about what a real page
@@ -933,7 +977,8 @@ pnpm test:browser
 
 ```
 
-Playwright `1.63.0`, 6 specs in `apps/web/e2e/`, **Chromium only**. The command builds
+Playwright `1.63.0`, **11** specs in `apps/web/e2e/` — the 6 storage specs plus **5 focus
+specs added by M7 slice 1** — **Chromium only**. The command builds
 the site first (`pnpm build`) and then serves `apps/web/dist` with `vite preview` on
 `http://127.0.0.1:4173` with `--strictPort`, because the page under test is the **built**
 `<App />` with no props — the page a user receives, not a composition mounted by a test.
@@ -942,10 +987,19 @@ the site first (`pnpm build`) and then serves `apps/web/dist` with `vite preview
 through `createBrowserStorage()`, writes a created mailbox and reads it back **through
 the platform's own API**, offers a stored address back only after the provider confirms
 it, and — after a confirmed removal — leaves `indexedDB.databases()` empty, including a
-store this build does not recognise. `pnpm test:browser` exited `0`, 6 passed.
+store this build does not recognise. **And, since M7 slice 1, that every interactive
+control the page offers is keyboard-reachable and shows a focus indicator whose resolved
+outline — style, width, and colour — is present, non-zero, in the accent the token layer
+declares, and **different from the same control unfocused**. That last clause is the one
+that does the work: it is what makes a permanent outline fail, and therefore what stops a
+ring the browser invented from satisfying a claim about a ring this product drew.
 
 **What it does not establish, and this list is the point:**
 
+- **Nothing about how the page looks.** The focus specs read a **computed style** and the
+  contrast specs read **WCAG arithmetic**; neither reads a rendered pixel's colour. Both
+  are exact about what they measure and silent about whether the result is *good*, and no
+  document in this repository claims otherwise.
 - **Nothing about a live provider.** Every provider response is a **recorded** one,
   imported by name from `packages/providers`, and any other origin is aborted **and
   reported by name**. `use it externally` remains unverified, and a stored mailbox has
@@ -1225,7 +1279,7 @@ through 2026-10-06:
 pnpm typecheck     8 of 8 workspace projects run tsc --noEmit
 pnpm lint          exit 0
 pnpm format:check  All matched files use Prettier code style
-pnpm test          31 files, 649 tests passed
+pnpm test          35 files, 689 tests passed
 pnpm build         vite 7.3.6, dist emitted
 pnpm verify        exit 0
 ```
@@ -1295,6 +1349,44 @@ the reason 44 storage tests were never going to find it.
   behaviour and **not a general licence** for the fake.
 - **The browser tier has never run in CI.** The job is committed unexecuted, so every
   claim about it is a claim about one machine.
+
+**M7 slice 1 added a fourth limit to that list, and it is the only one about
+appearance.** `packages/ui`'s 36 tests and the five focus specs between them establish
+that **every declared colour pair meets its declared threshold in both schemes** and that
+**every control is reachable with a resolved outline this product drew**. Neither reads a
+rendered pixel. **So "the styling is verified" would be a false summary of both**, and
+`docs/DESIGN_SYSTEM.md` carries the same list in full rather than letting a reader infer
+coverage from the word "verified". This is a different shape from the other three limits:
+those are about a **platform** never being reached (a live provider, another engine, a real
+blocked `deleteDatabase`), and this one is about a **judgement** never being made by a
+machine. A human opening the page is the only instrument for it, and building one is M7
+slice 3's subject, not a missing test.
+
+**The change's own falsification record, because a count of caught mutations proves
+nothing without what they were.** **25 of 25 deliberate violations were caught by the
+*intended* assertion, with restoration verified by SHA-256**, across both tiers. Three
+results are worth keeping:
+
+- **Deleting the `:focus-visible` rule left the focus specs green.** They asserted an
+  indicator was present and not `none`, and with the product's own rule gone Chromium's
+  user-agent stylesheet supplies `outline: auto`, which passes. That is the **twenty-second
+  recorded instance of an assertion narrower than the rule it documented** — and, unlike the
+  previous twenty-one, this one was authored *and caught* by the change that introduced it.
+  The specs now assert `expect.soft(focused.style).not.toBe("auto")`, with the reasoning
+  recorded beside the assertion rather than in a changelog nobody reads.
+- **A hand-edited generated artefact and a changed generator are different mutations and
+  need different attributions.** `packages/ui` has two projections of `tokens.ts` —
+  `tokens.css` and the tables in `docs/DESIGN_SYSTEM.md` — and each has its own
+  byte-identity assertion. Proving only that changing the *source* breaks something would
+  not distinguish a test reading `tokens.ts` from one reading the other file.
+- **The harness itself produced a false green twice, and both were repaired rather than
+  explained.** A `to` that is an **array of lines** was read as an array of separate
+  edits, so one mutation reported seventeen `noop`s and then a `green` — a mutation
+  recorded as surviving because its own text had failed to apply. And a mutation using a
+  line-anchored edit missed a fourth `.inbox-row` selector inside a `@media` block, so the
+  tree was only partly mutated and the result was reported as green. A missing edit site
+  now records `noop` **and skips the run**, and the three shapes of `to` are told apart by
+  element type.
 
 **`pnpm test` and `pnpm typecheck` catch different defects, and this repository has
 now been bitten by that in both directions.** Vitest does not typecheck, so a

@@ -124,7 +124,7 @@ export function LocalData({ localData, clearStored }: LocalDataProps) {
 
   if (localData.kind === "stored") {
     return (
-      <section aria-labelledby="local-data-heading">
+      <section className="region" aria-labelledby="local-data-heading">
         <h2 id="local-data-heading">What this browser remembers</h2>
 
         <p data-testid="local-data-stored">
@@ -136,7 +136,7 @@ export function LocalData({ localData, clearStored }: LocalDataProps) {
           // **Both actions are named for what they do, and the destructive one is not
           // the default focus.** "Keep it" being second means a keyboard user who tabs
           // past the confirm lands somewhere safe.
-          <div data-testid="local-data-confirmation">
+          <div className="confirmation" data-testid="local-data-confirmation">
             <p>
               Removing this cannot be undone. The address stays on screen and still works, but a
               reload will not bring it back.
@@ -147,6 +147,7 @@ export function LocalData({ localData, clearStored }: LocalDataProps) {
             </p>
             <button
               type="button"
+              className="control"
               onClick={() => {
                 setClear({ kind: "clearing" });
                 void clearStored().then(
@@ -164,19 +165,26 @@ export function LocalData({ localData, clearStored }: LocalDataProps) {
             >
               Remove it
             </button>
-            <button type="button" onClick={() => setClear({ kind: "idle" })}>
+            <button type="button" className="control" onClick={() => setClear({ kind: "idle" })}>
               Keep it
             </button>
           </div>
         )}
 
         {clear.kind === "refused" && (
-          <p data-testid="local-data-refused">It was not removed. {clear.reason}</p>
+          // **A notice, and its own kind of notice.** The words are the claim; the tint
+          // reinforces them and a reader who cannot see it reads the same sentence. The
+          // reason is the platform's own words and is not styled separately — this page
+          // does not get to decide how a refusal should read, only that it is shown.
+          <p className="notice notice--danger" data-testid="local-data-refused">
+            It was not removed. {clear.reason}
+          </p>
         )}
 
         {clear.kind !== "confirming" && (
           <button
             type="button"
+            className="control"
             disabled={clear.kind === "clearing"}
             onClick={() => setClear({ kind: "confirming" })}
           >
@@ -189,7 +197,7 @@ export function LocalData({ localData, clearStored }: LocalDataProps) {
 
   if (clear.kind === "removed") {
     return (
-      <section aria-labelledby="local-data-heading">
+      <section className="region" aria-labelledby="local-data-heading">
         <h2 id="local-data-heading">What this browser remembers</h2>
         {/* **The consequence is stated, because the mailbox is still on screen and a
             user who cleared it deserves to know what still works and what does not.**
@@ -204,7 +212,7 @@ export function LocalData({ localData, clearStored }: LocalDataProps) {
   }
 
   return (
-    <section aria-labelledby="local-data-heading">
+    <section className="region" aria-labelledby="local-data-heading">
       <h2 id="local-data-heading">What this browser remembers</h2>
       <p data-testid="local-data-empty">
         Nothing. This browser is not holding an address for SpectreMail.

@@ -33,7 +33,7 @@ export function MailboxLifetime({ mailbox }: MailboxLifetimeProps) {
   // this branch is reached only by a mailbox that genuinely carries no expiry.
   if (mailbox.expiresAt === undefined) {
     return (
-      <section aria-labelledby="lifetime-heading">
+      <section className="region" aria-labelledby="lifetime-heading">
         <h2 id="lifetime-heading">How long this address lasts</h2>
         <p data-testid="lifetime-unknown">
           Unknown. The provider publishes no expiry for this mailbox, so SpectreMail will not
@@ -44,7 +44,7 @@ export function MailboxLifetime({ mailbox }: MailboxLifetimeProps) {
   }
 
   return (
-    <section aria-labelledby="lifetime-heading">
+    <section className="region" aria-labelledby="lifetime-heading">
       <h2 id="lifetime-heading">How long this address lasts</h2>
       {/*
         The provider's own statement, attributed. Not a countdown, and not phrased as

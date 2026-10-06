@@ -1,0 +1,103 @@
+/**
+ * GENERATED FILE — DO NOT EDIT.
+ *
+ * Source of truth: packages/ui/src/tokens.ts
+ * Regenerate:     pnpm --filter @spectre-mail/ui tokens:emit
+ * Verify:         pnpm test (tokens-css.test.ts asserts this file matches its source)
+ *
+ * Editing this file makes the build's own check fail, which is the intended outcome.
+ * A hand-edited palette is a palette whose contrast was never computed.
+ */
+
+/* The light scheme is the default, so it is the `:root` block itself rather than a
+   media query guarding it. A page opened in a browser with no `prefers-color-scheme`
+   support at all still gets a complete, checked palette. */
+:root {
+  color-scheme: light dark;
+
+  /* Surfaces */
+  --surface-page: #f4f4f2;
+  --surface-raised: #ffffff;
+  --surface-sunken: #e9e9e6;
+  --surface-accent: #efecfb;
+  --surface-danger: #fbeeee;
+  --ink-primary: #16161a;
+  --ink-secondary: #4a4a52;
+  --ink-muted: #5e5e68;
+  --ink-accent: #4a2fb8;
+  --ink-danger: #a4262c;
+  --line-subtle: #dcdcd8;
+  --line-strong: #6f6f78;
+  --accent: #5a3fd0;
+  --focus: #5a3fd0;
+
+  /* Typography */
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Menlo, Consolas, monospace;
+  --type-xs: 0.75rem;
+  --type-sm: 0.875rem;
+  --type-base: 1rem;
+  --type-lg: 1.125rem;
+  --type-xl: 1.375rem;
+  --type-2xl: 1.75rem;
+  --type-3xl: 2.5rem;
+  --leading-tight: 1.15;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.65;
+  --tracking-tight: -0.02em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.08em;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-bold: 600;
+
+  /* Spacing */
+  --space-0: 0;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+  --space-9: 6rem;
+
+  /* Radius */
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-pill: 999px;
+
+  /* Metrics */
+  --width-hairline: 1px;
+  --width-focus: 2px;
+  --offset-focus: 2px;
+  --measure-prose: 62ch;
+  --measure-page: 46rem;
+
+  /* Motion */
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --ease-standard: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* The dark scheme is declared in full, not derived. See tokens.ts. */
+    --surface-page: #0e0e11;
+    --surface-raised: #17171b;
+    --surface-sunken: #08080a;
+    --surface-accent: #1e1a2e;
+    --surface-danger: #2a1618;
+    --ink-primary: #ecedf0;
+    --ink-secondary: #b0b0b8;
+    --ink-muted: #96969f;
+    --ink-accent: #b8a4f7;
+    --ink-danger: #f0928f;
+    --line-subtle: #2b2b32;
+    --line-strong: #7a7a87;
+    --accent: #a48cf5;
+    --focus: #a48cf5;
+  }
+}

@@ -298,3 +298,82 @@ false after implementation is a limit nobody recorded.
 - **No claim about a live provider.** Unchanged by this change, and worth restating because
   a milestone that adds a stylesheet is a good place to quietly forget it: `use it
   externally` and the live polling cadence remain unverified.
+- **Nothing about `data-testid` being absent.** This was written into the apply stage's
+  evidence notes by mistake — the client holds **67** of them and held them before. What is
+  true, and verified mechanically rather than read, is that **no `data-testid` value and no
+  `aria-labelledby` value was added, removed, or altered**. The false form of a claim is
+  recorded here because it is the kind that reads as a security property and is not one.
+- **Nothing about a failure state being identifiable with colour removed.** 3.1.5's
+  requirement that no verdict, status, or error is distinguishable only by colour is
+  satisfied by the **regions' own wording and structure**, and that wording is asserted by
+  `apps/web`'s existing tests. No test renders the page with the colour removed and checks
+  the words still carry it.
+
+## D13 — Three amendments recorded during apply (2026-10-06)
+
+This repository's rule is that an amendment is written into the change rather than added at
+sync, so these live here and not in a changelog.
+
+### D13a — The accent is used in five declarations, not exactly the six named surfaces
+
+Task 3.1.4 said the accent appears on the roadmap's six surfaces and nowhere else. That is
+**false against the file**, and it was found by counting `var(--accent)` and
+`var(--ink-accent)` rather than by reading the stylesheet:
+
+| Declaration | Surface | On the roadmap's list |
+| --- | --- | --- |
+| `.inbox-row--carries` `border-inline-start` | a row carrying a verification marking | yes — active status |
+| `.inbox-row__verdict` `color` | the marking's own words | yes — active status |
+| `.code` `color` + `border` | a detected one-time code | yes — verification codes |
+| `:focus-visible` `outline` | every focusable control | yes — focus state, and `--focus` is the same hex as `--accent` in both schemes |
+| **`.link__host` `color`** | **the host of a detected verification link** | **no** |
+
+**Two of the six have no home on the page yet**: *primary action* (there is no
+`.control--primary`, because no control on this page is a primary action) and *brand mark*
+(the wordmark is set in `--ink-primary`). Both arrive with slice 3's sections. Neither is
+stubbed: a primary button that does nothing yet is fake UI, and an accent-coloured wordmark
+with no brand to mark is decoration.
+
+`.link__host` is a **reading**, not compliance. `packages/mail-parser` returns verification
+*links* as a first-class result beside codes, so the direction's "verification codes" is
+read as covering the family; a reader who reads that item literally deletes this one
+declaration. Recorded as a reading so that it can be disagreed with.
+
+**`docs/ROADMAP.md`'s slice table was corrected to say this too**, because a slice table
+claiming "the six named surfaces" is the same false claim one file over.
+
+### D13b — The twenty-second instance of an assertion narrower than its rule, in this change's own code
+
+Deleting the `:focus-visible` rule from `styles.css` left all five focus specs **green**. The
+specs asserted an indicator was present and that `outlineStyle !== "none"`, and with the
+product's own rule gone Chromium's user-agent stylesheet supplies `outline: auto`, which
+satisfies both.
+
+That is the defect class this repository has recorded twenty-one times, and it is the
+**first time the change that introduced the check also caught it**. The specs now require
+`expect.soft(focused.style).not.toBe("auto")` — so a ring the browser invented cannot
+satisfy a claim about a ring this product drew — and the reasoning sits beside the assertion
+rather than in a document nobody reads.
+
+### D13c — The falsification harness produced two false greens, and both were repaired
+
+Both are recorded because a harness that reports green on a mutation that never applied is
+worse than no harness: it files a dead check as coverage.
+
+- A `to` written as an **array of lines** was read as an array of separate edits. One
+  mutation reported seventeen `noop`s and then a `green` — a mutation recorded as surviving
+  because its own text had failed to apply. The three shapes of `to` are now told apart by
+  element type.
+- A **line-anchored** edit missed a fourth `.inbox-row` selector inside a `@media` block, so
+  the tree was only partly mutated and the result was reported green. A missing edit site now
+  records `noop` **and skips the run** rather than running a half-mutated tree.
+
+Final: **25 of 25 caught by the intended assertion**, restoration verified by SHA-256 with
+**0 mismatches**. `nocompile`, `green`, `wrongcatch`, `noop`, `harness-error`, and
+`build-failed` are each their own outcome and none is ever reported as a pass.
+
+A third defect is worth one line because it was not in the harness: the first check of
+`data-testid` invariance was a PowerShell pipeline whose `git grep -o` pattern had its
+`[^"]*` stripped before `git` saw it. Both sides came back empty, `Compare-Object` on two
+empty lists is vacuously equal, and it printed `IDENTICAL` having compared nothing. The
+check now counts and **refuses to compare two empty sets**.

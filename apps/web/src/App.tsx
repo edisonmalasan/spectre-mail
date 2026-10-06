@@ -180,7 +180,7 @@ export function App({ session, storage }: AppProps = {}) {
   return (
     <main>
       <h1>SpectreMail</h1>
-      <p>Temporary email for the web and the browser.</p>
+      <p className="page__lead">Temporary email for the web and the browser.</p>
 
       {boot.kind === "blocked" && <BootFailure reason={boot.reason} onRetry={retryBoot} />}
 
@@ -198,7 +198,7 @@ export function App({ session, storage }: AppProps = {}) {
         // mailbox; the only way to show an address before the page knows whether it
         // has one would be for the read to succeed and the restore to fail, and that
         // reaches `restoreFailed`, which shows the address as unconfirmed.
-        <section aria-labelledby="idle-heading">
+        <section className="region" aria-labelledby="idle-heading">
           <h2 id="idle-heading">Looking for a saved address</h2>
           <p data-testid="idle">Checking what this device has stored.</p>
         </section>
@@ -206,7 +206,7 @@ export function App({ session, storage }: AppProps = {}) {
 
       {boot.kind !== "blocked" && state.kind === "creating" && (
         // No address here either, for the same reason as above.
-        <section aria-labelledby="creating-heading">
+        <section className="region" aria-labelledby="creating-heading">
           <h2 id="creating-heading">Creating your address</h2>
           <p data-testid="creating">Asking Guerrilla Mail for a new address.</p>
         </section>
@@ -217,7 +217,7 @@ export function App({ session, storage }: AppProps = {}) {
         // returning visitor waits through, and the copy difference is the whole reason
         // `adopting` is a state rather than a flag: this page is checking an address the
         // user already has, not asking for a new one.
-        <section aria-labelledby="adopting-heading">
+        <section className="region" aria-labelledby="adopting-heading">
           <h2 id="adopting-heading">Checking your saved address</h2>
           <p data-testid="adopting">
             Asking Guerrilla Mail whether the address stored on this device still works.
@@ -226,7 +226,7 @@ export function App({ session, storage }: AppProps = {}) {
       )}
 
       {boot.kind !== "blocked" && state.kind === "ready" && (
-        <section aria-labelledby="ready-heading">
+        <section className="region" aria-labelledby="ready-heading">
           <h2 id="ready-heading">Ready</h2>
           <p data-testid="ready">Your address is below. Nothing was required to create it.</p>
           <Address mailbox={state.mailbox} />
@@ -238,7 +238,7 @@ export function App({ session, storage }: AppProps = {}) {
             way of saying it without saying it.
           */}
           {saving.kind === "notSaved" && (
-            <p data-testid="save-failed">
+            <p className="notice notice--danger" data-testid="save-failed">
               This address could not be saved to this device, so a reload will not bring it back.{" "}
               {saving.reason}
             </p>
@@ -266,7 +266,7 @@ export function App({ session, storage }: AppProps = {}) {
               if (id !== null) openMessage(id);
             }}
           />
-          <button type="button" onClick={replace}>
+          <button type="button" className="control" onClick={replace}>
             Replace address
           </button>
         </section>
@@ -310,7 +310,7 @@ export function App({ session, storage }: AppProps = {}) {
         <LocalData localData={localData} clearStored={clearStored} />
       )}
 
-      <section aria-labelledby="limits-heading">
+      <section className="region" aria-labelledby="limits-heading">
         <h2 id="limits-heading">What this page can and cannot do</h2>
         <ul>
           <li>It reaches Guerrilla Mail and nothing else.</li>

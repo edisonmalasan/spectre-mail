@@ -350,13 +350,25 @@ describe("the inbox on the page", () => {
       );
       await screen.findByTestId("inbox-rows");
 
-      // **Text, not a class or a colour.** The row states it in characters, so a
-      // screen reader announces it, a monochrome display shows it, and it survives
-      // the stylesheet M7 has not written yet.
+      // **Text, not a shape.** The row states it in characters, so a screen reader
+      // announces it, a monochrome display shows it, and it survives a stylesheet that
+      // paints nothing at all.
       const marking = screen.getByTestId("inbox-row-verdict");
       expect(marking.textContent).toBe("Contains a one-time code.");
-      expect(marking.className).toBe("");
       expect(marking.querySelectorAll("span, svg, i")).toHaveLength(0);
+
+      // **This assertion replaced `expect(marking.className).toBe("")`, and the reason
+      // it could not stay is worth recording.** It stood for "the marking carries no
+      // non-text signal of its own" — and M7 slice 1 gave the marking a class, so the
+      // literal became false while the property it stood for held. A literal that a
+      // routine change falsifies without any behaviour changing is a test that will be
+      // deleted rather than understood.
+      //
+      // The property, asserted instead: the marking's class is **one fixed hook that
+      // does not vary by verdict**. So all three `carries*` verdicts style identically,
+      // no colour or weight distinguishes a code from a link, and the words stay the
+      // only thing saying which was found.
+      expect(marking.className).toBe("inbox-row__verdict");
     });
 
     it("marks a verification link separately from a code", async () => {

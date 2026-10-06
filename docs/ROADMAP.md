@@ -39,8 +39,11 @@
 > landing it would create permanent spec debt for disposable scaffolding.
 
 **Roadmap cursor:** **M6 - Website Hardening, complete in scope and closed out;
-`browser-verification` applied, verified, synced, and archived. The next eligible
-objective is M7, Spectral Swiss Design Pass.**
+`browser-verification` applied, verified, synced, and archived. M7 - Spectral Swiss Design
+Pass - slice 1 (`spectral-swiss-foundation`) is APPLIED and awaiting its verification pass.
+The next eligible objective after it is M7 slice 2, which is motion and
+`prefers-reduced-motion`; slice 3 is the five website sections; slice 4, the
+`Extension preview`, is blocked on M8.**
 Slice 1 (`spectre-storage`) and slice 2
 (`mailbox-adoption`) are both applied, verified, synced, and **archived** at
 `openspec/changes/archive/2026-10-05-spectre-storage/` and
@@ -50,8 +53,10 @@ Slice 1 (`spectre-storage`) and slice 2
 `openspec/changes/archive/2026-10-05-privacy-controls/`; its proposal merged as **#53**,
 its Apply as **#54**, its sync as **#55**. **`browser-verification` is archived** at
 `openspec/changes/archive/2026-10-06-browser-verification/`; its proposal merged as
-**#58**, its Apply as **#59**, its sync as **#60**. `openspec list` reports **No active
-changes**, which is the correct end state.
+**#58**, its Apply as **#59**, its sync as **#60**. `spectral-swiss-foundation`'s proposal
+merged as **#62**; its Apply is the stage this block was written at.
+`openspec list` reported **No active changes** before that proposal and reports the one
+active change now.
 
 **The archive was checked rather than assumed, because archiving is a move.** All four
 delta files survived it, and each delta's ADDED block was then compared
@@ -234,7 +239,7 @@ recorded a count it had not measured, which is why the source changed from a sum
 line to a JSON report grouped by project. `pnpm install`, `pnpm typecheck`, `pnpm lint`,
 `pnpm format:check`, `pnpm test`, `pnpm build`, and `pnpm verify` all exited 0.
 
-### Current numbers, measured 2026-10-06 after `browser-verification`'s apply stage
+### Numbers as measured 2026-10-06 after `browser-verification`'s apply stage
 
 **649 tests across 31 files, of which 47 are architecture boundary assertions.**
 54 in `packages/core`, 89 in `packages/providers`, 149 in `packages/mail-parser`,
@@ -254,6 +259,57 @@ the 649** and adding them to it would misreport what `pnpm test` covers.
 `pnpm test:browser` exited 0, 6 passed. The gate commands all exited 0, and `pnpm verify`
 was additionally verified **with no browser installed** by pointing
 `PLAYWRIGHT_BROWSERS_PATH` at an empty directory.
+
+### Current numbers, measured 2026-10-06 at `spectral-swiss-foundation`'s apply stage
+
+**689 tests across 35 files, of which 51 are architecture boundary assertions.** 54 in
+`packages/core`, 89 in `packages/providers`, 149 in `packages/mail-parser`, 153 in
+`packages/mailbox`, **113 in `apps/web`**, 44 in `packages/storage`, **36 in `packages/ui`**
+(12 contrast, 11 pairs, 5 generated-stylesheet, 8 design document), 51 boundary. Counted
+from `--reporter=json` grouped by project, not added by hand.
+
+**`apps/web` is 113 and that is the load-bearing number in this paragraph.** The slice adds
+`className` to twelve components and changes no element, no accessible name, and no
+`data-testid`, so the client suite's count is **required** to be unchanged. A movement would
+have meant markup moved, and it would have to be explained before anything else was looked
+at. It is unchanged. Boundary 47 → **51** for the four new rules; `packages/storage`, the
+provider layer, the parser, the session layer, and the domain model are all untouched.
+
+**The second tier moved, and it moved in the direction the claim required.** **11** Playwright
+specs in `apps/web/e2e/`, up from 6: the six storage specs are **unchanged in count**, and
+five focus specs were added. That the existing six kept their count is the evidence that
+styling changed no behaviour the browser tier already covered — had adding `className`
+altered a control's role or its accessible name, one of those six would have stopped
+finding its target.
+
+**25 of 25 deliberate violations were caught by the intended assertion, with restoration
+verified by SHA-256**, across both tiers. Three of those mutations are worth naming
+because each one changed an assertion rather than merely breaking a suite:
+
+- **Deleting the `:focus-visible` rule left the suite green.** The focus specs assert that
+  an indicator is present and non-`none`, and with the product's own rule gone Chromium's
+  user-agent stylesheet draws `outline: auto` — which passes. The specs now assert
+  `expect.soft(focused.style).not.toBe("auto")` as well, so a ring the browser invented
+  cannot satisfy a claim about a ring this product drew. **This is the twenty-second
+  recorded instance of an assertion narrower than the rule it documented**, and the first
+  one this change authored and then caught.
+- **A fourth `.inbox-row` selector, inside a `@media` block, was missed** by a
+  line-anchored mutation, which reported `green` for a mutation that had not been fully
+  applied. The harness gained `replaceAll`, and a mutation that cannot apply now records
+  `noop` and skips its run rather than running the tree half-mutated.
+- **`renderDesignDoc()` emitting a line array was read by the harness as a list of
+  separate edits**, producing seventeen `noop` rows and then a `green` — a mutation
+  reported as surviving because its own text had failed to apply. The harness now
+  discriminates the three forms of `to` by element type.
+
+**What this slice does not establish, and the list is the point.** **How SpectreMail
+looks** — no test reads a rendered pixel's colour, so the palette is arithmetic and the ring
+is a computed style, and both are silent about whether the result is *good*. **Firefox and
+WebKit** — one engine, deliberately. **`use it externally`** — the browser tier still serves
+recorded provider responses, so a stored mailbox has still never been reconciled against a
+live Guerrilla Mail session. **The live polling cadence** — unchanged. **Blocked
+`deleteDatabase`** — still a `fake-indexeddb` measurement. **Motion** — declared, used by
+nothing, arriving at slice 2 with `prefers-reduced-motion` attached.
 
 **Where slice 2's requirements now live.** Four were added and three amended, promoted
 at the sync stage and now in `openspec/specs/`. `openspec validate --specs --strict`
@@ -2629,6 +2685,56 @@ computed colour or a rendered focus ring**: contrast and focus visibility are pr
 of rendered pixels, and the suite verifies behaviour over IndexedDB rather than appearance.
 M7 is where CSS arrives, and a stylesheet is what makes these assertions possible to
 write.
+
+## Slices
+
+**M7 is delivered as bounded slices, and the breakdown exists because this milestone mixes
+two different kinds of work.** The Direction, Suggested visual system, Typography, and
+Motion blocks are one thing: a shared, token-level foundation with claims that can be
+asserted as arithmetic. The Website sections block is another: five compositions whose
+correctness is a judgement about composition, not a ratio. Put in one change, the second
+kind would have been reviewed by the standards of the first and would have passed.
+
+| Slice | Change | Owns | State |
+| --- | --- | --- | --- |
+| 1 | `spectral-swiss-foundation` | The token layer in `packages/ui`, the page's structural stylesheet, the accent on the surfaces of the Accent block that **exist on this page today** (active status, verification codes, focus state — *primary action* and *brand mark* arrive with the sections in slice 3, and one further use, a detected link's host, is a recorded reading rather than a listed item), **visible focus states**, and the checks that can be asserted about either — contrast as WCAG arithmetic, focus as a resolved outline in a real browser | applied |
+| 2 | not opened | **Motion**, and `prefers-reduced-motion: reduce` governing it. The three transitions named above arrive here | not started |
+| 3 | not opened | The **five website sections** below. Composition work, on a foundation slice 1 has already fixed | not started |
+| 4 | **blocked** | The **`Extension preview`** section, below | **blocked on M8** |
+
+**Slice 1's boundary is the split between "held to a threshold" and "looks right", and it
+is drawn by what an assertion can measure.** Every colour pair it declares is checked as a
+ratio in `packages/ui/src/pairs.test.ts`, in **both** schemes; every focus indicator is
+checked by reading the **resolved** outline in real Chromium and comparing it against the
+same control unfocused. **Nothing in slice 1 reads a rendered pixel's colour**, so how
+SpectreMail looks remains a human judgement, and no document in this repository claims
+otherwise. Slice 3 is where that judgement is exercised, which is also why slice 3 exists as
+a separate change: it is the slice where "correct" and "good" stop being the same question.
+
+**Motion is deliberately not in slice 1, and the reason is ordering rather than caution.**
+The motion tokens are **declared in slice 1 and used by nothing**, and
+`docs/DESIGN_SYSTEM.md` says so in the generated table itself — a reader finding
+`--duration-base` in a design contract would reasonably assume something moves. Shipping
+animation in slice 1 would have meant shipping it *without* `prefers-reduced-motion`, which
+is the specific defect this milestone exists to prevent: the fix for reduced motion has to
+land with the motion, never after it.
+
+**Slice 4 is blocked, and it is blocked rather than deferred.** The `Extension preview`
+section would render a screenshot or a description of an extension that **does not exist** —
+`apps/extension` is an empty placeholder and the manifest is M8's. A preview section for a
+missing thing is fake UI, and this repository's own rule about a button that reports success
+while removing nothing applies to it exactly: a section that depicts a product the user
+cannot obtain teaches a falsehood more effectively than an absent one. **Owner: M8.**
+
+**What slice 1 changed outside the styling.** One promoted requirement, and it is a
+**rename plus a modification**: `website-client`'s *"This milestone builds structure, not
+visual design"* is renamed and amended, because that sentence is false the moment CSS
+exists. The replacement states what the page now offers rather than what it once omitted.
+It is carried in the delta as an explicit `## RENAMED Requirements` FROM/TO pair so the
+promotion is mechanical and no sentence is left behind describing a milestone that has
+passed. **No other capability's requirement was amended** — in particular `visual-system` is
+**added** by this slice rather than changed, so this milestone ships a new capability
+instead of quietly rewriting a promoted one.
 
 ## Website sections
 

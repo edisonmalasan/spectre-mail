@@ -55,7 +55,7 @@ export interface MessageViewProps {
 
 export function MessageView({ opened, onClose, onRetry }: MessageViewProps) {
   return (
-    <section aria-labelledby="message-heading">
+    <section className="region message" aria-labelledby="message-heading">
       <h3 id="message-heading">Message</h3>
 
       {opened.kind === "none" && (
@@ -71,13 +71,13 @@ export function MessageView({ opened, onClose, onRetry }: MessageViewProps) {
       )}
 
       {opened.kind === "openFailed" && (
-        <div data-testid="message-open-failed">
+        <div className="finding" data-testid="message-open-failed">
           <p data-testid="message-open-failed-reason">
             This message could not be read, so SpectreMail cannot say whether it carries a code or a
             link. That is not the same as there being none.
           </p>
           <p data-testid="message-open-failed-detail">{opened.failure.description}</p>
-          <button type="button" onClick={onRetry}>
+          <button type="button" className="control" onClick={onRetry}>
             Try reading it again
           </button>
         </div>
@@ -90,7 +90,7 @@ export function MessageView({ opened, onClose, onRetry }: MessageViewProps) {
         way back is stuck, and the control has to be reachable in the states where
         nothing is open too so it cannot shift position as the message loads.
       */}
-      <button type="button" onClick={onClose} data-testid="message-close">
+      <button type="button" className="control" onClick={onClose} data-testid="message-close">
         Back to the inbox
       </button>
     </section>
@@ -104,11 +104,15 @@ interface OpenedMessageBodyProps {
 function OpenedMessageBody({ message }: OpenedMessageBodyProps) {
   return (
     <div data-testid="message-opened">
-      <p data-testid="message-from">{message.from === "" ? "No sender reported" : message.from}</p>
+      <p className="message__meta" data-testid="message-from">
+        {message.from === "" ? "No sender reported" : message.from}
+      </p>
 
-      <p data-testid="message-subject">{message.subject === "" ? "No subject" : message.subject}</p>
+      <p className="message__subject" data-testid="message-subject">
+        {message.subject === "" ? "No subject" : message.subject}
+      </p>
 
-      <p data-testid="message-received-at">
+      <p className="message__meta mono" data-testid="message-received-at">
         <time dateTime={new Date(message.receivedAt).toISOString()}>
           {new Date(message.receivedAt).toISOString()}
         </time>
@@ -117,10 +121,18 @@ function OpenedMessageBody({ message }: OpenedMessageBodyProps) {
       {/*
         `<pre>` rather than a styled `<div>`, and that is not a layout choice: it
         preserves the line breaks the message arrived with, and it is a plain text
-        container with no semantics a screen reader would have to be taught. M7 owns
-        how this should look.
+        container with no semantics a screen reader would have to be taught.
+
+        **M7's answer to "how should this look": as the provider's text, not as ours.**
+        Monospace, a sunken surface, and a scrollable slab, because the message was
+        written by someone else and setting it in the page's own typeface and measure
+        would imply this page composed it. `white-space: pre-wrap` keeps the author's
+        line breaks while still reflowing, which is the one concession to a screen that
+        is not a fixed-width terminal.
       */}
-      <pre data-testid="message-readable">{message.readable}</pre>
+      <pre className="message__body" data-testid="message-readable">
+        {message.readable}
+      </pre>
 
       <MessageCodes codes={message.codes} />
       <MessageLinks links={message.links} />
@@ -138,22 +150,22 @@ function MessageCodes({ codes }: MessageCodesProps) {
     // and held no candidate is a *finding*, and it is the honest counterpart to
     // `message-open-failed`: this one really was looked at.
     return (
-      <div data-testid="message-codes-none">
+      <div className="finding" data-testid="message-codes-none">
         <p>No one-time code was found in this message.</p>
       </div>
     );
   }
 
   return (
-    <div data-testid="message-codes">
+    <div className="finding" data-testid="message-codes">
       <h4>One-time codes found</h4>
       {/* The caveat sits with the codes rather than in a footnote, because a code shown
           without it reads as certain - and `mail-parsing` guarantees no detection is
           ever reported as certain. */}
-      <p data-testid="message-codes-caveat">
+      <p className="finding__caveat" data-testid="message-codes-caveat">
         These are readings of the message and may be wrong. The most likely one is first.
       </p>
-      <ol>
+      <ol className="codes">
         {codes.map((code, index) => (
           // **Index-keyed, and the reason is worth stating.** Two candidates can be the
           // same value - a message that repeats its code is not unusual - and a key of
@@ -161,7 +173,7 @@ function MessageCodes({ codes }: MessageCodesProps) {
           // The list is ranked and short, so its position is a better identity here
           // than its contents.
           <li key={`${index}-${code.value}`} data-testid="message-code">
-            <code>{code.value}</code>
+            <code className="code">{code.value}</code>
           </li>
         ))}
       </ol>
@@ -176,29 +188,33 @@ interface MessageLinksProps {
 function MessageLinks({ links }: MessageLinksProps) {
   if (links.length === 0) {
     return (
-      <div data-testid="message-links-none">
+      <div className="finding" data-testid="message-links-none">
         <p>No verification link was found in this message.</p>
       </div>
     );
   }
 
   return (
-    <div data-testid="message-links">
+    <div className="finding" data-testid="message-links">
       <h4>Verification links found</h4>
-      <p data-testid="message-links-caveat">
+      <p className="finding__caveat" data-testid="message-links-caveat">
         These are readings of the message and may be wrong. They are shown as text, not as links you
         can follow: following one is the verification workflow, which this page does not perform
         yet.
       </p>
-      <ul>
+      <ul className="links">
         {links.map((link, index) => (
-          <li key={`${index}-${link.url}`} data-testid="message-link">
+          <li key={`${index}-${link.url}`} className="link" data-testid="message-link">
             {/* The host first, because it is the part a user judges a link by, and
                 `VerificationLink` already carries it so a view does not have to parse
                 the URL to get it. */}
-            <span data-testid="message-link-host">{link.hostname}</span>{" "}
+            <span className="link__host" data-testid="message-link-host">
+              {link.hostname}
+            </span>{" "}
             {/* Plain text and deliberately not an `href`. See the module note. */}
-            <span data-testid="message-link-url">{link.url}</span>
+            <span className="link__url" data-testid="message-link-url">
+              {link.url}
+            </span>
           </li>
         ))}
       </ul>
