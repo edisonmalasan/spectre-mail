@@ -40,6 +40,27 @@ import type { RecordedStep } from "../../../packages/providers/src/recorder";
 /** The one origin the website is permitted to ask for. */
 export const PROVIDER_ORIGIN = "https://api.guerrillamail.com";
 
+/** A promise a spec holds open, and then releases. */
+export interface Deferred {
+  readonly promise: Promise<void>;
+  release(): void;
+}
+
+/**
+ * A deferred, for holding one response open while the page is inspected.
+ *
+ * **Here and not in a spec, because the gate above is the thing it exists for** and two
+ * specs now hold a listing open. Two copies of "a promise I can release" would be the
+ * defect `open-mailbox.ts` exists to prevent, in its smallest possible dress.
+ */
+export function deferred(): Deferred {
+  let release = (): void => {};
+  const promise = new Promise<void>((resolve) => {
+    release = () => resolve();
+  });
+  return { promise, release };
+}
+
 /**
  * The operations the website drives, each answered by a recorded response.
  *
@@ -68,7 +89,7 @@ export interface ProviderTraffic {
 /** What a spec may change about how the provider behaves. */
 export interface RecordedProviderOptions {
   /**
-   * Hold the listing response until this promise settles.
+   * Hold a listing response, and say **which** listing by its one-based count.
    *
    * **The purpose is to make time irrelevant.** "The page must not show a stored
    * address before the provider confirms it" is a claim about an ordering that
@@ -77,10 +98,21 @@ export interface RecordedProviderOptions {
    * controls, inspects the page while the provider is still thinking, and then
    * releases it. Nothing here has a duration to tune.
    *
-   * Only the listing is gated. Gating every operation would also gate the first-visit
-   * path, where there is nothing stored to withhold.
+   * **A function of the call number, and not a single promise.** Two claims need two
+   * different listings held: `storage.spec.ts` holds the *first* (there is nothing
+   * stored before it), and `motion.spec.ts` holds the *second* (the first is what puts
+   * a row on the page). A single promise cannot express both — holding the first would
+   * also hold the second, so the second could never be released at the point the claim
+   * is made. A single promise that releases everything at once is the other defect: it
+   * cannot hold one request while answering another.
+   *
+   * **The per-call shape is the same one `apps/web/src/Inbox.test.tsx` already uses**
+   * for its `holdListing` stub gate. Two tiers holding a listing open is one idea, and
+   * two spellings of it would be the defect `open-mailbox.ts` exists to prevent.
+   *
+   * Return `undefined` to answer that listing immediately.
    */
-  readonly listingGate?: Promise<void>;
+  readonly listingGate?: (call: number) => Promise<unknown> | undefined;
 }
 
 /**
@@ -99,6 +131,14 @@ export function serveRecordedProvider(
 ): ProviderTraffic {
   const served: string[] = [];
   const denied: string[] = [];
+
+  /**
+   * How many listings this handler has been asked for.
+   *
+   * **A count rather than a boolean**, because the gate has to be able to hold one
+   * listing and answer the next, and "is a listing in progress" cannot say which.
+   */
+  let listingCalls = 0;
 
   page.route("**/*", async (route: Route) => {
     const url = new URL(route.request().url());
@@ -126,9 +166,15 @@ export function serveRecordedProvider(
       return;
     }
 
-    if (url.searchParams.get("f") === LISTING_OPERATION && options.listingGate !== undefined) {
-      await options.listingGate;
-    }
+    const held =
+      url.searchParams.get("f") === LISTING_OPERATION
+        ? options.listingGate?.(++listingCalls)
+        : undefined;
+
+    // **Counted and held before the URL is recorded as served.** The count is the gate's
+    // own input, and `served` is what a spec reads to know the provider was asked — so a
+    // request the gate is still thinking about must not yet read as served.
+    if (held !== undefined) await held;
 
     served.push(route.request().url());
     await route.fulfill({

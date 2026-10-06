@@ -226,9 +226,9 @@ export const METRICS = {
  */
 export const MOTION = {
   /** How far a materialising element travels before it settles. */
-  "rise": "4px",
+  rise: "4px",
   /** How blurred a materialising element is before it resolves. */
-  "blur": "6px",
+  blur: "6px",
   "duration-fast": "120ms",
   "duration-base": "200ms",
   "ease-standard": "cubic-bezier(0.16, 1, 0.3, 1)",

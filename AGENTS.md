@@ -55,7 +55,10 @@ provider traffic served from recorded responses: boot reads real IndexedDB throu
 `createBrowserStorage()`, a created mailbox is written and read back through the
 platform's own API, adoption is offered only after the provider confirms it, and removal
 leaves `indexedDB.databases()` empty — including a store this build does not recognise.
-**12** browser specs as of M7 slice 1, `pnpm test:browser`, its own CI job.
+**21** browser test cases in **3** spec files as of M7 slice 2 — **12** as of M7 slice 1 —
+`pnpm test:browser`, its own CI job. **The motion spec found a product defect on its first run**
+and then found a defect in *itself* on the change's falsification pass; both are recorded below
+and in the change's `design.md` D17 and D18.
 
 **What is still unverified, and the list is the point.** **`use it externally` remains
 unverified** — a recorded provider is not a provider. **The live polling cadence remains
@@ -113,9 +116,49 @@ by two different instruments, deliberately: **contrast** is pure WCAG arithmetic
 hex values in `packages/ui/src/pairs.test.ts`, and **focus** is a **resolved** outline read
 in real Chromium on the built page, compared against the same control unfocused. **No test reads a
 rendered pixel's colour**, so how the product *looks* is still a human judgement and no
-document in this repository claims otherwise. Motion is **declared and used by nothing**
-until slice 2, because the fix for `prefers-reduced-motion` has to land *with* the motion
-rather than after it.
+document in this repository claims otherwise.
+
+**M7 slice 2 (`motion-and-reduced-motion`) is applied and verified**, and it is where the
+sentence above
+stopped being true — **"Motion is declared and used by nothing" was correct through slice 1 and
+is deleted rather than reworded.** Three entrances now animate, on three hooks that already
+existed (`.address__value`, `.inbox-row`, `.code`), each a single `@keyframes materialise`
+whose **final frame is what the element already computes to** — which is what makes
+`prefers-reduced-motion: reduce` a *removal* rather than a substitute timing, and why no fill
+mode was needed. The block naming all three selectors sits **below** the entrances, and that
+order is load-bearing: equal specificity means source order decides.
+
+**It is also the slice whose own browser spec found a product defect on its first run**, and
+the finding is worth more than the feature. `InboxState`'s `checking` variant carried no
+listing, so it was the one variant that could leave a client with nothing to show for the
+length of a request, and `Inbox.tsx` rendered it as its own branch — **every poll unmounted
+the inbox list and rebuilt it**. Measured in Chromium on the built page, with a
+`MutationObserver`:
+
+```text
+5153ms DOM -[UL.inbox-rows]
+5153ms DOM +[P.]
+5156ms DOM -[P.]
+5156ms DOM +[UL.inbox-rows]
+5187ms START materialise on inbox-row
+```
+
+So the row re-materialised **every five seconds, for as long as the tab stayed open** — and
+focus inside the list was destroyed, hover and text selection were lost, and the flash was
+already visible to a user who had asked for no motion at all. `checkFailed` already kept the
+last known listing and `state.ts` gives the reason — *"a failed check is a condition of the
+inbox, not the loss of it"* — so `checking` now keeps it too, through one helper shared with
+`refusalOf`. **This widened the change to a second capability**, and that was a real fork put
+to the user rather than decided silently: `Inbox.tsx` disclaims judging what is true, so the
+alternative was a client-side cache duplicating what the session already owns.
+
+**Nothing about how the motion looks is verified, and the list is the point.** The browser
+spec reads a **computed style** and an **event log**: it asserts that each entrance's
+`animation-name`, `animation-duration` and `animation-timing-function` resolve to declared
+tokens; that a `MutationObserver`-free element-identity marker survives a second identical
+listing; and that `prefers-reduced-motion` changes what an element resolves to **without a
+reload**. **No test reads a rendered pixel**, so whether the blur and the rise look right is
+still a human judgement, and a human opening the page is the only instrument for it.
 
 **M6, Website Hardening, is complete in scope**: its three slices are archived, and its
 fourth candidate was **audited rather than built** — three of its four items were already
@@ -206,11 +249,26 @@ Pin versions when exact versions matter.
   is the single source; `packages/ui/src/tokens.css` is **generated** from it and
   `tokens-css.test.ts` asserts the committed stylesheet is byte-for-byte what its source
   renders, and **not one colour, radius, spacing step, type size, or duration is a literal
-  in `apps/web/src/styles.css`**. The claims this
+  in `apps/web/src/styles.css`** — a **measurement**, repeated by inspection on 2026-10-06,
+  and since M7 slice 2 only its three motion-related categories are asserted, by the browser
+  tier rather than by a boundary rule (see Setup & commands for exactly what each one does).
+  **It moves, since M7 slice 2, on three hooks it already had.** `.address__value`,
+  `.inbox-row` and `.code` each carry one `@keyframes materialise` whose `to` frame is
+  the value the element already computed to, which is what lets
+  `prefers-reduced-motion: reduce` be a **removal** — the block below the entrances sets
+  `animation: none`, and no fill mode is needed anywhere. **Entry motion is what shipped,
+  and only entry motion**: the roadmap's word was *"materialize/disappear"*, and an element
+  React has unmounted is gone before any exit transition could run, so nothing here claims
+  a disappearance. There is **no `transition` in the stylesheet at all**, deliberately, and
+  the browser tier carries that as a tripwire rather than the requirement claiming it.
+  The claims this
   establishes are narrow and are stated so: the page's colours are declared values with
-  computed ratios, and its controls are reachable with a **resolved** outline this product
-  drew. **It establishes nothing about how any of it looks** — no test in this repository
-  reads a rendered pixel's colour. The line above's "**no styling**" sentence was true
+  computed ratios, its controls are reachable with a **resolved** outline this product
+  drew, and each entrance's `animation-name`, `animation-duration` and
+  `animation-timing-function` resolve to a declared token. **It establishes nothing about
+  how any of it looks** — no test in this repository reads a rendered pixel's colour, and
+  none reads a rendered pixel's position either, so whether the blur and the rise read as
+  right is a human judgement. The line above's "**no styling**" sentence was true
   through M6 and is **deleted rather than reworded**; styling is absent at slice 3's
   successor for a different reason, recorded there.
   **It keeps this device's address and can be made to forget it.** One mailbox is written
@@ -413,21 +471,33 @@ Pin versions when exact versions matter.
   `pnpm typecheck`, which is a separate gate. There is still no extension build
   step — that is M8.
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running **691 tests across
-  35 files** via `pnpm test` (2026-10-06, at the `spectral-swiss-foundation` verification-pass
-  repair), counted from a JSON reporter rather than read off a summary line:
+- Testing: Vitest `3.2.7` at the workspace root, verified running **694 tests across
+  35 files** via `pnpm test` (2026-10-06, at `motion-and-reduced-motion`'s integration
+  stage, with `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory), counted from a
+  JSON reporter rather than read off a summary line:
   54 in `packages/core`, 89 in `packages/providers`, **149 in `packages/mail-parser`**,
-  **153 in `packages/mailbox`** (19 of them adoption), **113 in `apps/web`**,
+  **155 in `packages/mailbox`** (19 of them adoption), **114 in `apps/web`**,
   **44 in `packages/storage`** (7 stored record, 30 IndexedDB adapter, 7 browser entry
   point), **38 in `packages/ui`** (13 contrast, 11 pairs, 5 generated stylesheet, 9 design
   document), and **51 architecture boundary assertions**.
-  **`packages/ui` went 36 → 38 and the two tests are not the slice's own work** — the
+  **`M7 slice 2` moved `packages/mailbox` 153 → 155 and `apps/web` 113 → 114, and moved
+  nothing else.** The two mailbox tests are the requirement that a check in flight keeps
+  what is already known and the unit-tier half of the row-identity claim; the client test is
+  the matching assertion that the row element on screen is the same node while a further
+  check runs. **`packages/ui` stayed at 38 and the boundary count stayed at 51, and the
+  second is a decision rather than an omission** — D14 records why no rule was added for
+  literal motion values, and the requirement is enforced in the browser tier against a
+  resolved duration instead. `packages/core`, `packages/providers`, `packages/mail-parser`
+  and `packages/storage` are untouched by this slice.
+  **`packages/ui` went 36 → 38 at slice 1 and the two tests are not that slice's own
+  work** — the
   verification pass found that the generated compliance table mislabelled every non-text
   pair, and one test asserts the standard's name survives two standards sharing a ratio
   while the other asserts the emitter's file exclusion is honest. Both are recorded under
   `design.md` D15; a count that moves after a change is merged is a count that was wrong
   before somebody measured it again.
-  **`apps/web` is 113 and that is the number that matters most in this paragraph.** M7
+  **`At slice 1` `apps/web` was 113 and that was the number that mattered most in that
+  paragraph.** M7
   slice 1 adds `className` to twelve components and changes **no** element, no accessible
   name, and no `data-testid`, so the client suite's count is **required** to be unchanged; a
   movement would have meant markup moved and would have to be explained before anything else
@@ -446,12 +516,18 @@ Pin versions when exact versions matter.
   from `--reporter=json` and grouped by project, so the next reader is measuring rather
   than adding up.
   **Those counts cover one tier only.** There is now a **second runner**: Playwright
-  `1.63.0`, **12** browser specs in `apps/web/e2e/` — the 6 storage specs, whose count is
-  **unchanged by M7 slice 1**, and 6 focus specs added by it — run by `pnpm test:browser`,
+  `1.63.0`, **21 test cases in 3 spec files** in `apps/web/e2e/` — `storage.spec.ts` (**6**,
+  count **unchanged by M7 slice 1**), `focus.spec.ts` (**6**, added by slice 1) and
+  `motion.spec.ts` (**9**, added by slice 2) — run by `pnpm test:browser`,
   **not** part of `pnpm verify`, in its own CI job. That the storage six kept their count is
   the evidence styling changed no behaviour that tier already covered: had a `className`
   altered a control's role or accessible name, one of those six would have stopped finding
-  its target. It is a separate suite because two tiers execute
+  its target. **Slice 2's nine are new cases in a new file, so nothing that tier already
+  covered was replaced** — and the one storage spec that changed at all (`storage.spec.ts`)
+  changed only its gate's spelling, with its assertions untouched. **A "13 specs" figure
+  appears in this change's own `tasks.md` and was a miscount** — 12 cases predate slice 2
+  and the motion file adds nine — corrected against Playwright's own "Running 21 tests".
+  It is a separate suite because two tiers execute
   different code against different platforms, and a single runner claiming both would let
   a browser-free `pnpm test` report as covering a browser suite — a boundary rule asserts
   they are disjoint in both directions.
@@ -850,9 +926,42 @@ with a **resolved** outline this product drew, read in real Chromium on the **bu
 and not one colour, radius, spacing step, type size, or duration is written as a literal in
 `styles.css`, so every colour and size it uses is one a test can name. **The narrower
 wording replaced a false one**: this file said *no literal value appears in `styles.css`*,
-and literals do appear — `translateY(1px)`, `max-height: 28rem`, `1fr auto`, `width: 100%`,
-`@media (max-width: 34rem)`. A boundary rule enforces the categories above and not the rest,
-and a claim broader than its own rule is the defect this file exists to catch, not a nicety.
+and literals do appear. **Measured 2026-10-06 by scanning the shipped stylesheet with
+comments stripped: six**, and this file's previous sentence named five of them correctly —
+`translateY(1px)` (303), `max-height: 28rem` (458), the single breakpoint
+`@media (max-width: 34rem)` (653), `grid-template-columns: 1fr auto` (344) and
+`width: 100%` (346) — plus a sixth the previous sentence missed, `grid-template-columns: 1fr`
+(666). **A first draft of this correction claimed the last two "are gone, reworded out with
+this sentence", which was false**; they are in the file, and the reason the draft got it
+wrong is that its scan pattern covered `px|rem|em|ch|vh|vw|ms|s` and so counted three
+lengths while the paragraph talked about six literals. **The pattern's coverage is stated
+because a measurement that silently measures less than the sentence beside it is the same
+defect as a check that is narrower than its rule.**
+
+Those six are lengths, fractions, percentages and `auto` — **not one of them is a colour, a
+radius, a spacing step, a type size or a duration**. That is precisely why a blanket "no
+literal" rule would be wrong rather than merely broad: it would fire on six legitimate
+declarations and still say nothing about the five categories above.
+
+**"A boundary rule enforces the categories above and not the rest" was false, and it was
+false in the direction that reads like a guarantee.** `stylesheetViolations()` in
+`tests/architecture/boundaries.test.ts` was read on 2026-10-06 and it applies exactly three
+things: the three `REMOTE_CSS_PATTERNS` (`@import` of a URL, `@import` of a bare string, a
+`url()` pointing at an origin), the two `FOCUS_SUPPRESSION_PATTERNS` (`outline: none|0` and
+`outline-width: 0`), and `collectUnresolvedTokens`, which requires every `var(--…)` in the
+stylesheet to resolve against the token layer or a local declaration. **No rule anywhere in
+this repository checks that a colour, a radius, a spacing step or a type size is a declared
+token.** Those four categories are **measured, not asserted** — and a claim broader than its
+own rule is the defect this file exists to catch, not a nicety, so the sentence is deleted
+and the measurement it was standing in for is stated in its place.
+
+**Two of the categories gained a real assertion in M7 slice 2, in the browser tier and not in
+a boundary rule.** `apps/web/e2e/motion.spec.ts` reads the **built** stylesheet and requires
+that it name no duration, no easing function and no motion distance literally. That is a
+different instrument from a boundary rule: it runs on what a browser actually loaded, and
+it covers exactly the three categories motion introduces. **The remaining three — colour,
+radius, type size — are still only measured**, and this file now says so instead of implying
+otherwise.
 **None of that is a claim about appearance.** A human opening this page is the
 only thing that can say whether it looks right, and no gate in this repository stands in for
 that. The
@@ -1023,8 +1132,9 @@ pnpm test:browser
 
 ```
 
-Playwright `1.63.0`, **12** specs in `apps/web/e2e/` — the 6 storage specs plus **6 focus
-specs added by M7 slice 1** — **Chromium only**. The command builds
+Playwright `1.63.0`, **3 spec files and 21 test cases** in `apps/web/e2e/` — `storage.spec.ts`
+(**6**), `focus.spec.ts` (**6**, added by M7 slice 1) and `motion.spec.ts` (**9**, added by
+M7 slice 2) — **Chromium only**. The command builds
 the site first (`pnpm build`) and then serves `apps/web/dist` with `vite preview` on
 `http://127.0.0.1:4173` with `--strictPort`, because the page under test is the **built**
 `<App />` with no props — the page a user receives, not a composition mounted by a test.
@@ -1039,6 +1149,24 @@ outline — style, width, and colour — is present, non-zero, in the accent the
 declares, and **different from the same control unfocused**. That last clause is the one
 that does the work: it is what makes a permanent outline fail, and therefore what stops a
 ring the browser invented from satisfying a claim about a ring this product drew.
+
+**And, since M7 slice 2, three things about motion.** That each entrance's
+`animation-name`, `animation-duration` and `animation-timing-function` resolve to a
+**declared token**; that under `prefers-reduced-motion: reduce` **no element carries an
+animation at all** while the same sweep finds every one of them without the preference,
+**without a reload**; and that **a row already on the page is the same DOM node through a
+later poll** — element identity, read as a marker set on the node. That last one is **read while a
+check is genuinely in flight**, waited for rather than timed: the marker is only read once the
+page is observably in `checking`, with the ceiling taken from `INBOX_POLL_CEILING_MS` —
+**imported from `packages/mailbox/src/cadence`**, not hand-picked, because a number chosen to
+be large enough is the recorded defect with a bigger constant. `RecordedProviderOptions.listingGate`
+is **a function of the one-based listing count** so a spec can hold one listing while answering
+another, matching the `holdListing` gate `apps/web/src/Inbox.test.tsx` already used, and
+`deferred()` moved into `recorded-provider.ts` so two specs cannot hold a listing open by two
+different spellings. **The hold is a reliability measure and not the repair** — measured with
+the rebuild defect applied and the hold removed, the suite still catches it in 4 runs of 4; what
+catches it is the wait. The hold takes a flaky 2-of-3 read to a dependable one. See the change's
+`design.md` D18 and D21.
 
 **What it does not establish, and this list is the point:**
 
@@ -1320,7 +1448,8 @@ M5 slice 1 apply stage, again after its independent verification repairs (all on
 2026-10-02), after the M5 slice 2 verification repairs, again after the M5 slice 3
 verification repairs, again after the M5 slice 4 apply stage, and again after the
 M6 slice 1 apply stage, again after the M6 slice 2 apply stage, and again after the
-M6 slice 3 apply stage, and again after the `browser-verification` apply stage, all on
+M6 slice 3 apply stage, again after the `browser-verification` apply stage, and again after
+the M7 slice 1 apply stage and its verification-pass repair, all on
 2026-10-03
 through 2026-10-06:
 
@@ -1328,10 +1457,20 @@ through 2026-10-06:
 pnpm typecheck     8 of 8 workspace projects run tsc --noEmit
 pnpm lint          exit 0
 pnpm format:check  All matched files use Prettier code style
-pnpm test          35 files, 691 tests passed
+pnpm test          35 files, 694 tests passed
 pnpm build         vite 7.3.6, dist emitted
 pnpm verify        exit 0
 ```
+
+**691 was the figure at the slice-1 verification-pass repair and 694 is this slice's, and
+the difference is this slice's two new mailbox tests and one new client test.** `pnpm verify`
+itself exited `1` on its first run here, on `format:check`, for a reason worth recording: the
+Motion prose the generated design document carries quotes the roadmap's own word as
+`*"materialize/disappear"*`, and Prettier normalises asterisk emphasis to underscore emphasis
+— so the emitter wrote a region `format:check` rejected while the byte-identity assertion
+forbade hand-correcting it. **Two gates disagreeing is only resolvable in the generator**, the
+emitter now writes `_`…"_`, and `prettier --check .` is clean across the repository with
+`packages/ui`'s **38** tests still passing. See the change's `design.md` D13.
 
 **`pnpm test:browser` is deliberately absent from that block and has its own entry
 below.** It is not run by `pnpm verify`, and listing it here would make the two claims
@@ -1358,7 +1497,7 @@ responses, so the suite proves this repository's mapping of a provider's wire fo
 and nothing about the provider's current behaviour. A provider renaming a field
 would leave this suite green. Fixture refresh against `docs/PROVIDERS.md` is a
 deliberate diff, not something CI does. The same limit applies to the client:
-`apps/web`'s 113 tests render against a **stub provider** or a recording transport, so
+`apps/web`'s 114 tests render against a **stub provider** or a recording transport, so
 they prove the page composes the abstraction correctly and say **nothing** about whether
 a real browser reaches Guerrilla Mail successfully. **Nor has the polling cadence ever run
 against a live provider**: `packages/mailbox`'s cadence assertions read the delay the
@@ -1490,6 +1629,74 @@ results are worth keeping:
   gains a layout box 150ms in — failed it, because 200ms of agreement is a delay with a
   comparison in it rather than a precondition. **Both were authored and caught inside this
   change.** The checks most likely to be too weak are the ones that decide when to measure.
+
+**M7 slice 2 (`motion-and-reduced-motion`) ran 16 deliberate violations: 15 counted and caught
+by the intended assertion, restoration verified by SHA-256 for every mutated file, and a
+sixteenth recorded as evidence rather than counted.** Its own count is unremarkable; what it
+found was not, and four results are worth carrying:
+
+- **The twenty-sixth instance, and the third recorded *precondition* — and this one the
+  slice authored, caught, and repaired itself.** (Two more followed: the fix's ceiling, which
+  was red 6 times in 10, is the twenty-seventh and twenty-eighth. All four are preconditions.)
+  The browser test carrying D11's claim
+  ("a row already on the page is not re-materialised by a later poll") **passed on a build
+  that rebuilt the row on every poll.** It waited for the recorded handler to be *asked* for a
+  second listing, and `recorded-provider.ts` pushes onto `served` *before* `route.fulfill`, so
+  the marker was read while the page had not yet published `checking` — that is, **before the
+  defect existed**. The repair holds the listing open, which required making
+  `RecordedProviderOptions.listingGate` **a function of the one-based listing count**
+  (`storage.spec.ts` holds the first, `motion.spec.ts` the second — one promise cannot do both)
+  and moving `deferred()` into `recorded-provider.ts` so two specs cannot hold a listing open by
+  two spellings. **The gate is self-policing**: the test *requires* the re-checking sentence to
+  become visible before reading the marker, so a gate that stopped working fails the wait rather
+  than passing a reading taken at an arbitrary moment. Two mutations hold that down — the gate
+  removed, and the gate holding the wrong listing — and both are caught by this test's own title.
+- **A mutation the test this change *named* for it caught in only 4 of 5 runs.** Collapsing
+  `CheckingInbox` into `EmptyInbox` — so a mailbox nobody has looked at reports "no mail has
+  arrived" — is invisible to *any* assertion on what is on the page, because `notStarted` and an
+  empty `checking` **render the same component by design** (`Inbox.tsx` says so: they are the
+  same fact, so they say the same words). Measured over five runs: the catcher that **never
+  missed** is *keeps the address on screen while the inbox is still being checked*; the named one
+  missed once. **The mutation record now leads with the catcher that never missed**, because an
+  attribution naming a test that catches a defect four times in five will one day report a green
+  as a catch.
+- **The harness itself was wrong before the tests were, and it was wrong the same way as
+  everything else in this list.** It counted with `/(\d+)\s+passed/` matched anywhere in the
+  output, and Vitest prints `Test Files  5 passed (5)` immediately above `Tests  114 passed
+  (114)` — so it reported **five tests** for every `apps/web` run and for every `packages/ui`
+  run, the same file count and the same wrong answer. It did not manufacture a false green,
+  because the failed count came from the same pattern and a failing run prints its own summary,
+  but **an instrument that answers confidently and wrongly is worse than one that declines to
+  answer.** Counts are now read off Vitest's own `Tests` line, and a run with no summary line is
+  `harness-error`. A second defect in the same function: `compileSignals` carried a `|nocompile`
+  alternative, so any output containing that *word* read as "the runner never collected a test".
+- **The fix's ceiling was red in 6 of 10 consecutive full-suite runs, and the cause was
+  arithmetic.** The repair above replaced a poll that carried an explicit 30-second ceiling
+  with a web-first assertion on Playwright's **5-second default** — and the session schedules
+  its *second* check `INBOX_POLL_PROMPT_MS`, **5 000ms**, after the first. The wait and the
+  poll were the same length. The four green runs were luck, and **a suite green four times in
+  ten has told us nothing**, which is why task 8.2 asks for ten rather than one. The fix is to
+  import `INBOX_POLL_CEILING_MS` from `packages/mailbox/src/cadence` rather than pick a number
+  big enough: a hand-picked constant is the recorded defect with a larger number, and it drifts
+  the first time the cadence changes. **That is the twenty-eighth instance, and the fourth
+  precondition — of which three were authored by the change that found them.**
+- **The obvious inference about the held listing was wrong twice in one session, and both
+  corrections came from measuring rather than from reasoning.** Removing the hold is caught in
+  **2 of 3** runs, which reads like "the hold is load-bearing". It is not: applying the
+  rebuild defect *and* removing the hold together is caught in **4 runs of 4**, so **the wait
+  for the `checking` state is what catches the defect and the hold only makes the wait
+  dependable**. A first draft of the design record credited the hold with the repair, and a
+  first draft of the experiment script printed its conclusion with the two branches swapped.
+  Because removing a hold is a *mechanism* mutation rather than a forbidden defect, it is
+  **recorded as evidence and not counted** — the same treatment a branch no assertion can
+  reach gets, and reporting 16 of 16 would have meant something weaker than it appeared to.
+
+**One deliberate non-coverage, recorded rather than left to look like coverage.** The scenario
+*"a new message arrives, so that row materialises"* is **not coverable with recorded
+fixtures**, because the handler serves the same listing on every poll and no new row can ever
+appear. The other half of the requirement — an existing row is *not* re-materialised — is
+covered, in both tiers. This is stated in the spec's module doc so a reader counting scenarios
+does not read the missing one as an oversight.
 
 **`pnpm test` and `pnpm typecheck` catch different defects, and this repository has
 now been bitten by that in both directions.** Vitest does not typecheck, so a

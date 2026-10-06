@@ -271,7 +271,7 @@ removal correct rather than a compromise.
 
 **Two things this table does not describe.** Motion is **entrance only** — an element the
 client has unmounted is gone before any transition can run, so the roadmap's
-*"materialize/disappear"* delivers only the first half. And there is **no `transition`**,
+_"materialize/disappear"_ delivers only the first half. And there is **no `transition`**,
 so the reduced-motion block governs animation alone and nothing here claims otherwise.
 
 | Token             | Value                           |
@@ -330,8 +330,8 @@ This is the part a design document is most tempted to overstate, so it is stated
   the page, and this change does not automate it or pretend to.
 - **How the motion looks.** The same shape, a third time. The motion checks read resolved
   values and the CSSOM, so they establish that the right animation runs for the right length
-  and stops when asked. Whether 4px of rise and 6px of blur read as *restrained* or as
-  *fussy* is a human judgement, and the roadmap's word for it — _"subtle"_ — has no
+  and stops when asked. Whether 4px of rise and 6px of blur read as _restrained_ or as
+  _fussy_ is a human judgement, and the roadmap's word for it — _"subtle"_ — has no
   instrument here. A blur on text is also a real legibility cost for the length of the
   entrance; that cost is accepted, and accepted is not the same as verified.
 - **Exit motion.** The roadmap says _"materialize/disappear"_ and only the first half ships.

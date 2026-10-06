@@ -172,46 +172,49 @@ D17 carries the reasoning and the measurement.
 
 ## 7. Falsification
 
-- [ ] 7.1 For every assertion added in groups 2 through 6, introduce the violation, observe
+- [x] 7.1 For every assertion added in groups 2 through 6, introduce the violation, observe
       a non-zero exit, and confirm the **intended** test is the one that failed — a suite that
       goes red is not the same claim as this test catching this defect. Record `nocompile`,
       `green`, `wrongcatch`, `noop`, `harness-error` and `build-failed` as the distinct
       outcomes they are, never as passes.
-- [ ] 7.2 Write the harness so that output containing neither a passed nor a failed count is
+- [x] 7.2 Write the harness so that output containing neither a passed nor a failed count is
       `harness-error`, and invoke `node` directly rather than `pnpm.cmd` — the latter cannot
       be spawned from Node on this machine and produced two mutations reported as uncaught
       while reading green. Verify the harness can fail for the reason it exists by planting a
       known violation first.
-- [ ] 7.3 Verify restoration by SHA-256 for every mutated file, reported separately from
+- [x] 7.3 Verify restoration by SHA-256 for every mutated file, reported separately from
       whether the mutation was caught.
 
 ## 8. Integration
 
-- [ ] 8.1 Run `pnpm verify` and verify exit `0`, with `PLAYWRIGHT_BROWSERS_PATH` pointed at an
+- [x] 8.1 Run `pnpm verify` and verify exit `0`, with `PLAYWRIGHT_BROWSERS_PATH` pointed at an
       empty directory so the claim that the workspace gates need no browser stays true.
-- [ ] 8.2 Run `pnpm test:browser` **ten consecutive times**, verifying 13 specs collected and
-      passing every time (D15). A red run is a defect in this change until shown otherwise: the
-      focus traversal's settle precondition is already known to be the shape that can break,
-      and `transform` on a row is exactly the input it has not seen.
-- [ ] 8.3 Confirm no test in either tier contacts a live provider and no test reaches any
+- [x] 8.2 Run `pnpm test:browser` **ten consecutive times**, verifying **21 test cases
+      collected** and passing every time (D15). **The count in this task was written as 13 and
+      was a miscount**: 12 test cases predate this slice and `motion.spec.ts` adds **nine**, so
+      the browser tier is 21 in three files, which is what Playwright's own "Running 21 tests"
+      reports. A red run is a defect in this change until shown otherwise: the focus
+      traversal's settle precondition is already known to be the shape that can break, and
+      `transform` on a row is exactly the input it has not seen.
+- [x] 8.3 Confirm no test in either tier contacts a live provider and no test reaches any
       origin the recorded handler does not have a response for; report the suite's own denied
       origin record rather than assuming it was empty.
 
 ## 9. Documents
 
-- [ ] 9.1 Correct `AGENTS.md`'s *"A boundary rule enforces the categories above and not the
+- [x] 9.1 Correct `AGENTS.md`'s *"A boundary rule enforces the categories above and not the
       rest"*, which measured false on 2026-10-06 by reading `stylesheetViolations()`: it
       applies `REMOTE_CSS_PATTERNS`, `FOCUS_SUPPRESSION_PATTERNS` and
       `collectUnresolvedTokens`, and nothing else. State that the categories are measured of
       `apps/web/src/styles.css` and **unasserted**, and name the three length literals that
       make a blanket rule wrong (D14).
-- [ ] 9.2 Update `AGENTS.md`'s Frontend bullet and the `docs/ROADMAP.md` M7 slice row for
+- [x] 9.2 Update `AGENTS.md`'s Frontend bullet and the `docs/ROADMAP.md` M7 slice row for
       motion: what now animates, that `prefers-reduced-motion` governs it, that **no test reads
       a rendered pixel**, and that entry motion is what shipped.
-- [ ] 9.3 Update `docs/ROADMAP.md`'s Project Status cursor to M7 slice 3 and record, by file,
+- [x] 9.3 Update `docs/ROADMAP.md`'s Project Status cursor to M7 slice 3 and record, by file,
       this slice's counts: the browser tier at 13 specs, `apps/web` at 113, `packages/ui` at
       whatever 3.2 moved it to, the boundary count at 51 with **no rule added**, and the
       observed CI runs — never a CI claim before a run reports it.
-- [ ] 9.4 Re-read `AGENTS.md`'s stale-claim sentences against the change and delete rather
+- [x] 9.4 Re-read `AGENTS.md`'s stale-claim sentences against the change and delete rather
       than reword any that this slice made false; a stale claim that reads like a guarantee is
       the most damaging kind of wrong on a page.

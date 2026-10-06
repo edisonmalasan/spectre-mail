@@ -40,6 +40,18 @@ export interface OpenMailboxOptions {
    * apart silently, and a spec that navigated for itself would be exactly that.
    */
   readonly onDocumentLoaded?: (page: Page) => Promise<void>;
+
+  /**
+   * Hold a listing response open, by its one-based count.
+   *
+   * **Plumbed rather than re-installed, because installing a second handler over the
+   * first would give two `denied` records for one request** and make the denial
+   * assertion in 8.3 read as though the page had reached two unrecorded origins.
+   *
+   * Forwarded verbatim to `serveRecordedProvider`; see `RecordedProviderOptions` for why
+   * it is a function of the call number.
+   */
+  readonly listingGate?: (call: number) => Promise<unknown> | undefined;
 }
 
 /**
@@ -63,7 +75,14 @@ export async function openFreshMailbox(
   page: Page,
   options: OpenMailboxOptions = {},
 ): Promise<ProviderTraffic> {
-  const traffic = serveRecordedProvider(page);
+  // **`exactOptionalPropertyTypes` is why this is conditional rather than
+  // `{ listingGate: options.listingGate }`.** Passing an explicit `undefined` is not the
+  // same as omitting the key under this compiler setting, and the error it produces reads
+  // like a type mismatch rather than a decision about spelling.
+  const traffic = serveRecordedProvider(
+    page,
+    options.listingGate === undefined ? {} : { listingGate: options.listingGate },
+  );
   await page.goto("/");
   if (options.onDocumentLoaded !== undefined) await options.onDocumentLoaded(page);
   await expect(page.getByTestId("ready")).toBeVisible();

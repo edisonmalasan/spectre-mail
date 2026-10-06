@@ -52,8 +52,24 @@ import { fileURLToPath } from "node:url";
 
 import { expect, test, type Page } from "@playwright/test";
 
-import { openFreshMailbox } from "./open-mailbox";
-import type { ProviderTraffic } from "./recorded-provider";
+import { openFreshMailbox, type OpenMailboxOptions } from "./open-mailbox";
+import { deferred, type ProviderTraffic } from "./recorded-provider";
+
+/**
+ * The longest the session will wait between checks, imported rather than written here.
+ *
+ * **By relative path into the shared package's source, following
+ * `recorded-provider.ts`.** `apps/web` declares `@spectre-mail/mailbox`, but this tier
+ * resolves shared source by path and a bare package specifier would ask Playwright's
+ * transpiler to compile inside `node_modules`.
+ *
+ * **It is the ceiling because that is what a ceiling is for.** The second check is
+ * scheduled by the product's own cadence, which backs off while nothing changes, so how
+ * long the page takes to reach a check in flight is not a property of this spec — it is a
+ * property of the session. Sizing the wait from the declared worst case makes exceeding it
+ * a failure rather than a race: see the measurement recorded on the wait below.
+ */
+import { INBOX_POLL_CEILING_MS } from "../../../packages/mailbox/src/cadence";
 
 /** The entrances, named as the requirement names them — by their class hook. */
 const ENTRANCE_CLASSES = ["address__value", "inbox-row", "code"] as const;
@@ -397,8 +413,11 @@ function listingsServed(traffic: ProviderTraffic): number {
  * navigating again here, because this tier has exactly one copy of "load the page and
  * wait for a mailbox" and a second would be allowed to drift from it.
  */
-function openRecordingFrom(page: Page): Promise<ProviderTraffic> {
-  return openFreshMailbox(page, { onDocumentLoaded: recordAnimationStarts });
+function openRecordingFrom(
+  page: Page,
+  options: Omit<OpenMailboxOptions, "onDocumentLoaded"> = {},
+): Promise<ProviderTraffic> {
+  return openFreshMailbox(page, { ...options, onDocumentLoaded: recordAnimationStarts });
 }
 
 /**
@@ -710,7 +729,37 @@ test("the preference is honoured without a reload, in both directions", async ({
 });
 
 test("a row already on the page is not re-materialised by a later poll", async ({ page }) => {
-  const traffic: ProviderTraffic = await openRecordingFrom(page);
+  /**
+   * **The repair is to wait for the state, and the hold is what makes the wait
+   * dependable.** The first version of this test waited for the recorded handler to be
+   * *asked* for a second listing and then read the row — and it passed on a build that
+   * rebuilt the row on every poll, which was measured: a mutation that inserts the
+   * re-checking sentence *above* the list, so the `<ul>` moves to a new index and React
+   * rebuilds it, left this test green.
+   *
+   * **Why it passed, and the shape is the same one the focus traversal's settle
+   * precondition had.** `served` is pushed *before* the response is fulfilled, so the
+   * test was reading the row during the window *before* the page had published
+   * `checking`. The defect this test exists to catch only exists during `checking`, so
+   * the reading happened before the fact and passed. A precondition that is a delay
+   * rather than a wait for the thing being measured does not fail; it measures the wrong
+   * moment.
+   *
+   * **What the hold is and is not, because the first draft of this comment got it wrong
+   * and `design.md` D18 carries the correction.** Holding the second listing turns
+   * `checking` from a window a poll may straddle into a state the page is *observed in*,
+   * and it is the same instrument `apps/web/src/Inbox.test.tsx` already uses through its
+   * `holdListing` stub gate. **But it is not what catches the rebuild**: with the rebuild
+   * defect applied *and* this hold removed, the suite still catches it — 4 runs, 4 caught.
+   * What catches it is the wait below. The hold is worth keeping because without it the
+   * wait is satisfied only about two times in three.
+   */
+  const secondListing = deferred();
+  const traffic: ProviderTraffic = await openRecordingFrom(page, {
+    // The first listing is answered at once: it is the one that puts a row on the page,
+    // and holding it would mean there were no rows to mark.
+    listingGate: (call) => (call === 2 ? secondListing.promise : undefined),
+  });
 
   // The entrance observed and then forgotten, so the recorder below cannot be credited
   // with it and cannot be blamed for missing a later one.
@@ -728,16 +777,45 @@ test("a row already on the page is not re-materialised by a later poll", async (
 
   const served = listingsServed(traffic);
   expect(served, "the recorded handler has served the first listing").toBeGreaterThan(0);
-  await expect.poll(() => listingsServed(traffic), { timeout: 30_000 }).toBeGreaterThan(served);
 
-  // **Element identity, not appearance.** A settled row and a re-materialised row look
-  // identical, so a visual check would pass on the defect this exists to catch — a page that
-  // replaced every row on every poll would flicker several times a minute for as long as the
-  // tab is open. A marker set on the node cannot survive the node being replaced.
-  await expect
-    .poll(() =>
-      row.evaluate((element) => (element as unknown as { motionMarker?: string }).motionMarker),
-    )
-    .toBe("kept");
+  // **The precondition, waited for rather than inferred: the page is inside a check that
+  // has not been answered.** If this never became visible the test would fail here
+  // rather than proceed, which is what makes the gate a precondition and not a sleep —
+  // a gate that stopped working fails the wait instead of quietly passing the reading.
+  //
+  // **The wait is sized from the session's own ceiling, and that was measured rather than
+  // guessed.** A first version left Playwright's 5-second default and went **red in 6 of
+  // 10 consecutive full-suite runs**, every time on this line. The cause is the cadence:
+  // the second check is scheduled `INBOX_POLL_PROMPT_MS` after the first, which is exactly
+  // the default timeout, so the wait and the poll raced — and the four runs that passed
+  // were luck, not a property. Raising a timeout to a number chosen to be big enough would
+  // have been the same defect with a larger constant, so the number is the one the product
+  // declares it will never exceed.
+  await expect(
+    page.getByTestId("inbox-rechecking"),
+    "the page entered a check in flight",
+  ).toBeVisible({ timeout: INBOX_POLL_CEILING_MS });
+
+  // **And now the claim, read during the window the defect lives in.** Element identity,
+  // not appearance: a settled row and a re-materialised row look identical, so a visual
+  // check would pass on the defect this exists to catch — a page that replaced every row
+  // on every poll would flicker several times a minute for as long as the tab is open. A
+  // marker set on the node cannot survive the node being replaced.
+  expect(
+    await row.evaluate((element) => (element as unknown as { motionMarker?: string }).motionMarker),
+    "the row on screen during a check in flight is the node that was already there",
+  ).toBe("kept");
+
+  secondListing.release();
+
+  // After it settles: still the same node, and nothing started.
+  await expect(page.getByTestId("inbox-rechecking")).toHaveCount(0, {
+    timeout: INBOX_POLL_CEILING_MS,
+  });
+  expect(
+    await row.evaluate((element) => (element as unknown as { motionMarker?: string }).motionMarker),
+    "the row survived the check that followed it",
+  ).toBe("kept");
   expect(await animationStarts(page), "a second identical listing starts nothing").toEqual([]);
+  expect(traffic.denied, "the page reached no origin the handler has no recording of").toEqual([]);
 });

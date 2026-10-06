@@ -294,7 +294,7 @@ export function renderDesignDoc(): string {
       "a queue of half-materialised rows reads as lag rather than as arrival.",
       "",
       "**`prefers-reduced-motion: reduce` removes the animation.** Not a shorter duration and not",
-      "a `0.01ms` substitute — no animation at all, so \"stopped\" is the literal rendering rather",
+      'a `0.01ms` substitute — no animation at all, so "stopped" is the literal rendering rather',
       "than a duration small enough to be called stopped. No fill mode is declared, and none is",
       "needed: each element's own declarations already equal the animation's final frame, so",
       "finishing the animation and having no animation are the same rendering. That is what makes",
@@ -302,7 +302,13 @@ export function renderDesignDoc(): string {
       "",
       "**Two things this table does not describe.** Motion is **entrance only** — an element the",
       "client has unmounted is gone before any transition can run, so the roadmap's",
-      "*\"materialize/disappear\"* delivers only the first half. And there is **no `transition`**,",
+      // **Underscored emphasis, not asterisks, and that is not a style preference.**
+      //
+      // Prettier's markdown formatter normalises `*emphasis*` to `_emphasis_`, so emitting the
+      // asterisk form makes the generated region fail `pnpm format:check` while the
+      // byte-identity assertion forbids hand-correcting the document it wrote. Two gates
+      // disagreeing is only resolvable in the generator, and this was found by running both.
+      '_"materialize/disappear"_ delivers only the first half. And there is **no `transition`**,',
       "so the reduced-motion block governs animation alone and nothing here claims otherwise.",
       "",
       table(
