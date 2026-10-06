@@ -189,6 +189,12 @@ export const PAIRS: readonly ContrastPair[] = [
     threshold: NON_TEXT,
     what: "The accent as a rule or a marker on its own tinted surface. Non-text, because it reinforces a word the row already carries.",
   },
+  {
+    ink: "ink-on-accent",
+    surface: "accent",
+    threshold: BODY_TEXT,
+    what: "The label on a filled accent control — the page's primary action. **This is the only pair in which `--accent` is the background**, and it is why `--ink-on-accent` exists: measured against `--accent` with this package's own contrast function, no other ink in the palette reaches the body threshold in either scheme.",
+  },
 
   // ── Failure ─────────────────────────────────────────────────────────────────────
   {

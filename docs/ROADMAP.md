@@ -48,8 +48,44 @@ verified (with its verification-pass repairs merged as PR **#64**), synced (**#6
 (`motion-and-reduced-motion`) is applied, verified, synced, and ARCHIVED**, merged as
 proposal **#67**, Apply **#68**, sync **#69**, **and its archive PR number is recorded at
 the archive stage, as every other slice's is.**
-The current objective is **M7 slice 3: the five website sections**, and slice 4, the
-`Extension preview`, remains **blocked on M8**.
+The current objective is **M7 slice 3: the four website sections**, which is **applied and
+verified**; slice 4, the `Extension preview`, remains **blocked on M8**.
+
+**Slice 3 shipped four sections and made the fifth's absence a requirement.** `website-sections`
+adds a **product hero** (the wordmark beside the live address, plus a filled `Replace address`),
+**What happens, in order**, **Why SpectreMail**, and a **footer** carrying the limits that used
+to sit between the product and the end of the page. **The `Extension preview` section is absent
+and its absence is asserted**, because `apps/extension` is still an empty placeholder with no
+MV3 manifest: a preview of it would be fake UI, and `page-composition` requires the page not to
+describe the absence as missing or forthcoming.
+
+**Three of its numbers, and two of them are "unchanged" for a reason worth reading.**
+
+- **`page-composition` is a new capability** — 5 requirements, the first one to describe the
+  page's *composition* rather than its behaviour.
+- **`pnpm test` did not move: 694 in 35 files, `apps/web` 114, `packages/ui` 38, boundaries 51**,
+  every total identical to the baseline. `pairs.test.ts` is table-driven, so a new pair adds no
+  test — a task predicted the count would rise and was wrong, and it is corrected in place
+  rather than reinterpreted.
+- **The browser tier went 21 → 34 cases in `sections.spec.ts` alone**, and **ten consecutive full
+  runs were green on every one of them**, because a suite green four times in ten has told this
+  repository nothing before.
+
+**The defect slice 3's own work produced is worth more than the sections, and it is the
+twenty-ninth instance of a substitute platform hiding what the real one names.** The first
+version put the footer **inside `<main>`**, and `App.test.tsx` passed: Testing Library maps
+`footer` to `contentinfo` unconditionally. Chromium, asked over CDP's
+`Accessibility.getFullAXTree`, reported **`sectionfooter` with zero `contentinfo` landmarks** —
+zero, while jsdom said one. The footer is now a sibling of `<main>`, re-measured as
+`contentinfo=1  region=5`, and `sections.spec.ts` reads the tree through CDP rather than a role
+query **and plants the nesting into the running page as its own negative control**, requiring
+the same reader to report the landmark gone.
+
+**And the falsification record is 22 of 22 caught by the intended assertion** — with six
+instrument defects in the harness repaired on the way, the worst of which is the shape a reader
+is most likely to believe: **a failed build fell through into the Playwright run and was
+overwritten with `green`,** so two mutations were filed as survivors when neither had ever run.
+The full record is in the change's `design.md`, `A1`–`A11`.
 
 **And one correction that only a measured CI run could have produced.** Slice 2's Apply
 job `browser` **passed on its first CI run carrying this change's specs** — run
@@ -2942,7 +2978,7 @@ kind would have been reviewed by the standards of the first and would have passe
 | --- | --- | --- | --- |
 | 1 | `spectral-swiss-foundation` | The token layer in `packages/ui`, the page's structural stylesheet, the accent on the surfaces of the Accent block that **exist on this page today** (active status, verification codes, focus state — *primary action* and *brand mark* arrive with the sections in slice 3, and one further use, a detected link's host, is a recorded reading rather than a listed item), **visible focus states**, and the checks that can be asserted about either — contrast as WCAG arithmetic, focus as a resolved outline in a real browser | archived — at `openspec/changes/archive/2026-10-06-spectral-swiss-foundation/` |
 | 2 | **`motion-and-reduced-motion`** | **Motion**, and `prefers-reduced-motion: reduce` governing it. The three transitions named above arrive here — **entrance only**: the Motion block's word is *"materialize/disappear"*, and only the first half is deliverable in CSS, because an element React has unmounted is gone before any transition can run. Also: a row already on the page is never re-materialised by a later poll, since the inbox polls every five seconds and an animation on every row would repeat itself for as long as the tab is open | **archived** — at `openspec/changes/archive/2026-10-07-motion-and-reduced-motion/`; proposal **#67**, Apply **#68**, sync **#69** |
-| 3 | not opened | The **five website sections** below. Composition work, on a foundation slice 1 has already fixed | not started |
+| 3 | **`website-sections`** | The **four website sections below**, plus the product region's wordmark and its primary action. **The `Extension preview` section is absent and that absence is a requirement, not an omission** — slice 4 exists because the section cannot be built before M8, and a preview of an extension with no manifest would be fake UI. All copy is data (`apps/web/src/sections.ts`), so every claim is reviewable beside the requirement it satisfies | **applied** — proposal **#71**, Apply **PR recorded at the archive stage**; delta adds a new `page-composition` capability |
 | 4 | **blocked** | The **`Extension preview`** section, below | **blocked on M8** |
 
 **Slice 2 shipped entry motion, and only entry motion, and its own browser spec found a
@@ -3012,6 +3048,35 @@ Keep marketing compact:
 ```
 
 The product itself should remain the main hero.
+
+**What shipped, and the audit of the two sections this slice could not build.** The list above
+names five; `website-sections` delivers **four** and asserts the absence of the fifth:
+
+| # | Section | State |
+| --- | --- | --- |
+| 1 | Live product hero | **built** — the wordmark beside the live address, and `Replace address` as the page's filled primary action |
+| 2 | Generate → Receive → Discard | **built** — third step narrowed to *replace the address and forget it on this device*, because the roadmap's `Discard` would read as "delete the mail" and the product cannot do that |
+| 3 | Why SpectreMail | **built** — four reasons, each traceable to a measurement or a promoted requirement |
+| 4 | Extension preview | **absent, by requirement.** `apps/extension` is an empty placeholder with no MV3 manifest, so there is nothing to preview. `page-composition` requires the page to omit the section **and** to say nothing about it being missing or forthcoming, and the browser tier asserts both halves |
+| 5 | Privacy/providers/open-source footer | **built, minus the licence claim** — see the audit below |
+
+**The open-source footer was audited rather than built, and both alternatives were offered to
+the user, who chose _claim nothing; record the audit_.** This repository carries **no `LICENSE`
+file** and GitHub reports **`licenseInfo: null`**, so "open-source" is a claim about a fact this
+project does not hold. The footer ships the limits that *are* true — the one provider reached,
+what it does not do, and no server — and `page-composition` **requires** that no region name a
+licence, which the browser tier asserts against both `open-source|licen[sc]e` and the
+SPDX-ish names.
+
+**The *selected mailbox* surface is deferred, with its destination recorded.** The direction
+names it; the website renders one mailbox and offers no list. `accent`/`surface-accent` is
+already declared and checked in both schemes, nothing on the page uses it yet, and **M8's
+toolbar popup and M11's side panel are where it lands.** It is not dead code: it is a declared
+design decision with a named destination.
+
+**Nothing about how any of this looks is verified.** The composition assertions read the DOM, a
+computed style, and Chromium's accessibility tree. **No test in this repository reads a rendered
+pixel's colour or position** — a human opening the page is the only instrument for that.
 
 ---
 
