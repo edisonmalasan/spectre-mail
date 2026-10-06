@@ -100,12 +100,35 @@ describe("contrastRatio", () => {
 
 describe("the thresholds", () => {
   it("are WCAG's, and are distinguishable from one another", () => {
-    expect(BODY_TEXT).toBe(4.5);
-    expect(LARGE_TEXT).toBe(3);
-    expect(NON_TEXT).toBe(3);
+    expect(BODY_TEXT.ratio).toBe(4.5);
+    expect(LARGE_TEXT.ratio).toBe(3);
+    expect(NON_TEXT.ratio).toBe(3);
     // Large text and non-text share a number but not a meaning, which is why they are
     // two names. A reader seeing a single `3` cannot tell which rule they are reading.
     expect(NON_TEXT).not.toBe(BODY_TEXT);
+  });
+
+  it("carries a name that survives two standards sharing a ratio", () => {
+    // **This is the assertion the collapse would have failed, and it is here because the
+    // collapse happened.** The thresholds were bare numbers, so `ContrastThreshold` was
+    // `4.5 | 3 | 3` — a union with one fewer member than it had names — and the renderer
+    // recovered a name by comparing values. Because `LARGE_TEXT` was compared first, every
+    // non-text pair in `docs/DESIGN_SYSTEM.md` was labelled "large text (3:1)": a generated
+    // compliance table asserting that focus indicators are held to the wrong standard.
+    //
+    // The three `ratio` assertions above pass identically on the old constants, which is
+    // why the suite was green while the document was wrong. Only the *names* can catch it,
+    // so they are asserted rather than assumed.
+    expect(NON_TEXT.name).not.toBe(LARGE_TEXT.name);
+    expect({ ...NON_TEXT }).not.toEqual({ ...LARGE_TEXT });
+    expect([BODY_TEXT.name, LARGE_TEXT.name, NON_TEXT.name].sort()).toEqual([
+      "body-text",
+      "large-text",
+      "non-text",
+    ]);
+    // And the label a reader gets is the one the standard carries, not a value comparison:
+    // a standard cannot be renamed into another by holding the same ratio.
+    expect(`${NON_TEXT.name} (${NON_TEXT.ratio}:1)`).toBe("non-text (3:1)");
   });
 
   it("makes a pair that meets the large-text threshold fail the body one", () => {

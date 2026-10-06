@@ -262,11 +262,13 @@ was additionally verified **with no browser installed** by pointing
 
 ### Current numbers, measured 2026-10-06 at `spectral-swiss-foundation`'s apply stage
 
-**689 tests across 35 files, of which 51 are architecture boundary assertions.** 54 in
+**691 tests across 35 files, of which 51 are architecture boundary assertions.** 54 in
 `packages/core`, 89 in `packages/providers`, 149 in `packages/mail-parser`, 153 in
-`packages/mailbox`, **113 in `apps/web`**, 44 in `packages/storage`, **36 in `packages/ui`**
-(12 contrast, 11 pairs, 5 generated-stylesheet, 8 design document), 51 boundary. Counted
-from `--reporter=json` grouped by project, not added by hand.
+`packages/mailbox`, **113 in `apps/web`**, 44 in `packages/storage`, **38 in `packages/ui`**
+(13 contrast, 11 pairs, 5 generated-stylesheet, 9 design document), 51 boundary. Counted
+from `--reporter=json` grouped by project, not added by hand. **`packages/ui` moved 36 → 38
+after the apply stage was merged**, from the verification pass rather than from slice work;
+the two tests are recorded in `design.md` D15.
 
 **`apps/web` is 113 and that is the load-bearing number in this paragraph.** The slice adds
 `className` to twelve components and changes no element, no accessible name, and no
@@ -339,7 +341,7 @@ assertion narrower than its rule**, and the reason `M26`–`M28` exist.
 and `browser` all SUCCESS on a GitHub-hosted Linux runner.
 
 **This is the strongest argument yet for the two-tier split.** `pnpm verify` was green
-throughout, on this machine, on the commit carrying the defect — 689 unit tests and 51
+throughout, on this machine, on the commit carrying the defect — 691 unit tests and 51
 boundary assertions — while a spec `pnpm verify` never reads held a bug.
 
 **What this slice does not establish, and the list is the point.** **How SpectreMail

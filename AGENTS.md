@@ -94,8 +94,15 @@ The current state, in dependency order:
 - A website client (`apps/web`) that renders all of it, with **persistence** and, since
   M7 slice 1, **the first styling in the product's history**.
 - A design-token layer (`packages/ui`) that both clients will consume, holding colour for
-  **two declared schemes**, type, spacing, radius, and motion, and **no** layout and no
-  component styles.
+  **two declared schemes**, type, spacing, radius, two **measures**, and motion, and **no**
+  layout and no component styles. **"No layout" is qualified, and the qualification was
+  added by the verification pass because the sentence was false as it stood**: `METRICS`
+  holds `measure-page` and `measure-prose`, which are line-length decisions and therefore
+  layout decisions. What the layer does not hold is any position, grid, or breakpoint — the
+  page's single `@media` query and its one grid are written in `apps/web/src/styles.css`,
+  not named here. **And the correction is not a loosening**: a token layer that grew a
+  `--grid-columns` would be the thing that ends it, and the honest form of "no layout" has
+  to be able to survive one group of measure tokens existing.
 
 The target state is two clients (website, extension) over that shared core. **M7 slice 1
 (`spectral-swiss-foundation`) is applied.** Its two claims are verified by two different
@@ -189,7 +196,8 @@ Pin versions when exact versions matter.
   slice 1, and every value it uses comes from the token layer.** `packages/ui/src/tokens.ts`
   is the single source; `packages/ui/src/tokens.css` is **generated** from it and
   `tokens-css.test.ts` asserts the committed stylesheet is byte-for-byte what its source
-  renders, and **no literal appears in `apps/web/src/styles.css`**. The claims this
+  renders, and **not one colour, radius, spacing step, type size, or duration is a literal
+  in `apps/web/src/styles.css`**. The claims this
   establishes are narrow and are stated so: the page's colours are declared values with
   computed ratios, and its controls are reachable with a **resolved** outline this product
   drew. **It establishes nothing about how any of it looks** — no test in this repository
@@ -396,14 +404,20 @@ Pin versions when exact versions matter.
   `pnpm typecheck`, which is a separate gate. There is still no extension build
   step — that is M8.
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running **689 tests across
-  35 files** via `pnpm test` (2026-10-06, at the `spectral-swiss-foundation` apply stage),
-  counted from a JSON reporter rather than read off a summary line:
+- Testing: Vitest `3.2.7` at the workspace root, verified running **691 tests across
+  35 files** via `pnpm test` (2026-10-06, at the `spectral-swiss-foundation` verification-pass
+  repair), counted from a JSON reporter rather than read off a summary line:
   54 in `packages/core`, 89 in `packages/providers`, **149 in `packages/mail-parser`**,
   **153 in `packages/mailbox`** (19 of them adoption), **113 in `apps/web`**,
   **44 in `packages/storage`** (7 stored record, 30 IndexedDB adapter, 7 browser entry
-  point), **36 in `packages/ui`** (12 contrast, 11 pairs, 5 generated stylesheet, 8 design
+  point), **38 in `packages/ui`** (13 contrast, 11 pairs, 5 generated stylesheet, 9 design
   document), and **51 architecture boundary assertions**.
+  **`packages/ui` went 36 → 38 and the two tests are not the slice's own work** — the
+  verification pass found that the generated compliance table mislabelled every non-text
+  pair, and one test asserts the standard's name survives two standards sharing a ratio
+  while the other asserts the emitter's file exclusion is honest. Both are recorded under
+  `design.md` D15; a count that moves after a change is merged is a count that was wrong
+  before somebody measured it again.
   **`apps/web` is 113 and that is the number that matters most in this paragraph.** M7
   slice 1 adds `className` to twelve components and changes **no** element, no accessible
   name, and no `data-testid`, so the client suite's count is **required** to be unchanged; a
@@ -824,8 +838,13 @@ than reworded**. **What the styling changes here is worth stating precisely, bec
 "styled" is the weakest claim in this file**: the page's colours are **declared** values
 whose pairs are asserted as WCAG ratios in both schemes; every control is keyboard-reachable
 with a **resolved** outline this product drew, read in real Chromium on the **built** page;
-and no literal value appears in `styles.css`, so every colour and size it uses is one a test
-can name. **None of that is a claim about appearance.** A human opening this page is the
+and not one colour, radius, spacing step, type size, or duration is written as a literal in
+`styles.css`, so every colour and size it uses is one a test can name. **The narrower
+wording replaced a false one**: this file said *no literal value appears in `styles.css`*,
+and literals do appear — `translateY(1px)`, `max-height: 28rem`, `1fr auto`, `width: 100%`,
+`@media (max-width: 34rem)`. A boundary rule enforces the categories above and not the rest,
+and a claim broader than its own rule is the defect this file exists to catch, not a nicety.
+**None of that is a claim about appearance.** A human opening this page is the
 only thing that can say whether it looks right, and no gate in this repository stands in for
 that. The
 page's provider configuration is reachable and testable without a network
@@ -1300,7 +1319,7 @@ through 2026-10-06:
 pnpm typecheck     8 of 8 workspace projects run tsc --noEmit
 pnpm lint          exit 0
 pnpm format:check  All matched files use Prettier code style
-pnpm test          35 files, 689 tests passed
+pnpm test          35 files, 691 tests passed
 pnpm build         vite 7.3.6, dist emitted
 pnpm verify        exit 0
 ```
@@ -1383,11 +1402,12 @@ the reason 44 storage tests were never going to find it.
   failure mode.
 
   **This is the strongest evidence yet for the two-tier split.** `pnpm verify` was green
-  throughout, on this machine, on the commit that carried the defect — 689 unit tests and
-  51 boundary assertions, all passing, while a browser tier nobody had run held a bug.
+  throughout, on this machine, on the commit that carried the defect — **689** unit tests
+  and 51 boundary assertions, all passing, while a spec `pnpm verify` never reads held a bug.
+  (691 is the current count; 689 is what that commit actually ran.)
 
 **M7 slice 1 added a fourth limit to that list, and it is the only one about
-appearance.** `packages/ui`'s 36 tests and the five focus specs between them establish
+appearance.** `packages/ui`'s 38 tests and the five focus specs between them establish
 that **every declared colour pair meets its declared threshold in both schemes** and that
 **every control is reachable with a resolved outline this product drew**. Neither reads a
 rendered pixel. **So "the styling is verified" would be a false summary of both**, and

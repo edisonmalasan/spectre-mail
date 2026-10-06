@@ -43,7 +43,7 @@ describe("the palette's declared contrast", () => {
         const ratio = contrastRatio(SCHEMES[scheme][pair.ink], SCHEMES[scheme][pair.surface]);
         if (!meets(SCHEMES[scheme][pair.ink], SCHEMES[scheme][pair.surface], pair.threshold)) {
           failures.push(
-            `${scheme}: ${pair.ink} on ${pair.surface} is ${ratio.toFixed(2)}:1, below ${pair.threshold}:1 — ${pair.what}`,
+            `${scheme}: ${pair.ink} on ${pair.surface} is ${ratio.toFixed(2)}:1, below ${pair.threshold.name} (${pair.threshold.ratio}:1) - ${pair.what}`,
           );
         }
       }
@@ -79,7 +79,7 @@ describe("the palette's declared contrast", () => {
         SCHEMES[scheme]["ink-primary"],
         SCHEMES[scheme]["surface-raised"],
       );
-      expect({ scheme, passes: ratio >= BODY_TEXT }).toEqual({ scheme, passes: true });
+      expect({ scheme, passes: ratio >= BODY_TEXT.ratio }).toEqual({ scheme, passes: true });
     }
   });
 

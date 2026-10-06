@@ -49,13 +49,7 @@
  * asserts the extensions are present, because dropping them is exactly the edit that type
  * checks and breaks only the emitter.
  */
-import {
-  BODY_TEXT,
-  LARGE_TEXT,
-  NON_TEXT,
-  contrastRatio,
-  type ContrastThreshold,
-} from "./contrast.ts";
+import { contrastRatio, type ContrastThreshold } from "./contrast.ts";
 import { DECORATIVE, PAIRS, SURFACE_ONLY } from "./pairs.ts";
 import { COLOUR_NAMES, MOTION, SCHEMES, SHARED_GROUPS, type Scheme } from "./tokens.ts";
 
@@ -127,18 +121,19 @@ export function replaceGeneratedRegion(document: string, region: string): string
 /**
  * A threshold's name and value, so the table prints neither a bare number nor a restated one.
  *
- * **A function rather than a lookup table, and the reason is that the lookup was a compile
- * error.** `LARGE_TEXT` and `NON_TEXT` are both `3`, so a `Record<number, string>` keyed by
- * `[LARGE_TEXT]` and `[NON_TEXT]` declares the same property twice — which `tsc` rejects, and
- * which would have dropped one of the two labels had the two values ever differed by a
- * decimal point. Distinguishing by identity keeps the names independent of whether the
- * standards ever converge, and prints the value **from the constant** rather than from a
- * sentence typed beside it that could disagree with it.
+ * **A function because the lookup was a compile error, and then because the function was a
+ * false label.** The first version recovered the name by comparing values: `LARGE_TEXT` and
+ * `NON_TEXT` are both `3`, so a `Record<number, string>` keyed by both declares the same
+ * property twice and `tsc` rejects it. Distinguishing by identity did not help either, because
+ * two constants holding the same primitive *are* the same value — so the comparison matched
+ * `LARGE_TEXT` first and **every non-text pair printed "large text (3:1)"**.
+ *
+ * The name is now carried by the standard, so there is nothing to recover and nothing to get
+ * wrong: this prints the name it was handed and the ratio from the same object, which cannot
+ * disagree with each other.
  */
 function thresholdName(threshold: ContrastThreshold): string {
-  if (threshold === BODY_TEXT) return `body text (${BODY_TEXT}:1)`;
-  if (threshold === LARGE_TEXT) return `large text (${LARGE_TEXT}:1)`;
-  return `non-text (${NON_TEXT}:1)`;
+  return `${threshold.name} (${threshold.ratio}:1)`;
 }
 
 /** The scheme names in the order a reader wants them. */

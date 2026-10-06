@@ -236,6 +236,12 @@ export const PAIRS: readonly ContrastPair[] = [
     what: "The focus indicator against the selected or active surface.",
   },
   {
+    ink: "focus",
+    surface: "surface-danger",
+    threshold: NON_TEXT,
+    what: "The focus indicator against a failure surface. **No focusable control sits on one today** - `.control` paints its own `--surface-raised`, so the ring lands there instead - which is exactly why this pair is declared rather than left out: a surface the stylesheet can paint is a surface a future control can end up on, and an undeclared pair is a gap nobody would notice opening.",
+  },
+  {
     ink: "line-strong",
     surface: "surface-page",
     threshold: NON_TEXT,

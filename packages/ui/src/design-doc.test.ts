@@ -25,7 +25,7 @@
  * @module
  */
 
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -180,6 +180,19 @@ describe("the emitter's import form", () => {
     //
     // The assertion is on the **file text** rather than on behaviour because behaviour here
     // is Node's resolver, which this suite does not run.
+    //
+    // **The three names are the emitter's own run-time graph, and the scope is stated
+    // because it is narrower than it reads.** `index.ts` is deliberately absent: it is the
+    // package's public re-export barrel, nothing in `scripts/` imports it, and no browser
+    // ever loads it — so there is no resolver there to break. It is also the only file in
+    // the package whose relative imports lack extensions, which means a reader who took
+    // this rule package-wide would find a violation and could not tell whether it was one.
+    // **The rule is the three modules Node must resolve for `emit-design-doc.ts` to run at
+    // all, and the pattern below matches `import … from` only** — `index.ts`'s four
+    // `export … from` re-exports are the only re-exports in the package and they are in the
+    // excluded file. Widening either the file list or the pattern would assert a property
+    // about a module whose resolution no command in this repository depends on, and an
+    // assertion nothing depends on is decoration.
     const sources = ["design-doc.ts", "pairs.ts", "tokens-css.ts"].map((name) =>
       readFileSync(join(REPO_ROOT, "packages", "ui", "src", name), "utf8"),
     );
@@ -192,6 +205,56 @@ describe("the emitter's import form", () => {
       expect(relativeImports.length).toBeGreaterThan(0);
       for (const specifier of relativeImports) {
         expect(specifier, `${specifier} needs an extension to resolve under node`).toMatch(/\.ts$/);
+      }
+    }
+  });
+
+  it("excludes exactly the modules no command in this package resolves at run time", () => {
+    // **The assertion that keeps the exclusion above honest.** The rule above scans three
+    // named files, and this records — mechanically, from the directory rather than from a
+    // list written here — that the only relative specifier it would miss is in a module
+    // nothing imports at run time.
+    //
+    // It exists because the pattern above matches `import … from` and **not** `export … from`,
+    // so a re-export inside a scanned file would be silently unchecked. Four such
+    // re-exports exist today and all four are in `index.ts`, which is outside the emitter's
+    // graph. **If a future module gains an `export … from` and that module is scanned, this
+    // test goes red** — which is the point: the gap in the pattern becomes a failure rather
+    // than an omission nobody notices until a command dies with `ERR_MODULE_NOT_FOUND`.
+    //
+    // The scan is over `src/`, so a new file is covered by being created rather than by
+    // being added to a list somewhere else — the shape this repository's boundary rules
+    // already use.
+    const scanned = new Set(["design-doc.ts", "pairs.ts", "tokens-css.ts"]);
+
+    for (const name of readdirSync(join(REPO_ROOT, "packages", "ui", "src"))) {
+      if (!name.endsWith(".ts") || name.endsWith(".test.ts")) continue;
+
+      const source = readFileSync(join(REPO_ROOT, "packages", "ui", "src", name), "utf8");
+      const reExports = [...source.matchAll(/^export[^"']*from "(\.[^"]*)";/gm)].map(
+        (match) => match[1] as string,
+      );
+      const imports = [...source.matchAll(/^import[^"']*from "(\.[^"]*)";/gm)].map(
+        (match) => match[1] as string,
+      );
+
+      if (reExports.length > 0) {
+        expect(
+          { name, reExports, scanned: scanned.has(name) },
+          `${name} re-exports relatively and the extension rule does not read re-exports, so it cannot cover this file`,
+        ).toEqual({ name, reExports, scanned: false });
+      }
+
+      // And the converse: an unswept module must have no relative imports either, or the
+      // exclusion above is hiding something the rule would otherwise have caught.
+      if (!scanned.has(name)) {
+        expect(
+          { name, imports },
+          `${name} is outside the scanned set but imports relatively`,
+        ).toEqual({
+          name,
+          imports: [],
+        });
       }
     }
   });
