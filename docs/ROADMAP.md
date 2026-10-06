@@ -282,8 +282,8 @@ styling changed no behaviour the browser tier already covered — had adding `cl
 altered a control's role or its accessible name, one of those six would have stopped
 finding its target.
 
-**25 of 25 deliberate violations were caught by the intended assertion, with restoration
-verified by SHA-256**, across both tiers. Three of those mutations are worth naming
+**28 of 28 deliberate violations were caught by the intended assertion, with restoration
+verified by SHA-256**, across both tiers. **Four** of those mutations are worth naming
 because each one changed an assertion rather than merely breaking a suite:
 
 - **Deleting the `:focus-visible` rule left the suite green.** The focus specs assert that
@@ -301,6 +301,43 @@ because each one changed an assertion rather than merely breaking a suite:
   separate edits**, producing seventeen `noop` rows and then a `green` — a mutation
   reported as surviving because its own text had failed to apply. The harness now
   discriminates the three forms of `to` by element type.
+- **The repair for the CI defect was green three times** before it could fail. See below.
+
+**The first CI run carrying this slice's specs was red.** Run `37439940701`: `verify` green,
+`spike self-test` green, **`browser` failed** with 10 of 11 specs passing.
+
+**A correction is not evidence, and one was wrong here.** This repository carried the claim
+that the `browser` job *"has never run in CI; the job is committed unexecuted"*. That claim
+was **false before this slice began**, and it was refuted by `gh run list` rather than by
+argument: the job has executed and **passed** in runs `37374154930`, `37376921511`,
+`37377218976` and `37426170806`, the last on `main` on 2026-10-06. A first correction was
+then written claiming the job *"ran in CI for the first time during this change"* — **also
+false**, and retracted against the same run list. **Three claims about one CI job, two of
+them false, and the instrument that settled both was a log query rather than either
+document.**
+
+The failure was **in a spec of this slice's own**, not in the product: `focusableNames()`
+enumerated the focusable set filtered by `getClientRects()` while the readers indexed the
+**unfiltered** list, so a control with no layout box shifted every later reading and
+truncated the end of the list. The reported symptom — the head of the list correct, `Clear
+saved data` absent, `length > 0` — is that shift's exact signature, and it **did not
+reproduce locally** across repeated runs at two workers. It was diagnosed by reading.
+
+**And then the repair was green three times, which is the part worth keeping.** Re-aiming
+the mutation at the split it repairs passed, because nothing on the shipped page is
+unrenderable. Planting a probe *after* the walk changed nothing; planting it by *appending*
+changed nothing, because a probe after every control shifts nothing; planting it by
+*prepending* still passed, because the enumeration's **names** were right while its
+**outlines** came from the wrong element — and a wrong control's outline still looks focused
+or unfocused. What made it falsifiable was asserting the invariant that was actually
+violated: a reading's name is read from the element its outline was read from, so
+`focus.unfocused.name === focus.name` holds only if the enumeration and the readers agree
+about which element an index addresses. **That is the twenty-third recorded instance of an
+assertion narrower than its rule**, and the reason `M26`–`M28` exist.
+
+**This is the strongest argument yet for the two-tier split.** `pnpm verify` was green
+throughout, on this machine, on the commit carrying the defect — 689 unit tests and 51
+boundary assertions — while a spec `pnpm verify` never reads held a bug.
 
 **What this slice does not establish, and the list is the point.** **How SpectreMail
 looks** — no test reads a rendered pixel's colour, so the palette is arithmetic and the ring

@@ -86,6 +86,64 @@ interface ControlFocus {
 }
 
 /**
+ * A keyboard-reachable control, named, with the index that actually reaches it.
+ *
+ * **The index and the name come from one read on purpose** — see `focusableControls`.
+ */
+interface ControlRef {
+  /** The element's position in `document.querySelectorAll(FOCUSABLE_SELECTOR)`. */
+  readonly index: number;
+  readonly name: string;
+}
+
+/**
+ * A traversal's readings, plus what changed in the page while it ran.
+ *
+ * **`drift` is `[]` in every healthy run and is the reason this is not a bare array.** A
+ * traversal that reports readings while the control set is moving is reporting readings
+ * about whichever elements happened to occupy those indices, and the only visible symptom
+ * is a name that was expected and is not — which is the failure CI produced, and which this
+ * repository's own history says to diagnose rather than to widen the assertion around.
+ */
+interface Traversal {
+  readonly readings: readonly ControlFocus[];
+  readonly drift: readonly string[];
+}
+
+/**
+ * What changed between two reads of the control set, as sentences.
+ *
+ * **Reporting the difference rather than a boolean**, because "the control list changed" is
+ * not a cause and "row 1 was 'Open A', now 'Open B'" is. Empty means the two reads agreed.
+ */
+function describeDrift(before: readonly ControlRef[], after: readonly ControlRef[]): string[] {
+  const drift: string[] = [];
+
+  const longer = Math.max(before.length, after.length);
+
+  for (let position = 0; position < longer; position += 1) {
+    const was = before[position];
+    const now = after[position];
+
+    if (was === undefined && now !== undefined) {
+      drift.push(`position ${position} appeared: "${now.name}"`);
+    } else if (was !== undefined && now === undefined) {
+      drift.push(`position ${position} disappeared: was "${was.name}"`);
+    } else if (
+      was !== undefined &&
+      now !== undefined &&
+      (was.index !== now.index || was.name !== now.name)
+    ) {
+      drift.push(
+        `position ${position} was "${was.name}" (index ${was.index}), now "${now.name}" (index ${now.index})`,
+      );
+    }
+  }
+
+  return drift;
+}
+
+/**
  * The selector for "a control the keyboard can reach".
  *
  * **Written here rather than imported, because there is no shared definition of it and
@@ -103,22 +161,49 @@ const FOCUSABLE_SELECTOR = [
 ].join(", ");
 
 /**
- * Every keyboard-reachable control, in DOM order, named.
+ * Every keyboard-reachable control, in DOM order, **with the index that reaches it**.
  *
- * **Visibility is measured with `getClientRects()` rather than `offsetParent`.** The
- * latter is `null` for a `position: fixed` element, which is a visible element, so a page
- * that later positions a sticky control would silently drop it from this list and the
- * assertions below would shrink rather than fail.
+ * ## Why this returns indices rather than names
+ *
+ * Because the first version returned names and the readers indexed by position, and the
+ * two disagreed. `focusableNames()` filtered with `getClientRects()` while `outlineAt()`
+ * and `focusIsAt()` indexed `document.querySelectorAll(selector)` **unfiltered** — so any
+ * element matching the selector with no layout box shifted every later reading by one, and
+ * the tail of the list fell off the end.
+ *
+ * **This was not a theoretical mismatch; it is what CI observed on the browser tier's
+ * first ever run** (run `37439940701`, `browser` job). The spec reported
+ * `expect(names.some((name) => name.includes("Clear saved data"))).toBe(true)` failing with
+ * `received: false`, while `names.length > 0` and `names.some(… "Copy address")` both
+ * passed. That signature is the shift: the head of the list is correct and the tail is
+ * truncated. It did not reproduce on the machine that wrote it, across repeated runs at
+ * two workers, and the difference in that failure's shape is exactly what a one-position
+ * shift produces and what a missing button does not.
+ *
+ * **So there is now one place that decides which elements count**, and it hands out the
+ * index that reaches the element it counted. A second spelling of "the focusable set" is
+ * the thing that failed, and removing it is the fix rather than adding a guard to both
+ * copies.
+ *
+ * ## Why visibility is measured with `getClientRects()`
+ *
+ * `offsetParent` is `null` for a `position: fixed` element, which is a visible element, so
+ * a page that later positions a sticky control would silently drop it from this list and
+ * the assertions below would shrink rather than fail.
  */
-async function focusableNames(page: Page): Promise<string[]> {
+async function focusableControls(page: Page): Promise<ControlRef[]> {
   return page.evaluate((selector) => {
-    return Array.from(document.querySelectorAll(selector))
-      .filter((element) => element.getClientRects().length > 0)
-      .map((element) => {
-        const label = element.getAttribute("aria-label");
-        const source = label !== null && label !== "" ? label : (element.textContent ?? "");
-        return source.replace(/\s+/g, " ").trim();
-      });
+    const refs: { index: number; name: string }[] = [];
+
+    Array.from(document.querySelectorAll(selector)).forEach((element, index) => {
+      if (element.getClientRects().length === 0) return;
+
+      const label = element.getAttribute("aria-label");
+      const source = label !== null && label !== "" ? label : (element.textContent ?? "");
+      refs.push({ index, name: source.replace(/\s+/g, " ").trim() });
+    });
+
+    return refs;
   }, FOCUSABLE_SELECTOR);
 }
 
@@ -199,30 +284,39 @@ async function blurEverything(page: Page): Promise<void> {
  *    headroom, so a control that cannot be reached is reported as never-reached by the
  *    assertion rather than spinning here.
  *
+ * 4. **Re-read the control list afterwards**, and report any drift. The traversal takes
+ *    seconds, the page polls while it is open, and a control set that changes mid-walk
+ *    makes every reading after the change describe the wrong element. That is not a flake
+ *    to be smoothed over — it is a fact about the run, and reporting it is the difference
+ *    between a named cause and a missing string in an assertion.
+ *
  * ## What it deliberately does not do
  *
  * **It does not fail.** It reports, and the assertions do the failing — which is what lets
  * the negative control reuse these exact readers and be shown the same shape of answer. A
  * reader that threw on a missing indicator would have made that impossible.
  */
-async function readFocusableOutlines(page: Page): Promise<ControlFocus[]> {
-  const names = await focusableNames(page);
+async function readFocusableOutlines(page: Page): Promise<Traversal> {
+  const controls = await focusableControls(page);
   const readings: ControlFocus[] = [];
 
-  for (let target = 0; target < names.length; target += 1) {
+  for (const control of controls) {
     await blurEverything(page);
-    const unfocused = await outlineAt(page, target);
+    const unfocused = await outlineAt(page, control.index);
 
     let reached = false;
-    for (let press = 0; press <= names.length + 2 && !reached; press += 1) {
+    for (let press = 0; press <= controls.length + 2 && !reached; press += 1) {
       await page.keyboard.press("Tab");
-      reached = await focusIsAt(page, target);
+      reached = await focusIsAt(page, control.index);
     }
 
-    readings.push({ name: unfocused.name, unfocused, focused: await outlineOfFocused(page) });
+    readings.push({ name: control.name, unfocused, focused: await outlineOfFocused(page) });
   }
 
-  return readings;
+  const afterwards = await focusableControls(page);
+  const drift = describeDrift(controls, afterwards);
+
+  return { readings, drift };
 }
 
 /**
@@ -313,20 +407,109 @@ test.describe("the focus indicator the page actually draws", () => {
   }) => {
     await openSettledMailbox(page);
 
-    const readings = await readFocusableOutlines(page);
+    // ── Plant a control the traversal must not count, BEFORE it traverses
+    //
+    // A button matching the selector with **no layout box** — `display: none`, the ordinary
+    // way a page ends up holding one. It is planted here rather than after the walk because
+    // of what it is for: while it exists, the *filtered* position of every control after it
+    // differs from its *unfiltered* index, so a traversal that enumerated one list and
+    // indexed the other would address the wrong elements from that point on.
+    //
+    // **This is the defect CI found on the browser job's first run** (run `37439940701`):
+    // `names.some(… "Clear saved data")` failing with the head of the list correct and its
+    // tail missing — the exact signature of a one-position shift. Nothing on the page as
+    // shipped is unrenderable, so **walking the real page cannot distinguish the two
+    // indexings at all**: a mutation reintroducing the split (M27) leaves the suite green
+    // until this probe exists. It is therefore not a nicety; without it, the repair that
+    // fixed the CI failure is the one repair in this file that nothing can catch.
+    await page.evaluate(() => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.probe = "";
+      button.textContent = "Unrenderable probe";
+      button.style.display = "none";
+      // **Prepended, not appended, and that is load-bearing.** Appended to `body` it is the
+      // last element in DOM order, so a traversal that counted six matches and indexed only
+      // the five rendered ones would address every real control correctly — the shift only
+      // happens for what comes *after* the unrenderable element, and appending puts nothing
+      // there. A mutation reintroducing that split (M27) therefore left the suite green
+      // until this line moved: it was caught by a *different* test, and only because that
+      // one happened to plant its own probe earlier in the document.
+      document.body.prepend(button);
+    });
+
+    // **And the filter drops it**, before the walk rather than after: this is the positive
+    // control for `getClientRects()`, and a filter that never filtered would satisfy every
+    // assertion below while silently re-creating the defect.
+    const withProbe = await focusableControls(page);
+    expect(
+      withProbe.map((control) => control.name),
+      "a control with no layout box must not be enumerated",
+    ).not.toContain("Unrenderable probe");
+
+    const { readings, drift } = await readFocusableOutlines(page);
     const names = readings.map((focus) => focus.name);
+
+    // The probe is gone before anything else looks at the page, so no later assertion in
+    // this file is made about a page this test altered.
+    await page.evaluate(() => {
+      document.querySelector("button[data-probe]")?.remove();
+    });
+
+    // **The control set did not move while it was being walked.**
+    //
+    // Checked *first*, and before any claim about what the controls are, because this is
+    // the condition under which every other assertion in this file means anything. A
+    // traversal whose indices no longer address the elements it enumerated would report a
+    // correct page as a page missing a control — which is precisely the failure the browser
+    // job produced on its first run in CI, and precisely the failure this assertion is here
+    // to name rather than absorb.
+    expect(drift, `the page's controls changed mid-traversal:\n${drift.join("\n")}`).toEqual([]);
 
     // **There are controls, and the ones this milestone expects are among them.** Without
     // this a page rendering no focusable element would satisfy every assertion below
     // vacuously — and a spec that cannot fail is not a spec.
-    expect(names.length).toBeGreaterThan(0);
-    expect(names.some((name) => name.includes("Copy address"))).toBe(true);
-    expect(names.some((name) => name.includes("Clear saved data"))).toBe(true);
+    //
+    // Each expectation carries **the list it is searching**, because "received: false" with
+    // no list is a reader's guess and a reader's guess is what this repository keeps
+    // correcting. A failure names what was there.
+    expect(names.length, names.join(" | ")).toBeGreaterThan(0);
+    expect(
+      names.some((name) => name.includes("Copy address")),
+      names.join(" | "),
+    ).toBe(true);
+    expect(
+      names.some((name) => name.includes("Clear saved data")),
+      names.join(" | "),
+    ).toBe(true);
     // The inbox row carries its subject in the accessible name, so this also proves the
     // row is *reachable by Tab* rather than merely present in the DOM.
-    expect(names.some((name) => name.includes("one-time code"))).toBe(true);
+    expect(
+      names.some((name) => name.includes("one-time code")),
+      names.join(" | "),
+    ).toBe(true);
 
     for (const focus of readings) {
+      // **The reading describes the control it claims to.** Checked per control, because a
+      // name is what every other assertion in this file selects on, and a name attached to
+      // another element's outline is a claim nothing else would catch.
+      //
+      // **This is the invariant the CI failure violated.** Run `37439940701` reported
+      // `names.some(… "Clear saved data")` failing while the head of the list was correct —
+      // names and outlines that had come apart. Here `unfocused.name` is read from the same
+      // element the outline was read from, so the two can only disagree if the enumeration
+      // and the readers disagree about which element an index addresses.
+      //
+      // **Without it, the repair is unfalsifiable.** A mutation handing back the *filtered*
+      // position instead of the element's index (M27) was **measured green** while every
+      // outcome assertion here still passed — the outline it read belonged to a different
+      // control, but a wrong control's outline still looks focused or unfocused, so nothing
+      // noticed. Two earlier versions of the same fix were also green: the probe planted
+      // *after* the walk shifted nothing, and the probe planted by *appending* shifted
+      // nothing either. A property no mutation can break is not a property, and this
+      // assertion is what makes the coupling one.
+      expect.soft(focus.unfocused.name, describeControl(focus)).toBe(focus.name);
+
       expect.soft(isVisibleIndicator(focus.focused), describeControl(focus)).toBe(true);
 
       // **Not `auto` — and this assertion exists because a mutation found the gap.**
@@ -346,6 +529,35 @@ test.describe("the focus indicator the page actually draws", () => {
       // what "this milestone delivers a focus indicator" has to mean if it means anything.
       expect.soft(focus.focused.style, describeControl(focus)).not.toBe("auto");
     }
+
+    // ── One more control: `expect(drift).toEqual([])` on its own is unfalsifiable
+    //
+    // A reporter that returns `[]` for every input satisfies "the control set did not move"
+    // perfectly, forever. This repository's own history is that an assertion of the form
+    // "nothing bad happened" is satisfied by a reader that reports nothing for any reason —
+    // the defect the negative control at the end of this file exists to catch, turned here
+    // on the file's own precondition.
+    //
+    // So a **renderable** control is added and `describeDrift` is required to name it. The
+    // filter's positive control is above, where the probe exists *during* the walk, because
+    // that is the only place the two indexings can disagree.
+    const beforeProbe = await focusableControls(page);
+    await page.evaluate(() => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.probe = "";
+      button.textContent = "Visible probe";
+      document.body.append(button);
+    });
+    const afterProbe = await focusableControls(page);
+
+    expect(afterProbe.map((control) => control.name)).toContain("Visible probe");
+    expect(
+      describeDrift(beforeProbe, afterProbe).some((line) => line.includes("Visible probe")),
+      `describeDrift must report an added control; it reported ${JSON.stringify(
+        describeDrift(beforeProbe, afterProbe),
+      )}`,
+    ).toBe(true);
   });
 
   test("the indicator is caused by focus, and is absent when the control is not focused", async ({
@@ -353,7 +565,8 @@ test.describe("the focus indicator the page actually draws", () => {
   }) => {
     await openSettledMailbox(page);
 
-    const readings = await readFocusableOutlines(page);
+    const { readings, drift } = await readFocusableOutlines(page);
+    expect(drift, `the page's controls changed mid-traversal:\n${drift.join("\n")}`).toEqual([]);
     expect(readings.length).toBeGreaterThan(0);
 
     for (const focus of readings) {
@@ -392,9 +605,10 @@ test.describe("the focus indicator the page actually draws", () => {
     const expectedChannels = channelsOfHex(declared);
     expect(expectedChannels, `--focus is not a hex colour: ${declared}`).not.toBeNull();
 
-    const readings = await readFocusableOutlines(page);
+    const { readings, drift } = await readFocusableOutlines(page);
+    expect(drift, `the page's controls changed mid-traversal:\n${drift.join("\n")}`).toEqual([]);
     const painted = readings.filter((focus) => isVisibleIndicator(focus.focused));
-    expect(painted.length).toBeGreaterThan(0);
+    expect(painted.length, readings.map((focus) => focus.name).join(" | ")).toBeGreaterThan(0);
 
     for (const focus of readings) {
       if (!isVisibleIndicator(focus.focused)) continue;
@@ -414,15 +628,26 @@ test.describe("the focus indicator the page actually draws", () => {
     await page.getByRole("button", { name: "Clear saved data" }).click();
     await expect(page.getByTestId("local-data-confirmation")).toBeVisible();
 
-    const readings = await readFocusableOutlines(page);
+    const { readings, drift } = await readFocusableOutlines(page);
     const names = readings.map((focus) => focus.name);
+
+    // **The control set is stable across the traversal**, for the same reason as in the
+    // first test: this one reads names out of the walk and would otherwise read a shifted
+    // list and report a confirmation that is present as absent.
+    expect(drift, `the page's controls changed mid-traversal:\n${drift.join("\n")}`).toEqual([]);
 
     // **Both actions, and the destructive one reachable without a pointer.** The
     // confirmation is the one place on this page where a mistake cannot be undone, and an
     // indicator is only part of that: if `Remove it` could not be tabbed to, the warning
     // would reach nobody who cannot use a mouse.
-    expect(names.some((name) => name.includes("Remove it"))).toBe(true);
-    expect(names.some((name) => name.includes("Keep it"))).toBe(true);
+    expect(
+      names.some((name) => name.includes("Remove it")),
+      names.join(" | "),
+    ).toBe(true);
+    expect(
+      names.some((name) => name.includes("Keep it")),
+      names.join(" | "),
+    ).toBe(true);
 
     for (const focus of readings) {
       expect.soft(isVisibleIndicator(focus.focused), describeControl(focus)).toBe(true);
@@ -450,14 +675,24 @@ test.describe("the focus indicator the page actually draws", () => {
     // makes this a realistic reproduction rather than an artificial one.
     await page.addStyleTag({ content: "button.control:focus-visible { outline: none; }" });
 
-    const readings = await readFocusableOutlines(page);
+    const { readings, drift } = await readFocusableOutlines(page);
+    // The planted rule removes no controls, so drift here would mean the page changed
+    // underneath the reader — which would let "reported nothing" pass as a detection.
+    expect(drift, `the page's controls changed mid-traversal:\n${drift.join("\n")}`).toEqual([]);
+
     const silenced = readings.filter((focus) => !isVisibleIndicator(focus.focused));
     const names = silenced.map((focus) => focus.name);
 
     // **Named, not merely counted**, so a reader that reported nothing for a different
     // reason — a control it never reached, say — cannot be mistaken for a detection.
-    expect(names.some((name) => name.includes("Copy address"))).toBe(true);
-    expect(names.some((name) => name.includes("Clear saved data"))).toBe(true);
+    expect(
+      names.some((name) => name.includes("Copy address")),
+      names.join(" | "),
+    ).toBe(true);
+    expect(
+      names.some((name) => name.includes("Clear saved data")),
+      names.join(" | "),
+    ).toBe(true);
 
     // **And the inbox row is NOT silenced**, because the planted rule names `.control` and
     // the row's class is `inbox-row`. A reader that reported *every* control as missing an

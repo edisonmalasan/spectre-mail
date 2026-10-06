@@ -375,5 +375,94 @@ Final: **25 of 25 caught by the intended assertion**, restoration verified by SH
 A third defect is worth one line because it was not in the harness: the first check of
 `data-testid` invariance was a PowerShell pipeline whose `git grep -o` pattern had its
 `[^"]*` stripped before `git` saw it. Both sides came back empty, `Compare-Object` on two
-empty lists is vacuously equal, and it printed `IDENTICAL` having compared nothing. The
+empty lists is vacuously equal, and it printed `IDENTIAL` having compared nothing. The
 check now counts and **refuses to compare two empty sets**.
+
+## D14 — A CI run carrying this change's specs was red, and two claims about it were false
+
+PR #63 ran `37439940701`: `verify` and `spike self-test` green, **`browser` failed**, 10 of 11
+specs passing.
+
+**First, the claims — because two of the three were false and the instrument that settled
+both was a log query.** This repository carried the sentence that the `browser` job *"has
+never run in CI; the job is committed unexecuted"*. It was **false before this change
+began**: `gh run list` shows the job executing and **passing** in `37374154930`,
+`37376921511`, `37377218976` and `37426170806`, the last on `main` on 2026-10-06, hours
+before this branch. A first correction was then written into `AGENTS.md`, `README.md` and
+the roadmap asserting the job *"ran in CI for the first time during this change"* — **also
+false** — and it was retracted against the same run list.
+
+**Why this is recorded rather than quietly fixed.** Both false claims were written in the
+register this repository already distrusts: confident, specific, and about something a
+reader would have no way to check without a log query. The narrower claim, *"the first run
+carrying these specs was red"*, is the one that survives, and it is narrower because a log
+query produced it. **A correction is not evidence**, and neither is the correction of a
+correction.
+
+**Then the defect.** The failing spec reported `names.some((name) =>
+name.includes("Clear saved data"))` as `false`, while `names.length > 0` and
+`names.some(… "Copy address")` both passed. It did **not reproduce** on the machine that
+wrote it, across repeated runs at two workers.
+
+**The defect was in the spec, and it was found by reading rather than by rerunning.**
+`focusableNames()` enumerated the focusable set filtered by `getClientRects()`, while
+`outlineAt()` and `focusIsAt()` indexed `document.querySelectorAll(selector)` **unfiltered**.
+Any element matching the selector with no layout box shifted every later reading by one and
+pushed the tail of the list off the end — which is exactly the observed signature: head
+correct, tail missing, length non-zero. The fix is **one place that decides which elements
+count**, handing out the index that reaches the element it counted, rather than two places
+that could disagree.
+
+### D14a — The repair was green three times before a mutation could catch it
+
+This is the part worth keeping, and it is the **twenty-third** recorded instance of an
+assertion that cannot fail.
+
+1. With the split reintroduced as mutation **M27**, the suite passed. Nothing on the page as
+   shipped is unrenderable, so the filtered position and the element index are identical and
+   the two indexings cannot be told apart.
+2. So the spec plants a `display: none` control — **after** the walk. Green: a probe added
+   once the walk is over shifts nothing.
+3. Planted by **appending** to `body`. Still green, and caught only by a *different* test
+   that happened to plant its own probe earlier in the document — a `wrongcatch`, which is
+   why the harness attributes a catch to the test it named.
+4. Planted by **prepending**, so it precedes every real control. **Still green.** The
+   enumeration's `name` was correct — it came from the same read — so every name-based
+   assertion passed, while `outlineAt()` read a *different* element's outline. A wrong
+   control's outline still looks focused or unfocused, so every indicator assertion passed
+   too.
+
+**What finally made it falsifiable was asserting the invariant that was actually violated.**
+A reading's name is read from the element its outline was read from, so
+`focus.unfocused.name === focus.name` holds **only** if the enumeration and the readers agree
+about which element an index addresses. One assertion, and the mutation is caught by the
+intended test.
+
+**Two controls came out of this and both are now in the spec**: a control with no layout box
+must be dropped by the filter, asserted **before** the walk so the two indexings genuinely
+disagree during it; and a **renderable** added control must be named by `describeDrift`,
+because `expect(drift).toEqual([])` is satisfied by a reporter that reports nothing.
+
+### D14b — What this establishes, and what it does not
+
+The `browser` job is **repeatable in CI** — it has run and passed on GitHub-hosted runners
+since 2026-10-05 — and this change's specs met it **red**, in a spec `pnpm verify` had
+already passed. That is the second time this repository has had a real instrument find
+something a unit suite was green about, and the reason the browser tier is a separate runner
+with its own CI job rather than a folder inside `pnpm test`.
+
+**The repair is verified locally and not yet in CI.** It is mutation-falsified (§2.3) and the
+tier passes locally, and this change records that as the whole of its standing until a
+`browser` run on a commit someone watched comes back green. Nothing above claims otherwise,
+because a claim about CI that outruns the CI is the exact failure this repository's
+`spike self-test` notes describe: four cancelled jobs with **no log archive at all**, and the
+JSON the only instrument that could tell a starved runner queue from a hang.
+
+Four limits are unchanged and none of them is the one that just closed:
+
+- **Nothing about a live provider.** Every response is a recorded one.
+- **Nothing about another engine.** Chromium only, on purpose — and repeatability on one
+  engine is not coverage of the others.
+- **Nothing about a blocked `deleteDatabase`.** The suite does not produce that event.
+- **Nothing about how the page looks.** The specs read a computed style; nothing reads a
+  rendered pixel.

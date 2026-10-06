@@ -81,15 +81,17 @@ measured `records=1 claimsStored=0 offersRemoval=0` in Chromium, while 152 unit 
 passed. The cause was an unmount guard scoped to one effect invocation, which that
 effect's own cleanup cleared whenever the inbox published new state mid-write. It is fixed,
 pinned by a unit regression test that holds a write open, and now covered in real Chromium
-by `pnpm test:browser` (Playwright `1.63.0`, 6 specs, its own CI job).
+by `pnpm test:browser` (Playwright `1.63.0`, now 11 specs, its own CI job).
+
+**And a CI run carrying this page's new specs went red on 2026-10-06** — see below.
 
 Three limits belong in the same breath, and none of them is the one that closed. **No
 stored mailbox has ever been reconciled against a live Guerrilla Mail session** - the
 browser suite serves _recorded_ provider responses, so it reconciles against a recording,
 and `use it externally` stays unverified. **The blocked-removal semantics are still only a
 `fake-indexeddb` measurement**, because the browser suite does not produce that event. And
-**only Chromium was run**, on one machine. The CI job that would make it repeatable has
-**never passed** - see below. What the
+**only Chromium was run** — on one machine and on GitHub-hosted Linux runners, which is
+repeatability rather than coverage. What the
 browser tier did corroborate is narrow but real: removing "everything this device holds"
 means deleting the whole database rather than clearing one key, and **Chromium and
 `fake-indexeddb` agreed on that** - established by breaking it and watching both tiers go
@@ -382,16 +384,27 @@ rather than passing quietly.
 That makes it a real browser and **not** a real product test. What it cannot establish:
 that a live provider answers as recorded (`use it externally` stays unverified), how a
 real provider reacts to being polled every five seconds, what Firefox or WebKit do with
-IndexedDB, or what a blocked removal does — it does not produce that event. It also ran
-on **one machine**, and the CI job that would make it repeatable **has never passed**: its
-first run hit its own timeout with no output. See below.
+IndexedDB, or what a blocked removal does — it does not produce that event. It runs on
+**one engine**, on one machine and on GitHub-hosted Linux runners. See below.
 
-**Its first run found a shipped defect, and that is the argument for it.** In Chromium,
+**Its first local run found a shipped defect, and that is the argument for it.** In Chromium,
 the page wrote the mailbox and never learned it had — `records=1 claimsStored=0
 offersRemoval=0` — so the removal control this README has described as working **was
 never offered at all**, while 152 unit tests passed. 44 tests against
 `fake-indexeddb` could not have found it, because they cannot represent a write that
 stays in flight while the inbox publishes new state.
+
+**A later CI run found a different defect, in the suite rather than the page.** On
+2026-10-06, run `37439940701`: `verify` green, `spike self-test` green, **`browser` red**,
+10 of 11 specs passing. The focus traversal enumerated the focusable set filtered by
+`getClientRects()` while its readers indexed the **unfiltered** list, so any control with
+no layout box shifted every later reading and truncated the end of the list — reported as
+`Clear saved data` missing while `Copy address` was present. It did **not reproduce
+locally**, across repeated runs at two workers; it was diagnosed by reading.
+
+**`pnpm verify` was green the whole time.** 689 unit tests and 51 boundary assertions, all
+passing on the very commit that carried the defect. That is the whole argument for a
+second runner: one suite cannot report coverage it did not execute.
 
 ### What M0 established
 
@@ -443,15 +456,18 @@ The browser tier closed the storage-path gap and **did not close these**:
   scheduler was asked for.
 - **A blocked removal** — still a `fake-indexeddb` measurement; the browser suite does not
   produce that event.
-- **Other browsers** — Chromium only, and on one machine.
-- **The browser tier in CI** — the job hung on five runs, and the cause was **measured**
-  rather than guessed. Chromium was healthy throughout: it launched on the same runner in
-  250ms. The hang was this repository's own `webServer` command wrapping `vite` in
-  `pnpm`, which left the real server orphaned on Playwright's shutdown and holding the
-  port. Fixed by invoking `vite` directly, and the job now passes in **58 seconds**. Two
-  repairs spent on the wrong theory first — a bigger timeout, then
-  `--disable-dev-shm-usage --no-sandbox` — are recorded in `AGENTS.md` because both were
-  reasonable and both were refuted by measurement.
+- **Other browsers** — Chromium only, on one machine and on GitHub-hosted Linux runners.
+  Repeatable is not the same as covered.
+- **The browser tier in CI** — the job hung on its first five runs, and the cause was
+  **measured** rather than guessed. Chromium was healthy throughout: it launched on the same
+  runner in 250ms. The hang was this repository's own `webServer` command wrapping `vite`
+  in `pnpm`, which left the real server orphaned on Playwright's shutdown and holding the
+  port. Fixed by invoking `vite` directly, and the job passes in **58 seconds** — it has
+  been green on GitHub-hosted runners since run `37374154930`. Two repairs spent on the
+  wrong theory first — a bigger timeout, then `--disable-dev-shm-usage --no-sandbox` — are
+  recorded in `AGENTS.md` because both were reasonable and both were refuted by
+  measurement. **The first run carrying the new focus specs was red**, for the reason
+  described above, and the job being green again is not claimed until a run says so.
 
 ---
 

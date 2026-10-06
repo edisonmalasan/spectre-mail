@@ -135,9 +135,9 @@ neighbour turns the pair red **naming the pair and both ratios**.
   `green`, `harness-error`, a non-zero exit with no named failure, a no-op mutation, and a
   mutation caught by a *different* test are **five distinct non-passes** and are each
   reported as such.
-  **Evidence.** **25 of 25 caught by the intended assertion**, across both tiers, with `nocompile`, `green`, `wrongcatch`, `noop`, `harness-error`, and `build-failed` each counted as their own outcome and none of them reported as a pass. Three of those runs **changed an assertion rather than merely breaking a suite**, and all three are recorded in `design.md` and `AGENTS.md`: **M14** (deleting the focus rule left the specs green on Chromium's `outline: auto`), **M19** (a line-anchored edit missed a fourth `.inbox-row` selector inside a `@media` block, so the tree was half-mutated and reported green), and the harness defect where a `to` that is an **array of lines** was read as an array of edits, producing one `green` from a mutation that never applied.
+  **Evidence.** **28 of 28 caught by the intended assertion**, across both tiers, with `nocompile`, `green`, `wrongcatch`, `noop`, `harness-error`, and `build-failed` each counted as their own outcome and none of them reported as a pass. **Five** of those runs **changed an assertion or a check rather than merely breaking a suite**, and every one is recorded in `design.md` and `AGENTS.md`: **M14** (deleting the focus rule left the specs green on Chromium's `outline: auto`); **M19** (a line-anchored edit missed a fourth `.inbox-row` selector inside a `@media` block, so the tree was half-mutated and reported green); the harness defect where a `to` that is an **array of lines** was read as an array of edits, producing one `green` from a mutation that never applied; and **M26–M28**, which came from the first CI run carrying this change's specs and are the **twenty-third** recorded instance — the traversal repair was green three times before the invariant it rested on was asserted. See design.md D14.
 - [x] 2.3.2 Restoration verified by SHA-256 and reported separately from the catch.
-**Evidence.** Restoration is verified by **SHA-256 per mutation** and reported as its own column, separately from the catch. The final run recorded **0 restoration mismatches** across all 25.
+**Evidence.** Restoration is verified by **SHA-256 per mutation** and reported as its own column, separately from the catch. The final run recorded **0 restoration mismatches** across all 28.
 - [x] 2.3.3 Include at least one **narrowing** mutation per rule — shortening the pattern,
   dropping a form — because a pattern narrowed from under its own rule is the defect class
   this repository has recorded **twenty-two** times. **Amendment, recorded during apply
@@ -327,7 +327,22 @@ the six that is the evidence, because those are the ones that already existed.
 - [x] 5.1.1 A Playwright spec that **tabs** to every interactive control — copy address,
       check again, open each message row, the two-step removal confirm and cancel — and
       reads the resolved outline on each.
-      **Evidence.** `apps/web/e2e/focus.spec.ts`, 5 specs. `openSettledMailbox` waits for the `Clear saved data` control, which is what makes the rest possible: tabbing from the top of a page that has not finished its boot read reaches controls that are not there yet. **The existence of that wait was found by running**, not designed — the first version tabbed immediately and the spec passed without ever reaching a control.
+      **Evidence.** `apps/web/e2e/focus.spec.ts`, 5 specs. `openSettledMailbox` waits for the
+      `Clear saved data` control, which is what makes the rest possible: tabbing from the
+      top of a page that has not finished its boot read reaches controls that are not there
+      yet. **The existence of that wait was found by running**, not designed — the first
+      version tabbed immediately and the spec passed without ever reaching a control.
+      **A second defect in this file was found by the first CI run carrying it**
+      (`37439940701`), and it was in the traversal rather than in the page:
+      `focusableNames()` enumerated the set filtered by `getClientRects()` while the readers
+      indexed the **unfiltered** list, so a control with no layout box shifted every later
+      reading and truncated the tail — the observed signature being the head of the list
+      correct and `Clear saved data` missing. Repaired by making **one** function decide
+      which elements count and hand out the index that reaches each, plus an assertion that
+      a reading's name comes from the element its outline was read from. See design.md D14 —
+      including the part that matters most, that the repair was **green three times** before
+      that assertion existed, and the part that matters second, that **two of the three
+      claims made about that CI job were false** until a log query settled them.
 - [x] 5.1.2 Assert the indicator is present, non-zero, and **different from the same
       control unfocused**. The third clause is the one that catches `outline: 2px solid
       transparent`, which 2.2.3 states it cannot catch.
@@ -402,7 +417,7 @@ the six that is the evidence, because those are the ones that already existed.
 - [x] 7.3 `openspec validate spectral-swiss-foundation --strict` passes.
 **Evidence.** `openspec validate spectral-swiss-foundation --strict` passes, and `openspec validate --specs --strict` remains **10 passed, 0 failed** — this slice **adds** `visual-system` rather than amending a promoted spec, so nothing existing moves.
 - [x] 7.4 Record the **before/after counts** of every suite, measured.
-**Evidence.** Before and after, measured: **649 → 689 tests**, **31 → 35 files**, **47 → 51 boundary assertions**, **`apps/web` 113 → 113** (required unchanged), **`packages/ui` 0 → 36**, **browser specs 6 → 11** of which the 6 are unchanged. Falsification: **25 → 25 mutations, all caught by the intended assertion, 0 restoration mismatches**.
+**Evidence.** Before and after, measured: **649 → 689 tests**, **31 → 35 files**, **47 → 51 boundary assertions**, **`apps/web` 113 → 113** (required unchanged), **`packages/ui` 0 → 36**, **browser specs 6 → 11** of which the 6 are unchanged. Falsification: **25 → 28 mutations, all caught by the intended assertion, 0 restoration mismatches** — the three added because the first `browser` CI run carrying this change's specs was red and found a defect in its own traversal (design.md D14, which also records that two of the three claims made about that job were false until a log query settled them).
 
 ---
 

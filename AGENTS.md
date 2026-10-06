@@ -59,7 +59,18 @@ leaves `indexedDB.databases()` empty — including a store this build does not r
 **What is still unverified, and the list is the point.** **`use it externally` remains
 unverified** — a recorded provider is not a provider. **The live polling cadence remains
 unobserved**: nothing here has watched a real provider respond to being polled every five
-seconds. **The browser tier has never run in CI**; the job is committed unexecuted.
+seconds. **The browser tier's first CI run *with this change's specs* failed**, on a defect
+in its own traversal, in a spec `pnpm verify` had already passed — and finding that out
+required checking, because the claim this replaces was wrong in **both** directions.
+
+**Corrected by measurement, not by reading.** `gh run list` shows the `browser` job
+executing from run `37374154930` on 2026-10-05 and **passing** in `37374154930`,
+`37376921511`, `37377218976` and `37426170806` — the last on `main`, hours before this
+branch. So the sentence this replaces, *"the browser tier has never run in CI; the job is
+committed unexecuted"*, was **already false before this change began**. A first correction
+was written here claiming the job *"ran in CI for the first time during this change"* —
+**that is also false**, and it was retracted against the run list rather than kept because
+it was the newer claim. **A correction is not evidence either.**
 **The blocked-`deleteDatabase` semantics remain a `fake-indexeddb` measurement** — one
 behaviour was checked against both substrates and they **agreed**, which is a result about
 that behaviour and not a general licence. `fake-indexeddb` `6.2.5` **is not a browser**,
@@ -488,7 +499,14 @@ Pin versions when exact versions matter.
   discards it — so *four runs of missing test output were the reporter, not a hang*. And
   a diagnostic is only worth its cycle if it can fail for the reason it exists: the first
   version ran before the build and died in two seconds on `dist` not existing. **The
-  `browser` job now passes in 58 seconds.**
+  `browser` job passes in 58 seconds.**
+
+  **And it has since been run repeatedly and passed**, which was checked rather than
+  assumed, because this file previously carried a claim that the job *"has never run in
+  CI"* and that claim was false: runs `37374154930`, `37376921511`, `37377218976` and
+  `37426170806` (2026-10-05/06) each show a `browser` job with `conclusion: success`.
+  **The first run of that job hung five times, and it has been green on GitHub-hosted
+  runners ever since** — the 58-second figure above is a CI measurement, not a local one.
 
   **`spike self-test` is cancelled for an unrelated reason, and the JSON is the only
   instrument that says so.** That job is untouched by this change — no browser, no
@@ -1011,8 +1029,11 @@ ring the browser invented from satisfying a claim about a ring this product drew
   evidence about the claim.
 - **Nothing about a blocked `deleteDatabase`.** The suite does not produce that event, so
   the queued-removal semantics remain a `fake-indexeddb` measurement.
-- **Nothing about any browser other than the one that ran.** This was observed on
-  **one machine**, and the CI job that would make it repeatable **has never run**.
+- **Nothing about any browser other than the one that ran.** Chromium, on **one machine**
+  (Windows 11) and on GitHub-hosted Linux runners. It is now repeatable — the `browser` job
+  has run and **passed** in CI since run `37374154930` (2026-10-05) — but repeatability on
+  one engine is not coverage of the others, and adding a project per engine would turn
+  "verified" into "verified somewhere" without adding evidence about the claim.
 
 **Two tool hazards, both of which produced a false green before being fixed.**
 
@@ -1347,8 +1368,20 @@ the reason 44 storage tests were never going to find it.
   them. **One** behaviour was now checked against both substrates and the two **agreed** —
   that removal takes the whole database rather than one key. That is a fact about that
   behaviour and **not a general licence** for the fake.
-- **The browser tier has never run in CI.** The job is committed unexecuted, so every
-  claim about it is a claim about one machine.
+- **The browser tier is repeatable in CI, and it went red on this change.** It has executed
+  and **passed** since run `37374154930` (2026-10-05), most recently `37426170806` on `main`.
+  Run `37439940701` (2026-10-06, PR #63) is the **first run carrying this change's specs**,
+  and it was **red**: `verify` green, `spike self-test` green, **`browser` failed** with 10
+  of 11 specs passing. The failure was a defect **in a spec of this change's own** — the
+  traversal enumerated the focusable set filtered by `getClientRects()` while its readers
+  indexed the unfiltered list, so a control with no layout box shifted every later reading
+  and truncated the tail. It did not reproduce locally across repeated runs. Repaired,
+  mutation-falsified, and passing locally; **the job being green on a Linux runner again is a
+  separate fact and is not claimed until a run says so.**
+
+  **This is the strongest evidence yet for the two-tier split.** `pnpm verify` was green
+  throughout, on this machine, on the commit that carried the defect — 689 unit tests and
+  51 boundary assertions, all passing, while a browser tier nobody had run held a bug.
 
 **M7 slice 1 added a fourth limit to that list, and it is the only one about
 appearance.** `packages/ui`'s 36 tests and the five focus specs between them establish
@@ -1363,8 +1396,8 @@ machine. A human opening the page is the only instrument for it, and building on
 slice 3's subject, not a missing test.
 
 **The change's own falsification record, because a count of caught mutations proves
-nothing without what they were.** **25 of 25 deliberate violations were caught by the
-*intended* assertion, with restoration verified by SHA-256**, across both tiers. Three
+nothing without what they were.** **28 of 28 deliberate violations were caught by the
+*intended* assertion, with restoration verified by SHA-256**, across both tiers. Four
 results are worth keeping:
 
 - **Deleting the `:focus-visible` rule left the focus specs green.** They asserted an
@@ -1387,6 +1420,19 @@ results are worth keeping:
   tree was only partly mutated and the result was reported as green. A missing edit site
   now records `noop` **and skips the run**, and the three shapes of `to` are told apart by
   element type.
+- **The repair for the CI defect was green three times before it could fail, and that is
+  the twenty-third instance.** The traversal's defect was two places disagreeing about
+  which element an index addresses. Fixing it — one function deciding what counts — passed
+  the suite when the split was **reintroduced**, because nothing on the shipped page is
+  unrenderable. Planting a probe **after** the walk changed nothing; planting it by
+  **appending** changed nothing, because a probe after every control shifts nothing; and
+  **prepending** it still passed, because the enumeration's *names* were right while its
+  *outlines* came from the wrong element, and a wrong control's outline still looks focused
+  or unfocused. What finally made it falsifiable was asserting the invariant that was
+  actually violated: a reading's name is read from the element its outline was read from,
+  so `focus.unfocused.name === focus.name` holds only if the two agree. **A property no
+  mutation can break is not a property**, and three greens in a row is what finding that out
+  costs when the assertion is aimed at the file instead of at the property.
 
 **`pnpm test` and `pnpm typecheck` catch different defects, and this repository has
 now been bitten by that in both directions.** Vitest does not typecheck, so a
