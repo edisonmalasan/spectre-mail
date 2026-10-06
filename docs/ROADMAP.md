@@ -48,19 +48,41 @@ verified (with its verification-pass repairs merged as PR **#64**), synced (**#6
 (`motion-and-reduced-motion`) is applied, verified, synced, and ARCHIVED**, merged as
 proposal **#67**, Apply **#68**, sync **#69**, **and its archive PR number is recorded at
 the archive stage, as every other slice's is.**
-The current objective is **M7 slice 3: the four website sections**, which is **applied, verified,
-synced and ARCHIVED**; slice 4, the `Extension preview`, remains **blocked on M8**.
+The current objective is **M8 — Extension Foundation**, **proposed** as `extension-foundation` on
+branch `docs/extension-foundation-proposal`. **Slice 4, the `Extension preview`, stays blocked on
+M8 and stays unstarted.**
 
-**And that block is now load-bearing for M7 itself, so it is stated rather than left implicit.**
-M7's three deliverable slices are archived. **M7's exit criteria are not fully met**, because
-slice 4 is not deferred-and-forgotten — it is **blocked on a milestone that has not been
-started**, and `apps/extension` is still an empty directory with no MV3 manifest. Deciding
-whether to drop slice 4, carry it into M8, or build M8 first is a **scope decision for the
-maintainer**, and this repository does not make it silently: a roadmap sentence cannot amend an
-approved spec, so changing what M7 owes is a decision to be taken and recorded, not one to be
-inferred from a block that has been sitting in a table for a while. **The cursor therefore points
-at M8**, which is the earliest milestone whose work is not blocked, and **no M7 slice 4 work has
-been started.**
+**M7's exit criteria are still not fully met**, because slice 4 is not deferred-and-forgotten — it
+is **blocked on a milestone that had not been started when the decision was taken**, and
+`apps/extension` was still an empty directory with no MV3 manifest. The maintainer has since
+decided to **build M8 first**, which is the option that unblocks slice 4 rather than deciding
+slice 4's fate by fiat, and **no M7 slice 4 work has begun.**
+
+**M8 is the first milestone whose subject is a second client rather than a new layer**, so its
+real deliverable is a proof that the packages beneath `apps/web` can be consumed by something that
+is not `apps/web`. Two decisions were put to the maintainer at proposal and both are recorded in the
+change's `design.md`:
+
+- **The background service worker ships with no polling, and its lifetime is measured first**
+  (D1). `packages/mailbox` polls on an injected scheduler at a **5-second** prompt delay and a
+  **30-second** ceiling; an MV3 worker is idle-terminated and `chrome.alarms` has a floor of its
+  own. Nothing in this repository has measured that combination, and the answer decides whether the
+  session lives in the worker, the popup, or an offscreen document — so M8 **measures** it in real
+  Chromium and the next slice decides on the measurement. The popup's inbox count is therefore
+  **user-triggered, not ambient**, which is a real reduction against the roadmap's own
+  "basic inbox count" and is recorded rather than presented as meeting it.
+- **The content script and the side panel are deferred to M9 and M11**, and **their absence is a
+  requirement**, the same treatment slice 3 gave this page's `Extension preview` section. A
+  declared surface that renders nothing is fake UI.
+
+**M8 also owns the deferred live host-permission check**, which `README.md` recorded against "the
+milestone that owns extension and provider infrastructure". It runs **both ways** — the wildcard
+form must succeed **and** the slash-less form must fail, in the same run against the same origin —
+because a check that fetches once and passes would pass regardless of the pattern. It is
+**quarantined from `pnpm verify`**: it is the only test in this repository that contacts a live
+provider, and folding it into the suite would make every gate depend on Mail.tm's uptime. **It
+closes that one item and no other** — `use it externally` and the live polling cadence stay
+unverified.
 
 **Slice 3 shipped four sections and made the fifth's absence a requirement.** `website-sections`
 adds a **product hero** (the wordmark beside the live address, plus a filled `Replace address`),
