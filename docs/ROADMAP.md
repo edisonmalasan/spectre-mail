@@ -44,10 +44,12 @@
 **Roadmap cursor:** **M6 - Website Hardening, complete in scope and closed out.
 M7 - Spectral Swiss Design Pass - slice 1 (`spectral-swiss-foundation`) is applied,
 verified (with its verification-pass repairs merged as PR **#64**), synced (**#65**), and
-**ARCHIVED** — which closes M7 slice 1 completely. The next eligible objective is **M7
+**ARCHIVED** — which closes M7 slice 1 completely. The current objective is **M7
 slice 2: motion, landing atomically with `prefers-reduced-motion` handling**, and it is
 owed rather than optional: the motion tokens are declared and used by nothing, and the fix
-for the media query has to land *with* the motion rather than after it. Slice 3 is the five
+for the media query has to land *with* the motion rather than after it. It is **proposed**
+as change **`motion-and-reduced-motion`**; its slice row below records what it does and, in
+the same place, the half of the roadmap's phrase it will **not** deliver. Slice 3 is the five
 website sections; slice 4, the `Extension preview`, is **blocked on M8**.**
 Slice 1 (`spectre-storage`) and slice 2
 (`mailbox-adoption`) are both applied, verified, synced, and **archived** at
@@ -2807,7 +2809,7 @@ kind would have been reviewed by the standards of the first and would have passe
 | Slice | Change | Owns | State |
 | --- | --- | --- | --- |
 | 1 | `spectral-swiss-foundation` | The token layer in `packages/ui`, the page's structural stylesheet, the accent on the surfaces of the Accent block that **exist on this page today** (active status, verification codes, focus state — *primary action* and *brand mark* arrive with the sections in slice 3, and one further use, a detected link's host, is a recorded reading rather than a listed item), **visible focus states**, and the checks that can be asserted about either — contrast as WCAG arithmetic, focus as a resolved outline in a real browser | applied |
-| 2 | not opened | **Motion**, and `prefers-reduced-motion: reduce` governing it. The three transitions named above arrive here | not started |
+| 2 | **`motion-and-reduced-motion`** | **Motion**, and `prefers-reduced-motion: reduce` governing it. The three transitions named above arrive here — **entrance only**: the Motion block's word is *"materialize/disappear"*, and only the first half is deliverable in CSS, because an element React has unmounted is gone before any transition can run. Also: a row already on the page is never re-materialised by a later poll, since the inbox polls every five seconds and an animation on every row would repeat itself for as long as the tab is open | proposed |
 | 3 | not opened | The **five website sections** below. Composition work, on a foundation slice 1 has already fixed | not started |
 | 4 | **blocked** | The **`Extension preview`** section, below | **blocked on M8** |
 
