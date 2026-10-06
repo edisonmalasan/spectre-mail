@@ -1376,8 +1376,11 @@ the reason 44 storage tests were never going to find it.
   traversal enumerated the focusable set filtered by `getClientRects()` while its readers
   indexed the unfiltered list, so a control with no layout box shifted every later reading
   and truncated the tail. It did not reproduce locally across repeated runs. Repaired,
-  mutation-falsified, and passing locally; **the job being green on a Linux runner again is a
-  separate fact and is not claimed until a run says so.**
+  mutation-falsified, and passing locally — and then **run `37442961830` carried the repair
+  and came back green** on a GitHub-hosted Linux runner: `verify`, `spike self-test` and
+  `browser` all SUCCESS. **That is the fact this sentence waited for**, and it is stated as
+  a run id rather than as "CI is green" because a claim about CI that outruns a run is the
+  failure mode.
 
   **This is the strongest evidence yet for the two-tier split.** `pnpm verify` was green
   throughout, on this machine, on the commit that carried the defect — 689 unit tests and

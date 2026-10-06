@@ -451,12 +451,13 @@ already passed. That is the second time this repository has had a real instrumen
 something a unit suite was green about, and the reason the browser tier is a separate runner
 with its own CI job rather than a folder inside `pnpm test`.
 
-**The repair is verified locally and not yet in CI.** It is mutation-falsified (§2.3) and the
-tier passes locally, and this change records that as the whole of its standing until a
-`browser` run on a commit someone watched comes back green. Nothing above claims otherwise,
-because a claim about CI that outruns the CI is the exact failure this repository's
-`spike self-test` notes describe: four cancelled jobs with **no log archive at all**, and the
-JSON the only instrument that could tell a starved runner queue from a hang.
+**The repair is now verified in CI, and the run id is the claim.** It is mutation-falsified
+(§2.3), the tier passes locally, and **run `37442961830` carried the repair and came back
+green** on a GitHub-hosted Linux runner — `verify`, `spike self-test` and `browser` all
+SUCCESS. It is stated as a run id rather than as "CI is green", because a claim about CI
+that outruns a run is the exact failure this repository's `spike self-test` notes describe:
+four cancelled jobs with **no log archive at all**, and the JSON the only instrument that
+could tell a starved runner queue from a hang.
 
 Four limits are unchanged and none of them is the one that just closed:
 

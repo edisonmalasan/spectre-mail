@@ -335,6 +335,9 @@ violated: a reading's name is read from the element its outline was read from, s
 about which element an index addresses. **That is the twenty-third recorded instance of an
 assertion narrower than its rule**, and the reason `M26`–`M28` exist.
 
+**Run `37442961830` carried the repair and came back green** — `verify`, `spike self-test`
+and `browser` all SUCCESS on a GitHub-hosted Linux runner.
+
 **This is the strongest argument yet for the two-tier split.** `pnpm verify` was green
 throughout, on this machine, on the commit carrying the defect — 689 unit tests and 51
 boundary assertions — while a spec `pnpm verify` never reads held a bug.

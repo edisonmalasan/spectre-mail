@@ -467,7 +467,7 @@ The browser tier closed the storage-path gap and **did not close these**:
   wrong theory first — a bigger timeout, then `--disable-dev-shm-usage --no-sandbox` — are
   recorded in `AGENTS.md` because both were reasonable and both were refuted by
   measurement. **The first run carrying the new focus specs was red**, for the reason
-  described above, and the job being green again is not claimed until a run says so.
+  described above; the repair landed in run `37442961830` and all three jobs came back green.
 
 ---
 
