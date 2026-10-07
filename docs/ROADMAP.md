@@ -53,8 +53,13 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor: M9 - In-Page Email Integration, slice 1 (`in-page-address`) applied and verified.**
-**M0 through M8 are complete in scope; M9 has three slices and the first is at its Apply stage's end.**
+**Roadmap cursor: M9 - In-Page Email Integration, slice 1 (`in-page-address`) applied, verified and SYNCED; its archive follows.**
+**M0 through M8 are complete in scope; M9 has three slices and the first is at its Sync stage's end.**
+**Its sync promoted the delta, so the promoted specs moved 13 → 14 capabilities, 136 → 143
+requirements and 390 → 408 scenarios** - the fourteenth is `in-page-integration` at 7 requirements /
+18 scenarios. Every promoted block was copied programmatically from the delta rather than retyped,
+which makes the byte-identity `AGENTS.md` asks for a property of the promotion instead of a
+comparison performed afterwards.
 
 **M7 - Spectral Swiss Design Pass - is complete in scope**: slice 1 (`spectral-swiss-foundation`)
 applied, verified (with its verification-pass repairs merged as PR **#64**), synced (**#65**), and
@@ -79,8 +84,8 @@ behaviour block asks for five things on one click - create or select a mailbox, 
 fire the right events, stay compatible with controlled inputs, and associate the mailbox with the
 site - and the UX rules add a three-way choice on top. One change cannot carry that honestly, so:
 
-- **Slice 1, `in-page-address` (APPLIED and verified on `feat/in-page-address`; sync and archive
-  follow).** The content script exists, offers its affordance when an email field takes focus, and
+- **Slice 1, `in-page-address` (APPLIED, VERIFIED and SYNCED - proposal PR **#84**, Apply **#85**;
+  archive follows).** The content script exists, offers its affordance when an email field takes focus, and
   inserts the address **this device already holds**. It reads storage directly rather than asking
   the service worker, so it depends on **no platform behaviour this repository has not measured** -
   no cross-origin request, no message round trip, no assumption about whether a terminated worker

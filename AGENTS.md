@@ -1,21 +1,24 @@
 # AGENTS.md
 
 > **Current milestone state (reconciled against Git and OpenSpec 2026-10-08): M0-M8 are complete in
-> scope, and M9's first slice is applied and verified.** M7's four slices are archived and M8
+> scope, and M9's first slice is applied, verified and SYNCED; its archive follows.** M7's four
+> slices are archived and M8
 > (`extension-foundation`) is applied, verified, synced, and archived at
 > `openspec/changes/archive/2026-10-07-extension-foundation/` - proposal **#75**, apply **#76**,
 > sync **#77**. **M7 slice 4 (`extension-preview`) is applied, verified, synced and ARCHIVED** at
 > `openspec/changes/archive/2026-10-07-extension-preview/` - proposal **#79** (`5062afa`), apply
 > **#80** (`586d58a`), sync **#81** (`46ae462`), archive **#82**. **`in-page-address` (M9 slice 1)
-> is applied and verified on `feat/in-page-address`; its sync and archive follow, and M9's slices 2
-> (`in-page-mailbox`) and 3 (`site-associations`) have not begun.** The promoted specs are
-> unchanged by it, because a change's delta is promoted at **sync**, not at apply: `openspec list`
-> reports `in-page-address` as the one active change and `openspec validate --specs --strict` is
-> **13 passed, 0 failed**, across **13 capabilities holding 136 requirements and 390 scenarios** -
+> is applied, verified and synced** - proposal **#84**, apply **#85** - **and M9's slices 2
+> (`in-page-mailbox`) and 3 (`site-associations`) have not begun.** **The sync promoted the delta,
+> so the promoted specs now hold what it asked for:** `openspec validate --specs --strict` is
+> **14 passed, 0 failed**, across **14 capabilities holding 143 requirements and 408 scenarios** -
 > measured by counting `### Requirement:` and `#### Scenario:` across `openspec/specs/`, not
-> transcribed. **The delta adds a fourteenth capability, `in-page-integration`, at 7 requirements /
-> 18 scenarios, and amends `extension-client` by one requirement / two scenarios — so those counts
-> are not in the 136/390 until the sync stage promotes them.**
+> transcribed. That is **13 → 14 capabilities, 136 → 143 requirements, 390 → 408 scenarios**: the
+> fourteenth is `in-page-integration` at 7 requirements / 18 scenarios, and `extension-client` holds
+> **6 requirements / 20 scenarios**, unchanged in requirement count because a `MODIFIED` delta
+> replaces a block rather than adding one. **Each promoted block was verified byte-identical to the
+> delta it came from, by copying the blocks programmatically rather than retyping them** - so
+> identity is structural rather than a comparison performed afterwards.
 >
 > **Read the milestone sections below as history rather than as current state.** They are kept
 > in the order the milestones happened and each records the measured counts as they stood at
