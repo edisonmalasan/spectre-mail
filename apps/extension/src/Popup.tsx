@@ -42,6 +42,8 @@ import type {
   SessionState,
 } from "@spectre-mail/mailbox";
 
+import { POPUP_COPY } from "./popup-copy";
+
 /** What the popup's copy control has done so far. */
 export type CopyState = "idle" | "copied" | "failed";
 
@@ -75,45 +77,14 @@ export interface PopupProps {
 }
 
 /**
- * Every sentence the popup can say, as data.
- *
- * **Data rather than inline strings**, for the reason `apps/web/src/sections.ts` gives:
- * a claim is reviewable beside the requirement it satisfies, and a test can read what the
- * product says without scraping rendered text for it.
+ * **The popup's copy lives in `popup-copy.ts`, and that is a change of address rather than of
+ * content.** It was declared here, module-private, and a constant no other module can read is
+ * one the website's `Extension preview` region cannot derive its depiction from — so the
+ * website would have hand-copied the strings below and a rename here would have left the page
+ * describing a popup that no longer exists. See that module's own note for the assertion that
+ * now guards it.
  */
-const COPY = {
-  booting: "Reading what this device saved",
-  /** **Shown instead of a create action when the read failed.** */
-  bootFailed: "SpectreMail could not read its own storage, so it will not create an address.",
-  create: "Create an address",
-  creating: "Asking for an address",
-  reaching: "Asking {provider} first",
-  copy: "Copy address",
-  copied: "Copied.",
-  copyFailed: "The clipboard refused. Select the address and copy it by hand.",
-  status: "Provider status",
-  askStatus: "Check provider",
-  unknown: "Not asked yet",
-  inbox: "Inbox",
-  check: "Check for mail",
-  checking: "Checking",
-  empty: "No mail has arrived.",
-  count: (n: number): string => `${n} message${n === 1 ? "" : "s"}`,
-  /**
-   * One sentence, not two text nodes.
-   *
-   * **It was `{COPY.checkFailed} {COPY.count(n)}` — two adjacent expressions, which is
-   * two text nodes.** That renders identically and reads identically, and it made the
-   * failure unreachable by any text matcher: Testing Library reported the text "could be
-   * broken up by multiple elements" and the element it printed was the *whole* popup.
-   * An assertion that cannot address what it is about is not an assertion, so the copy
-   * became a function of the count and the claim became addressable.
-   */
-  checkFailed: (n: number): string =>
-    `The last check failed. The count below is the last one that succeeded: ${n} message${n === 1 ? "" : "s"}.`,
-  /** **A stored mailbox the provider no longer honours is `expired`, not empty.** */
-  expired: "This address no longer receives mail.",
-} as const;
+const COPY = POPUP_COPY;
 
 export function Popup({ session, storage, primaryProviderName, onBooted }: PopupProps) {
   const [state, setState] = useState<SessionState>(() => session.current());
