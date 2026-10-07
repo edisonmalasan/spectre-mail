@@ -787,6 +787,115 @@ li {
   font-size: var(--type-sm);
 }
 
+/* ── The extension preview ────────────────────────────────────────────────────── */
+
+/*
+ * A depicted surface, and **nothing here is interactive**.
+ *
+ * **The depiction is drawn as chrome, not as content.** A raised surface, a hairline and a
+ * monospace label is what makes a line read as "this is the label on a popup", which is the
+ * honest way to draw a control: it looks like one and does not behave like one. Sinking the
+ * labels instead - italic, quoted, or prefixed with `Copy address:` - would make the section
+ * read as prose *about* a popup, which is a different and weaker claim than showing the popup.
+ *
+ * **`figure` is what announces that.** `design.md` D1 records why the depiction is drawn from
+ * markup rather than screenshotted: a screenshot would be an image file, and this page fetches
+ * none, and it would go stale the moment the popup's copy changed without anything noticing.
+ *
+ * **No motion, and no new token.** `design.md` D6 records that decision: a depiction that
+ * animates in draws the eye to the one thing on the page that cannot be used, which is the
+ * wrong place to spend attention. So this section adds nothing to the motion block and the
+ * `visual-system` capability is untouched by this milestone.
+ */
+.preview {
+  margin: 0;
+  padding: var(--space-5);
+  background: var(--surface-sunken);
+  border: var(--width-hairline) solid var(--line-subtle);
+  border-radius: var(--radius-md);
+}
+
+/*
+ * The caption sits *above* the depiction, which is the order a reader of a picture with a
+ * subject line expects and is also what `figcaption`'s own position in the element permits
+ * without reordering the label from its figure. `type-xs` with wide tracking marks it as a
+ * caption rather than a heading - it describes the figure, and it is deliberately quieter than
+ * every `.preview__label` inside it.
+ */
+.preview__caption {
+  color: var(--ink-muted);
+  font-size: var(--type-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+
+.preview__regions {
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-5);
+  list-style: none;
+}
+
+.preview__region {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  background: var(--surface-raised);
+  border: var(--width-hairline) solid var(--line-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.preview__does {
+  margin: 0;
+  color: var(--ink-secondary);
+  font-size: var(--type-sm);
+}
+
+/*
+ * The labels, and **this is where the depiction could have gone wrong.**
+ *
+ * **Monospace, on a raised surface, in a hairline box** - the treatment `packages/ui` already
+ * gives the popup's own controls, so a depicted label is drawn as the thing it depicts. What it
+ * does *not* get is a focus indicator, a pointer cursor, or any state at all: those belong to
+ * controls, and there is no control here. `sections.spec.ts` reads Chromium's accessibility
+ * tree over CDP to require that no element in this region exposes a control role, because that
+ * is the property a reader actually encounters - not the count of `button` elements, which a
+ * `role="button"` would satisfy.
+ */
+.preview__labels {
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  list-style: none;
+}
+
+.preview__label {
+  padding: var(--space-1) var(--space-3);
+  background: var(--surface-accent);
+  color: var(--ink-accent);
+  border: var(--width-hairline) solid var(--line-subtle);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--type-xs);
+}
+
+/*
+ * The one sentence about obtaining the extension.
+ *
+ * **`--ink-muted` and `--type-sm`**, because it is the least load-bearing sentence in the
+ * region and it is the last thing a reader meets. It states a fact about this repository, so
+ * it is set as precisely as any other sentence here rather than as an aside - but nothing on
+ * the page should compete with the address at the top for attention.
+ */
+.preview__note {
+  margin: var(--space-4) 0 0;
+  color: var(--ink-muted);
+  font-size: var(--type-sm);
+}
+
 /* ── The footer ───────────────────────────────────────────────────────────────── */
 
 /*

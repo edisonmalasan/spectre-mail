@@ -4,6 +4,15 @@ import { basename, join, relative, sep } from "node:path";
 
 import ts from "typescript";
 
+// **Two shipped modules, imported across the client boundary that `design.md` D3 declines to
+// cross in source.** The website's `Extension preview` declares, per depicted label, the
+// extension popup copy entry it must equal; this file reads both objects and requires the
+// equality. Neither client imports the other, and neither ships a module that does this — so the
+// cross-client knowledge exists in exactly one place, and it is a test rather than a build
+// dependency. Putting the rule inside either client would make the other a dependency of it.
+import { POPUP_COPY } from "../../apps/extension/src/popup-copy";
+import { EXTENSION_PREVIEW } from "../../apps/web/src/sections";
+
 /**
  * Architecture boundary enforcement.
  *
@@ -1813,6 +1822,78 @@ function parserDirectionViolations(): string[] {
       const contents = stripComments(readFileSync(file, "utf8"));
       for (const hit of findPatternOccurrences(contents, PARSER_SPECIFIER_PATTERN)) {
         violations.push(`${relative} ${hit} (imports the mail parser directly)`);
+      }
+    }
+  }
+
+  return violations;
+}
+
+/**
+ * Violations in a depiction's labels against the surface it depicts.
+ *
+ * ## What this checks, and what it deliberately does not
+ *
+ * The website's `Extension preview` draws the extension popup's regions and controls. Each label
+ * it declares names the popup copy entry it must equal, and this function requires that
+ * correspondence to hold. It catches four distinct failures, each reported by name:
+ *
+ * - the popup has no entry of that name (a rename on either side);
+ * - the entry is not a string, so there is nothing to depict (`count`, `checkFailed`);
+ * - the entry is a `{token}` template, which prints a substitution token (`reaching`);
+ * - the entry's value is not the string the website shows.
+ *
+ * **It does not require the preview to be exhaustive.** The popup may gain a control the preview
+ * never mentions, because a description need not be a transcript, and asserting the other
+ * direction would make adding a popup region a two-file change for no gain in honesty. The
+ * obligation on that is the `extension-client` scenario *"The popup gains a surface"*, which puts
+ * it on the change that adds it.
+ *
+ * **It also does not check that the preview *renders* the label it declares.** That is the
+ * component's unit test and the browser tier's, reading the built page. This rule reads declared
+ * data, and a chain of three assertions is what is claimed — never one test standing in for all
+ * of it.
+ *
+ * @param regions the depicting section's declared regions
+ * @param copy the depicted surface's declared copy
+ */
+function depictedLabelViolations(
+  regions: readonly {
+    readonly labels: readonly { readonly key: string; readonly label: string }[];
+  }[],
+  copy: Record<string, unknown>,
+): string[] {
+  const violations: string[] = [];
+
+  for (const region of regions) {
+    for (const { key, label } of region.labels) {
+      if (!(key in copy)) {
+        violations.push(
+          `the extension preview declares popup copy entry "${key}", which apps/extension does not have`,
+        );
+        continue;
+      }
+
+      const value = copy[key];
+
+      if (typeof value !== "string") {
+        violations.push(
+          `the extension preview depicts popup copy entry "${key}", which is a function of its arguments and so has no string to show`,
+        );
+        continue;
+      }
+
+      if (value.includes("{")) {
+        violations.push(
+          `the extension preview depicts popup copy entry "${key}", which is a template ("${value}") and would print its token`,
+        );
+        continue;
+      }
+
+      if (value !== label) {
+        violations.push(
+          `the extension preview shows "${label}" for popup copy entry "${key}", which the popup renders as "${value}"`,
+        );
       }
     }
   }
@@ -3836,5 +3917,63 @@ describe("architecture boundaries", () => {
     // **The negative half, through the same call site.** The probes are gone, so silence
     // here means the shipped tree is clean rather than that the scan stopped.
     expect(scan()).toEqual([]);
+  });
+
+  it("keeps the website's depiction of the extension popup inside what the popup renders", () => {
+    // **The shipped half.** Read through the same call site as the controls below, so a
+    // silence here cannot come from the function refusing to report.
+    expect(
+      depictedLabelViolations(EXTENSION_PREVIEW.regions, POPUP_COPY),
+      "every label the extension preview depicts must be a string the popup renders",
+    ).toEqual([]);
+
+    // **One control per failure mode, because the function reports four distinct ones and a
+    // single control would leave three of them unexercised.** Each is asserted to be reported
+    // *by name*, since the requirement says the failure names the section and the label, and a
+    // rule that reported "something is wrong" would satisfy nothing.
+
+    /** A conforming region, so each control differs from the shipped data in one way only. */
+    const good = (key: string, label: string) => [{ labels: [{ key, label }] }];
+
+    expect(
+      depictedLabelViolations(good("copy", "Copy the address"), { copy: "Copy address" }),
+      "a label the popup does not render is reported by naming both",
+    ).toEqual([
+      'the extension preview shows "Copy the address" for popup copy entry "copy", which the popup renders as "Copy address"',
+    ]);
+
+    expect(
+      depictedLabelViolations(good("copyAddress", "Copy address"), { copy: "Copy address" }),
+      "a popup entry renamed on the website side is reported by name",
+    ).toEqual([
+      'the extension preview declares popup copy entry "copyAddress", which apps/extension does not have',
+    ]);
+
+    expect(
+      depictedLabelViolations(good("count", "3 messages"), {
+        count: (n: number) => `${n} messages`,
+      }),
+      "an entry that is a function of its arguments is reported, because it has no string",
+    ).toEqual([
+      'the extension preview depicts popup copy entry "count", which is a function of its arguments and so has no string to show',
+    ]);
+
+    expect(
+      depictedLabelViolations(good("reaching", "Asking first"), {
+        reaching: "Asking {provider} first",
+      }),
+      "an entry that became a template is reported, because it would print its token",
+    ).toEqual([
+      'the extension preview depicts popup copy entry "reaching", which is a template ("Asking {provider} first") and would print its token',
+    ]);
+
+    // **And the conforming control, through the same call site.** Without it, a function that
+    // reported everything unconditionally would satisfy all four assertions above, and four
+    // controls that all pass on a broken rule is the shape this repository has recorded
+    // repeatedly.
+    expect(
+      depictedLabelViolations(good("copy", "Copy address"), { copy: "Copy address" }),
+      "the conforming case reports nothing",
+    ).toEqual([]);
   });
 });

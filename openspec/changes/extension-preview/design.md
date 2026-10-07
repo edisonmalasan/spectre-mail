@@ -81,19 +81,43 @@ would mean shipping a second copy of the extension's runtime.
 The figure is **not** `aria-hidden`. Its labels are content a visitor can read, and hiding text
 that is visible to a sighted reader is an accessibility defect, not a fix.
 
-### D3 — The depiction's labels are imported from the popup's copy, and only the subset that can be depicted
+### D3 — The depiction's labels are held against the popup's copy and checked, not imported
 
-`Popup.tsx`'s `COPY` moves to an exported module, and `sections.ts` imports the specific entries
-it depicts. **It does not import the whole constant**, for a reason worth stating: `COPY` holds
-function-valued entries (`count(n)`, `checkFailed(n)`) and one string carrying a substitution
-token (`reaching: "Asking {provider} first"`). A depiction cannot render `"Asking {provider}
-first"` — that is a template the popup resolves against a live provider name, and a preview
-printing the token would be a broken string on a marketing page.
+`Popup.tsx`'s `COPY` moves to an exported module, and `sections.ts` declares, **per depicted
+label**, the popup copy key it must equal — `{ key: "copy", label: "Copy address" }`. A boundary
+assertion resolves each key against the popup's exported copy and requires the two to be the same
+string. Three failure modes are caught by that one rule, and each is reported by name: a renamed
+label, a label turned into a function of the count, and a label that became a `{token}` template.
 
-So the depicted entries are **declared by name** in `sections.ts`, and the boundary assertion
-resolves each name against the popup's exported copy and requires the result to be a string
-containing no `{` token. Three failure modes are therefore caught by one rule and reported by
-name: a renamed label, a label turned into a function, and a label that became a template.
+**Amendment, recorded during apply (2026-10-07). This decision originally said the website
+_imports_ the entries, and that was wrong.** It assumed an import across the client boundary was
+available and harmless. Both halves were checked, and neither holds:
+
+- `apps/web/tsconfig.json` includes `src`, `e2e`, `vite.config.ts`, and
+  `playwright.config.ts` — and nothing else, so a cross-client import would be the **first
+  shipped-source dependency between the two clients** in this repository. The website's build
+  would then fail wherever `apps/extension/src` is absent, which couples two deliverables that
+  exist precisely to be independent.
+- No shipped source file in either client imports across to the other today. The single
+  cross-directory import is `apps/extension/src/provider-config.test.ts` reading `packages/` — a
+  test reading a package, which is the sanctioned direction. **So this would not have been a
+  repetition of an existing shape; it would have been the one that invented it.**
+
+The inversion needs none of that, and it is **not a weaker check**. Both failure directions still
+fail the build: a popup rename leaves the website's literal matching no popup value, and a website
+that invents a label holds a value the popup does not render. What it costs is a duplicated
+string under an enforced equality rather than one shared string, and what it buys is that the
+website's build graph does not acquire the extension's source tree.
+
+It also keeps the correspondence **named**, which the import does not: the rule can report that
+the extension's `copy` is now `Copy the address` while the website's preview still shows
+`Copy address`, which is the scenario's *failure SHALL name the section and the label*.
+
+The website deliberately keeps only the **placeholder-free** entries. `reaching` is the one
+template — `"Asking {provider} first"` is resolved against a live provider name before the popup
+renders it, and a depiction printing the token would put `{provider}` on a marketing page — and
+`count`/`checkFailed` are functions of the count with no string to show. All three are refused by
+the same assertion, from the extension's own data rather than from a filter written here.
 
 Rejected: **hand-written labels plus review.** This is the drift the requirement exists to stop —
 a depiction assembled from strings the popup does not own is correct on the day it is written and
@@ -185,6 +209,93 @@ count.
 - **[Rescoping two assertions is the shape most likely to produce a quiet weakening]** → each
   rescoped assertion ships with a negative control that must fire, and the falsification pass is
   required to demonstrate the control failing before the assertion is believed.
+
+## The falsification record
+
+**18 deliberate violations were run: 16 caught by the intended assertion, 2 recorded as evidence
+and not counted, and 0 in `green`, `wrongcatch`, `noop`, `nocompile` or `harness-error` at the
+end.** Restoration of every mutated file is SHA-256 verified, and `dist/` is rebuilt after every
+restore and again at the end - a restored source file is not a restored build artefact, and the
+artefact outlives the run.
+
+The 16 that are counted:
+
+| id  | what was broken                                                | caught by                                                       |
+| --- | -------------------------------------------------------------- | --------------------------------------------------------------- |
+| S01 | a depicted label the popup does not render                      | the boundary rule, naming both values                           |
+| S02 | a popup copy entry renamed on the website side                 | the boundary rule, by name                                       |
+| S03 | an entry that is a function of its arguments                   | the boundary rule, naming the entry                              |
+| S04 | an entry that became a `{token}` template                      | the boundary rule, naming the entry and the token               |
+| U01 | the depiction renders a real `<button>`                        | _renders no interactive element, by markup_                      |
+| U02 | a depicted label carries `role="button"`                       | _renders no interactive element, by role_                        |
+| U03 | the component renders only each region's first label           | _renders every depicted label, and the label is what it prints_ |
+| U04 | the figure has no caption                                      | _announces the depiction as a figure_                            |
+| U05 | the depiction is concealed with `aria-hidden`                  | _announces the depiction as a figure_                            |
+| U06 | the preview names a provider the website cannot reach          | _names no provider_                                              |
+| B01 | a region other than the preview mentions the extension         | _only the preview region mentions the extension_                 |
+| B02 | the preview names a second provider                            | _no region names a licence, and the page says which it reaches_ |
+| B03 | a depicted label is not one the popup renders                  | _every label the built preview shows is one the popup renders_   |
+| B04 | the depiction gains a control                                   | _no element inside the preview exposes an operable role_         |
+| B05 | the preview names a declared-absent capability                 | _the preview names no capability the extension has absent_       |
+| B06 | the preview states a polling interval                           | the same case, on its cadence assertion                         |
+
+**The two that are not counted**, because the suite staying green is the correct result rather
+than a gap:
+
+- **E01 - the preview stops depicting one of the popup's labels entirely.** Nothing requires the
+  preview to be exhaustive: the requirement is that every label it shows is one the popup renders.
+  Adding a popup control and declining to depict it is permitted behaviour, and asserting otherwise
+  would make every popup label a two-file change for no gain in honesty. The obligation on that
+  case is `extension-client`'s scenario _"The popup gains a surface"_. **This is the risk recorded
+  above, observed rather than assumed.**
+- **E02 - a depicted label is declared against the wrong popup copy key.** The client suite stays
+  green and the **boundary** suite goes red by name. That split is exactly what D3's amendment was
+  written for: the website deliberately holds its own label strings, so nothing inside `apps/web`
+  can see a correspondence that is wrong, and the assertion that owns it is the boundary rule's.
+  It is here so the run does not record it as a survivor, and so a reader can see the client tier
+  is silent **by design rather than by omission**.
+
+**Five defects were in the harness before they were in the tests, and every one is a shape this
+repository has recorded before.** They are worth the space because each produced a confidently
+wrong answer rather than a loud failure:
+
+1. **Playwright's `list` reporter marks a failure with `x`, not `not ok`.** The first run therefore
+   reported five browser mutations as `wrongcatch` with an *empty* list of failing titles, while
+   every one of them had been caught by the intended case. **A `wrongcatch` whose failing list is
+   empty is the instrument's signature, not a test result** - and a red suite with no named failure
+   is exactly what the recorded lesson says must be a distinct outcome rather than a pass.
+2. **Vitest reports a failing title as `describe > it`**, so an exact match against the `it` title
+   never matched and five unit mutations read as `wrongcatch` while naming the intended case in
+   plain sight. The comparison is now a suffix match, and the failing titles are written into the
+   record so an attribution can be read rather than trusted.
+3. **A deletion could never be confirmed as having landed.** The landing check required a non-empty
+   replacement string to be findable afterwards, so a mutation that *removes* text was filed
+   `noop` - reported as never having run. **Two of the eighteen mutations were deletions and both
+   were filed that way.** This is the `noop` class reproduced inside the instrument meant to detect
+   it, and it is the sharpest instance of the pattern in this change: **a check that could not fail
+   was reporting a result.**
+4. **Two mutations were broken, and a broken mutant is not evidence.** `U01` replaced an `<li>`
+   opening tag with `<button>` and left the `</li>` closing it, so the file did not compile and the
+   outcome was `nocompile` - it never tested whether the non-interactive assertions fire on a
+   control that *is* present. `B01` added an unrendered field to a data object, so the page's text
+   never changed and the sweep correctly stayed green; it was testing nothing. Both were rebuilt as
+   mutations that do what they claim, and the harness now supports multi-edit mutations for exactly
+   this reason.
+5. **The rescope could not be expressed as a change of regular expression.** A whole-page sweep has
+   no way to exempt one region, which is what forced `regionTexts()` to exist. The exemption is a
+   **named set of region hooks**, not a pattern: a check whose scope is a pattern is a check whose
+   scope can be widened silently by the next person who finds the pattern inconvenient.
+
+**One limit of the rescoping was found by running it rather than by reading it.** The `mail.tm`
+sweep's negative control was needed for a reason that is not obvious from the assertion:
+`Guerrilla Mail` is in the footer, and the word-bounded licence sweep above it passes over the
+substring _mit_, so a sweep matched loosely would report regions it has no business reporting. The
+control pins the opposite direction - the sweep must fire on the name it exists to catch - because
+a rule that fires on the wrong thing is indistinguishable from a rule that does not fire at all.
+
+**What the run does not establish.** No assertion here reads a rendered pixel's colour or
+position, so every statement about this section is exact about what it measures and silent about
+whether the result is good. `tasks.md` 6.1 is left unticked for that reason.
 
 ## Migration Plan
 
