@@ -492,11 +492,72 @@ now also compares the declared host permissions against the origins the tier scr
 `https://example.com/*` to `host_permissions` turned every case in the tier green before that comparison
 existed.**
 
-**What is still open, deliberately.** Whether a content script may `fetch` a provider origin
-cross-origin is **not** measured here, and it is the fact that decides the shape of M9 slice 2. Under
-MV3 a content script's `fetch` is expected to obey the **page's** CORS policy rather than the
-extension's host permissions, but nothing in this repository has observed it either way, and
-`in-page-address`'s own design records it as slice 2's question to answer before slice 2 is designed.
+**What §4.3 could not settle, and where it was settled.** Whether a content script may `fetch` a
+provider origin cross-origin is **not** answered by the tier above, because nothing in the tier ever
+has a content script fetch one: the affordance inserts an address this device already holds, so the
+whole in-page path is storage and no network. The question was open when this row was written, it was
+the fact that decided the shape of M9 slice 2, and it is measured in **§4.4**.
+
+---
+
+### 4.4 The deciding question for in-page creation, answered before it was designed (2026-10-08)
+
+Measured while `in-page-mailbox` was still at proposal stage, because §4.3 left it open and the two
+possible answers produce **opposite designs**. If the extension's host permissions covered a content
+script's own request, creation would happen where the control is drawn and the background worker would
+stay empty. If the page's CORS policy governs it instead, creation must be delegated — which puts the
+worker's unmeasured lifetime into the design. Chromium (Playwright 1.63.0), unpacked, against a
+throwaway fixture whose service worker exists so the extension loads at all.
+
+**No third party was contacted.** Both origins are loopback servers the probe started, because the
+question is about *whose* policy governs a content script's fetch — a browser question, not a provider
+question. `use it externally` stays unverified.
+
+| Arm | Who fetches | Provider sends | Measured | What it does **not** establish |
+|---|---|---|---|---|
+| **A1** | content script, cross-origin | **no** CORS headers | **refused** — `TypeError: Failed to fetch` | Nothing on its own. Equally consistent with a missing permission, with a request that never left, and with Chromium's loopback rules. |
+| **A2** | content script, cross-origin | `Access-Control-Allow-Origin: *` | **granted, HTTP 200** | Nothing about a provider that sends `ACAO` — neither measured provider grants a third-party origin, so this is a harness switch, not a reachable configuration. |
+| **A3** | content script, **its own** origin | no CORS headers | **granted, HTTP 200** | Nothing about the cross-origin case. It is the harness control. |
+| **B** | **service worker**, cross-origin | no CORS headers | **granted, HTTP 200** | Nothing about a **real** provider origin from a real page. It proves the permission is genuinely held and the origin genuinely reachable from a privileged context. |
+
+**The verdict, and why each of the other three arms is required to reach it.** A content script's own
+`fetch` to a host the extension holds `host_permissions` for is **not** covered by that permission; it
+obeys the **page's** CORS policy. **B** rules out "the permission was never granted"; **A2** rules out
+"the request never left"; **A3** rules out a broken harness. Only the shape *A1 refused / A2 granted /
+A3 granted / B granted* supports the conclusion, and the probe reports **inconclusive** rather than a
+verdict for any other shape — an instrument that answers confidently and wrongly is worse than one that
+declines.
+
+| Arm | Question | Measured | What it does **not** establish |
+|---|---|---|---|
+| **C** | Can a content script ask the worker to fetch, and does the worker answer? | **yes**, carrying the worker's own `HTTP 200` | Nothing about what a **provider** answers. The worker performed the fetch; no provider was involved. |
+| **D** | Do the worker and the content script see one `chrome.storage.local`? | **yes** — a value the script wrote was read back by the worker | Nothing about `sync`, and nothing about a record large enough to matter. |
+| **E** | Round trip after idle gaps of **0 / 5 000 / 35 000 ms** | **17 ms / 5 ms / 5 ms**; the worker was still registered at 35 000 ms | **This is a bound, not a lifetime.** 5 ms at a 35-second gap is evidence the worker was *alive*, not evidence about when it would not be. §4.1's 30-second bound is unchanged, and neither bound licenses a cadence. Nothing here measures a **provider's** latency — every origin was loopback. |
+| **F** | Does Playwright's `context.route` reach an extension's **service worker**? | **yes** — worker, extension page and plain page were all fulfilled, and the handler saw all three requests | Nothing about interception *in general*. One browser, one routing mechanism; it establishes only that the extension's browser tier can keep serving **recorded** provider responses for work done in the worker, rather than needing a fixture extension or a live call. |
+
+**Two defects in the measuring instrument, and what each would have had a reader conclude.** A third
+round of the same probe first reported that a service worker's fetch was **not** routable — because the
+probe had the worker `chrome.runtime.sendMessage` to **itself**, and a service worker does not deliver a
+message to its own listener, so the request was never made and the route handler saw nothing. Read as a
+platform result, that would have said a browser tier cannot serve the worker's requests — the opposite
+of the truth, and it would have forced a fixture extension or a live call into the design. The second
+was a control arm built from `context.backgroundPages()`, which does not exist for an MV3 service
+worker, so it threw and read as a routing failure that had nothing to do with routing. **Both are
+recorded because an instrument that reports its own defect as a platform fact is worse than no
+instrument at all.**
+
+**One defect found by reading rather than measuring, recorded here because it is a platform fact.**
+`apps/extension/src/scheduler.ts` builds its session's scheduler with `window.setTimeout`, and **a
+service worker has no `window`** — so the scheduler the worker must be given throws at call time. It
+compiles, every current test reaches it only from the popup, and no failing assertion exists for it.
+This is the shape recorded elsewhere in this file: a fact about a platform that only one context makes
+true, where the other context does not exist yet.
+
+**What all of this leaves unverified.** Whether any of it holds for a **real** provider: no request in
+this probe left loopback, so nothing here says a real provider tolerates being reached this way, nor how
+long a real mailbox takes to create — which is why the interval a page waits for is declared as this
+product's own choice rather than derived from any figure here. And nothing about a second browser
+engine: neither Firefox nor WebKit loads an unpacked extension, so this tier is unreachable from both.
 
 ---
 
