@@ -139,18 +139,29 @@ previews one.
 
 ### Requirement: A depicted surface's labels are the surface's own
 
-A section depicting another surface of this product SHALL derive its labels from that surface's
-own declared copy, and the derivation SHALL be checked rather than reviewed. A label the
-depicted surface does not render SHALL fail the build.
+A section depicting another surface of this product SHALL show only labels that surface renders,
+and that correspondence SHALL be checked rather than reviewed. A label the depicted surface does
+not render SHALL fail the build.
 
 This requirement exists because the alternative is a picture that rots. A depiction maintained
 by hand is correct on the day it is written and silently wrong after the next change to the
-surface — and a wrong depiction is worse than none, because a visitor reading it learns
+surface - and a wrong depiction is worse than none, because a visitor reading it learns
 something false about a product that does exist.
+
+**Amendment, recorded during apply (2026-10-07).** This requirement first read that a depicting
+section *"SHALL derive its labels from that surface's own declared copy"*, and that wording
+prescribed the mechanism rather than the guarantee. It does not, and prescribing it would have
+been wrong: deriving by import means one client importing the other's source, and no shipped
+source file in either client does that today. The requirement states the **property** - only
+labels the surface renders, checked rather than reviewed - and leaves the mechanism to
+`design.md`, which records the choice and the two failure directions it still catches. A
+requirement naming an import would fail whenever a correct implementation found a different
+route to the same guarantee, and would then be "fixed" by editing the requirement instead of the
+code.
 
 #### Scenario: The depicted surface's copy changes
 
-- **GIVEN** a section deriving its labels from another surface's declared copy
+- **GIVEN** a section showing labels from another surface's declared copy
 - **WHEN** that surface renames or removes a label the section shows
 - **THEN** the build SHALL fail
 - **AND** the failure SHALL name the section and the label

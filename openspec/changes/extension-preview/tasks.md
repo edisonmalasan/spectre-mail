@@ -2,9 +2,30 @@
 
 ## 1. The popup's copy becomes an importable declaration (design.md D8)
 
-- [ ] 1.1 Move `Popup.tsx`'s module-private `COPY` into an exported `apps/extension/src/popup-copy.ts`, importing it back where it was declared, and verify `apps/extension`'s unit count is **unchanged at 20** and `pnpm --filter @spectre-mail/extension typecheck` passes. **A count that moves here means a string changed**, and no string may change in this move.
-- [ ] 1.2 Add a unit test asserting the exported copy's string-valued entries contain no `{` substitution token unless they are the one template entry, and verify it fails when a new template entry is added without being declared. This is what makes design.md D3's "no `{` token" clause a check rather than a comment.
-- [ ] 1.3 Verify `pnpm test` reports `apps/extension` at 20 with `Popup.test.tsx` still at 8, read from `--reporter=json` and grouped by project rather than off a summary line.
+- [x] 1.1 Move `Popup.tsx`'s module-private `COPY` into an exported `apps/extension/src/popup-copy.ts`, importing it back where it was declared, and verify `apps/extension`'s unit count is **unchanged at 20** and `pnpm --filter @spectre-mail/extension typecheck` passes. **A count that moves here means a string changed**, and no string may change in this move.
+- [x] 1.2 Add a unit test asserting the exported copy's string-valued entries contain no `{` substitution token unless they are the one template entry, and verify it fails when a new template entry is added without being declared. This is what makes design.md D3's "no `{` token" clause a check rather than a comment.
+
+  **Measured during apply, and the limit is recorded here because it is the reason task 2.3
+  exists.** The undeclared-template mutation is caught by the intended assertion — adding
+  `` checking: "Checking {count}" `` turns _"carries a substitution token in exactly the entries
+  it declares"_ red and nothing else. **A rename is not caught here, and cannot be:** mutating
+  `create` to `"Make an address"` leaves all five cases green, because a rename preserves every
+  property this file asserts (still a string, still untemplated, still non-empty). This file
+  asserts the copy's **shape**; a rename changes its **content**, and the assertion that reads
+  content is task 2.3's, in the boundary suite, because it is the assertion that knows what the
+  website's depiction declares.
+- [x] 1.3 Verify `pnpm test` reports `apps/extension` at 20 with `Popup.test.tsx` still at 8, read from `--reporter=json` and grouped by project rather than off a summary line.
+
+  **Measured, and the figure this task predicted was wrong: `apps/extension` is 25, not 20.**
+  Read from `--reporter=json`, `Popup.test.tsx` is **8** — unchanged, which is the half of
+  this task that carried the evidence and the reason 1.1's move is trustworthy — and
+  `popup-copy.test.ts` adds **5**. The workspace is **731 across 40 files**, from a baseline of
+  **726 across 39**, and architecture boundaries are **53**, unchanged.
+
+  **The prediction is corrected here rather than reinterpreted.** A task that names a number and
+  is wrong about it is worse than one that does not name a number, and 1.2's five cases were
+  written by this task's own group — the count could not have been anything else. `apps/web` is
+  **114**, unchanged, which is the check that mattered: this group touched no website code.
 
 ## 2. The preview's labels, and the rule that keeps them the popup's (design.md D3)
 

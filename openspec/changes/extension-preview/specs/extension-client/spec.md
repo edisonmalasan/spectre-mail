@@ -12,15 +12,15 @@ behaviour implemented a second time under `apps/extension` SHALL fail the build 
 diverge quietly.
 
 Two clients reading the same packages are not thereby prevented from telling a visitor two
-different stories about the same surface. Where one client **depicts** another's — a section of
-the website describing this popup — the depiction's labels SHALL be the depicted surface's own
-declared copy, and a label this popup does not render SHALL fail the build.
+different stories about the same surface. Where one client **depicts** another's - a section of
+the website describing this popup - the depiction's labels SHALL be labels this popup renders,
+and a label it does not render SHALL fail the build.
 
 **This is the requirement's existing rule pointed at a second place it can be broken.** The two
 clients already share every package, and the package boundary is what keeps their _behaviour_
 from diverging; nothing in it kept the website's _description_ of this popup from drifting away
-from the popup. A depiction assembled from the popup's own strings cannot drift, because there is
-nothing in it to drift from.
+from the popup. A depiction held against the popup's copy cannot drift unnoticed, because the
+build fails when it does.
 
 #### Scenario: The extension reaches a provider
 

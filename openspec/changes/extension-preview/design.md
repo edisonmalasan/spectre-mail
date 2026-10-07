@@ -81,19 +81,43 @@ would mean shipping a second copy of the extension's runtime.
 The figure is **not** `aria-hidden`. Its labels are content a visitor can read, and hiding text
 that is visible to a sighted reader is an accessibility defect, not a fix.
 
-### D3 — The depiction's labels are imported from the popup's copy, and only the subset that can be depicted
+### D3 — The depiction's labels are held against the popup's copy and checked, not imported
 
-`Popup.tsx`'s `COPY` moves to an exported module, and `sections.ts` imports the specific entries
-it depicts. **It does not import the whole constant**, for a reason worth stating: `COPY` holds
-function-valued entries (`count(n)`, `checkFailed(n)`) and one string carrying a substitution
-token (`reaching: "Asking {provider} first"`). A depiction cannot render `"Asking {provider}
-first"` — that is a template the popup resolves against a live provider name, and a preview
-printing the token would be a broken string on a marketing page.
+`Popup.tsx`'s `COPY` moves to an exported module, and `sections.ts` declares, **per depicted
+label**, the popup copy key it must equal — `{ key: "copy", label: "Copy address" }`. A boundary
+assertion resolves each key against the popup's exported copy and requires the two to be the same
+string. Three failure modes are caught by that one rule, and each is reported by name: a renamed
+label, a label turned into a function of the count, and a label that became a `{token}` template.
 
-So the depicted entries are **declared by name** in `sections.ts`, and the boundary assertion
-resolves each name against the popup's exported copy and requires the result to be a string
-containing no `{` token. Three failure modes are therefore caught by one rule and reported by
-name: a renamed label, a label turned into a function, and a label that became a template.
+**Amendment, recorded during apply (2026-10-07). This decision originally said the website
+_imports_ the entries, and that was wrong.** It assumed an import across the client boundary was
+available and harmless. Both halves were checked, and neither holds:
+
+- `apps/web/tsconfig.json` includes `src`, `e2e`, `vite.config.ts`, and
+  `playwright.config.ts` — and nothing else, so a cross-client import would be the **first
+  shipped-source dependency between the two clients** in this repository. The website's build
+  would then fail wherever `apps/extension/src` is absent, which couples two deliverables that
+  exist precisely to be independent.
+- No shipped source file in either client imports across to the other today. The single
+  cross-directory import is `apps/extension/src/provider-config.test.ts` reading `packages/` — a
+  test reading a package, which is the sanctioned direction. **So this would not have been a
+  repetition of an existing shape; it would have been the one that invented it.**
+
+The inversion needs none of that, and it is **not a weaker check**. Both failure directions still
+fail the build: a popup rename leaves the website's literal matching no popup value, and a website
+that invents a label holds a value the popup does not render. What it costs is a duplicated
+string under an enforced equality rather than one shared string, and what it buys is that the
+website's build graph does not acquire the extension's source tree.
+
+It also keeps the correspondence **named**, which the import does not: the rule can report that
+the extension's `copy` is now `Copy the address` while the website's preview still shows
+`Copy address`, which is the scenario's *failure SHALL name the section and the label*.
+
+The website deliberately keeps only the **placeholder-free** entries. `reaching` is the one
+template — `"Asking {provider} first"` is resolved against a live provider name before the popup
+renders it, and a depiction printing the token would put `{provider}` on a marketing page — and
+`count`/`checkFailed` are functions of the count with no string to show. All three are refused by
+the same assertion, from the extension's own data rather than from a filter written here.
 
 Rejected: **hand-written labels plus review.** This is the drift the requirement exists to stop —
 a depiction assembled from strings the popup does not own is correct on the day it is written and
