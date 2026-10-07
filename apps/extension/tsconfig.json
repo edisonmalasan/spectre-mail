@@ -1,12 +1,9 @@
 {
-  // Intentionally empty. This client has no source until M8, and M3 for its
-  // provider wiring. `files: []` is TypeScript's documented way to declare a
-  // project that has no inputs on purpose, so `tsc --noEmit` succeeds instead of
-  // failing with "No inputs were found". A placeholder source file would imply
-  // extension code exists.
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["ES2023", "DOM", "DOM.Iterable"]
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"],
+    "jsx": "react-jsx"
   },
-  "files": []
+  "include": ["src", "e2e", "vite.config.ts", "playwright.config.ts"]
 }

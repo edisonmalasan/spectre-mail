@@ -3,8 +3,30 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "SpectreMail Chromium extension client. PLACEHOLDER - no extension code exists yet.",
+  "description": "SpectreMail Chromium extension client.",
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "dev": "vite build --watch",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test:browser": "playwright test"
+  },
+  "dependencies": {
+    "@spectre-mail/core": "workspace:*",
+    "@spectre-mail/mailbox": "workspace:*",
+    "@spectre-mail/providers": "workspace:*",
+    "@spectre-mail/storage": "workspace:*",
+    "@spectre-mail/ui": "workspace:*",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@playwright/test": "1.63.0",
+    "@testing-library/dom": "10.4.2",
+    "@testing-library/react": "16.3.3",
+    "@vitejs/plugin-react": "5.2.0",
+    "jsdom": "30.1.1",
+    "vite": "7.3.6"
   }
 }

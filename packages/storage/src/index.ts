@@ -2,10 +2,13 @@
  * `@spectre-mail/storage` — persistence contracts and platform adapters.
  *
  * Owns: the shared `SpectreStorage` contract, and the IndexedDB adapter that
- * implements it for the website. The extension's `chrome.storage` adapter is M8
- * and is deliberately absent: `apps/extension` is still an empty placeholder, and
- * `chrome.storage` has no transactions, so its adapter will not resemble this one
- * except in the contract it serves.
+ * implements it for the website plus the `chrome.storage` adapter that implements
+ * it for the extension. **M8 added the second one**, beside this one rather than
+ * inside a client: `chrome.storage` has no transactions, so its adapter does not
+ * resemble the IndexedDB one except in the contract it serves, and the differences
+ * are documented in `./chrome.ts` rather than smoothed over. Both platforms narrow
+ * a stored record through the *same* `readStoredMailboxRecord`, so a record neither
+ * can read is neither surfaced nor deleted by either.
  *
  * ## Two ways in, and why there are two
  *
@@ -51,6 +54,13 @@
  * it, the enforced rule scanned `packages/*` only while the requirement text said
  * "no client and no shared package" — a requirement broader than its own check, which
  * is the gap this repository has now recorded eighteen times.
+
+**The extension's adapter is why that rule needed no second carve-out.** `apps/extension`
+reaches storage through this package, and the one platform global it names is
+`chrome.storage` — which the client rule does not match anyway, since it is neither a DOM
+store nor a cookie jar. Putting the adapter here rather than in the client is what keeps
+that true: a client-local adapter would have required weakening the rule to match what
+was actually scanned, which is the repair `browser.ts`'s module note rejects in prose.
  *
  * This package must never import from `apps/web` or `apps/extension`.
  *
@@ -60,6 +70,10 @@
 export type { SpectreStorage } from "./contract";
 
 export { createBrowserStorage } from "./browser";
+
+export { createChromeStorage, EXTENSION_MAILBOX_KEY } from "./chrome";
+export type { ChromeStorageOptions } from "./chrome";
+export type { ChromeStorageArea } from "./chrome-api";
 
 export { SPECTRE_RECORD_VERSION, readStoredMailboxRecord, toStoredMailboxRecord } from "./record";
 export type { StoredMailboxRecord } from "./record";

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { existsSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { join, relative, sep } from "node:path";
+import { basename, join, relative, sep } from "node:path";
 
 import ts from "typescript";
 
@@ -479,6 +479,23 @@ function toRepoPath(absolutePath: string): string {
 }
 
 /**
+ * Every shipped source file with a given basename, found from disk.
+ *
+ * **Found rather than joined from a constant.** The rule that uses this must establish that the
+ * file it is reasoning about is *the* file the runner would see, and a hard-coded path answers a
+ * different question: it would confirm a file exists while a second copy had been added
+ * somewhere a runner collects. `collectSourceFiles` already skips build and dependency
+ * directories, so a copy inside `dist` or `node_modules` does not count as shipped — which is
+ * the distinction that makes "exactly one" a meaningful assertion rather than an accident of
+ * what was on disk.
+ */
+function findFilesNamed(name: string): string[] {
+  return collectSourceFiles(REPO_ROOT)
+    .filter((file) => basename(file) === name)
+    .map((file) => toRepoPath(file));
+}
+
+/**
  * Replace comment content with spaces, preserving line structure.
  *
  * Needed because several rules here are about what the *code* references, and a
@@ -949,11 +966,46 @@ function storageImportViolations(): string[] {
  * The stated cost: a member spelled with whitespace around the dot
  * (`navigator . clipboard`) is still excluded, because the lookahead allows it. No
  * formatter this repository uses produces that, and `prettier` rewrites it on the next
- * `pnpm format`, so the gap is transient rather than permanent — but it is a gap, and
+ * `pnpm format`, so the gap is transient rather than permanent - but it is a gap, and
  * it is written down rather than discovered later.
+ *
+ * ## `chrome.storage` was missing, and measuring said so rather than reading
+ *
+ * **`extension-foundation`'s task 4.4 asked for confirmation that relocating the
+ * `chrome.storage` adapter into `apps/extension` would *fail* this rule - and the
+ * measurement says it would not have.** The real 9 242-byte adapter file was copied to
+ * `apps/extension/src/` and the suite ran: **53 passed, unchanged, nothing reported by
+ * name.** `chrome.storage` was in neither the client pattern nor the shared-package one,
+ * so the rule named for "no client may reach a store" was blind to the one store a
+ * second client actually uses.
+ *
+ * **That is the thirty-first recorded instance of a check narrower than the rule it
+ * documents, and it is the second this change authored** - the first being
+ * `chrome.test.ts`'s synchronously-resolving write fake. Its own module note claimed
+ * `D2`'s decision was safe *because* the rule would catch a relocated adapter, and the
+ * rule would not. The claim was written before it was measured.
+ *
+ * **The repair costs nothing, and the reason is worth recording because it is not an
+ * accident.** Adding `chrome\s*\.\s*storage\b` fires on **no shipped client file**, so
+ * the carve-out `D2` predicted this rule would need does not exist. It does not exist
+ * because both seams were written to avoid the literal spelling: `storage.ts` takes the
+ * area as a **parameter** and mentions the platform only in prose (which `stripComments`
+ * removes, so the prose cannot satisfy or trip the rule - the same property the
+ * clipboard carve-out has), and `main.tsx` reaches it through
+ * `Reflect.get(Reflect.get(globalThis, "chrome"), "storage")`.
+ *
+ * **So D2's prediction was right for a reason that did not yet exist.** It assumed the
+ * seam would name `chrome.storage` and need an allowance; the seam was written not to,
+ * which is what made the wider rule free. Recorded rather than quietly fixed, because the
+ * prediction and the measurement disagreed and only one of them is now backed by a run.
+ *
+ * **`chrome.alarms` is deliberately NOT in this pattern**, though it is the other API
+ * only an extension context has. It is not a store, it is a scheduler, and the rule with
+ * it belongs to a different requirement - the worker's own test asserts the absence of an
+ * alarm, which is the stronger place for that claim than a generic name list.
  */
 const CLIENT_STORAGE_API_PATTERN =
-  /(?<![\w.$-])(?:localStorage|sessionStorage|navigator(?!\s*\.\s*clipboard\b)|cookies?|location|history|indexedDB|caches)(?![\w$-])|\.cookie\b/g;
+  /(?<![\w.$-])(?:localStorage|sessionStorage|navigator(?!\s*\.\s*clipboard\b)|cookies?|location|history|indexedDB|caches|chrome\s*\.\s*storage\b)(?![\w$-])|\.cookie\b/g;
 
 /** A module naming `indexedDB` from a client, which no client may do. */
 const CLIENT_STORAGE_PROBE = "export const x = indexedDB.open('spectre-mail');";
@@ -2396,6 +2448,16 @@ describe("architecture boundaries", () => {
       "navigator storage": "export const x = navigator.storage;",
       "navigator user agent": "export const x = navigator.userAgent;",
       indexedDB: CLIENT_STORAGE_PROBE,
+      /**
+       * **The member task 4.4 asked about and the measurement could not find.**
+       *
+       * Its own form, plus a whitespace spelling, because the pattern deliberately
+       * tolerates `chrome . storage` the same way it does for `navigator . clipboard` -
+       * and a tolerance asserted only by the tightened spelling is a tolerance nothing
+       * holds. Two forms, one rule.
+       */
+      "chrome storage": "export const x = chrome.storage.local;",
+      "chrome storage, spaced": "export const x = chrome . storage . local;",
     };
 
     const path = join(APPS_DIR, "web", "__client-storage-form-probe.ts");
@@ -2425,6 +2487,34 @@ describe("architecture boundaries", () => {
           hit.startsWith("apps/web/__client-storage-form-probe.ts"),
         ),
         "the clipboard is not a store",
+      ).toEqual([]);
+
+      // **Prose about `chrome.storage` is not a client reaching it.**
+      //
+      // **This is the negative control that matters for the member added above, and it
+      // is not a fixture.** `apps/extension/src/storage.ts` names `chrome.storage`
+      // throughout its own module documentation - explaining why the area is a
+      // parameter rather than read from a global - and it is precisely the file that
+      // *should* talk about it. A rule that cannot tell a declaration from a comment
+      // about that declaration would report the explanation and force a future reader to
+      // shorten it, which is the reword-the-prose-until-the-rule-goes-quiet failure this
+      // file records three times over.
+      writeFileSync(
+        path,
+        [
+          "/**",
+          " * Production passes chrome.storage.local, and chrome.storage is not a DOM API.",
+          " */",
+          "export const x = 1;",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
+      expect(
+        clientStorageApiViolations().filter((hit) =>
+          hit.startsWith("apps/web/__client-storage-form-probe.ts"),
+        ),
+        "a comment about chrome.storage is documentation, not a reach",
       ).toEqual([]);
     } finally {
       rmSync(path, { force: true });
@@ -3028,6 +3118,229 @@ describe("architecture boundaries", () => {
     expect(uncovered).toEqual([]);
   });
 
+  it("stops a client restating a value a shared package already owns", () => {
+    /**
+     * ## Why this rule exists, and what it is not
+     *
+     * M8 added a second client, and the second client's first act was to write
+     * `export const PRIMARY_PROVIDER_NAME = "Mail.tm"` — a value `packages/providers`
+     * **already owns**, as `MailProvider.displayName`, declared in `mailtm.ts` and set by
+     * both adapters. Its own doc comment claimed the name was *"named from the id list
+     * rather than written out"*, and it was written out. That is a prose claim no
+     * assertion held up, and the drift it permits is real: renaming Mail.tm in the package
+     * would leave this popup announcing the old name with **every test still green**,
+     * because the browser spec asserted the heading against the very constant that had
+     * drifted.
+     *
+     * **What the rule deliberately does not claim.** It does not forbid *mentioning* a
+     * provider in a client — the website's copy says "Guerrilla Mail" in a dozen places and
+     * that is prose, not a second copy of a value, and the package owns no list of English
+     * sentences. It forbids one narrow shape: **a shipped client file containing the exact
+     * string a shared package declares as a value.** That shape is mechanically decidable,
+     * which is the only reason it can be a rule rather than a review note.
+     *
+     * ## Why the strings are read from the packages rather than listed here
+     *
+     * A list of literals in this file would be a second copy of the thing it polices, and
+     * it would go stale in the dangerous direction: a provider renamed, this list not
+     * updated, and the rule reporting nothing while a client drifts. So the values are
+     * **read out of `packages/providers`' own source** — every `displayName:` string it
+     * declares — and a package that declares none makes the rule report rather than pass.
+     */
+    const declaredInProviders = (): string[] => {
+      const adapterFiles = collectSourceFiles(join(PACKAGES_DIR, "providers")).filter(
+        (file) => !isTestFile(file) && file.endsWith(".ts"),
+      );
+      const names: string[] = [];
+      for (const file of adapterFiles) {
+        for (const match of stripComments(readFileSync(file, "utf8")).matchAll(
+          /displayName:\s*"([^"]+)"/g,
+        )) {
+          const value = match[1];
+          if (value !== undefined && !names.includes(value)) names.push(value);
+        }
+      }
+      return names;
+    };
+
+    // Precondition on the *scan*, before anything claims to have found nothing.
+    const owned = declaredInProviders();
+    expect(
+      owned,
+      "packages/providers must declare a display name for this rule to watch",
+    ).not.toEqual([]);
+
+    const scan = (): string[] => {
+      const violations: string[] = [];
+      const clientFiles = collectSourceFiles(APPS_DIR).filter(
+        (file) => !isTestFile(file) && (file.endsWith(".ts") || file.endsWith(".tsx")),
+      );
+      expect(clientFiles.length).toBeGreaterThan(0);
+
+      for (const file of clientFiles) {
+        const code = stripComments(readFileSync(file, "utf8"));
+        for (const value of owned) {
+          // **Exact string match, and only in a string position.** A provider's id
+          // (`mailtm`) is a different value from its display name (`Mail.tm`) and is
+          // legitimately named by the configuration; matching ids here would report the
+          // `EXTENSION_PROVIDER_IDS` list this repository requires clients to declare.
+          if (code.includes(`"${value}"`)) {
+            violations.push(
+              `${toRepoPath(file)} restates "${value}", which packages/providers owns`,
+            );
+          }
+        }
+      }
+      return violations;
+    };
+
+    // **Positive control, per client, through the same scan.** A rule narrowed to one root
+    // would pass with the other root's probe planted, which is the mistake this file
+    // records repeatedly; and a rule whose match was broken would pass with both planted.
+    const probes = [
+      join(APPS_DIR, "web", "src", "__owned-probe.ts"),
+      join(APPS_DIR, "extension", "src", "__owned-probe.ts"),
+    ];
+    try {
+      for (const probe of probes) {
+        writeFileSync(probe, 'export const name = "Mail.tm";\n', "utf8");
+      }
+      for (const probe of probes) {
+        expect(
+          scan().filter((hit) => hit.startsWith(toRepoPath(probe))),
+          `${toRepoPath(probe)} restates a package-owned value and must be reported`,
+        ).not.toEqual([]);
+      }
+    } finally {
+      for (const probe of probes) rmSync(probe, { force: true });
+    }
+
+    // **Negative control: a provider *id* must not be reported.** The configuration is
+    // required to name ids, and `EXTENSION_PROVIDER_IDS` is shipped and required, so a
+    // rule that also matched ids would be reporting the requirement as a violation — and
+    // the repair for that would be deleting a required list.
+    const idProbe = join(APPS_DIR, "extension", "src", "__owned-probe.ts");
+    try {
+      writeFileSync(idProbe, 'export const ids = ["mailtm"];\n', "utf8");
+      expect(
+        scan().filter((hit) => hit.startsWith(toRepoPath(idProbe))),
+        "a provider id is the configuration's own value, not the package's display name",
+      ).toEqual([]);
+    } finally {
+      rmSync(idProbe, { force: true });
+    }
+
+    // **And the property itself.**
+    expect(scan()).toEqual([]);
+  });
+
+  it("runs the live host-permission check nowhere, deliberately", () => {
+    // ## Why this rule exists at all, given `design.md` D4 already says it
+    //
+    // **D4 is a decision in a document; this is a fact about three configuration files.**
+    // Quarantine is a property that decays quietly: the day someone adds the live check to a
+    // script, or widens a glob until it matches, nothing fails — the suite simply starts
+    // depending on a third party's uptime, and the failure it eventually produces is
+    // `pnpm verify` red for a reason that has nothing to do with the code under test.
+    //
+    // So the quarantine is asserted the way everything else here is: read the configuration,
+    // and require the file to be unreachable from all three runners.
+    //
+    // ## What is checked, in each runner's own terms
+    //
+    // - **The unit tier**: no `*.test.ts(x)` file is named. A renamed file would stop being a
+    //   test rather than becoming a live one, and the collection rule above would then report
+    //   it — so the three are read together rather than one standing in for the others.
+    // - **The browser tier**: no configured `testMatch` accepts it. Checked through
+    //   `browserSuites()` rather than against a hard-coded path, for the reason the spec
+    //   collection rule gives.
+    // - **The scripts**: no `package.json` anywhere names the file. This is the half that is
+    //   easiest to miss and the easiest to do by accident.
+    const LIVE_CHECK = "live-host-permission.mjs";
+
+    // Preconditions. A rule that found nothing to check would satisfy all three assertions
+    // below, so each one's subject is established first.
+    const livePath = findFilesNamed(LIVE_CHECK);
+    expect(livePath, `${LIVE_CHECK} must exist, or this rule checks nothing`).toHaveLength(1);
+
+    // **Named rather than hard-coded, and the path is reported on failure** so a reader knows
+    // which file moved.
+    const [live] = livePath;
+    expect(live, `${LIVE_CHECK} must live under apps/extension/e2e`).toContain(
+      `apps/extension/e2e/${LIVE_CHECK}`,
+    );
+
+    // 1. Not a unit test, by filename.
+    expect(live?.endsWith(".test.ts") ?? false).toBe(false);
+
+    // 2. Not a browser spec, by filename.
+    expect(live?.endsWith(".spec.ts") ?? false).toBe(false);
+
+    // 3. Not collected by any configured browser suite — **through the same parser the spec
+    //    collection rule uses**, so a narrowed `testDir` is caught rather than assumed away.
+    const claimed = browserSuites().filter((suite) =>
+      suite.testMatch.test(toRepoPath(live as string)),
+    );
+    expect(
+      claimed.map((suite) => suite.configPath),
+      "a browser suite collects the one live check in this repository",
+    ).toEqual([]);
+
+    // 4. **No script names it.** Every manifest, from the root down, because the root script is
+    //    the one `pnpm verify` runs and a nested one is just as capable of making it run.
+    const manifests: string[] = [];
+    const collectManifests = (directory: string): void => {
+      for (const entry of readdirSync(directory, { withFileTypes: true })) {
+        if (SKIP_DIRECTORIES.has(entry.name)) continue;
+        const absolute = join(directory, entry.name);
+        if (entry.isDirectory()) {
+          collectManifests(absolute);
+        } else if (entry.name === "package.json") {
+          manifests.push(absolute);
+        }
+      }
+    };
+    collectManifests(REPO_ROOT);
+
+    expect(manifests.length).toBeGreaterThan(0);
+    for (const manifestPath of manifests) {
+      // **Comments cannot satisfy or trip this.** The file's own module note explains how to
+      // run the check, and a rule matching raw text would either report this repository's own
+      // documentation or be silenced by rewording it — the two outcomes this file records as
+      // the same defect.
+      const scripts = stripComments(readFileSync(manifestPath, "utf8"));
+      expect(scripts, `${toRepoPath(manifestPath)} names the live check in a script`).not.toContain(
+        LIVE_CHECK,
+      );
+    }
+
+    // **And the positive control, because every assertion above is negative.** A script that
+    // *did* name the live check must be caught — otherwise a rule with a broken match would
+    // pass all four.
+    //
+    // **The probe is a real manifest edit, restored in a `finally`, and the restore is
+    // verified by reading the file back** rather than by trusting that the write happened.
+    // A boundary test that leaves the repository in the state it was mutating is the
+    // `archive-bytes` defect one directory over.
+    const rootManifest = join(REPO_ROOT, "package.json");
+    const original = readFileSync(rootManifest, "utf8");
+    try {
+      const planted = JSON.parse(original) as { scripts?: Record<string, string> };
+      planted.scripts = { ...planted.scripts, "test:live-permission": `node ${LIVE_CHECK}` };
+      writeFileSync(rootManifest, JSON.stringify(planted, null, 2), "utf8");
+
+      const plantedScripts = stripComments(readFileSync(rootManifest, "utf8"));
+      expect(
+        plantedScripts.includes(LIVE_CHECK),
+        "a script naming the live check must be detectable, or the four assertions above are inert",
+      ).toBe(true);
+    } finally {
+      writeFileSync(rootManifest, original, "utf8");
+      // **Restoration verified, not assumed.**
+      expect(readFileSync(rootManifest, "utf8")).toBe(original);
+    }
+  });
+
   it("collects every browser spec, and never as a unit test", () => {
     // ## Why this rule exists
     //
@@ -3055,32 +3368,64 @@ describe("architecture boundaries", () => {
     // browser installed, so that is not hypothetical.
     const suites = browserSuites();
 
-    // Preconditions, so nothing below can pass by finding nothing.
-    expect(suites.length).toBeGreaterThan(0);
+    // ## Preconditions, so nothing below can pass by finding nothing.
+    //
+    // **`suites.length` is 2 as of M8, and the assertion names both configs rather than
+    // counting them.** A count is satisfied by two copies of the website's suite and by
+    // the extension's suite collected twice, neither of which is the property. What has to
+    // hold is that **both clients' browser tiers are configured**, because a rule that
+    // discovers configs from disk is only as good as the claim that there are two of them
+    // — and the failure this whole rule exists for is a spec no runner collects.
+    //
+    // The spec assertions are the same point from the other side: a config discovered and
+    // a spec it collects are separate facts, and the second is what "configured" means.
+    const configured = suites.map((suite) => suite.configPath).sort();
+    expect(configured).toEqual([
+      "apps/extension/playwright.config.ts",
+      "apps/web/playwright.config.ts",
+    ]);
+
     const shippedSpecs = collectSourceFiles(REPO_ROOT)
       .filter((file) => /\.spec\.tsx?$/.test(file))
       .map((file) => toRepoPath(file));
     expect(shippedSpecs.filter((path) => path.startsWith("apps/web/"))).not.toHaveLength(0);
+    expect(shippedSpecs.filter((path) => path.startsWith("apps/extension/"))).not.toHaveLength(0);
 
-    // **The negative control, planted where no discovered `testDir` reaches it.** A spec
-    // nobody collects *is* the defect, so it is produced here and required to be reported
-    // by name. Without it, the rule's own assertion below would be satisfied by a rule
-    // that had stopped looking at all — which is the mistake this file records three
-    // times over at slice 1.
-    const orphan = join(APPS_DIR, "web", "__uncovered.spec.ts");
+    // **The negative control, planted in each client, where no discovered `testDir`
+    // reaches it.** A spec nobody collects *is* the defect, so it is produced here and
+    // required to be reported by name. Without it, the rule's own assertion below would be
+    // satisfied by a rule that had stopped looking at all — which is the mistake this file
+    // records three times over at slice 1.
+    //
+    // **One per client, because the rule watches both roots and a control in one of them
+    // leaves the other's coverage unproven.** Measured: with a control only under
+    // `apps/web`, a rule narrowed to the website's `testDir` would still pass every
+    // assertion here while the extension's sixteen specs went uncollected.
+    const orphans = [
+      join(APPS_DIR, "web", "__uncovered.spec.ts"),
+      join(APPS_DIR, "extension", "__uncovered.spec.ts"),
+    ];
     try {
-      writeFileSync(orphan, "export const probe = 1;\n", "utf8");
-      expect(
-        browserSpecViolations(suites).filter((hit) =>
-          hit.startsWith("apps/web/__uncovered.spec.ts"),
-        ),
-        "a browser spec no suite collects should be named",
-      ).not.toEqual([]);
+      for (const orphan of orphans) writeFileSync(orphan, "export const probe = 1;\n", "utf8");
+      const found = browserSpecViolations(suites);
+      for (const orphan of orphans) {
+        expect(
+          found.filter((hit) => hit.startsWith(`${toRepoPath(orphan)}`)),
+          `${toRepoPath(orphan)} is collected by no suite and must be named`,
+        ).not.toEqual([]);
+      }
     } finally {
-      rmSync(orphan, { force: true });
+      for (const orphan of orphans) rmSync(orphan, { force: true });
     }
 
-    // **The rule itself**, over every spec in the repository.
+    /**
+     * The property itself, in the assertion form that survives a narrowed configuration.
+     *
+     * **Kept separate from the controls above because it is a different claim.** The
+     * controls prove the rule *reports*; this proves the tree *is* covered. Asserting only
+     * that a planted orphan is found would leave a repository with no shipped browser spec
+     * at all reporting green — which is the inverse of the failure and just as wrong.
+     */
     expect(browserSpecViolations(suites)).toEqual([]);
 
     // **And the other half: the unit runner must not claim them.**
@@ -3403,15 +3748,93 @@ describe("architecture boundaries", () => {
   });
 
   it("keeps the spike unreachable from workspace code", () => {
-    const workspaceFiles = [...collectSourceFiles(PACKAGES_DIR), ...collectSourceFiles(APPS_DIR)];
-    const violations: string[] = [];
-
-    for (const file of workspaceFiles) {
-      if (readFileSync(file, "utf8").includes("provider-spike")) {
-        violations.push(`${toRepoPath(file)} references the spike`);
+    /**
+     * The scan, with **no argument and no captured file list.**
+     *
+     * **Measured rather than assumed.** The first version hoisted
+     * `collectSourceFiles(PACKAGES_DIR)` into a variable above the scan, which is the
+     * obvious spelling and it made the positive control *fail* — the probe was written to
+     * disk after the list was taken, so the rule that was supposed to catch it never saw
+     * it. A reader would have concluded the rule had a hole when in fact the instrument
+     * around it was holding a stale list.
+     *
+     * Collecting inside the scan is also the shape every root elsewhere in this file uses,
+     * and for the same reason: a snapshot is a second spelling of "what this rule reads",
+     * and a second spelling is something a later edit can narrow.
+     */
+    const scan = (): string[] => {
+      const violations: string[] = [];
+      const workspaceFiles = [...collectSourceFiles(PACKAGES_DIR), ...collectSourceFiles(APPS_DIR)];
+      for (const file of workspaceFiles) {
+        if (stripComments(readFileSync(file, "utf8")).includes("provider-spike")) {
+          violations.push(`${toRepoPath(file)} references the spike`);
+        }
       }
+      return violations;
+    };
+
+    // Precondition, so an empty scan cannot make this green.
+    expect(collectSourceFiles(APPS_DIR).length).toBeGreaterThan(0);
+    expect(collectSourceFiles(PACKAGES_DIR).length).toBeGreaterThan(0);
+
+    // **Comments are stripped, and this is the fifth recorded instance of a check in this
+    // file firing on its own documentation.**
+    //
+    // This rule read raw text, and `apps/extension/e2e/alarm-floor.spec.ts` names
+    // `tests/provider-spike/` in its module note — as the **precedent** for quarantining
+    // an instrument that needs rights the product must not have. That is a true and
+    // useful statement about provenance, and the rule reported it as a workspace
+    // dependency on the spike.
+    //
+    // **The rule's claim is reachability, and a comment cannot make the spike
+    // reachable.** Rewording the note until the rule went quiet would have been the wrong
+    // repair twice over: it would have deleted a real provenance record, and it would
+    // have left the rule able to fire on the next honest comment — which is exactly what
+    // happened four times before it. Every other scan in this file strips comments; this
+    // one did not, and the inconsistency was the defect.
+    //
+    // Stripping comments does not weaken the rule's reach: an import specifier is code,
+    // and the control below plants one.
+    const probes = [
+      // **Positive: the violation itself**, in the one form that actually makes the spike
+      // reachable — a module specifier.
+      join(APPS_DIR, "web", "src", "__spike-probe.ts"),
+      // **Positive in a shared package too**, because the rule watches both roots and a
+      // control in only one of them would leave the other's coverage unproven.
+      join(PACKAGES_DIR, "core", "src", "__spike-probe.ts"),
+    ];
+
+    try {
+      for (const probe of probes) {
+        writeFileSync(probe, 'import "../../../tests/provider-spike/src/run.mjs";\n', "utf8");
+      }
+      // **Both probes reported by name.** A rule narrowed to one root, or stopped
+      // scanning, leaves one of them unreported — so the assertion is per file rather
+      // than on a total.
+      for (const probe of probes) {
+        expect(
+          scan().filter((hit) => hit.startsWith(toRepoPath(probe))),
+          `${toRepoPath(probe)} imports the spike and must be reported`,
+        ).not.toEqual([]);
+      }
+
+      // **Negative: the same string in a comment**, which is what the rule used to
+      // report. Written into a real file so the assertion is about this rule's own
+      // behaviour rather than about a helper.
+      const prose = join(APPS_DIR, "extension", "e2e", "__spike-probe.ts");
+      writeFileSync(
+        prose,
+        "/** The spike lives at tests/provider-spike/ and must stay unreachable. */\nexport const x = 1;\n",
+        "utf8",
+      );
+      expect(scan().filter((hit) => hit.startsWith(toRepoPath(prose)))).toEqual([]);
+    } finally {
+      for (const probe of probes) rmSync(probe, { force: true });
+      rmSync(join(APPS_DIR, "extension", "e2e", "__spike-probe.ts"), { force: true });
     }
 
-    expect(violations).toEqual([]);
+    // **The negative half, through the same call site.** The probes are gone, so silence
+    // here means the shipped tree is clean rather than that the scan stopped.
+    expect(scan()).toEqual([]);
   });
 });

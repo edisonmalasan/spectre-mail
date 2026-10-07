@@ -139,6 +139,20 @@ jobs:
     # about how a real provider responds to being polled every five seconds. All
     # three remain unverified, and the suite asserts the fourth rather than
     # claiming it.
+    #
+    # **Since M8 this job also carries the extension's tier, and the list above is now
+    # incomplete rather than merely dated.** The extension tier additionally establishes
+    # that the built `dist` loads as an unpacked extension in a real Chromium, that its
+    # manifest is accepted and its declared host permissions are **granted**, that
+    # `chrome.storage` round-trips read back through the platform's own API, and that the
+    # service worker survived a 30-second idle window.
+    #
+    # **It still establishes nothing about a live provider** — every provider response in
+    # both tiers is a recorded one — and it establishes **nothing about how either
+    # surface looks**. No test in either tier reads a rendered pixel's colour or position.
+    # The one live network call in this repository, `apps/extension/e2e/live-host-permission.mjs`,
+    # is deliberately **not run here** and not run by `verify`; a boundary assertion
+    # enforces that, so the quarantine cannot rot quietly.
 
     # **`CI=true` is set for the whole job, and it is load-bearing.** Playwright reads
     # it: `forbidOnly` and retries go to their CI defaults and the reporter becomes
@@ -174,6 +188,13 @@ jobs:
       # dependency, and pnpm does not put a workspace member's binaries on the
       # root's PATH.
       #
+      # **That sentence is now half true, and the correction is the point.** Since M8,
+      # `@playwright/test` is *two* packages' dev dependency: `apps/web`'s and
+      # `apps/extension`'s, both at the same pinned version. So "the website's dependency"
+      # was a claim about one client that had quietly become a claim about both, and a
+      # reader would have had to notice the second manifest to know the browser tier's
+      # runner had changed shape.
+      #
       # The browser download is deliberately not cached between runs. A cache keyed
       # on a path that can move is a cache that can silently serve the wrong
       # bytes; the honest cost is re-downloading, and the job's own timeout
@@ -184,9 +205,34 @@ jobs:
         timeout-minutes: 5
         run: pnpm --dir apps/web exec playwright install --with-deps chromium
 
+      # **The extension's own install, as its own step, even though it is very
+      # probably a no-op.**
+      #
+      # The two packages pin the same Playwright version and Playwright's default
+      # `PLAYWRIGHT_BROWSERS_PATH` is a per-user cache, so one install serves both and
+      # this step downloads nothing. **That is an inference about a shared cache, and
+      # this repository does not record inferences as measurements.** If the two ever
+      # diverged on version, or if a runner image set `PLAYWRIGHT_BROWSERS_PATH`, the
+      # extension tier would fail to find a browser and the failure would name no cause
+      # — it would read as the suite being broken.
+      #
+      # So the second install is explicit, and the cost is a few seconds of a no-op.
+      - name: Install Chromium (extension)
+        timeout-minutes: 5
+        run: pnpm --dir apps/extension exec playwright install chromium
+
       # **A maintainer runs `pnpm test:browser`; this runs the same command.** No
       # extra flags, because the suite's assertions do not vary by environment and a
       # divergent flag here would be a second thing to keep in step.
+      #
+      # **Since M8 that one command runs two suites, and this step's ceiling has to
+      # cover both.** It builds both clients and then runs the website's tier (34 cases,
+      # ~12s) followed by the extension's (16 cases, ~35s — a large part of which is a
+      # deliberate 30-second idle-lifetime measurement). The job's own 25-minute ceiling
+      # is the backstop; this 10-minute step ceiling is the one that can diagnose, and
+      # **it was raised from nothing rather than recalculated** because both halves are
+      # still far inside it and a tighter number would only ever be a guess about the
+      # runner this has never been measured on.
       #
       # **The ceiling is per-STEP, and that is what turns a hang into evidence.** This
       # step is where five earlier runs hung. A job-level ceiling cannot diagnose that,

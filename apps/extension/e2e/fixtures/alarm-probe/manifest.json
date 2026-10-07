@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "SpectreMail alarm-floor probe",
+  "version": "0.0.0",
+  "description": "Throwaway fixture. Declares the `alarms` permission solely so `chrome.alarms` exists, so a measurement can be taken. Ships nothing.",
+
+  "permissions": ["alarms"],
+
+  "background": {
+    "service_worker": "probe.js",
+    "type": "module"
+  }
+}

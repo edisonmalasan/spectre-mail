@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SpectreMail</title>
+    <!--
+      The generated token stylesheet, imported by name.
+
+      `@spectre-mail/ui`'s module note explains why this is a separate subpath rather
+      than a re-export from the package entry: a bundler cannot find a `.css` file
+      referenced from inside another package's TypeScript entry point. So the popup asks
+      for the file explicitly, which is the same shape every other `exports` entry in
+      this workspace takes.
+    -->
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
