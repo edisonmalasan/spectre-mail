@@ -101,6 +101,7 @@ import { MailboxLifetime } from "./MailboxLifetime";
 import { MessageView } from "./MessageView";
 import { PageFooter } from "./PageFooter";
 import { Reasons } from "./Reasons";
+import { ExtensionPreview } from "./ExtensionPreview";
 import { createWebsiteProviderManager } from "./provider-config";
 import { webScheduler } from "./scheduler";
 import { Steps } from "./Steps";
@@ -360,6 +361,19 @@ export function App({ session, storage }: AppProps = {}) {
           requirement a browser check can read rather than a description. */}
         <Steps />
         <Reasons />
+
+        {/* **The extension, between the reasons and the limits.** It was the fourth section
+          the roadmap names and the one this milestone owed last, because until M8 it depicted
+          nothing: `apps/extension` held no manifest, so a preview of it would have been a
+          picture of a picture. **The placeholder it is now replaces is gone rather than
+          reworded** - the note in `PAGE_ORDER` that recorded the section's absence became
+          false when the manifest landed, and a reworded version would read as current state.
+
+          It sits after *why* and before *what it cannot do*, which is where a description of a
+          second client belongs: the reader has been told what the product does and why it is
+          worth using, and the limits are about the product as a whole rather than about the
+          extension in particular. */}
+        <ExtensionPreview />
       </main>
 
       {/** The limits moved here unchanged. The storage bullet that used to stand between
