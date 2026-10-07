@@ -32,7 +32,9 @@ import { POPUP_COPY, POPUP_COPY_KEYS, POPUP_COPY_TEMPLATES } from "./popup-copy"
 
 /** Every entry that holds something other than a string. */
 function nonStringEntries(): string[] {
-  return POPUP_COPY_KEYS.filter((key) => typeof POPUP_COPY[key as keyof typeof POPUP_COPY] !== "string");
+  return POPUP_COPY_KEYS.filter(
+    (key) => typeof POPUP_COPY[key as keyof typeof POPUP_COPY] !== "string",
+  );
 }
 
 /** Every entry that holds a string carrying a substitution token. */

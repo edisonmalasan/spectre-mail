@@ -1858,7 +1858,9 @@ function parserDirectionViolations(): string[] {
  * @param copy the depicted surface's declared copy
  */
 function depictedLabelViolations(
-  regions: readonly { readonly labels: readonly { readonly key: string; readonly label: string }[] }[],
+  regions: readonly {
+    readonly labels: readonly { readonly key: string; readonly label: string }[];
+  }[],
   copy: Record<string, unknown>,
 ): string[] {
   const violations: string[] = [];
@@ -3948,14 +3950,18 @@ describe("architecture boundaries", () => {
     ]);
 
     expect(
-      depictedLabelViolations(good("count", "3 messages"), { count: (n: number) => `${n} messages` }),
+      depictedLabelViolations(good("count", "3 messages"), {
+        count: (n: number) => `${n} messages`,
+      }),
       "an entry that is a function of its arguments is reported, because it has no string",
     ).toEqual([
       'the extension preview depicts popup copy entry "count", which is a function of its arguments and so has no string to show',
     ]);
 
     expect(
-      depictedLabelViolations(good("reaching", "Asking first"), { reaching: "Asking {provider} first" }),
+      depictedLabelViolations(good("reaching", "Asking first"), {
+        reaching: "Asking {provider} first",
+      }),
       "an entry that became a template is reported, because it would print its token",
     ).toEqual([
       'the extension preview depicts popup copy entry "reaching", which is a template ("Asking {provider} first") and would print its token',

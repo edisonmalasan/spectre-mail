@@ -64,6 +64,26 @@ import { openFreshMailbox } from "./open-mailbox";
 import type { ProviderTraffic } from "./recorded-provider";
 
 /**
+ * The extension popup's own copy, read from the extension's source.
+ *
+ * ## Why this spec imports across the client boundary, when `design.md` D3 declines to
+ *
+ * **This is a test file and nothing else.** D3's measurement was that no *shipped source* file
+ * in either client imports the other, and that an import would put `apps/extension/src` into
+ * `apps/web`'s build graph. A Playwright spec is not shipped, is not in the `apps/web` `tsconfig`
+ * include set's build path, and cannot be reached by a user - so it does not create the
+ * coupling D3 refused, and it is the same shape as `apps/extension/src/provider-config.test.ts`
+ * reading `packages/providers/src/fixtures`.
+ *
+ * **What it buys is that the assertion is not a proxy.** Without it, the labels case could only
+ * compare what is on the page against `EXTENSION_PREVIEW`'s own declarations - which the unit
+ * tier already covers, and which a component would satisfy by faithfully rendering declared data
+ * while the popup had since said something else. Reading the popup's real copy is what makes
+ * the chain whole: declared, rendered, and the value the popup itself holds.
+ */
+import { POPUP_COPY } from "../../extension/src/popup-copy";
+
+/**
  * The page's region order, as declared.
  *
  * ## Why this is imported from the client's own module
@@ -87,6 +107,39 @@ interface AxNode {
   readonly role: string;
   readonly name: string;
 }
+
+/**
+ * The roles a depiction must never expose, as a set for membership tests against a tree read.
+ *
+ * **Read from the tree rather than counted in the markup**, and the list is deliberately wide:
+ * a `<div role="switch">` is as operable to a keyboard user as a `<button>`, and the obvious
+ * next idea for this section - "and a button to install it" - arrives as a `link` far more often
+ * than as a `button`. `list` and `listitem` are deliberately **absent**: the depiction is built
+ * from lists, and a list is not something a reader can operate.
+ *
+ * **`text`, `image` and `img` are absent for the opposite reason.** They are not operable, and a
+ * first draft of this list included them - which would have made the sweep fire on Chromium's
+ * own `StaticText` nodes for every label in the depiction. That is the shape of a rule wider
+ * than the rule it documents, and it was removed here rather than by rewording the pattern until
+ * the assertion went quiet.
+ */
+const OPERABLE_ROLES = new Set([
+  "button",
+  "link",
+  "checkbox",
+  "switch",
+  "radio",
+  "tab",
+  "menuitem",
+  "menuitemcheckbox",
+  "menuitemradio",
+  "option",
+  "textbox",
+  "searchbox",
+  "combobox",
+  "slider",
+  "spinbutton",
+]);
 
 /** A page with a mailbox, its provider traffic, and its CDP session. */
 interface Reading {
@@ -163,6 +216,71 @@ async function resolvedToken(page: Page, name: string): Promise<string> {
 /** All of the page's visible text, whitespace-collapsed. */
 function pageText(page: Page): Promise<string> {
   return page.evaluate(() => (document.body.textContent ?? "").replace(/\s+/g, " ").trim());
+}
+
+/**
+ * Each region's own text, keyed by its `data-region` hook.
+ *
+ * ## Why a per-region map rather than the page's text
+ *
+ * **Two assertions in this file were whole-page and became false the moment the extension
+ * preview shipped** - "no region previews the extension" and "no region names a second
+ * provider". Neither is a fact about the page any more; both are facts about *regions*, and a
+ * whole-page sweep can no longer say which region is at fault or exempt the one region that is
+ * allowed to differ. Reading each region's own text makes the exemption explicit and names the
+ * offender when the sweep fires.
+ *
+ * **The exemption is a named list rather than a pattern.** `EXEMPT_FROM_*` below is a set of
+ * region hooks, so adding a region that legitimately contains the word is a visible edit to a
+ * list rather than a pattern quietly widened - which is the shape a check narrower than its rule
+ * takes, and this repository has recorded that defect many times.
+ */
+async function regionTexts(page: Page): Promise<Map<string, string>> {
+  const entries = await page.evaluate(() =>
+    Array.from(document.querySelectorAll("[data-region]")).map((element) => [
+      element.getAttribute("data-region") ?? "",
+      (element.textContent ?? "").replace(/\s+/g, " ").trim(),
+    ]),
+  );
+  return new Map(entries as [string, string][]);
+}
+
+/**
+ * The accessibility roles Chromium exposes **within one element's subtree**.
+ *
+ * ## Why `queryAXTree` and not `getFullAXTree`
+ *
+ * The existing landmark assertions need the whole tree because a landmark's identity *is* its
+ * position in the tree - that is the defect the footer case turns on. This case is different:
+ * it asks whether a *particular region* exposes anything operable, and a whole-tree read
+ * cannot answer it, because the page legitimately exposes several buttons in the product
+ * region and the removal control in the footer's region. Answering by exclusion would be
+ * reasoning about which buttons "belong" to the preview, and that reasoning is exactly the
+ * judgement the tree should make instead.
+ *
+ * **So the tree is queried at the region's own DOM node**, and Chromium does the scoping.
+ * `Accessibility.queryAXTree` takes an `objectId`; it is obtained by evaluating the selector in
+ * the page and asking for the returned handle rather than its value.
+ *
+ * **Still Chromium's own tree, not a role query.** The same header argument applies with more
+ * force here, not less: the claim is about what a screen reader is offered, so it is read from
+ * the platform's model of that rather than from this repository's guess at it.
+ */
+async function axRolesWithin(cdp: CDPSession, selector: string): Promise<string[]> {
+  const { result } = (await cdp.send("Runtime.evaluate", {
+    expression: `document.querySelector(${JSON.stringify(selector)})`,
+  })) as { result: { objectId?: string } };
+
+  expect(result.objectId, `the page must render ${selector}`).toBeTruthy();
+
+  const { nodes } = (await cdp.send("Accessibility.queryAXTree", {
+    objectId: result.objectId as string,
+  })) as { nodes: { role?: { value?: string }; ignored?: boolean }[] };
+
+  return nodes
+    .filter((node) => node.ignored !== true)
+    .map((node) => node.role?.value ?? "")
+    .filter((role) => role !== "");
 }
 
 /**
@@ -286,15 +404,68 @@ test.describe("the page's regions, in the order it states", () => {
     expect(contentinfo[0]?.name).toBe("What this page can and cannot do");
   });
 
-  test("no region previews the extension, and no region promises it", async ({ page }) => {
+  test("only the preview region mentions the extension, and no region promises it", async ({
+    page,
+  }) => {
     await openWithTree(page);
-    const text = await pageText(page);
 
-    // `apps/extension` is an empty placeholder with no MV3 manifest, so there is nothing to
-    // preview. `page-composition` requires the absence to go undescribed, so this checks
-    // both halves: no preview, and no "coming soon".
-    expect(text).not.toMatch(/\bextension\b/i);
-    expect(text).not.toMatch(/coming soon|not yet available|forthcoming/i);
+    // **Rescoped by `data-region`, and the rescope is the substance of this case.**
+    //
+    // It read `expect(text).not.toMatch(/\bextension\b/i)` over the whole page, on the stated
+    // ground that `apps/extension` held no MV3 manifest and so there was nothing to preview.
+    // M8 built the extension, which made the assertion false the moment the section shipped -
+    // and a whole-page sweep is now the wrong instrument even though the underlying rule is
+    // not. What `page-composition` actually requires is that no region *describes a surface as
+    // absent or forthcoming*, and the region that legitimately mentions the extension is the
+    // one describing it.
+    //
+    // **So the rule is per-region with a named exemption**, and the sweep reads each region's
+    // own text rather than the page's. That is what lets the failure name the region.
+    const PREVIEW = "extension";
+    const texts = await regionTexts(page);
+
+    expect(
+      texts.has(PREVIEW),
+      "the preview region must exist - this sweep only makes sense once it does",
+    ).toBe(true);
+
+    const offenders = [...texts.entries()]
+      .filter(([region, text]) => region !== PREVIEW && /\bextension\b/i.test(text))
+      .map(([region]) => region);
+    expect(offenders, "no region other than the preview may mention the extension").toEqual([]);
+
+    // The rule that is *not* rescoped, because it was never about absence: no region may
+    // describe anything as forthcoming. The preview is included, and is the region most likely
+    // to slip - it describes a surface that has no download - so the exemption deliberately does
+    // not cover it.
+    const promising = [...texts.entries()]
+      .filter(([, text]) =>
+        /coming soon|not yet available|forthcoming|will be available/i.test(text),
+      )
+      .map(([region]) => region);
+    expect(promising, "no region may describe absent work as forthcoming").toEqual([]);
+
+    // **The negative control for the sweep, planted into the running page.** Without it, a
+    // sweep that matched nothing would satisfy every assertion above, and the exemption would
+    // be indistinguishable from a pattern that silently stopped firing. `sections.spec.ts`
+    // already plants the footer defect for the same reason; this is the other whole-page sweep
+    // this file has, and it gets the same treatment.
+    await page.evaluate(() => {
+      const reasons = document.querySelector('[data-region="reasons"]');
+      if (reasons === null) throw new Error("no reasons region to plant into");
+      const planted = document.createElement("p");
+      planted.textContent = "A SpectreMail extension is on its way.";
+      reasons.append(planted);
+    });
+
+    const afterPlant = await regionTexts(page);
+    const plantedOffenders = [...afterPlant.entries()]
+      .filter(([region, text]) => region !== PREVIEW && /\bextension\b/i.test(text))
+      .map(([region]) => region);
+    expect(
+      plantedOffenders,
+      "the same sweep must report the region the word was planted in",
+    ).toEqual(["reasons"]);
   });
 });
 
@@ -487,10 +658,43 @@ test.describe("what the sections are allowed to say", () => {
 
     // The provider sentence is the measured CORS fact and it must still be true.
     expect(text).toContain("Guerrilla Mail");
+
     // And no second provider may be named: the website reaches one, for the reason
     // `provider-config.ts` records, and a footer implying redundancy would be the loudest
     // false claim available.
-    expect(text).not.toMatch(/mail\s*\.?\s*tm/i);
+    //
+    // **Rescoped by `data-region`, and here the rescope strengthens the rule rather than
+    // merely relocating it.** It read as one whole-page sweep, which cannot say *which* region
+    // made the claim - and a new region is exactly where a second provider would be named by
+    // accident, the way a preview of an extension that names its two providers would be. So the
+    // sweep is per-region, the preview is **not** exempt (`design.md` D4: it names no provider),
+    // and the failure names the region.
+    const texts = await regionTexts(page);
+    const secondProviders = [...texts.entries()]
+      .filter(([, regionText]) => /mail\s*\.?\s*tm/i.test(regionText))
+      .map(([region]) => region);
+    expect(secondProviders, "no region may name a provider this website cannot reach").toEqual([]);
+
+    // **And the control.** `Guerrilla Mail` is in the footer and the word-bounded licence sweep
+    // above passes over "mit", so a sweep that matched loosely would report regions it has no
+    // business reporting - which is how a rule wider than the rule it documents survives. This
+    // half pins the other direction: the sweep must fire on the name it exists to catch.
+    await page.evaluate(() => {
+      const footer = document.querySelector('[data-region="footer"]');
+      if (footer === null) throw new Error("no footer region to plant into");
+      const planted = document.createElement("p");
+      planted.textContent = "Falls back to Mail.tm automatically.";
+      footer.append(planted);
+    });
+
+    const afterPlant = await regionTexts(page);
+    const plantedProviders = [...afterPlant.entries()]
+      .filter(([, regionText]) => /mail\s*\.?\s*tm/i.test(regionText))
+      .map(([region]) => region);
+    expect(
+      plantedProviders,
+      "the same sweep must report the region the second provider was named in",
+    ).toEqual(["footer"]);
   });
 
   test("the third step does not claim the page can delete a message", async ({ page }) => {
@@ -626,5 +830,138 @@ test.describe("the stylesheet the browser actually loaded", () => {
     ).toEqual([]);
     // And the arrangement itself is present, so the sweep is not passing on an empty file.
     expect(css).toContain("grid-template-columns");
+  });
+});
+
+/* ── The extension preview ─────────────────────────────────────────────────────── */
+
+test.describe("the extension preview depicts, and does not act", () => {
+  test("no element inside the preview exposes an operable role", async ({ page }) => {
+    const { cdp } = await openWithTree(page);
+
+    // **Read from Chromium's tree at the region's own node**, not from the whole page and not
+    // from a DOM query. `design.md` D2 forbids the depiction rendering *any* interactive
+    // element, and there are three ways to check that badly, each caught somewhere in this
+    // repository's history:
+    //
+    // - counting `button` elements, which a `<div role="button">` satisfies;
+    // - `getByRole`, which is the instrument that reported `contentinfo` for a footer Chromium
+    //   does not expose it for;
+    // - reading the whole page's tree and excluding the buttons it "knows" belong elsewhere,
+    //   which substitutes this repository's judgement for the platform's.
+    //
+    // `Accessibility.queryAXTree` scoped to the region's object does none of those: Chromium
+    // decides what is inside the region, and reports what a screen reader would be offered.
+    const roles = await axRolesWithin(cdp, '[data-region="extension"]');
+
+    expect(
+      roles.filter((role) => OPERABLE_ROLES.has(role)),
+      "the preview must expose nothing operable",
+    ).toEqual([]);
+
+    // **And the region is not concealed.** `aria-hidden` would pass every assertion above by
+    // removing the subtree from the tree entirely, which is the wrong way to satisfy D2: it
+    // achieves non-interactivity by hiding the depiction from the reader entitled to it. So the
+    // subtree must actually be present in the tree, which is what makes the role sweep above a
+    // reading about this region rather than about a region that was never there.
+    expect(roles.length, "the preview's subtree is present in the tree").toBeGreaterThan(3);
+
+    // **The negative control, planted into the running page.** A subtree-scoped tree query that
+    // silently returned nothing would satisfy the first assertion for the wrong reason - the
+    // failure this repository has recorded repeatedly is a check narrower than the rule it
+    // documents, and a region emptied of content is the cheapest way to produce one.
+    await page.evaluate(() => {
+      const region = document.querySelector('[data-region="extension"]');
+      if (region === null) throw new Error("no preview region to plant into");
+      region.append(Object.assign(document.createElement("button"), { textContent: "Install" }));
+    });
+
+    const afterPlant = await axRolesWithin(cdp, '[data-region="extension"]');
+    expect(
+      afterPlant.filter((role) => OPERABLE_ROLES.has(role)),
+      "the same reader must report the control planted inside the region",
+    ).toContain("button");
+  });
+
+  test("every label the built preview shows is one the popup renders", async ({ page }) => {
+    await openWithTree(page);
+
+    // **The rendered labels, from the served page** - not from `EXTENSION_PREVIEW`'s
+    // declarations. Reading the declarations would be a proxy satisfied by a component that
+    // renders its own data faithfully while the popup had renamed a label underneath it, which
+    // is the exact failure this case exists to catch and which `popup-copy.test.ts` provably
+    // cannot catch either (see `tasks.md` 1.2).
+    const rendered = await page.$$eval(".preview__label", (nodes) =>
+      nodes.map((node) => (node.textContent ?? "").trim()),
+    );
+
+    expect(rendered.length, "the preview must render a depiction at all").toBeGreaterThan(0);
+
+    // **The popup's string-valued copy, as a set**, so the check is "this is a string the popup
+    // holds" rather than "this matches one specific entry" - the requirement is about the
+    // correspondence being honest, and which entry a given label corresponds to is 2.3's
+    // named assertion rather than this one's business.
+    //
+    // **The cast is required and its reason is recorded rather than worked around.**
+    // `POPUP_COPY` is `as const`, so `Object.values` is typed as a union of string literals and
+    // a `value is string` predicate is not a narrowing of it. Widening the parameter type here
+    // says the same thing a reader of the assertion needs: this cares about the runtime shape,
+    // not about the extension's compile-time guarantee about its own copy.
+    const popupStrings = new Set(
+      Object.values(POPUP_COPY as Record<string, unknown>).filter(
+        (value): value is string => typeof value === "string",
+      ),
+    );
+
+    const unknown = rendered.filter((label) => !popupStrings.has(label));
+    expect(
+      unknown,
+      "the preview must show only strings the popup itself renders - a picture of the popup " +
+        "that is quietly wrong about the popup is worse than no picture",
+    ).toEqual([]);
+  });
+
+  test("the preview names no capability the extension has declared absent", async ({ page }) => {
+    await openWithTree(page);
+    const texts = await regionTexts(page);
+    const preview = texts.get("extension") ?? "";
+
+    expect(preview, "the preview region must be readable").not.toBe("");
+
+    // **Each of these is an absence this repository has specified, not a guess.**
+    // `extension-client` requires the popup to be a popup only: no content script and no side
+    // panel are built (M9 and M11 own them), no notification is delivered, and no code is
+    // copied or filled anywhere in the product (M10). The preview describes the extension, so
+    // naming any of them would be the page describing a product that does not exist - which is
+    // the defect `page-composition`'s *"A section depicts another surface"* scenario is about.
+    //
+    // **The words are listed, not derived from a manifest.** `manifest.json` declares no
+    // content script today, and deriving the forbidden list from it would make the list shrink
+    // silently as the manifest grows - so the day M9 adds one, this assertion would stop
+    // complaining about the page's mention of it. The list is the requirement.
+    const forbidden = [
+      "content script",
+      "side panel",
+      "side bar",
+      "notification",
+      "notifies you",
+      "one-time code",
+      "verification code",
+      "autofill",
+      "fill in the code",
+      "copies the code",
+    ];
+    const named = forbidden.filter((phrase) =>
+      new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i").test(preview),
+    );
+    expect(named, "the preview must name no capability the extension does not have").toEqual([]);
+
+    // **And no cadence.** The popup's count comes from a check the user asked for, and
+    // `website-client` requires this page to state no interval it cannot support. A figure in
+    // this region would be an invention presented as a measurement - and an *inherited* one,
+    // because the extension does have an alarm of its own, whose packing interval is unmeasured.
+    expect(preview, "the preview must state no polling interval").not.toMatch(
+      /\b\d+\s*(?:s|sec|secs|second|seconds|m|ms|min|mins|minute|minutes)\b/i,
+    );
   });
 });
