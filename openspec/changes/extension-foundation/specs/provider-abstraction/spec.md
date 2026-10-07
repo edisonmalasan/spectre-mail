@@ -50,6 +50,9 @@ their mail is going.
   as Mail.tm cannot be reached from a web page
 - **THEN** that client SHALL exclude it
 - **AND** it SHALL NOT add a SpectreMail-operated backend or any other intermediary to relay it
+- **AND** the reason SHALL be recorded in `docs/PROVIDERS.md`
+- **AND** a measured reason SHALL cite the run that observed it, while an
+  unverified reason SHALL be labelled "unverified" with **no** run claimed
 
 ### Requirement: Extension host permissions use the wildcard path form
 
