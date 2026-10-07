@@ -297,6 +297,36 @@ a rule that fires on the wrong thing is indistinguishable from a rule that does 
 position, so every statement about this section is exact about what it measures and silent about
 whether the result is good. `tasks.md` 6.1 is left unticked for that reason.
 
+## The sync stage's own check, and the defect in it
+
+The sync promoted four requirement blocks and re-checked each one **byte-for-byte** against its
+delta rather than by title, because a hand-typed paraphrase keeps the heading and loses the text.
+All four are identical; `page-composition` went **5 → 6** requirements and **14 → 20** scenarios,
+`extension-client` **6 → 6** and **17 → 20**, and the suite total went **135 → 136** requirements
+and **381 → 390** scenarios.
+
+**The comparison was wrong on its first run, and it was wrong in the direction that produces a
+false alarm.** Its block splitter ended a requirement at the next `### Requirement:` and at
+nothing else, so a delta's `## ADDED Requirements` heading was swallowed into the block above it.
+The promoted spec was correct throughout; the check reported `"The section set is not invented by
+this slice"` as differing by two lines, and the two lines were the delta's own section heading.
+
+**This is the third recorded instance of a defect in a harness being found by running the harness
+rather than by reading it**, and it is the shape this repository keeps meeting in its
+highest-value place: a measuring instrument that is *nearly* right produces a **confident wrong
+answer**, and the two repairs this time — the splitter now stops at any `## ` heading, and the
+delta parser that writes the promotion had been handling that heading correctly all along — mean
+the two halves of the same operation disagreed. **A disagreement between two readers of one
+artifact is worth more than either reader's verdict**, because it is the only evidence available
+that at least one is wrong.
+
+The checker was run from **outside the repository tree**, not deleted. That is the difference from
+the four scripts deleted during apply, and it is deliberate: `pnpm lint` rejects `.cjs` in the
+root on `@typescript-eslint/no-require-imports`, so a file left there would be something every
+future lint has an opinion about — but the check has to be **re-runnable after the archive**,
+because archiving is a move and a move is the operation most likely to quietly drop a file. A
+one-shot instrument that cannot be re-run is worth less than the finding it produced.
+
 ## Migration Plan
 
 None. No stored state, no schema, no data. The page's region list grows by one and every product
