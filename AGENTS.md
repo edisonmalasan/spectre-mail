@@ -1,16 +1,21 @@
 # AGENTS.md
 
-> **Current milestone state (reconciled against Git and OpenSpec 2026-10-07): M0-M8 are complete in
-> scope.** M7's four slices are archived and M8 (`extension-foundation`) is applied, verified,
-> synced, and archived at `openspec/changes/archive/2026-10-07-extension-foundation/` - proposal
-> **#75**, apply **#76**, sync **#77**. **M7 slice 4 (`extension-preview`) is applied, verified,
-> synced and ARCHIVED** at `openspec/changes/archive/2026-10-07-extension-preview/` - proposal
-> **#79** (`5062afa`), apply **#80** (`586d58a`), sync **#81** (`46ae462`), archive **#82**.
-> `openspec list` reports **No active changes** and `openspec validate --specs --strict` is
+> **Current milestone state (reconciled against Git and OpenSpec 2026-10-08): M0-M8 are complete in
+> scope, and M9's first slice is applied and verified.** M7's four slices are archived and M8
+> (`extension-foundation`) is applied, verified, synced, and archived at
+> `openspec/changes/archive/2026-10-07-extension-foundation/` - proposal **#75**, apply **#76**,
+> sync **#77**. **M7 slice 4 (`extension-preview`) is applied, verified, synced and ARCHIVED** at
+> `openspec/changes/archive/2026-10-07-extension-preview/` - proposal **#79** (`5062afa`), apply
+> **#80** (`586d58a`), sync **#81** (`46ae462`), archive **#82**. **`in-page-address` (M9 slice 1)
+> is applied and verified on `feat/in-page-address`; its sync and archive follow, and M9's slices 2
+> (`in-page-mailbox`) and 3 (`site-associations`) have not begun.** The promoted specs are
+> unchanged by it, because a change's delta is promoted at **sync**, not at apply: `openspec list`
+> reports `in-page-address` as the one active change and `openspec validate --specs --strict` is
 > **13 passed, 0 failed**, across **13 capabilities holding 136 requirements and 390 scenarios** -
-> measured by counting `### Requirement:` and `#### Scenario:` across `openspec/specs/`, and the
-> delta raised that by exactly **one requirement and nine scenarios**. **The next objective is
-> M9, In-Page Email Integration, and nothing about it has begun.**
+> measured by counting `### Requirement:` and `#### Scenario:` across `openspec/specs/`, not
+> transcribed. **The delta adds a fourteenth capability, `in-page-integration`, at 7 requirements /
+> 18 scenarios, and amends `extension-client` by one requirement / two scenarios — so those counts
+> are not in the 136/390 until the sync stage promotes them.**
 >
 > **Read the milestone sections below as history rather than as current state.** They are kept
 > in the order the milestones happened and each records the measured counts as they stood at
@@ -109,10 +114,22 @@ The current state, in dependency order:
 - A mailbox lifecycle and polling layer (`packages/mailbox`) that both clients
   consume, and that **adopts a stored mailbox** since M6 slice 2.
 - A persistence layer (`packages/storage`) holding a real `SpectreStorage` contract,
-  an IndexedDB adapter, and a browser entry point - **which the website now uses** and
-  the extension does not.
+  an IndexedDB adapter, a browser entry point and a `chrome.storage` adapter — **which the
+  website uses for its address and the extension uses for its own**, and **the extension uses
+  from two different contexts**, which is the claim M9 slice 1 added a boundary rule for.
 - A website client (`apps/web`) that renders all of it, with **persistence** and, since
   M7 slice 1, **the first styling in the product's history**.
+- **An in-page client (`apps/extension/src/content-script/`), new at M9 slice 1**: it watches
+  for an email field taking focus, offers a control inside a **shadow root**, and inserts the
+  address **this device already holds**. **It reads `chrome.storage.local` directly** rather
+  than asking the service worker — measured, not preferred: a content script injected with no
+  `host_permissions` reaches the area on the `storage` permission alone, readable and
+  writable, so the round trip this slice was designed to avoid is not needed and `activeTab`
+  stays rejected. **It is a control inside somebody else's page, so two things follow that
+  are worth stating rather than discovering.** Its styles live in the shadow root because the
+  page's stylesheet can neither reach them nor be reached by them; and it acts on **nothing but
+  the address**: **no provider is contacted from in-page**, no polling runs, and there is no
+  copy, no side panel and no site association, because M9's slices 2 and 3 own those.
 - A design-token layer (`packages/ui`) that both clients will consume, holding colour for
   **two declared schemes**, type, spacing, radius, two **measures**, and motion, and **no**
   layout and no component styles. **"No layout" is qualified, and the qualification was
@@ -295,13 +312,17 @@ Pin versions when exact versions matter.
 
 - Framework(s): React `19.3.0` with Vite `7.3.6` for **both** clients, verified building,
   type checking, linting, and serving. The extension client is React **and** has a real
-  Manifest V3 manifest, an unpacked `dist` that Chromium loads, **16** browser cases, and
-  **20** unit tests — as of M8. It was a placeholder with **no framework and no manifest**
-  until this change, and that sentence is **deleted rather than reworded** because it became
-  false the moment `static/manifest.json` landed. Its entry point is a **popup only**: there is
-  no content script, no side panel, and no options page, and **each of those absences is a
-  requirement** (M9 and M11 own them), because a declared surface that renders nothing is fake
-  UI.
+  Manifest V3 manifest, an unpacked `dist` that Chromium loads, **36** browser cases, and
+  **25** unit tests for the content script alone — as of M9 slice 1. It was a placeholder with
+  **no framework and no manifest** until M8, and that sentence is **deleted rather than
+  reworded** because it became false the moment `static/manifest.json` landed. **Its entry points
+  were a popup only, and that sentence is deleted too: M9 slice 1 added a content script**, so
+  there is still no side panel and no options page, and **each of those two remaining absences is
+  a requirement** (M11 owns the side panel), because a declared surface that renders nothing is
+  fake UI. **The content script is built by its own `vite build`**, because a content script is
+  loaded by Chromium as a single classic script: an `import` in it is a runtime failure on every
+  page rather than a build warning, so `dist/content-script.js` carries no module specifier and
+  needs no second file — asserted against the **built** artefact, not the source.
 
 - Runtime(s): Node.js `v26.10.0` (verified).
 
@@ -552,17 +573,32 @@ Pin versions when exact versions matter.
   no extension build step — that is M8" became false at M8 and is deleted rather than
   reworded.**
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running **738 tests across
-  41 files** via `pnpm test` (2026-10-07, at `extension-preview`'s apply stage, with
+- Testing: Vitest `3.2.7` at the workspace root, verified running **765 tests across
+  42 files** via `pnpm test` (2026-10-08, at `in-page-address`'s apply stage, with
   `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory), counted from a
-  JSON reporter rather than read off a summary line:
+  JSON reporter **grouped by project** rather than read off a summary line:
   54 in `packages/core`, 89 in `packages/providers`, **149 in `packages/mail-parser`**,
   **155 in `packages/mailbox`**, **120 in `apps/web`**,
   **54 in `packages/storage`** (7 stored record, 30 IndexedDB adapter, 7 browser entry
   point, **10 `chrome.storage` adapter**),
-  **25 in `apps/extension`** (**8** in `Popup.test.tsx`, **9** in `provider-config.test.ts`,
-  **3** in `service-worker.test.ts`, **5** in `popup-copy.test.ts`),
-  **38 in `packages/ui`**, and **54 architecture boundary assertions**.
+  **50 in `apps/extension`** (**25** in `content-script.test.ts`, **8** in `Popup.test.tsx`,
+  **9** in `provider-config.test.ts`, **3** in `service-worker.test.ts`, **5** in
+  `popup-copy.test.ts`),
+  **38 in `packages/ui`**, and **56 architecture boundary assertions**.
+  **`in-page-address` moved `apps/extension` 25 → 50 and the boundary count 54 → 56, and moved
+  nothing else.** **Every other total is identical to the baseline it recorded before proposing,
+  and `packages/ui` stayed at 38 for the fourth time** - which is the measurement that mattered,
+  because this slice adds a control inside a third party's page and `design.md` D7 commits it to
+  **no new token and no new motion**: a rise would have meant visual surface no capability
+  describes. **The two new boundary assertions are one rule: the extension's platform global is
+  confined to a single module.** The pattern matches the bare identifier `chrome` *including inside
+  string literals*, because `Reflect.get(globalThis, "chrome")` - the reflective spelling the
+  shipped code uses - contains no `chrome` token outside quotes, so a pattern skipping strings
+  would leave the only form this repository writes unguarded, silently. **The single permitted
+  module had to be renamed** for it: while it was called `chrome-platform.ts` the rule fired on
+  `import … from "./chrome-platform"` and reported two violations of the very requirement that
+  mandates that import, and the fix chosen was the file, not a carve-out - a pattern exempted for
+  any specifier containing the word would exempt a future one that reached the global.
   **`extension-preview` moved `apps/web` 114 → 120, `apps/extension` 20 → 25, and the boundary
   count 53 → 54, and moved nothing else.** The six client cases are the new region's own file;
   the five extension cases are the popup copy's exported module, and **`Popup.test.tsx` stayed at
@@ -1103,8 +1139,19 @@ browser tier now runs it against real Chromium and real IndexedDB, via
 involved** — every provider response is a recorded one — and **the blocked-removal
 semantics are still only a `fake-indexeddb` measurement**, because the browser suite
 does not produce that event.
-There is still no extension build step; `pnpm dev:extension` does not exist and
-must not be documented until M8 creates it.
+**There is now a third build in the extension's chain, and it is not optional.**
+`pnpm --filter @spectre-mail/extension build` runs `vite build` for the popup, then
+`vite build --config vite.content.config.ts` for the content script — **and the content build
+must be able to run after the popup build without erasing it**, which is why
+`vite.config.ts` sets `emptyOutDir: false`. **That setting has a cost worth stating rather than
+discovering: no build ever removes an artefact a previous build emitted.** A stale
+`content-script.bundle.js` survived a restored source *and* a correct rebuild beside it during
+this change's falsification pass, and was read as evidence about a mutation long after it was
+built. **`pnpm test:browser` removes `dist/` before building**, and that is the only place the
+repository does so.
+
+`pnpm dev:extension` still does not exist, and is not documented, because nothing in this
+repository has run the extension from a dev server.
 
 
 
@@ -1254,9 +1301,10 @@ pnpm test:browser
 
 ```
 
-Playwright `1.63.0`, **two configurations, 8 spec files and 53 test cases** - **Chromium
-only**. The command builds **both** clients and then runs the two suites in order:
-the website's **37** in `apps/web/e2e/`, and the extension's **16** in `apps/extension/e2e/`.
+Playwright `1.63.0`, **two configurations, 9 spec files and 73 test cases** - **Chromium
+only**. The command builds **both** clients, then the in-page fixture, and then runs the two
+suites in order: the website's **37** in `apps/web/e2e/`, and the extension's **36** in
+`apps/extension/e2e/`.
 
 **The website's 4 spec files and 37 cases** - `storage.spec.ts`
 (**6**), `focus.spec.ts` (**6**, added by M7 slice 1), `motion.spec.ts` (**9**, added by
@@ -1281,8 +1329,9 @@ assertion above it, and the exemption would be indistinguishable from a pattern 
 stopped firing. **The extension's 16 did not move**, which is the check that this change did not
 touch the extension client.
 
-**The extension's 4 spec files and 16 cases, added by M8** - `manifest.spec.ts` (**6**),
-`popup.spec.ts` (**8**), `measurement.spec.ts` (**1**) and `alarm-floor.spec.ts` (**1**).
+**The extension's 5 spec files and 36 cases** - `manifest.spec.ts` (**9**; **6** added by M8 and
+**three** by `in-page-address`), `popup.spec.ts` (**8**), `in-page.spec.ts` (**17**, added by
+`in-page-address`), `measurement.spec.ts` (**1**) and `alarm-floor.spec.ts` (**1**).
 **It has no `webServer` at all**, which is not an omission: it loads `apps/extension/dist`
 as an unpacked extension through `chromium.launchPersistentContext`. **Two flags and an
 absolute path are all it takes, and this was measured by getting it wrong four ways** —
@@ -1292,6 +1341,25 @@ error message says any of this**, so `apps/extension/playwright.config.ts` expor
 `extensionFlags()` helper that every spec calls rather than each spelling them.
 `--user-data-dir` must **not** also be passed as an argument alongside
 `launchPersistentContext`'s first parameter.
+
+**`in-page.spec.ts`'s 17 cases need a page, and it is served by Playwright's own router rather than
+by a file server** — on a reserved `.invalid` origin, with the extension loaded on **every** request.
+**That choice is a measured one about a real platform rule, not a simplification.** A content script
+runs in the **isolated world**, so its `globalThis` is not the page's: the first version of the probe
+read a page global and got `null` on every arm, *including one read before any insertion that should
+have been the empty string*, and drew the exact inverse of the right conclusion. So the fixture
+publishes React's state into the **document**, which is the one channel a content script and a page
+genuinely share. **`StrictMode` is deliberately absent** — the probe measured each dispatched event
+arriving *twice*, and using it would make the browser tier assert a doubled list with nothing to do
+with the product.
+
+**Two of the 17 are worth naming because they are evidence that was missing.** One requires the
+content script to run on a **plain-http** page, because `content_scripts.matches` declares both
+schemes and until this pass **every case ran over `https`** — half the declared reach was
+unexercised. And one compares `host_permissions` against the origins the suite actually scripts,
+derived from the recorded provider's own table rather than retyped, because **adding
+`https://example.com/*` to the manifest used to leave every case green** while declaring reach no
+shipped surface reaches.
 
 **What it establishes.** That the shipped page, in real Chromium, reads real IndexedDB
 through `createBrowserStorage()`, writes a created mailbox and reads it back **through
@@ -1350,9 +1418,13 @@ The assertion is now the thing it names — the mark must *be* an inline `<svg>`
 file at all**, so a webfont is caught too. `ProviderTraffic` now carries **every** URL the page
 requested whatever its origin. Both halves were falsified separately.
 
-**And, since M8, the extension's sixteen.** That the built `dist` loads as an unpacked
-extension in a real Chromium; that its manifest is accepted and its declared host permissions
-are **granted**; that `chrome.storage` round-trips a created mailbox back through the
+**And, since M8, the extension's tier.** That the built `dist` loads as an unpacked
+extension in a real Chromium; that **Chromium parses its manifest to the same host permissions
+the file declares** — accepted, which is **not** the same as *granted*, and the difference is
+stated in the case that reads it: every provider response here is fulfilled by the harness, so
+**nothing in this tier exercises a grant**, and the only observable of one is a cross-origin
+`fetch` succeeding, which is the quarantined M0 probe; that `chrome.storage` round-trips a
+created mailbox back through the
 platform's own API; that **fallback works** — Mail.tm answering 503, Guerrilla Mail serving
 the mailbox, and the popup naming the provider that actually served it; that the popup
 requests **no origin the tier did not script**; that the popup's stylesheet names **no colour,
@@ -1408,6 +1480,16 @@ it or inherit the previous one's mailbox.
   evidence about the claim.
 - **Nothing about a blocked `deleteDatabase`.** The suite does not produce that event, so
   the queued-removal semantics remain a `fake-indexeddb` measurement.
+- **Nothing about how the in-page affordance looks inside a real third party's page — and this
+  limit is larger than the usual one, because the surface under test is somebody else's CSS.**
+  The 17 in-page cases read the **DOM**, a **resolved computed style**, the page's own
+  `querySelectorAll`, and the **real React 19** state the field holds. None of those is a
+  rendered pixel, and the fixture is **hostile by construction** — it links
+  `button { display: none !important }` precisely so that "the page's styles do not reach the
+  control" is not satisfied for free. That proves the shadow root **isolates**; it says nothing
+  about whether the control reads as right, legible or un-ugly in a page nobody here designed.
+  **`tasks.md` 10.1 — load the extension on a real site and look at it — is deliberately left
+  unticked**, because an agent opening a page is not the judgement the task asks for.
 - **Nothing about any browser other than the one that ran.** Chromium, on **one machine**
   (Windows 11) and on GitHub-hosted Linux runners. It is now repeatable — the `browser` job
   has run and **passed** in CI since run `37374154930` (2026-10-05) — but repeatability on
@@ -1672,18 +1754,46 @@ M5 slice 1 apply stage, again after its independent verification repairs (all on
 verification repairs, again after the M5 slice 4 apply stage, and again after the
 M6 slice 1 apply stage, again after the M6 slice 2 apply stage, and again after the
 M6 slice 3 apply stage, again after the `browser-verification` apply stage, and again after
-the M7 slice 1 apply stage and its verification-pass repair, all on
-2026-10-03
-through 2026-10-07:
+the M7 slice 1 apply stage and its verification-pass repair, and again at M9 slice 1's
+apply stage on **2026-10-08**:
 
 ```text
 pnpm typecheck     9 of 9 workspace projects run tsc --noEmit
 pnpm lint          exit 0
 pnpm format:check  All matched files use Prettier code style
-pnpm test          41 files, 738 tests passed
+pnpm test          42 files, 765 tests passed
 pnpm build         vite 7.3.6, dist emitted for BOTH clients
 pnpm verify        exit 0
 ```
+
+**`pnpm verify` was run six times at M9 slice 1's apply stage, and the two reds are named rather
+than the sixth counted.** **The first was red, on two things, and neither was a flake.**
+`format:check` failed
+on the two files this change's falsification repairs had edited — a gate nobody had run between
+two rounds of test edits — and `lint` reported **three `react-refresh/only-export-components`
+warnings** on the in-page fixture, a file that had never been linted because it did not exist.
+**The fourth was red again, on `format:check` alone**, for the same reason and on a file this
+change had edited a third time — which is the point of running the gate rather than assuming it:
+**the count of files Prettier rejects is not a fixed property of the change, it is a count of
+edits made since Prettier last ran.** **A warning is not a failure, and `pnpm lint` still exited
+`0`** on the first run, so that part is recorded as a fact
+about a red gate rather than about a rule: the fixture is a **build entry point**, it has no
+exports *because nothing imports it*, and the rule's premise — that a module is also a component
+library — is not true of it. **The fix was a config block scoped to `e2e/fixtures/` by shape,
+not a file-level suppression**, so a second entry-point fixture is covered by existing rather
+than by remembering.
+
+**`pnpm test:browser` was run thirty consecutive times at this stage, in three blocks of ten,
+counting failures: 30 passed, 0 failed, 36 cases on every run.** The precedent in this file is one
+run in three failing on a weak precondition, and a first green run is a fact about one execution — so
+ten, and then ten more, because **the second block exists for a reason worth recording**: a
+comment-only correction landed between the first two, and rather than reason about whether that
+invalidated the first block, a second block was run from scratch. **The third block is on the tree
+being committed, with one exception stated rather than smoothed over** — a comment in
+`boundaries.test.ts` was corrected *during* it. **That file is a Vitest file and the browser tier
+never reads it**, and the correction is a comment, so what was under test did not change; **but a
+block described as frozen while a file moved underneath it is the same claim this file has retracted
+twice**, so the exception is recorded rather than relied upon.
 
 **`pnpm verify` was run three times at `extension-preview`'s apply stage, and "All exited `0`"
 above is the third run, not the first.** That is worth recording because the two reds were real

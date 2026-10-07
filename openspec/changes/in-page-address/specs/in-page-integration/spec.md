@@ -70,6 +70,18 @@ about what was asked for.
 - **THEN** the extension SHALL NOT have submitted the form the field belongs to
 - **AND** the extension SHALL NOT have pressed a control belonging to it
 
+*One scenario's coverage is narrower than its wording, and the gap is measured rather than
+assumed.* *The form is not activated* has two halves, and they are carried in different tiers for
+a reason the browser tier cannot override. The **negative** half — no form was submitted — is held
+by the unit tier, which can read a submit event because it owns the document. The browser tier
+cannot falsify it: the affordance's `type="button"` is load-bearing **because** the control removes
+itself from the document on press, so by the time activation behaviour would give it a form owner
+**there is no form owner left to give it one**. So the in-page case asserts the requirement
+**positively** instead, by planting a real submit button in the same form and requiring that *it*
+fires when the control is pressed. **A case asserting an absence is trivially satisfied by a page
+that refuses everything**, and that positive control is what makes this case capable of failing at
+all.
+
 ### Requirement: The inserted address becomes the value the page's own state holds
 
 The inserted address SHALL become the value the page's own code holds for that field, not only the
@@ -131,6 +143,13 @@ an address yet is a control that cannot act, which this product does not ship.
 This requirement records the **current** subject of the in-page surface, and the milestone that adds
 creating a mailbox from a page SHALL amend it rather than finding a control already present and
 leaving its empty case unaddressed.
+
+*The second scenario below is an obligation on a later change rather than a behaviour this one
+exhibits, and it is stated in full anyway.* **A requirement cannot be tested for what a future
+change must do to it**, and a scenario asserting only today's behaviour would leave the empty case
+free to be forgotten by the milestone that makes it reachable. **The spec records what is required
+and the suite records what was observed**, and those are different claims — so the scenario is
+stated, and no test claims it.
 
 #### Scenario: This device holds no mailbox
 

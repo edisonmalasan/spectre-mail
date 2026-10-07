@@ -95,6 +95,26 @@ export { FIXTURE_IDS };
 /** The recorded session exchange Guerrilla Mail's *creation* call is answered with. */
 export const GUERRILLA_SESSION_RESPONSE = guerrillaSessionCreated;
 
+/**
+ * The origins this tier scripts a provider for, **derived from {@link SCRIPT}**.
+ *
+ * ## Why this is exported
+ *
+ * `manifest.spec.ts` has to answer *"does the extension declare host reach no shipped
+ * surface reaches?"* and the honest way to answer it is against the reach a shipped
+ * surface **has**, not against a second list of origin strings a spec file typed out.
+ * Two lists is two things that can drift, and this repository has already paid for one:
+ * `recorded-provider.ts` existed precisely because a spec that transcribed its own
+ * fixtures proved the product echoed values the test invented.
+ *
+ * So the comparison is between the built manifest and **the tier's own script table**.
+ * A host permission added for an origin nothing scripts is reach no shipped surface has,
+ * and the assertion fires on it by name.
+ */
+export const SCRIPTED_PROVIDER_ORIGINS: readonly string[] = [
+  ...new Set(SCRIPT.map(([prefix]) => new URL(prefix).origin)),
+].sort();
+
 export interface RecordingOptions {
   /** Answer Mail.tm with 503 so the fallback path runs. Off by default. */
   readonly mailTmUnavailable?: boolean;

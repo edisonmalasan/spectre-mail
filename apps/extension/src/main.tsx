@@ -1,21 +1,30 @@
 /**
  * The popup's entry point.
  *
- * ## This is the only file that names `chrome`
+ * ## This file used to be the only file that names `chrome`, and no longer is
  *
- * `chrome.storage.local` exists **only inside an extension**, so reading it is not a
- * client reaching past `packages/storage` into a browser global — it is the client
- * supplying the platform the adapter needs. `packages/storage` declares the shape of an
- * area rather than reading a global itself, precisely so that this line is the only
- * place the choice is made.
+ * `chrome.storage.local` exists **only inside an extension**, so reading it is not a client
+ * reaching past `packages/storage` into a browser global — it is the client supplying the
+ * platform the adapter needs. `packages/storage` declares the shape of an area rather than
+ * reading a global itself, precisely so that this line is the only place the choice is made.
+ *
+ * **That sentence was true until M9 slice 1 and was deleted rather than reworded.** The
+ * content script needs the same read from a second context, so this file's own copy of the
+ * reflective read became the *second* spelling, and `local-area.ts` was written beside
+ * it with identical logic. Two copies of a shape check drift: one would gain a method the other
+ * did not, and the extension would store a mailbox the popup could not read back.
+ *
+ * **So the reader is now {@link readChromeLocalArea}, and the popup calls it.** The claim this
+ * file used to make about itself is now made by a rule that can fail — `keeps the extension
+ * platform global to one module` in `tests/architecture/boundaries.test.ts`, which found this
+ * duplication on its first run by reporting `main.tsx line 41`.
  *
  * **`Reflect.get` rather than a typed global, and the reason is a checked one.**
- * There is no `chrome` declaration in this workspace's DOM lib, so `chrome.storage.local`
- * would not compile. A `declare global` block would make the platform's shape ambient
- * across the whole package, which is what `chrome-api.ts` deliberately refuses. Reading
- * it reflectively keeps the platform reachable from exactly one expression, and turns
- * "no `chrome` in this environment" into a value this file can branch on rather than a
- * crash on load.
+ * There is no `chrome` declaration in this workspace's DOM lib, so a property access would not
+ * compile. A `declare global` block would make the platform's shape ambient across the whole
+ * package, which `local-area.ts` deliberately refuses. Reading it reflectively keeps the
+ * platform reachable from exactly one expression, and turns "no `chrome` in this environment"
+ * into a value this file can branch on rather than a crash on load.
  *
  * ## Both stylesheets, imported here, in this order
  *
@@ -35,33 +44,12 @@ import "./styles.css";
 
 import { App } from "./App";
 import { createExtensionStorage } from "./storage";
-
-/** Read `chrome.storage.local`, or `undefined` where there is no extension context. */
-function chromeLocalArea(): ReturnType<typeof toArea> {
-  return toArea(Reflect.get(Reflect.get(globalThis, "chrome"), "storage")?.local);
-}
-
-/** Narrow a read value to the area shape `packages/storage` declares. */
-function toArea(value: unknown): Parameters<typeof createExtensionStorage>[0] {
-  // **A shape check rather than a cast**, because the whole point of not declaring a
-  // global `chrome` is that nothing has verified this value. A cast would assert the
-  // three operations exist without having looked.
-  if (
-    typeof value !== "object" ||
-    value === null ||
-    typeof (value as { get?: unknown }).get !== "function" ||
-    typeof (value as { set?: unknown }).set !== "function" ||
-    typeof (value as { clear?: unknown }).clear !== "function"
-  ) {
-    return undefined;
-  }
-  return value as Parameters<typeof createExtensionStorage>[0];
-}
+import { readChromeLocalArea } from "./local-area";
 
 const container = document.getElementById("root");
 
 if (container) {
-  const storage = createExtensionStorage(chromeLocalArea());
+  const storage = createExtensionStorage(readChromeLocalArea());
 
   createRoot(container).render(
     <StrictMode>

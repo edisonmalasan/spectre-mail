@@ -87,6 +87,23 @@ export default tseslint.config(
   },
 
   {
+    // **A fixture page that is a build entry point**, which is neither a Node process nor a
+    // page: it is bundled by its own Vite config and mounted with `createRoot` at module scope.
+    //
+    // `react-refresh/only-export-components` warns that "fast refresh only works when a file has
+    // exports" — which is a true statement about a dev server and a false one about this file.
+    // A bundle entry has no exports because nothing imports it; the rule's premise is that a
+    // module is also a component library, and this one is not.
+    //
+    // Scoped to `e2e/fixtures/` by shape rather than by naming this directory, so a second
+    // entry-point fixture is covered by existing rather than by remembering.
+    files: ["**/e2e/fixtures/**/*.{ts,tsx}"],
+    rules: {
+      "react-refresh/only-export-components": "off",
+    },
+  },
+
+  {
     // **A fixture that runs as a service worker**, which is neither a Node process nor a
     // page: it has `self` and `chrome`, and no `process` and no `document`.
     //

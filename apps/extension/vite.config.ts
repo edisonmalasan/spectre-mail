@@ -36,6 +36,15 @@ import react from "@vitejs/plugin-react";
  * They are **not** generated, so the file a maintainer reads is the file Chromium
  * loads — and the unit test that asserts the wildcard path form reads the *built*
  * copy, so a hand-edit that breaks it fails the build rather than shipping.
+ *
+ * ## Two entry points here, and a third elsewhere
+ *
+ * The heading above says *three* entry points, and at the time it was written this config
+ * declared **two**. The content script is the third, and it is built by a **separate** config
+ * (`vite.content.config.ts`) because a Manifest V3 content script must be one classic script
+ * that resolves no module specifier — which `format: "es"` and `chunks/[name].js`, both used
+ * below, are the opposite of. The sentence is now true, and `package.json`'s `build` runs both
+ * so no command in this repository names only one of them.
  */
 export default defineConfig({
   root: __dirname,
@@ -43,6 +52,12 @@ export default defineConfig({
   plugins: [react()],
   build: {
     outDir: "dist",
+    // **`false`, and this changed when the second build was added.** `emptyOutDir: true`
+    // here would delete `content-script.js` on the next popup build — the second build writes
+    // into the same `dist`, so whoever runs last decides whether the extension loads at all.
+    // Each build cleans its own kind of output instead: the first emits HTML and ES modules,
+    // the second a single IIFE.
+    emptyOutDir: false,
     // **No hash and no content hash in a filename.** `manifest.json` names these
     // files literally, so a hashed name would require rewriting the manifest after
     // the bundle was written — which is exactly the step where a stale manifest and a

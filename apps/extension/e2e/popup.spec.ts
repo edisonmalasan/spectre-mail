@@ -41,6 +41,7 @@ import type { LaunchedExtension } from "./launch-extension";
 import { recordProviderTraffic, FIXTURE_IDS } from "./recorded-provider";
 import type { ProviderTraffic } from "./recorded-provider";
 import { servedStylesheet, stripGeneratedTokenBlocks } from "./served-stylesheet";
+import { clearStoredMailbox } from "./helpers/stored-mailbox";
 
 let extension: LaunchedExtension;
 let traffic: ProviderTraffic;
@@ -71,7 +72,7 @@ test.afterAll(async () => {
  */
 async function openPopup(options: Parameters<typeof recordProviderTraffic>[1] = {}): Promise<Page> {
   traffic = await recordProviderTraffic(extension.context, options);
-  await clearStoredMailbox();
+  await clearStoredMailbox(extension);
 
   const page = await extension.context.newPage();
   await page.goto(`chrome-extension://${extension.extensionId}/popup.html`);
@@ -80,25 +81,6 @@ async function openPopup(options: Parameters<typeof recordProviderTraffic>[1] = 
   // the read finished would let a spec read the popup mid-boot.
   await expect(page.getByRole("button", { name: "Create an address" })).toBeVisible();
   return page;
-}
-
-/**
- * Empty the extension's storage area.
- *
- * **`clear()` rather than removing the one key**, for the same reason
- * `packages/storage`'s `clearAll` removes the whole area: a narrower call would pass
- * every test written against today's single record and quietly stop clearing everything
- * the moment a later build added a second record kind.
- */
-async function clearStoredMailbox(): Promise<void> {
-  await extension.worker.evaluate(async () => {
-    const area = (
-      globalThis as unknown as {
-        chrome: { storage: { local: { clear(): Promise<void> } } };
-      }
-    ).chrome.storage.local;
-    await area.clear();
-  });
 }
 
 test.describe("the popup as an extension page", () => {
