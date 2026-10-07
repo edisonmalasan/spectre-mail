@@ -2730,8 +2730,8 @@ describe("architecture boundaries", () => {
     }
 
     // **And the rule itself**, which is the half that says something about the shipped code:
-    // `apps/extension/src/content-script/entry.ts` reaches storage through
-    // `local-area.ts` and `packages/storage`, and no other module names the global.
+    // `apps/extension/src/content-script/entry.ts` reaches the platform through
+    // `extension-platform.ts` and `packages/storage`, and no other module names the global.
     expect(chromeGlobalViolations()).toEqual([]);
   });
 
@@ -2752,7 +2752,14 @@ describe("architecture boundaries", () => {
 
       // Appended to the reader rather than replacing it, so the probe lands on a file that
       // really is the reader.
-      const readerPath = join(disposable.root, "local-area.ts");
+      //
+      // **The name is `extension-platform.ts`, and reading anything else here fails loudly.** It was
+      // `local-area.ts` until `in-page-mailbox`, and this control then failed with `ENOENT` — which
+      // is the good outcome and worth recording as one: renaming the file the allowance names is
+      // not something this suite can absorb silently. A control that quietly fell back to "any
+      // reader-looking file" would have kept passing while the exemption covered a path nothing
+      // shipped, which is the recorded defect of a list whose members are not referenced.
+      const readerPath = join(disposable.root, "extension-platform.ts");
       writeFileSync(readerPath, `${readFileSync(readerPath, "utf8")}\n${probe}`, "utf8");
 
       expect(chromeGlobalViolationsIn(disposable.root)).toEqual([]);

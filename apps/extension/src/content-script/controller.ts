@@ -261,7 +261,11 @@ export function startInPageIntegration(options: InPageOptions): () => void {
       return;
     }
 
-    const request: OutstandingRequest = { token: Symbol("create-mailbox"), field, ceiling: undefined };
+    const request: OutstandingRequest = {
+      token: Symbol("create-mailbox"),
+      field,
+      ceiling: undefined,
+    };
     outstanding = request;
     affordance.setLabel(AFFORDANCE_WAITING_LABEL);
     affordance.setPending(true);
@@ -277,10 +281,7 @@ export function startInPageIntegration(options: InPageOptions): () => void {
   }
 
   /** Dispatch the request, and do whatever its answer turns out to permit. */
-  async function readTheAnswer(
-    affordance: Affordance,
-    request: OutstandingRequest,
-  ): Promise<void> {
+  async function readTheAnswer(affordance: Affordance, request: OutstandingRequest): Promise<void> {
     let answer: CreateMailboxAnswer | null = null;
 
     try {

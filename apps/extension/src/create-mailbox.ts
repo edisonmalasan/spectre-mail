@@ -45,7 +45,13 @@
  * @module
  */
 
-import { createMailboxSession, isExpired, isFailed, isReady, isRestoreFailed } from "@spectre-mail/mailbox";
+import {
+  createMailboxSession,
+  isExpired,
+  isFailed,
+  isReady,
+  isRestoreFailed,
+} from "@spectre-mail/mailbox";
 import type { SessionState } from "@spectre-mail/mailbox";
 import type { Transport } from "@spectre-mail/providers";
 import type { SpectreStorage } from "@spectre-mail/storage";
@@ -82,9 +88,7 @@ export interface CreateMailboxDependencies {
  *
  * @param transport - How provider requests are performed. Production passes `extensionTransport`.
  */
-export function createExtensionMailboxOpener(
-  transport: Transport,
-): () => Promise<SessionState> {
+export function createExtensionMailboxOpener(transport: Transport): () => Promise<SessionState> {
   return async () => {
     const manager = createExtensionProviderManager(transport);
     const session = createMailboxSession(manager, extensionScheduler);

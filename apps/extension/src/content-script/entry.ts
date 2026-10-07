@@ -96,7 +96,9 @@ whenDomReady(() => {
  * place that figure could differ from the first.
  */
 async function askTheBackgroundToCreate(): Promise<CreateMailboxAnswer> {
-  return readCreateMailboxAnswer(await sendToBackground(CREATE_MAILBOX_REQUEST)) ?? {
-    kind: "notActedOn",
-  };
+  return (
+    readCreateMailboxAnswer(await sendToBackground(CREATE_MAILBOX_REQUEST)) ?? {
+      kind: "notActedOn",
+    }
+  );
 }
