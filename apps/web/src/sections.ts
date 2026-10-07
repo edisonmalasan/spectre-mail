@@ -113,6 +113,130 @@ export const REASONS: readonly Reason[] = [
 ];
 
 /**
+ * One label the preview shows, held against the extension popup's copy.
+ *
+ * **`key` is the popup copy entry this label must equal, and `label` is what the page prints.**
+ *
+ * They are two fields rather than one because the website deliberately does **not** import the
+ * popup's copy to render these. Importing would make `apps/web`'s build require
+ * `apps/extension`'s source tree, which would be the first shipped-source dependency between the
+ * two clients that this repository has; `design.md` D3 records the measurement. So the string is
+ * held here and the *equality* is enforced, which fails the build in both directions: a popup
+ * rename leaves `label` matching no popup entry, and a label invented here matches none either.
+ */
+export interface PreviewLabel {
+  /** The `popup-copy.ts` entry whose value this label must equal. */
+  readonly key: string;
+  /** What the page prints. A boundary assertion requires this to equal `POPUP_COPY[key]`. */
+  readonly label: string;
+}
+
+/** One region of the extension popup, as the preview describes it. */
+export interface PreviewRegion {
+  /** What the popup's region is for, in the page's own words. */
+  readonly does: string;
+  /** The popup copy entries this region renders, as labels. */
+  readonly labels: readonly PreviewLabel[];
+}
+
+/**
+ * The extension popup, described.
+ *
+ * ## What this section is, and what it deliberately is not
+ *
+ * `Extension preview` is the roadmap's fourth section and M7 slice 4's subject. It was **absent
+ * by requirement** while `apps/extension` was an empty placeholder: a preview of something the
+ * product has not built is a picture of a picture, and a panel promising one would be a promise
+ * the product had not made. M8 built the extension, so the absence became the false claim and the
+ * section is now required. The sentences of the old note that described the extension as unbuilt
+ * are **deleted rather than reworded** — they became false when the manifest landed, and a
+ * reworded version would read as current state.
+ *
+ * **It is a description, and it says so.** The figure below draws the popup's regions and its
+ * controls and **renders no interactive element at all**: not a disabled button, not
+ * `role="button"`. A preview containing a `Copy address` button that does nothing when pressed is
+ * the same fake-UI defect `extension-client` removed from the popup itself, which is a control
+ * reporting an action the product cannot take. `design.md` D2 records why a disabled control is
+ * not a compromise here.
+ *
+ * **It names no provider.** The extension reaches Mail.tm first and Guerrilla Mail behind it, and
+ * that is true; the page does not say so. `sections.spec.ts` asserts this page names no provider
+ * but the one it can reach, and that guard is worth more than a sentence about which provider
+ * answers first, which is a resilience detail rather than the capability a visitor is deciding
+ * about. `design.md` D4 records the reasoning and the guard's own stated reason.
+ *
+ * **It states no cadence and no interval**, for the reason the website's own inbox does not:
+ * `website-client` requires the page to state no cadence it cannot support, and the popup's
+ * count comes from a check somebody asked for.
+ *
+ * ## Why the labels are declared as key/label pairs
+ *
+ * Because the figure may only show strings the popup actually renders. Every label below is one
+ * `popup-copy.ts` entry, and a boundary assertion resolves each `key` and requires `label` to be
+ * its value, which is also how a label that became a `{token}` template or a function of the
+ * count is caught, from the extension's own data rather than from a filter written here.
+ */
+export const EXTENSION_PREVIEW: {
+  readonly heading: string;
+  readonly lede: string;
+  readonly caption: string;
+  readonly note: string;
+  readonly regions: readonly PreviewRegion[];
+} = {
+  // Basis: `page-composition` requires a region's heading to name what that region is for.
+  // Parallel with "What happens, in order" and "Why SpectreMail", and it names the subject
+  // rather than the benefit, because the benefit is the lede's job.
+  heading: "The extension, in this browser",
+  // Basis: `extension-client` - the popup's first milestone actions, all performed through the
+  // shared session. It names no provider; see the note above and `design.md` D4.
+  lede: "The same SpectreMail, as a Chromium extension. It creates an address from a panel in the toolbar and keeps it in the extension's own storage, separately from this page.",
+  // Basis: `extension-client` - the popup "SHALL report the provider's status" and "SHALL
+  // render what the session reports". The count comes from a check the user asked for, because
+  // "The background service worker carries no polling until its lifetime is measured" holds, so
+  // the caption states what the popup shows rather than what it might do later.
+  caption: "The popup, as it opens once it holds an address.",
+  // **Present tense, and no milestone is named.** There is no release workflow, no store
+  // listing, and no signed artifact in this repository, so there is nothing for a link to
+  // resolve to. `design.md` D5 records why this sentence exists rather than the section saying
+  // nothing: a region that previews an extension and never mentions obtaining it reads as an
+  // oversight, and an absence left undescribed is what gets filled in by whatever change
+  // touches the file next.
+  note: "It is built in this repository and loaded unpacked, so there is no store listing and no download.",
+  regions: [
+    {
+      // Basis: `extension-client` - the popup "SHALL offer to copy the address" and "SHALL show
+      // the provider that mailbox belongs to". The provider is deliberately unnamed here;
+      // `does` says the popup names it rather than printing a value this page would have to
+      // invent.
+      does: "It shows the address and the provider that answered, and copies the address when you ask.",
+      labels: [{ key: "copy", label: "Copy address" }],
+    },
+    {
+      // Basis: `extension-client` - the popup "SHALL render what the session reports" and
+      // "SHALL NOT render a status it computed itself", plus the requirement that where a
+      // fallback occurred the popup names the one it fell back from.
+      does: "It reports what the provider says when you ask, and names which one answered if it had to fall back.",
+      labels: [
+        { key: "status", label: "Provider status" },
+        { key: "unknown", label: "Not asked yet" },
+        { key: "askStatus", label: "Check provider" },
+      ],
+    },
+    {
+      // Basis: `extension-client` - the popup "SHALL show a count of messages obtained from a
+      // check the user asked for, because no background polling exists in this milestone". The
+      // second sentence is that same fact in the visitor's terms, and states no interval.
+      does: "It shows how many messages a check found. You ask for the check; nothing polls on its own.",
+      labels: [
+        { key: "inbox", label: "Inbox" },
+        { key: "empty", label: "No mail has arrived." },
+        { key: "check", label: "Check for mail" },
+      ],
+    },
+  ],
+};
+
+/**
  * What the page can and cannot do.
  *
  * **These four sentences are not new copy.** They are the existing limits list, moved from
@@ -143,20 +267,25 @@ export const LIMITS: readonly string[] = [
  * The page's regions, in the order it renders them.
  *
  * **The order is data so that it is a requirement that can be checked.** Two compositions with
- * the same four regions in a different order are different products, and the only way to
- * assert an order is to have it somewhere a reader — or a browser check — can see.
+ * the same five regions in a different order are different products, and the only way to assert
+ * an order is to have it somewhere a reader, or a browser check, can see.
  *
- * **The product is first, and it is the product.** The roadmap's first section is *Live
- * product hero* and the roadmap then says *"The product itself should remain the main hero"*;
- * both hold here because the first entry **is** the working address rather than a description
- * of one. `design.md` D1 records the alternative that was rejected for this.
+ * **The product is first, and it is the product.** The roadmap's first section is *Live product
+ * hero* and the roadmap then says *"The product itself should remain the main hero"*; both hold
+ * here because the first entry **is** the working address rather than a description of one.
+ * `design.md` D1 records the alternative that was rejected for this.
  *
- * **`Extension preview` is absent from this list, and that absence is specified** rather than
- * overlooked: `apps/extension` is an empty placeholder with no Manifest V3 manifest, so a
- * preview would depict nothing, and a panel promising one would be a promise the product has
- * not made. It is M7 slice 4's subject and slice 4 is blocked on M8.
+ * **`extension` sits between the reasons and the footer**, which is the fourth position in the
+ * roadmap's own five-section list. It is the last region before the limits, and that is where a
+ * description of a second client belongs: after what the product does and why, before what it
+ * cannot do.
+ *
+ * **This list has said four and now says five, and the requirement's title had been saying five
+ * since `website-sections` was promoted.** A count that lives only in a heading is a count
+ * nothing checks. It lives here now, next to `PageRegion` and the browser tier's DOM comparison,
+ * so the three cannot disagree.
  */
-export const PAGE_ORDER = ["product", "steps", "reasons", "footer"] as const;
+export const PAGE_ORDER = ["product", "steps", "reasons", "extension", "footer"] as const;
 
 /** One region of the page, as the order names it. */
 export type PageRegion = (typeof PAGE_ORDER)[number];
@@ -180,6 +309,7 @@ export const REGION_HOOKS: Readonly<Record<PageRegion, string>> = {
   product: "product",
   steps: "steps",
   reasons: "reasons",
+  extension: "extension",
   footer: "footer",
 };
 
