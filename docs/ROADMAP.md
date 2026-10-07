@@ -67,11 +67,37 @@ proposal **#79** (`5062afa`), Apply **#80** (`586d58a`), sync **#81** (`46ae462`
 **#76** (`5feee8f`, merge `b0376a8`), sync **#77** (`323d7a1`, merge `bbe1351`).
 
 **The cursor moves to M9, In-Page Email Integration.** M0 through M8 are now complete in scope, so
-M9 is the earliest incomplete milestone — and it is the milestone that **discharges M8's first
+M9 is the earliest incomplete milestone - and it is the milestone that **discharges M8's first
 recorded deferral**: the content script is M9's, so the extension's declared-absent surface stops
-being absent. **Nothing about M9 has begun, and this cursor is a progress ledger rather than
-permission to skip ahead** — `extension-client`'s requirement that the popup declare no content
-script and no side panel stands until the change that adds one amends it.
+being absent. `extension-client`'s requirement that the popup declare no content script and no side
+panel stands **only until the change that adds one amends it**, and that change is `in-page-address`,
+proposed on `docs/in-page-address-proposal`.
+
+**M9 is sliced, and the slicing is a dependency judgement rather than a preference.** The roadmap's
+behaviour block asks for five things on one click - create or select a mailbox, insert the address,
+fire the right events, stay compatible with controlled inputs, and associate the mailbox with the
+site - and the UX rules add a three-way choice on top. One change cannot carry that honestly, so:
+
+- **Slice 1, `in-page-address` (PROPOSED).** The content script exists, offers its affordance when an
+  email field takes focus, and inserts the address **this device already holds**. It reads storage
+  directly rather than asking the service worker, so it depends on **no platform behaviour this
+  repository has not measured** - no cross-origin request, no message round trip, no assumption about
+  whether a terminated worker wakes.
+- **Slice 2, `in-page-mailbox`.** Creating a mailbox from a page. This is where the worker's
+  unmeasured lifetime and MV3's rule that a content script's `fetch` obeys the **page's** CORS policy
+  become load-bearing, and both must be measured before it is designed.
+- **Slice 3, `site-associations`.** `hostname -> mailbox`. A **second stored record kind**, and
+  `spectre-storage`'s contract says in its own opening that it has room for one - so this slice has
+  to answer a contract question, not only a client one.
+
+The order is the project's own stated rule applied to a milestone: **build a layer only once the one
+below it exists and is verified.** Detection and insertion are below creation and below the site
+mapping, and neither of the latter two can be verified honestly until the first exists.
+
+**Two absences are deliberate and will be asserted**, rather than shipped as controls that cannot
+act: **no affordance when this device holds no stored mailbox** (slice 2 is what can create one), and
+**no affordance on a field that already holds text** (the roadmap's *"never overwrite existing text
+without user action"*, answered by absence rather than by a replacement gesture).
 
 **Its archive ran with `--skip-specs`, because the sync stage had already promoted all four
 deltas** — running it without that flag applies the requirements twice. `openspec validate
