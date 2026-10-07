@@ -1849,10 +1849,15 @@ the reason 44 storage tests were never going to find it.
 
   **And slice 4's Apply run was green on its first attempt too — and this one had a falsification
   pass behind it, which is the difference worth recording.** Runs `37596230069` (Apply, PR
-  **#80**) and `37597429311` (sync, PR **#81**) both passed all three jobs on the first attempt.
+  **#80**), `37597429311` (sync, PR **#81**) and `37598252464` (archive, PR **#82**) all passed all
+  three jobs on the first attempt, and **all three carried the same 37 website cases** — so this is
+  three executions of one suite on two runners, which is the most repeatability evidence this
+  repository holds about any browser change.
   **It is recorded against the same pattern rather than as a reversal of it**: a first CI run that
   is green is a fact about one execution, slice 1's was red twice for three separate reasons, and
-  **the only instrument that has ever distinguished the two is re-running.** What is different is
+  **the only instrument that has ever distinguished the two is re-running** — which is why this
+  paragraph names three runs instead of one.
+  What is different is
   where the work happened — slice 4's browser cases were authored, mutation-tested to 16 of 18
   caught, and had **two whole-page assertions found false by their own change before the push**,
   which is why `Accessibility.queryAXTree` exists and why both rescoped sweeps ship a negative
