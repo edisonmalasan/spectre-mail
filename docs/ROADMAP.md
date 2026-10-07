@@ -18,24 +18,36 @@
 > source of truth — `openspec/specs/` and the active OpenSpec change artifacts are.
 > Reconcile this block against Git and OpenSpec before trusting it in a later session.
 >
-> `openspec/specs/` holds **eleven** capabilities: `provider-abstraction` (promoted
+> `openspec/specs/` holds **thirteen** capabilities: `provider-abstraction` (promoted
 > from `provider-role-decision`), `monorepo-foundation` (M1), `shared-domain-model`
 > (M2), `provider-adapters` (M3), `mail-parsing` (M4), `build-and-verification`
 > (M1), `mailbox-session` (M5 slice 1), `website-client` (M5 slice 1),
-> `spectre-storage` (M6 slice 1), `browser-verification`, and **`visual-system`**
-> (new, promoted at the `spectral-swiss-foundation` sync stage — M7 slice 1). Counted
-> mechanically at each sync and again after each archive, they hold **115 requirements
-> and 314 scenarios** in total: 110/300 before this promotion, plus `visual-system`'s
-> **5 requirements and 14 scenarios**, with `website-client` at **20 / 66** after the
-> rename and amendment its delta carried.
+> `spectre-storage` (M6 slice 1), `browser-verification`, `visual-system` (M7 slice
+> 1), `page-composition` (M7 slice 3), and **`extension-client`** (new, promoted at the
+> `extension-foundation` sync stage - M8). Counted mechanically at each sync and again
+> after each archive, they hold **135 requirements and 381 scenarios** in total:
+> 124/351 before this promotion, plus `extension-client`'s **6 requirements and 17
+> scenarios** and the **+5 requirements / +30 scenarios** this change's deltas carried
+> into three existing capabilities.
 >
-> **That figure was stale twice before the last correction**, and the drift was the same
-> shape both times: a promotion landed and the count was not moved. It read 93
-> requirements and 232 scenarios, which was the figure at slice 1's sync — so it missed
+> **The per-capability deltas at M8, each counted and not transcribed:**
+> `build-and-verification` 9/21 -> **10/28**, `provider-abstraction` 9/18 -> **9/20**,
+> `spectre-storage` 10/30 -> **12/36**, and `extension-client` new at **6/17**.
+>
+> **That total figure was stale twice before the first correction**, and the drift was the
+> same shape both times: a promotion landed and the count was not moved. It read 93
+> requirements and 232 scenarios, which was the figure at slice 1's sync - so it missed
 > all of slice 2 (four requirements added, three amended) *and* all of slice 3 (two
 > requirements, eighteen scenarios). Counting is now re-run mechanically at every sync
 > rather than transcribed, and **re-run once more after the archive**, because archiving
 > is a move and a move is the operation most likely to drop a file.
+>
+> **Re-run after this archive, as the paragraph above requires, and it is recorded here
+> because the archive moved 9 files and every one was re-checked rather than trusted:**
+> all nine archived files are **byte-identical to their pre-archive copies by SHA-256**
+> (recorded *before* the move, compared after), and all **13 requirement blocks** are
+> byte-identical to their promoted counterparts - re-verified against the **archived
+> copies**, since a move is the operation most likely to quietly drop a file.
 >
 > M0's own capability spec was archived with
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
@@ -48,17 +60,33 @@ verified (with its verification-pass repairs merged as PR **#64**), synced (**#6
 (`motion-and-reduced-motion`) is applied, verified, synced, and ARCHIVED**, merged as
 proposal **#67**, Apply **#68**, sync **#69**, **and its archive PR number is recorded at
 the archive stage, as every other slice's is.**
-The current objective is **M8 — Extension Foundation**, **proposed** as `extension-foundation` on
-branch `docs/extension-foundation-proposal` (merged as PR **#75**, commit `5ec37c5`) and **applied**
-on `feat/extension-foundation`. **Slice 4, the `Extension preview`, stays blocked on
-M8 and stays unstarted** — but M8 now exists, so the block is a scheduling question rather than a
-missing milestone, and it is **the next slice to schedule**.
+**M8 — Extension Foundation is complete in scope**, applied, verified, synced, and **ARCHIVED** at
+`openspec/changes/archive/2026-10-07-extension-foundation/`. Proposal PR **#75** (`5ec37c5`), Apply
+**#76** (`5feee8f`, merge `b0376a8`), sync **#77** (`323d7a1`, merge `bbe1351`).
 
+**Its archive ran with `--skip-specs`, because the sync stage had already promoted all four
+deltas** — running it without that flag applies the requirements twice. `openspec validate
+extension-foundation --type change --strict` now fails with *"Change must have at least one
+delta"*, which is OpenSpec 1.13.2's behaviour for a change that is no longer active and is
+**not** data loss: `openspec list` reports **No active changes**, and the two checks that still
+mean something after an archive both pass — `openspec validate --specs --strict` at **13 passed,
+0 failed**, and the byte-for-byte comparison of all 13 archived requirement blocks against the
+promoted specs.
+
+**Slice 4, the `Extension preview`, is the next slice to schedule and has not begun.** M7's exit
+criteria are therefore still not fully met, and the block has **changed character**: it was
+waiting on an unbuilt client and is now waiting only on a scope decision. Nothing about it is
+blocked on missing infrastructure.
+
+**M7's exit criteria are still not fully met**, because slice 4 is not deferred-and-forgotten — it
 **M7's exit criteria are still not fully met**, because slice 4 is not deferred-and-forgotten — it
 is **blocked on a milestone that had not been started when the decision was taken**, and
 `apps/extension` was still an empty directory with no MV3 manifest. The maintainer has since
 decided to **build M8 first**, which is the option that unblocks slice 4 rather than deciding
-slice 4's fate by fiat, and **no M7 slice 4 work has begun.**
+slice 4's fate by fiat, and **no M7 slice 4 work has begun.** **That decision has now been carried
+out and M8 is archived**, so this paragraph records what the block *was* when it was taken rather
+than what it is — **which is why the paragraph above it exists and this one is kept only as the
+history of the decision.**
 
 **M8 is the first milestone whose subject is a second client rather than a new layer**, so its
 real deliverable is a proof that the packages beneath `apps/web` can be consumed by something that

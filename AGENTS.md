@@ -1,5 +1,20 @@
 # AGENTS.md
 
+> **Current milestone state (reconciled against Git and OpenSpec 2026-10-07): M0–M6 and M8 are
+> complete in scope; M7 slices 1–3 are archived and slice 4 is not started.** M8
+> (`extension-foundation`) is applied, verified, synced, and **archived** at
+> `openspec/changes/archive/2026-10-07-extension-foundation/` — proposal **#75**, apply **#76**,
+> sync **#77**. `openspec list` reports **No active changes** and
+> `openspec validate --specs --strict` is **13 passed, 0 failed**, across **13 capabilities
+> holding 135 requirements and 381 scenarios**. **The next slice to schedule is M7 slice 4,
+> the `Extension preview`, and no work on it has begun** — its original block was an unbuilt
+> `apps/extension`, which M8 delivered, so what remains is a scope decision rather than missing
+> infrastructure.
+>
+> **Read the milestone sections below as history rather than as current state.** They are kept
+> in the order the milestones happened and each records the measured counts as they stood at
+> its own stage; the counts in **Setup & commands** are the current ones.
+
 
 
 ## Project overview
