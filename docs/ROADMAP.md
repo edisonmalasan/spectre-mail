@@ -53,13 +53,29 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor: M9 - In-Page Email Integration, slice 1 (`in-page-address`) applied, verified and SYNCED; its archive follows.**
-**M0 through M8 are complete in scope; M9 has three slices and the first is at its Sync stage's end.**
+**Roadmap cursor: M9 - In-Page Email Integration, slice 1 (`in-page-address`) applied, verified, SYNCED and ARCHIVED; slice 2 (`in-page-mailbox`) is next.**
+**M0 through M8 are complete in scope; M9 has three slices and the first is closed.**
 **Its sync promoted the delta, so the promoted specs moved 13 → 14 capabilities, 136 → 143
 requirements and 390 → 408 scenarios** - the fourteenth is `in-page-integration` at 7 requirements /
 18 scenarios. Every promoted block was copied programmatically from the delta rather than retyped,
 which makes the byte-identity `AGENTS.md` asks for a property of the promotion instead of a
-comparison performed afterwards.
+comparison performed afterwards. The archive then re-verified it: **all five change files are
+SHA-256 identical to digests taken before the archive command ran, and all eight promoted blocks are
+identical again after the move** - archiving is a move, and a move is the operation most likely to
+quietly drop a file.
+
+**One archive defect worth naming, and it is a proposal-stage omission rather than an archive one.**
+`openspec/changes/archive/2026-10-08-in-page-address/` has **no `.openspec.yaml`**, and **every
+earlier archived change in this repository has one** (two lines: `schema: spec-driven` and a
+`created:` date). **The archive dropped nothing** - `git log -- 'openspec/changes/in-page-address/.openspec.yaml'`
+is empty and the proposal PR's own diff (#84) added four files and no yaml - so the change was
+created without the file `openspec new change` normally writes, and the archive faithfully moved
+what existed. **No measured consequence**, and that was checked rather than assumed: `openspec list`
+reports *No active changes found*, `openspec validate --specs --strict` is 14/0, and a **sibling**
+archived change is equally unaddressable by `openspec status --change`, so the yaml is not what makes
+an archived change invisible. What is lost is the audit trail the other archives keep. **It was not
+fixed by hand**, because hand-writing a generated artefact is what this repository's boundary rules
+forbid, and no command regenerates it once the change has moved.
 
 **M7 - Spectral Swiss Design Pass - is complete in scope**: slice 1 (`spectral-swiss-foundation`)
 applied, verified (with its verification-pass repairs merged as PR **#64**), synced (**#65**), and
@@ -84,8 +100,9 @@ behaviour block asks for five things on one click - create or select a mailbox, 
 fire the right events, stay compatible with controlled inputs, and associate the mailbox with the
 site - and the UX rules add a three-way choice on top. One change cannot carry that honestly, so:
 
-- **Slice 1, `in-page-address` (APPLIED, VERIFIED and SYNCED - proposal PR **#84**, Apply **#85**;
-  archive follows).** The content script exists, offers its affordance when an email field takes focus, and
+- **Slice 1, `in-page-address` (APPLIED, VERIFIED, SYNCED and ARCHIVED at
+  `openspec/changes/archive/2026-10-08-in-page-address/` - proposal PR **#84**, Apply **#85**, sync
+  **#86**, archive **#87**).** The content script exists, offers its affordance when an email field takes focus, and
   inserts the address **this device already holds**. It reads storage directly rather than asking
   the service worker, so it depends on **no platform behaviour this repository has not measured** -
   no cross-origin request, no message round trip, no assumption about whether a terminated worker

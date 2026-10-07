@@ -1,15 +1,17 @@
 # AGENTS.md
 
 > **Current milestone state (reconciled against Git and OpenSpec 2026-10-08): M0-M8 are complete in
-> scope, and M9's first slice is applied, verified and SYNCED; its archive follows.** M7's four
+> scope, and M9's first slice is applied, verified, synced and ARCHIVED; its slice 2 follows.** M7's four
 > slices are archived and M8
 > (`extension-foundation`) is applied, verified, synced, and archived at
 > `openspec/changes/archive/2026-10-07-extension-foundation/` - proposal **#75**, apply **#76**,
 > sync **#77**. **M7 slice 4 (`extension-preview`) is applied, verified, synced and ARCHIVED** at
 > `openspec/changes/archive/2026-10-07-extension-preview/` - proposal **#79** (`5062afa`), apply
 > **#80** (`586d58a`), sync **#81** (`46ae462`), archive **#82**. **`in-page-address` (M9 slice 1)
-> is applied, verified and synced** - proposal **#84**, apply **#85** - **and M9's slices 2
-> (`in-page-mailbox`) and 3 (`site-associations`) have not begun.** **The sync promoted the delta,
+> is applied, verified, synced and ARCHIVED** at
+> `openspec/changes/archive/2026-10-08-in-page-address/` - proposal **#84**, apply **#85**, sync
+> **#86**, archive **#87** - **and M9's slices 2 (`in-page-mailbox`) and 3 (`site-associations`)
+> have not begun.** **The sync promoted the delta,
 > so the promoted specs now hold what it asked for:** `openspec validate --specs --strict` is
 > **14 passed, 0 failed**, across **14 capabilities holding 143 requirements and 408 scenarios** -
 > measured by counting `### Requirement:` and `#### Scenario:` across `openspec/specs/`, not
@@ -18,7 +20,10 @@
 > **6 requirements / 20 scenarios**, unchanged in requirement count because a `MODIFIED` delta
 > replaces a block rather than adding one. **Each promoted block was verified byte-identical to the
 > delta it came from, by copying the blocks programmatically rather than retyping them** - so
-> identity is structural rather than a comparison performed afterwards.
+> identity is structural rather than a comparison performed afterwards - **and re-verified against
+> the ARCHIVED copies after the move**, because archiving is a move and a move is the operation most
+> likely to quietly drop a file: all five files SHA-256 identical to their pre-archive digests, and
+> all eight promoted blocks identical after the move, by a 23-check read-only verifier.
 >
 > **Read the milestone sections below as history rather than as current state.** They are kept
 > in the order the milestones happened and each records the measured counts as they stood at
