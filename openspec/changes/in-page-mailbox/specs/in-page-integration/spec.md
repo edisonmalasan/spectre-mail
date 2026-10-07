@@ -224,3 +224,27 @@ on the strength of a report the extension has already told them is unconfirmed.
 - **THEN** the page SHALL report a refusal
 - **AND** it SHALL report the provider's own words for it
 - **AND** it SHALL NOT report a success
+
+#### Scenario: An answer arrives after the wait already passed
+
+- **WHEN** the page's wait for an answer passes with no answer
+- **AND** this device holds no stored mailbox
+- **AND** the extension then answers that a mailbox was created
+- **THEN** the page SHALL insert nothing
+- **AND** it SHALL report nothing further
+- **AND** it SHALL record the created address as this device's mailbox
+- **AND** a later field focus SHALL offer that address rather than a further creation
+
+**Amendment, recorded during apply (2026-10-08), by `in-page-mailbox`.** This scenario was **not in
+the proposal**, and the proposal's own scenarios had a hole: "the wait passes and nothing was stored"
+ends with the page reporting that it could not confirm and its affordance remaining available, and
+nothing said what happens when the request is answered *afterwards*. That is not a corner — a provider
+round trip is not bounded by anything this product decided, which is the entire reason the wait has a
+ceiling, so the late answer is the case the ceiling exists to create. Two behaviours were written
+during apply and are now stated here because they are product decisions rather than implementation
+detail. **The page inserts nothing, having already withdrawn its offer** — inserting afterwards would
+be acting on a control the page had already said it could not stand behind. **And it records the
+address anyway**, because the worker persists a mailbox *before* it answers (D3), so the mailbox is
+real and is this device's; a controller that learned the address only by inserting it would offer to
+create a **second** mailbox on the next field focus, which the cost clause above already treats as
+the price of permitting a further request.

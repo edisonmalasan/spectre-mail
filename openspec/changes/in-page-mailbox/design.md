@@ -1,4 +1,4 @@
-# Design
+﻿# Design
 
 ## Context
 
@@ -224,6 +224,38 @@ one-live-call rule), or unit coverage only. F establishes none of those are need
 tier routes provider traffic, and a case whose assertion only holds when the worker's request was
 fulfilled would be a case that silently depends on a live provider the rest of the time.
 
+### D10 - A late answer inserts nothing, and the address is still recorded
+
+**Chosen:** after the ceiling has passed and the page has reported it could not confirm, an answer
+that arrives afterwards writes nothing into the field. The created address is recorded as this
+device's mailbox, so the next field focus offers it rather than offering a creation.
+
+**This decision did not exist when the change was proposed, and the gap it closes was in the
+proposal's own scenarios.** D5 names a ceiling precisely because a provider round trip is not bounded
+by anything this product decided - which means a late answer is *the case the ceiling exists to
+create*, not an edge around it. "The wait passes and nothing was stored" ended with the affordance
+remaining available and said nothing about what a subsequent answer does.
+
+**Two halves, and the second is the one that is easy to leave out.** Inserting nothing is the
+obvious half: the page has already told a person it could not stand behind the request, and writing
+into the field afterwards is acting on an offer it withdrew. **Recording the address anyway is the
+half that costs something to get right.** D3 has the worker persist a mailbox *before* it answers,
+so a late `created` answer describes a mailbox that is real and is this device's. A controller that
+learned the address only by inserting it would offer to create a **second** mailbox on the next
+field focus - and the requirement already states the cost of permitting a further request, so this
+would be a second way of paying it, silently, on the path nobody would think to check.
+
+**Considered and rejected: insert on the late answer too.** It is the more helpful behaviour when the
+field still has focus and is empty, and it is still wrong: the page has said "could not confirm", and
+an address appearing afterwards without explanation is the product contradicting itself in the one
+place there is no region to explain the contradiction in.
+
+**Considered and rejected: ignore the late answer entirely.** Correct on the field, and wrong on the
+device - it leaves a stored mailbox the controller does not know about, which is the same "create a
+second mailbox" defect by a shorter route.
+
+The amendment is in `specs/in-page-integration/spec.md`, recorded in place with the reason.
+
 ### Risks / Trade-offs
 
 - **[The worker is terminated and never wakes, so a page waits out its ceiling]** → the page's
@@ -242,6 +274,18 @@ fulfilled would be a case that silently depends on a live provider the rest of t
 - **[`docs/PROVIDERS.md` grows a section asserting platform behaviour]** → each row states what it
   does **not** establish, as §4.2 does: nothing about a live provider, nothing about a real provider's
   latency, nothing about how long the worker survives.
+
+
+- **[The worker's absence rule listed identifiers it has never mentioned]**  → `createMailboxSession`
+  and `createExtensionProviderManager` had been passing by import indirection, so the rule could not
+  fail however the worker behaved - the thirty-first recorded instance of a check narrower than its
+  rule, and the first that was *true while guarding nothing*. It now reads the property the
+  requirement was amended to name: neither the worker nor the module that performs the work may
+  declare a module-scope binding, because that is the only shape a value surviving a request can take.
+- **[The renamed module's boundary control now fails loudly on a rename]**  → it copied the reader
+  by its old name and stopped with `ENOENT`, which is the outcome worth having. A control that fell
+  back to "any reader-shaped file" would have kept passing while the exemption covered a path nothing
+  shipped.
 
 ## Migration Plan
 

@@ -457,6 +457,63 @@ describe("when the wait passes", () => {
     expect(button()?.disabled).toBe(false);
   });
 
+  it("reports a read that rejected, and never as a read that found nothing", async () => {
+    vi.useFakeTimers();
+
+    // **A framing this case was first written with, and it turned out to be impossible.** It asserted
+    // that a device already holding a mailbox would keep offering *that* address after a rejected
+    // read, distinguishing "the read failed" from "nothing is stored" by what the next focus offered.
+    // It cannot be staged: `address` is set from the boot read or from a `created` answer, and while a
+    // creation is outstanding neither has happened - so the next focus offers creation either way, and
+    // the distinction the assertion rested on does not exist. What is left is the property that does,
+    // and it is worth having.
+    const onBlocked = vi.fn();
+    document.body.replaceChildren();
+    const createMailbox = vi.fn(() => Promise.resolve<CreateMailboxAnswer>({ kind: "notActedOn" }));
+    const loadMailbox = vi.fn(async (): Promise<Mailbox | null> => null);
+    const stop = startInPageIntegration({
+      document,
+      storage: { loadMailbox },
+      createMailbox,
+      onBlocked,
+    });
+    started.push(stop);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const answer = deferred<CreateMailboxAnswer>();
+    const target = field();
+    createMailbox.mockReturnValue(answer.promise);
+    button()?.click();
+    await Promise.resolve();
+
+    // **The read rejects, where the previous case's returned `null`.** Same control, same outcome -
+    // and that is the point being recorded rather than papered over: the copy is the same *sentence*,
+    // because "could not confirm" is true of both, and the difference between them is not something a
+    // person inside a stranger's page can act on differently.
+    loadMailbox.mockRejectedValue(new Error("the read failed"));
+
+    await vi.advanceTimersByTimeAsync(IN_PAGE_CREATE_CEILING_MS);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(target.value).toBe("");
+    expect(button()?.textContent).toBe(AFFORDANCE_UNCONFIRMED_LABEL);
+
+    // **The rejection is reported rather than swallowed, and that is where the two are actually kept
+    // apart.** The page has nowhere to show it - there is no error region of this product inside
+    // somebody else's form - so `entry.ts` routes both of its own refusals into this callback
+    // instead, and the browser tier asserts the absence of a control that a refusal produces. A
+    // rejection folded into "nothing stored" would be indistinguishable from success in every tier
+    // this repository has.
+    expect(onBlocked).toHaveBeenCalledWith("the read failed");
+
+    // **And the request did happen**, so nothing here is a case of no request having been made - which
+    // is what makes "could not confirm" the right sentence rather than a refusal of a request that
+    // never existed.
+    expect(createMailbox).toHaveBeenCalledTimes(1);
+  });
+
   it("acts on nothing when a late answer arrives after the wait already passed", async () => {
     vi.useFakeTimers();
 

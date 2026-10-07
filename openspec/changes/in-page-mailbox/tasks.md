@@ -1,4 +1,4 @@
-# Tasks
+﻿# Tasks
 
 Each group lands the tests and documentation its own work calls for. Nothing is deferred to a final
 testing group, because a group that first exercises an earlier group's work makes the failures
@@ -12,39 +12,39 @@ cascade back through everything in between.
 
 ## 2. The extension's platform seam
 
-- [ ] 2.1 `git mv apps/extension/src/local-area.ts` to `extension-platform.ts`, keeping the storage-area read and its reasoning, and update every importer. Verify `pnpm typecheck` passes and no reference to the old path remains.
-- [ ] 2.2 Add a narrow messaging seam to that module: send a request, and register a removable handler. Verify neither the worker nor the content script names the platform global, by reading them rather than by inspection of the diff.
-- [ ] 2.3 Retarget `CHROME_PLATFORM_READER` to the new filename, keeping the rule's `chrome` identifier pattern and its negative control. Verify by planting a probe at a **fresh path** in the real tree that the rule reports it by name, and that removing the probe leaves the suite green.
-- [ ] 2.4 Unit tests for the seam: the platform read reports absent rather than throwing where there is none; a registered handler can be removed; the module is the only one reaching the global. Verify each fails when its subject is broken.
+- [x] 2.1 `git mv apps/extension/src/local-area.ts` to `extension-platform.ts`, keeping the storage-area read and its reasoning, and update every importer. Verify `pnpm typecheck` passes and no reference to the old path remains.
+- [x] 2.2 Add a narrow messaging seam to that module: send a request, and register a removable handler. Verify neither the worker nor the content script names the platform global, by reading them rather than by inspection of the diff.
+- [x] 2.3 Retarget `CHROME_PLATFORM_READER` to the new filename, keeping the rule's `chrome` identifier pattern and its negative control. Verify by planting a probe at a **fresh path** in the real tree that the rule reports it by name, and that removing the probe leaves the suite green.
+- [x] 2.4 Unit tests for the seam: the platform read reports absent rather than throwing where there is none; a registered handler can be removed; the module is the only one reaching the global. Verify each fails when its subject is broken.
 
 ## 3. The request, and the answer that may not be one
 
-- [ ] 3.1 A shared module declaring the request and an answer as a discriminated union: created, refused, not stored, not acted on. Each refusal a named variant carrying the provider's own words, never a bare string. Verify both the worker and the content script can import it without either importing the other.
-- [ ] 3.2 Narrow the platform's untyped answer on the sending side; an unrecognised shape degrades to *no answer* rather than to a claim. Verify a reply of the right JSON type but the wrong shape is refused, and that refusing it produces no insertion.
-- [ ] 3.3 Unit tests for every variant and every malformed reply, including one that is valid JSON with an unknown discriminant.
+- [x] 3.1 A shared module declaring the request and an answer as a discriminated union: created, refused, not stored, not acted on. Each refusal a named variant carrying the provider's own words, never a bare string. Verify both the worker and the content script can import it without either importing the other.
+- [x] 3.2 Narrow the platform's untyped answer on the sending side; an unrecognised shape degrades to *no answer* rather than to a claim. Verify a reply of the right JSON type but the wrong shape is refused, and that refusing it produces no insertion.
+- [x] 3.3 Unit tests for every variant and every malformed reply, including one that is valid JSON with an unknown discriminant.
 
 ## 4. The worker's answer to a creation request
 
-- [ ] 4.1 A handler that builds its own session per request, opens, and persists before it answers. Verify over a recording transport that the mailbox reaches storage through the shared storage contract and not by a direct platform write.
-- [ ] 4.2 Answer on every path: created, provider refusal carrying the provider's own words, a failure to persist, and an unrecognised message. Verify the persist-failure answer carries no address, so nothing downstream can treat it as one.
-- [ ] 4.3 Retain nothing after answering. Verify by a unit assertion on the module's own state **and** by the browser case in 7.6, since a unit assertion about a module-level variable cannot see a context that was never asked.
-- [ ] 4.4 Unit tests that a second request creates a mailbox independently of the first, over a recording transport with a positive control that does issue a request.
-- [ ] 4.5 Assert the worker still schedules no repeated request and creates no alarm, extending the existing `service-worker.test.ts` assertions rather than replacing them.
+- [x] 4.1 A handler that builds its own session per request, opens, and persists before it answers. Verify over a recording transport that the mailbox reaches storage through the shared storage contract and not by a direct platform write.
+- [x] 4.2 Answer on every path: created, provider refusal carrying the provider's own words, a failure to persist, and an unrecognised message. Verify the persist-failure answer carries no address, so nothing downstream can treat it as one.
+- [x] 4.3 Retain nothing after answering. Verify by a unit assertion on the module's own state **and** by the browser case in 7.6, since a unit assertion about a module-level variable cannot see a context that was never asked.
+- [x] 4.4 Unit tests that a second request creates a mailbox independently of the first, over a recording transport with a positive control that does issue a request.
+- [x] 4.5 Assert the worker still schedules no repeated request and creates no alarm, extending the existing `service-worker.test.ts` assertions rather than replacing them.
 
 ## 5. A scheduler that works where there is no `window`
 
-- [ ] 5.1 Change the extension's scheduler to resolve its timer without assuming a `window`, keeping the reason for naming the receiver explicitly. Verify the popup path still schedules and cancels through the same module.
-- [ ] 5.2 A unit test driving the scheduler with no `window` present. Verify it fails against the current implementation, which is the point of writing it.
+- [x] 5.1 Change the extension's scheduler to resolve its timer without assuming a `window`, keeping the reason for naming the receiver explicitly. Verify the popup path still schedules and cancels through the same module.
+- [x] 5.2 A unit test driving the scheduler with no `window` present. Verify it fails against the current implementation, which is the point of writing it.
 
 ## 6. The creation offer, inside somebody else's page
 
-- [ ] 6.1 The affordance gains wording for the three states it can be in — offering to create, waiting, and what it could not confirm — and reuses slice 1's styling with **no new design token and no new motion**. Verify `packages/ui` still reports 38 tests.
-- [ ] 6.2 The controller offers creation when this device holds no address, and the insertion offer unchanged when it holds one. Verify each by the control's own accessible name, not by the presence of a button.
-- [ ] 6.3 The controller holds the control while an answer is outstanding and removes it once the answer arrives, and otherwise still removes it on focus change. Verify the outstanding case removes it when the answer lands rather than persisting.
-- [ ] 6.4 One request per activation: a second activation while one is outstanding causes no second request. Verify by counting requests at the seam, not by counting renders.
-- [ ] 6.5 An answer carrying an address is inserted only if the field still holds no text. Verify the text-acquired case inserts nothing.
-- [ ] 6.6 On no answer within the wait, the controller re-reads this device's stored mailbox and acts on the read: a mailbox is inserted, and none is reported as unconfirmed rather than as failed. Verify both arms, and that a read which **rejects** is not treated as a read that found nothing.
-- [ ] 6.7 Unit tests for every state above, including the refusal wording arriving from the provider verbatim.
+- [x] 6.1 The affordance gains wording for the three states it can be in — offering to create, waiting, and what it could not confirm — and reuses slice 1's styling with **no new design token and no new motion**. Verify `packages/ui` still reports 38 tests.
+- [x] 6.2 The controller offers creation when this device holds no address, and the insertion offer unchanged when it holds one. Verify each by the control's own accessible name, not by the presence of a button.
+- [x] 6.3 The controller holds the control while an answer is outstanding and removes it once the answer arrives, and otherwise still removes it on focus change. Verify the outstanding case removes it when the answer lands rather than persisting.
+- [x] 6.4 One request per activation: a second activation while one is outstanding causes no second request. Verify by counting requests at the seam, not by counting renders.
+- [x] 6.5 An answer carrying an address is inserted only if the field still holds no text. Verify the text-acquired case inserts nothing.
+- [x] 6.6 On no answer within the wait, the controller re-reads this device's stored mailbox and acts on the read: a mailbox is inserted, and none is reported as unconfirmed rather than as failed. Verify both arms, and that a read which **rejects** is not treated as a read that found nothing.
+- [x] 6.7 Unit tests for every state above, including the refusal wording arriving from the provider verbatim.
 
 ## 7. The browser tier, offline, against the built extension
 
