@@ -432,6 +432,72 @@ every 30; `packages/mailbox`'s `INBOX_POLL_PROMPT_MS` of 5 000 is a *page*
 cadence. Whoever schedules background polling inherits an unanswered question,
 and it is not one this file answers.
 
+### 4.2 Content-script facts, measured before the in-page milestone was built (2026-10-07)
+
+Measured while `in-page-address` (M9 slice 1) was still at proposal stage, because two of its
+decisions rested on assumptions written as if they were facts. Chromium (Playwright 1.63.0),
+unpacked, against a throwaway probe whose only service worker exists so the extension loads at all.
+
+| Question | Measured answer | What it does **not** establish |
+|---|---|---|
+| Does a declared content script need a matching `host_permissions` entry to be injected? | **No.** `matches: ["http://127.0.0.1/*"]` injected with `host_permissions` left at only the two provider origins | Nothing about a page served over HTTPS. The probe origin is plain HTTP on loopback. |
+| Can a content script read `chrome.storage.local`? | **Yes**, on the `storage` permission alone — read *and* write, value read back through the platform API | Nothing about the `sync` area, and nothing about whether a large record behaves the same. |
+| Can a content script read a page's JavaScript globals? | **No.** Its `globalThis` is the **isolated world**; a value the page assigned was invisible, *including one assigned before the content script ran at all* | Nothing about the DOM, which is shared — that half is the channel this repository uses. |
+| Does a plain `input.value = x` reach a React controlled input's state? | **Yes, on React 19.3.0** — the prototype's own setter was not required | **Nothing about any other framework.** A framework that keeps its own value tracker is exactly the case where direct assignment fails, and none has been measured. |
+| Do the dispatched events matter? | **They are the whole mechanism.** Assigning the value and dispatching nothing left React's state empty while the field painted the address | Nothing about a framework listening for some third event. |
+| Does a shadow root keep a page's own styles out? | **Yes**, and demonstrably: the fixture's hostile `button { display: none !important }` computed `display: none` on the page's own button while the shadow button computed `inline-block` | **Nothing about how anything looks.** These are computed values, not rendered pixels. |
+
+**Three harness defects found while measuring this, each of which produced a confident wrong answer
+before being caught.** They are recorded because the shape is the one this repository keeps hitting.
+
+- **Reading a page global from the content script** made every arm of the insertion measurement return
+  `null`, *including the arm read before any insertion*, which should have been the empty string. Read
+  as "React did not observe the insertion", that inverts the truth **and** makes a mechanism that is
+  not load-bearing look essential.
+- **A stylesheet that was served but never linked** made "the page's styles do not reach the
+  affordance" true for the wrong reason. The control that fixed it is the page's *own* button
+  reporting `display: none`.
+- **`run_at: document_idle` fires after `DOMContentLoaded`**, so a probe listening for that event
+  never fired. The first run reported "no affordance" — a platform-shaped conclusion from a listener
+  that was registered too late.
+
+**One observation here is explicitly not a product fact.** The fixture's plain input received
+`input, input, change, change`. That is React `StrictMode` double-invoking effects in development, not
+a fact about how anything dispatches events.
+
+### 4.3 The §4.2 probe's own stated gap, closed by the built extension's own tier
+
+§4.2's first row carries a limitation written deliberately: *"Nothing about a page served over
+HTTPS. The probe origin is plain HTTP on loopback."* That gap is now closed, and it is closed by the
+**shipped extension running its shipped content script**, not by another probe.
+
+`apps/extension/e2e/in-page.spec.ts` navigates to `https://in-page.invalid` and `http://in-page.invalid`
+— both fulfilled from disk by Playwright's route interception — and in both cases:
+
+| Question | Measured against the built extension | What it does **not** establish |
+|---|---|---|
+| Is a content script injected on an **HTTPS** page with no matching `host_permissions` entry? | **Yes.** `host_permissions` is still exactly the two provider origins, and the affordance appears on `https://in-page.invalid` | Nothing about a page whose *content* comes from a real server. Every response here is fulfilled from disk, so this says nothing about a real `https://` deployment's headers or timing. |
+| Is it injected on **`http`** as well? | **Yes.** The same fixture over `http://in-page.invalid` shows nothing until a field takes focus, one control after it, and an address in React's own state when pressed | **Nothing about mixed content, HSTS, or `http` pages that a browser upgrades to `https`.** The point is only that the second declared pattern is exercised rather than read. |
+
+**Why this is a §4 row and not a §4.2 row.** §4.2 measured a *probe* against assumptions. This is the
+same question asked of the artefact the product ships, through the tier that runs on every commit — which
+is the difference between a measurement and a fact that stays true.
+
+**And the reason the second row exists at all is a recorded gap, not a tidiness.** Until this case was
+written, `content_scripts.matches` named two schemes and the tier exercised **one** of them: every other
+case in the file ran over `https://`. Half the declaration was therefore evidence-free, which is the same
+shape as a permission no surface uses — declared reach wider than anything measured. `manifest.spec.ts`
+now also compares the declared host permissions against the origins the tier scripts a provider for
+(`recorded-provider.ts`'s own table, imported rather than retyped), because **adding
+`https://example.com/*` to `host_permissions` turned every case in the tier green before that comparison
+existed.**
+
+**What is still open, deliberately.** Whether a content script may `fetch` a provider origin
+cross-origin is **not** measured here, and it is the fact that decides the shape of M9 slice 2. Under
+MV3 a content script's `fetch` is expected to obey the **page's** CORS policy rather than the
+extension's host permissions, but nothing in this repository has observed it either way, and
+`in-page-address`'s own design records it as slice 2's question to answer before slice 2 is designed.
+
 ---
 
 ## 5. Real external delivery — **verified on both providers**

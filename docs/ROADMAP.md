@@ -53,7 +53,8 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor: M9 - In-Page Email Integration.** **M0 through M8 are complete in scope.**
+**Roadmap cursor: M9 - In-Page Email Integration, slice 1 (`in-page-address`) applied and verified.**
+**M0 through M8 are complete in scope; M9 has three slices and the first is at its Apply stage's end.**
 
 **M7 - Spectral Swiss Design Pass - is complete in scope**: slice 1 (`spectral-swiss-foundation`)
 applied, verified (with its verification-pass repairs merged as PR **#64**), synced (**#65**), and
@@ -78,11 +79,17 @@ behaviour block asks for five things on one click - create or select a mailbox, 
 fire the right events, stay compatible with controlled inputs, and associate the mailbox with the
 site - and the UX rules add a three-way choice on top. One change cannot carry that honestly, so:
 
-- **Slice 1, `in-page-address` (PROPOSED).** The content script exists, offers its affordance when an
-  email field takes focus, and inserts the address **this device already holds**. It reads storage
-  directly rather than asking the service worker, so it depends on **no platform behaviour this
-  repository has not measured** - no cross-origin request, no message round trip, no assumption about
-  whether a terminated worker wakes.
+- **Slice 1, `in-page-address` (APPLIED and verified on `feat/in-page-address`; sync and archive
+  follow).** The content script exists, offers its affordance when an email field takes focus, and
+  inserts the address **this device already holds**. It reads storage directly rather than asking
+  the service worker, so it depends on **no platform behaviour this repository has not measured** -
+  no cross-origin request, no message round trip, no assumption about whether a terminated worker
+  wakes. **That choice was measured rather than preferred, and it is the slice's most consequential
+  result:** a content script injected with no `host_permissions` reaches `chrome.storage.local` on
+  the `storage` permission alone, **readable and writable**, so the round trip this slice was
+  designed to avoid is not needed at all and `activeTab` stays rejected. See `docs/PROVIDERS.md`
+  §4.2 for the probe and §4.3 for the same question asked of the **built** extension, over both
+  declared URL schemes.
 - **Slice 2, `in-page-mailbox`.** Creating a mailbox from a page. This is where the worker's
   unmeasured lifetime and MV3's rule that a content script's `fetch` obeys the **page's** CORS policy
   become load-bearing, and both must be measured before it is designed.
@@ -98,6 +105,37 @@ mapping, and neither of the latter two can be verified honestly until the first 
 act: **no affordance when this device holds no stored mailbox** (slice 2 is what can create one), and
 **no affordance on a field that already holds text** (the roadmap's *"never overwrite existing text
 without user action"*, answered by absence rather than by a replacement gesture).
+
+**Slice 1's apply stage found two platform measurements that changed its own plan**, and both are
+recorded rather than absorbed:
+
+- **A content script runs in the isolated world**, so its `globalThis` is not the page's. A probe read
+  a page global and got `null` on **every** arm, including one read before any insertion which should
+  have been `""`, and drew the exact inverse conclusion. This is why the fixture publishes React's
+  state into the **document** rather than onto a global: the DOM is the one channel a content script
+  and a page genuinely share.
+- **A direct assignment does not update a React-controlled input's state; the dispatched events do.**
+  Measured on real React `19.3.0`, in three arms: assigning with no events left the state **empty**
+  while the field painted the address. The prototype's own `value` setter is *not* what makes it
+  work - a plain `input.value = x` reaches the state just as well - so it is kept as **defensive**
+  for frameworks that keep a value tracker, and none was measured. **This corrected `design.md`'s
+  premise before it reached the code.**
+
+**And slice 1's falsification pass found two of its own assertions that could not have caught what
+they named** - which is the more useful of the two findings above, because both were closed:
+
+- A case written *specifically* to hold `holdsText` to its own `trim()` could not fail, because
+  assigning `"   "` to an `<input type="email">` leaves `""`. **The value sanitization algorithm runs
+  before any product code executes**, so the field was already empty and `trim()` was never
+  load-bearing in that fixture. Measured with a throwaway probe rather than inferred.
+- The `isEmailField` table's button row carried **no email signal at all**, so it was refused by the
+  other two checks and never reached the `tagName` guard its own comment named.
+
+**A third is a limit of the platform rather than of a test, and is recorded as one**: no browser-tier
+case can falsify the affordance's `type="button"`, because a submit-typed control is removed from the
+document by its own click handler before activation behaviour gives it a form owner. The requirement
+is carried by the unit tier, and the in-page case now carries the **positive control it never had**,
+so it is demonstrably capable of firing rather than merely asserting an absence.
 
 **Its archive ran with `--skip-specs`, because the sync stage had already promoted all four
 deltas** — running it without that flag applies the requirements twice. `openspec validate

@@ -1,5 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
-import { existsSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { basename, join, relative, sep } from "node:path";
 
 import ts from "typescript";
@@ -1018,6 +1028,118 @@ const CLIENT_STORAGE_API_PATTERN =
 
 /** A module naming `indexedDB` from a client, which no client may do. */
 const CLIENT_STORAGE_PROBE = "export const x = indexedDB.open('spectre-mail');";
+
+/**
+ * The extension's own platform global, named anywhere in the extension's source.
+ *
+ * ## Why the identifier and not `chrome.storage`
+ *
+ * The sibling rule above already forbids `chrome\s*\.\s*storage`, and that is why
+ * `apps/extension/src/local-area.ts` reads the area with `Reflect.get` instead of a
+ * property access. **So a pattern written to catch a client naming a store cannot find the
+ * one module that is allowed to name the platform** - and the requirement that both extension
+ * contexts read the global through that single module had nothing at all holding it.
+ *
+ * This pattern matches the bare identifier, which catches:
+ *
+ * - `chrome.storage.local` and `chrome["storage"]` - member access;
+ * - `Reflect.get(globalThis, "chrome")` - **the reflective spelling the shipped code actually
+ *   uses**, matched because the pattern is not restricted to code positions;
+ * - `const chrome = ...` - the identifier bound to something else entirely.
+ *
+ * **Matching inside string literals is the point of the second bullet, not a side effect.**
+ * `Reflect.get(globalThis, "chrome")` contains no `chrome` token outside quotes, so a pattern
+ * that skipped strings would leave the only form this repository writes unguarded - and would
+ * do so silently.
+ *
+ * **It is deliberately broader than "reaches the global".** A module that only *mentions*
+ * `chrome` in a string is reported too, which is the safe direction for a rule whose failure
+ * mode is crying wolf: a rule wrong in the direction of reporting *more* than is true is the
+ * dangerous one, and this is that trade stated rather than discovered. Comments are stripped
+ * before matching, so prose naming the platform is not a violation - which is what lets
+ * `local-area.ts` document itself.
+ */
+const CHROME_GLOBAL_PATTERN = /(?<![\w$])chrome(?![\w$])/g;
+
+/**
+ * The single module permitted to reach the extension's platform global.
+ *
+ * **Written as `local-area.ts` rather than `chrome-platform.ts`, and that is a measured
+ * consequence.** The rule's pattern matches the identifier wherever it appears, *including
+ * inside a module specifier* — so while this module was named after the platform, the rule
+ * reported `import … from "./chrome-platform"` in `main.tsx` and in the content script's entry
+ * as two violations of the very requirement that mandates the import. **A rule that fires on the
+ * only correct import in the codebase has to move the file or carve the pattern, and neither was
+ * acceptable:** a carve-out exempting any specifier containing the word would exempt a future
+ * one that reached the global. The file was renamed instead, and this allowance followed it.
+ */
+const CHROME_PLATFORM_READER = /^local-area\.tsx?$/;
+
+/**
+ * Modules under a scanned tree that reach the extension's platform global, reported by their
+ * path **relative to that tree**.
+ *
+ * ## Why this takes a root, and why the rule below does not
+ *
+ * {@link chromeGlobalViolations} is the rule and it takes **no argument**, because an argument
+ * is a second spelling of what to scan - M6 slice 1's falsification pass narrowed a sibling's
+ * list twice, to one package and then to none, with the suite green both times because every
+ * package it stopped scanning happened to be clean.
+ *
+ * **This function is the control's instrument, not the rule, and it is the one place a root
+ * belongs.** The control has to plant a probe in every file the rule scans, and the first
+ * version of it did that by **overwriting the real source files and deleting them
+ * afterwards**. It destroyed ten of them - `App.tsx`, `Popup.tsx`, `main.tsx`, `popup-copy.ts`,
+ * `provider-config.ts`, `scheduler.ts`, `service-worker.ts`, `storage.ts`, `styles.css` and
+ * `transport.ts` - and the suite then failed to load at all, on a module-level import of a file
+ * that no longer existed. Recovering them was `git checkout --`, and nothing in the repository
+ * said they were missing.
+ *
+ * **That is the recorded "restoration is verified while the artefact keeps the last mutation"
+ * defect in a worse form.** There, restoration was SHA-verified while `dist/` still held the
+ * mutation; here the mutation was applied to the files the whole suite runs on, and the
+ * instrument's own cleanup was the damage. A measuring instrument that destroys what it
+ * measures is not a weak precondition, it is a broken one.
+ *
+ * **So the control copies the tree and scans the copy.** Nothing real is written, so a crash, a
+ * failed assertion or a `Ctrl-C` leaves the working tree exactly as it was - which is the
+ * property the earlier version lacked and the reason this split exists at all.
+ */
+function chromeGlobalViolationsIn(root: string): string[] {
+  const violations: string[] = [];
+
+  for (const file of collectSourceFiles(root)) {
+    const withinTree = relative(root, file).split(sep).join("/");
+    if (isTestFile(file) || CHROME_PLATFORM_READER.test(withinTree)) continue;
+
+    const contents = stripComments(readFileSync(file, "utf8"));
+    for (const hit of findPatternOccurrences(contents, CHROME_GLOBAL_PATTERN)) {
+      violations.push(`${withinTree} ${hit} (reaches the extension platform global)`);
+    }
+  }
+
+  return violations;
+}
+
+/** The rule: the extension's own source, and no argument to narrow it. */
+function chromeGlobalViolations(): string[] {
+  return chromeGlobalViolationsIn(join(APPS_DIR, "extension", "src"));
+}
+
+/**
+ * A disposable copy of the extension's source, for a control to plant probes into.
+ *
+ * **`cpSync` of the whole tree, probes written into the copy, and the copy removed.** The
+ * alternative - a probe file per scanned file at a fresh path - cannot exist: the point is to
+ * prove the scan visits *the real files*, and a probe beside them proves nothing about them.
+ *
+ * @returns The copy's root, and a cleanup that removes it.
+ */
+function withDisposableExtensionSource(): { root: string; done: () => void } {
+  const root = mkdtempSync(join(tmpdir(), "spectre-boundary-"));
+  cpSync(join(APPS_DIR, "extension", "src"), root, { recursive: true });
+  return { root, done: () => rmSync(root, { force: true, recursive: true }) };
+}
 
 /**
  * Clients that reach a global store, the URL, or cookies.
@@ -2512,6 +2634,131 @@ describe("architecture boundaries", () => {
     // passing is also the carve-out being load-bearing on real shipped code rather than
     // only on a fixture.
     expect(clientStorageApiViolations()).toEqual([]);
+  });
+
+  it("keeps the extension platform global to one module", () => {
+    // The second half of `in-page-address`'s boundary requirement, and **the half that did
+    // not already exist.**
+    //
+    // The rule above forbids a client *naming* a global store, and its pattern includes
+    // `chrome.storage` - so `local-area.ts` reads the extension's area with
+    // `Reflect.get` rather than with a property access, and the sentence in that module's own
+    // note says so. **That is what made this rule's absence invisible:** the one module allowed
+    // to name the platform cannot be found by a pattern written to catch a module that names
+    // a store.
+    //
+    // So this rule matches the *identifier*, which catches every way of reaching for the
+    // global rather than one of them - a member access, the reflective spelling the shipped
+    // code actually uses, and the identifier bound to something else.
+    const extensionSrc = join(APPS_DIR, "extension", "src");
+    expect(existsSync(extensionSrc), "apps/extension/src should exist").toBe(true);
+
+    // **The scan visits real files, established by planting in every one of them.**
+    const disposable = withDisposableExtensionSource();
+    try {
+      // Preconditions, transcribed from the tree rather than derived from the thing under
+      // test. Deriving the expected list by filtering the allowance constant is how a sibling
+      // rule's comparison once moved both sides at once and stopped guarding a package with
+      // the suite green.
+      expect(
+        chromeGlobalViolationsIn(disposable.root),
+        "the extension's own source must be clean before any probe exists",
+      ).toEqual([]);
+
+      const files = collectSourceFiles(disposable.root)
+        .map((file) => relative(disposable.root, file).split(sep).join("/"))
+        .filter((file) => !isTestFile(file) && !CHROME_PLATFORM_READER.test(file));
+
+      // **Not empty, or "every file was reported" would be satisfiable by an empty scan.**
+      expect(files.length).toBeGreaterThan(0);
+
+      for (const file of files) {
+        const absolute = join(disposable.root, file);
+        writeFileSync(
+          absolute,
+          `${readFileSync(absolute, "utf8")}\nexport const probe = Reflect.get(globalThis, "chrome");\n`,
+          "utf8",
+        );
+      }
+
+      const reported = chromeGlobalViolationsIn(disposable.root);
+      for (const file of files) {
+        expect(reported, `${file} was planted with a probe the rule must report`).toContainEqual(
+          expect.stringContaining(`${file} `),
+        );
+      }
+    } finally {
+      // **The disposable tree goes; the real one was never written to.**
+      disposable.done();
+    }
+
+    // **Which tree the rule reads, established by planting in the real one.**
+    //
+    // **Everything above exercises `chromeGlobalViolationsIn`, which takes its root as an
+    // argument** — so none of it can tell the rule *which* root to read, and the rule is
+    // exactly the half that says something about shipped code. `in-page-address`'s
+    // falsification pass found this by mutation: retargeting the no-argument rule at
+    // `apps/web/src` — a real tree that simply contains no `chrome` — left the suite green,
+    // because a rule scanning nothing reports nothing and a negative assertion is trivially
+    // satisfied by refusing everything. **That is M6 slice 1's finding, arriving one
+    // directory over.**
+    //
+    // **A new file at a fresh path, and never an overwrite.** The earlier version of a
+    // sibling control overwrote the shipped sources and destroyed ten of them, which is why
+    // the note above says the real tree is never written to; this one plants nothing that
+    // exists and removes the single file it created. **Its failure mode is loud rather than
+    // quiet**, which is the property that makes it safe: a probe left behind by a crash is
+    // named in the very assertion below, so the next run reports it instead of skipping it.
+    const realProbe = join(extensionSrc, "__platform-probe.ts");
+    try {
+      writeFileSync(realProbe, 'export const probe = Reflect.get(globalThis, "chrome");\n', "utf8");
+      expect(
+        chromeGlobalViolations(),
+        "the rule must read the extension's own source, and report a probe planted there",
+      ).toContainEqual(expect.stringContaining("__platform-probe.ts"));
+    } finally {
+      rmSync(realProbe, { force: true });
+    }
+
+    // **And the rule itself**, which is the half that says something about the shipped code:
+    // `apps/extension/src/content-script/entry.ts` reaches storage through
+    // `local-area.ts` and `packages/storage`, and no other module names the global.
+    expect(chromeGlobalViolations()).toEqual([]);
+  });
+
+  it("exempts the one reader and the tests, and proves both exemptions are load-bearing", () => {
+    // **An exemption asserted only by its absence can be an exemption that does nothing.**
+    // Both allowances here are planted with a probe and required *not* to be reported, which
+    // is what distinguishes "this file may reach the global" from "the pattern happens not to
+    // match in this file" - the recorded defect behind `isTestFile`'s own two-sided control.
+    const probe = 'export const probe = Reflect.get(globalThis, "chrome");\n';
+
+    const disposable = withDisposableExtensionSource();
+    try {
+      // **Both test spellings**, for the reason `isTestFile`'s note gives: a test is allowed
+      // to do the thing the rule forbids in order to verify it.
+      for (const exempt of ["__exempt.test.ts", "__exempt.spec.ts"]) {
+        writeFileSync(join(disposable.root, "content-script", exempt), probe, "utf8");
+      }
+
+      // Appended to the reader rather than replacing it, so the probe lands on a file that
+      // really is the reader.
+      const readerPath = join(disposable.root, "local-area.ts");
+      writeFileSync(readerPath, `${readFileSync(readerPath, "utf8")}\n${probe}`, "utf8");
+
+      expect(chromeGlobalViolationsIn(disposable.root)).toEqual([]);
+
+      // **And the reader really does read the global**, so the exemption above is not
+      // exempting a file that had stopped - which is the whole point of testing an exemption
+      // from the side that would catch one doing nothing.
+      expect(stripComments(readFileSync(readerPath, "utf8"))).toMatch(CHROME_GLOBAL_PATTERN);
+    } finally {
+      disposable.done();
+    }
+
+    // And the real tree is untouched, which is the property the first version of this control
+    // did not have.
+    expect(chromeGlobalViolations()).toEqual([]);
   });
 
   it("catches a platform store or the URL in a client, in every spelling but the clipboard", () => {

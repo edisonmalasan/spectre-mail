@@ -25,6 +25,14 @@ import { defineConfig, devices } from "@playwright/test";
  * the config has no `webServer` — and the suite's own precondition is that `dist` exists
  * and is current, which `test:browser` guarantees by building first.
  *
+ * **`in-page.spec.ts` does have a page, and it still adds no `webServer`.** A content script
+ * only runs against a real navigation to a real `https://` origin, so that suite needs a page;
+ * it gets one from `page.route`, fulfilling three responses off disk on a reserved
+ * `.invalid` origin. The decision and the recorded failure behind it — the website tier's
+ * browser job hanging five times because `webServer`'s wrapper process outlives Playwright —
+ * are in `helpers/in-page-fixture.ts`. **A third `webServer` on the tier that already had that
+ * bug is a port and a process bought to avoid.**
+ *
  * ## Chromium only, for the same reason the website's config says it
  *
  * `--load-extension` is a Chromium flag. No other engine here has it, and the honest

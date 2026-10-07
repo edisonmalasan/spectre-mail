@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>SpectreMail in-page fixture</title>
+    <!--
+      The page's own cascade, hostile on purpose.
+
+      LINKED, and that is the part that matters. The probe version of this fixture served a
+      hostile stylesheet and never referenced it, so "the page's styles do not reach the
+      affordance" was true for the wrong reason: the page simply was not hostile. A control
+      that does not fire is not a control, and the spec asserts this one fires by reading the
+      PAGE'S OWN button.
+
+      Served at runtime by the spec rather than bundled, so it stays an absolute path.
+    -->
+    <link rel="stylesheet" href="/hostile.css" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <!--
+      `type="module"`, and the attribute is load-bearing.
+
+      The first version of this file carried `<script src="/fixture.js">` with no type, and
+      Vite reported it could not be bundled without one - then left the tag in place beside a
+      bundle emitted under another name. The page loaded an empty script and a 404, and the
+      symptom read as "the framework observed nothing" rather than "the fixture never ran".
+
+      The suite serves THIS file and the BUILT `dist/fixture.js`, so the script the browser
+      runs is bundled from `page.tsx` - the React in it is real React, not a hand-written
+      imitation of a controlled input.
+    -->
+    <script type="module" src="/fixture.js"></script>
+  </body>
+</html>

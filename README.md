@@ -278,7 +278,7 @@ Full detail, including why each rule exists: [`docs/ARCHITECTURE.md`](docs/ARCHI
 ```text
 apps/
   web/                 Vite + React website client — creates a mailbox, shows its address
-  extension/           placeholder — no manifest, no service worker
+  extension/           Chromium MV3 client — a popup, a service worker, and a content script
 packages/
   core/                normalized domain model
   providers/           provider adapters
@@ -445,14 +445,16 @@ A manifest using the slash-less form would fail with no error, which is the kind
 trap that is invisible until a user reports a feature that "just doesn't work."
 
 The test that exercises the declared pattern against the live provider needs an
-**extension**, which does not exist. Browser-test infrastructure now does — Playwright
-runs the website — but the browser tier deliberately intercepts provider traffic, so it
+**extension**, and one now exists. Browser-test infrastructure does too — Playwright
+runs both clients — but the browser tier deliberately intercepts provider traffic, so it
 is the wrong tool anyway: this check is _about_ reaching a live provider. It is therefore
-**deferred to the milestone that owns extension and provider infrastructure.**
+**deferred to the milestone that owns provider infrastructure**, and it is the one live call
+this repository contains: `apps/extension/e2e/live-host-permission.mjs`, **quarantined from
+all three suites** and held out by an architecture boundary assertion.
 
-No result is claimed for it, and no throwaway production code was built to
-manufacture one. `apps/extension` has no manifest at all, which is why the trap
-cannot currently be hit.
+No result is claimed for it. The trap cannot be hit by accident either, because
+`manifest.spec.ts` reads the **built** manifest and asserts the wildcard path form against
+the pattern's own rule.
 
 ### Still unverified after the first real browser run
 

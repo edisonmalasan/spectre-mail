@@ -12,6 +12,14 @@
     "type": "module"
   },
 
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content-script.js"],
+      "run_at": "document_idle"
+    }
+  ],
+
   "action": {
     "default_popup": "popup.html",
     "default_title": "SpectreMail"
