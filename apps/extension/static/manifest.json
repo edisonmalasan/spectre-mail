@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "SpectreMail",
+  "version": "0.1.0",
+  "description": "A disposable email address you can read without leaving the page you are on.",
+
+  "permissions": ["storage"],
+  "host_permissions": ["https://api.mail.tm/*", "https://api.guerrillamail.com/*"],
+
+  "background": {
+    "service_worker": "service-worker.js",
+    "type": "module"
+  },
+
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "SpectreMail"
+  }
+}

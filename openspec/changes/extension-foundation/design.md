@@ -204,3 +204,170 @@ None. This is greenfield: there is no legacy extension to migrate and no existin
   this repository's rule is that a number it cannot defend is not printed.
 - **Whether the popup needs `chrome.tabs` or `chrome.scripting`.** Not requested here; the content
   script is M9's, and a permission nothing uses is one M12's permissions review would remove.
+
+### Amendment, recorded during apply (2026-10-07): D1's second open question is answered, and only half
+
+The second open question asked whether `chrome.alarms` accepts a 30-second period. It was measured
+(`apps/extension/e2e/alarm-floor.spec.ts`, `docs/PROVIDERS.md` §4.1) and the answer is narrower than
+the question implied, so the question is closed as written and a sharper one replaces it:
+
+- **Closed:** the API raises **no floor** in this Chromium. Every requested period was stored
+  unchanged, down to 999.6 ms.
+- **Still open, and it is the one D1 actually depends on:** whether Chromium **fires** at that rate.
+  `getAll()` reports the requested period; Chrome's documented behaviour is to *pack* recurring
+  alarms to at most once per 30 seconds. "Accepted 5 s" and "wakes every 5 s" are separate claims and
+  only the first is established.
+
+**This does not reopen D1.** A background poller at the page cadence is still unsupported by
+evidence, which is what D1 requires. The correction is to the question's wording, not to its answer.
+
+## Verification record
+
+Run by `openspec/changes/extension-foundation/falsify.mjs` on 2026-10-07: **17 deliberate
+violations, 17 caught by the intended assertion**, with every mutated file restored and SHA-256
+verified and `dist/` rebuilt from restored source. `S16` and `S17` were added *after* the two
+repairs below, so the count is a record of the change as it ended rather than a number written
+once. What follows is not the tally — a tally proves nothing without the mutants — but the
+results worth carrying forward.
+
+### The thirty-first recorded instance of a check narrower than the rule it documents, also authored by this change — and this one was in the rule D2 rested on
+
+Task 4.4 asked for confirmation that relocating the `chrome.storage` adapter into
+`apps/extension` would **fail** the client storage rule. The measurement says it would not
+have. The real 9 242-byte adapter was copied to `apps/extension/src/` and the suite ran:
+
+```text
+baseline, probe absent                      0 failed, 53 passed
+with the adapter planted in apps/extension  0 failed, 53 passed
+```
+
+**The rule named for "no client may reach a store" was blind to the one store a second
+client actually uses**, because `chrome.storage` was in neither the client pattern nor the
+shared-package one. `D2`'s own module note claimed the decision was safe *because* the rule
+would catch a relocated adapter — a claim written before it was measured.
+
+**Widening it cost nothing, and the reason is worth recording because it is not a
+lucky accident.** Adding `chrome\s*\.\s*storage\b` fires on **no shipped client file**,
+because both seams were written to avoid the literal spelling: `storage.ts` takes the area
+as a **parameter**, and `main.tsx` reaches it through
+`Reflect.get(Reflect.get(globalThis, "chrome"), "storage")`. **So `D2`'s prediction was
+right for a reason that did not yet exist** — it assumed the seam would need a carve-out,
+and the seam was written not to, which is what made the wider rule free.
+
+**The widening was falsified rather than assumed load-bearing**, because "the rule now
+covers a thing" is exactly the shape of claim that is easy to assert and easy to get
+cosmetic:
+
+```text
+widened rule    1 failed, 52 passed, probe reported = true
+un-widened rule 1 failed, 52 passed, probe reported = false
+→ LOAD-BEARING
+```
+
+The narrowing was reverted and the file SHA-256 verified. Note what the un-widened run's
+*own* failure was: the **new control**, `"chrome storage": "export const x =
+chrome.storage.local;"`, which fails when the member is removed — so the control is
+load-bearing too, and not merely present.
+
+**The relocated adapter is still not caught, and the reason is the right reason.** It takes
+its area as a parameter, so all ten of its `chrome.storage` occurrences are **prose in
+comments**, which `stripComments` removes. There was nothing in the relocated file for any
+rule to catch. **The requirement is not about where the adapter lives; it is that no client
+reaches a store directly**, and that is what is now enforced and what is now measured.
+
+**And the widening found a genuine copy defect on the way.** It reported
+`apps/extension/src/storage.ts` line 72 — a **user-facing string** reading *"This extension
+context provides no chrome.storage, so SpectreMail cannot store anything here."* A user in a
+popup has no idea what `chrome.storage` is, and `apps/web`'s equivalent message comes from
+`describeCause(cause)`, which reports the platform's own words and names no internal API.
+**This is not the reword-the-prose-until-the-rule-goes-quiet failure this file records three
+times over**, and the difference is the distinction worth carrying: the rule fired on a
+**string literal**, not on a declaration, and what it found was copy leaking an internal
+identifier to an end user. Removing the identifier is the fix; the rule is still doing its
+job.
+
+### The thirtieth recorded instance of a check narrower than the rule it documents, authored and caught by this change
+
+`chrome.test.ts > resolves a save only after the platform accepted the write` held a fake that
+resolved the write **synchronously inside the promise executor**. A promise resolved on the spot has
+already settled by the time the adapter reaches its `await`, so `await area.set(...)` and
+`void area.set(...)` produced the same two pushes in the same order, and mutation **S13** — replacing
+the `await` with `void` — left the test green.
+
+**The test's name promised "only after"; its fixture could not distinguish "after" from
+"immediately".** The repair is the one M6 slice 2's retry assertion needed for the same reason:
+**hold the attempt open and inspect the state while the write is out**, rather than only inspecting
+the state the buggy implementation also reaches. The wait is a macrotask, not a counted number of
+microtasks, because `void` settles on the very next microtask and a guessed tick count is the
+recorded defect with a smaller number in it.
+
+### Three mutants that were not violations, and the rule that says so
+
+**S06 came back green and the temptation was to call the sweep too weak.** It is not: the sweep tests
+five *named* categories, and the mutant's `outline-offset: 7px` is a length in none of them — a literal
+outside the rule's stated scope. **A survivor means the assertion did not catch this, never that the
+assertion is too weak, until the mutant has been read.** M7 slice 3 recorded three survivors that were
+broken mutants, one of which had been reported as a coverage gap; this is that lesson arriving in a new
+shape. Re-targeted to `border-radius: 3px`, it is caught.
+
+**S03 was a `wrongcatch` whose real content was "the mutant broke the product".** Chromium refuses to
+load an extension whose declared content script file does not exist, so the spec's `beforeAll` threw
+and the test the mutation targeted was never reached. The mirror of the survivor rule: *a wrongcatch
+does not mean the assertion is misattributed until the mutant has been read either.* The harness grew
+a `plantFiles` mechanism so the mutant could be **repaired into a valid one** rather than filed.
+
+**S13's first form was caught by the wrong test** — a try/catch around the whole load is precisely the
+defect the read-failure test names, and the narrower requirement was covered only incidentally. Reading
+it said the mutant was not the defect it was aiming at, so it was replaced by one touching only the
+write path.
+
+### Task 3.4's claim, falsified before it was ticked
+
+The task says the root `build` "fails when either emits nothing", and that is a claim about a shell
+command rather than about an assertion — so it got the same treatment. **The first mutation was a
+no-op**: the replacement targeted a `path:` entry `apps/web/vite.config.ts` does not have (it names no
+`input` at all, so Vite infers it), the build succeeded, and the run read as a pass. **Verifying the
+edit landed is not optional, and this is the second time in this change that a landing-looking green
+was actually a failed mutation.** Re-targeted at the thing that actually decides it — `index.html`
+moved aside — the measurement is unambiguous:
+
+```text
+pnpm build exit=1        error: Could not resolve entry module "index.html"
+extension build SKIPPED  true
+```
+
+So the `&&` chain is load-bearing and the extension's `dist` is **not** silently left holding the
+previous build while the tally claims the command succeeded.
+
+### The harness was wrong first, in the same way as everything else in this list
+
+**Eight of twelve mutations reported `harness-error` on the first run.** Vitest prints
+`Tests [22m[39m [1m[32m726 passed`, so a pattern anchored on `^\s*Tests\s+\d+` never matched — and every
+mutation read as *"the runner printed neither a passed nor a failed count"*. That is S01's defect one
+level down: **an instrument that measured less than the sentence beside it**, and 8/12 failing is a
+number that reads like evidence. The tally would have supported the conclusion *"these assertions are
+unfalsifiable"*, which is why the repair is recorded next to the `stripAnsi` function rather than only
+in the tally.
+
+Two further recorded defects were designed out rather than discovered: **a mutation whose own text
+failed to apply skips the run and reports `noop`**, and **a failed build reports `nocompile` with no
+run at all** — the browser is never served the previous `dist/` while the tally claims the mutation
+survived.
+
+### Two measurements recorded as results rather than as gaps
+
+**The `chrome.alarms` floor could not be measured in the shipped worker**, and that failure is the
+finding: `chrome.alarms` is `undefined` there because the manifest correctly omits the permission.
+Measuring the floor required rights the product must not have, so it was measured in
+`apps/extension/e2e/fixtures/alarm-probe/` — the same quarantine shape D4 establishes. The instrument
+that answers a question may need rights the product must not have, and a fixture that ships nothing
+is how that is reconciled.
+
+**Task 9.4's confirmation is an instrument, not a claim.** Global `fetch` was patched to throw and all
+three suites were run: `pnpm verify` and `pnpm test` green at 726/39, both browser tiers green with no
+unrecorded origin requested. **The guard's own positive control was run and failed as it must** — a
+planted fetching test goes red with the guard's message — because a green run under a guard that never
+fires is the shape this repository has been bitten by repeatedly. **What it does not establish:** the
+guard covers the global `fetch` in Node, not a request issued from a Chromium process, and the
+quarantine from `pnpm verify`'s *scripts* is enforced by a boundary assertion (mutation **S14**), not by
+the guard.

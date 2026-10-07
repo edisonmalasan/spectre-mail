@@ -67,5 +67,41 @@ export default tseslint.config(
     },
   },
 
+  {
+    // **Plain JavaScript, which until M8 had exactly one file in it and is now a
+    // documented shape rather than an accident.**
+    //
+    // `js.configs.recommended` declares rules but no globals, and the block above is
+    // scoped to `.ts`/`.tsx`. So a `.js` or `.mjs` file shipped under `apps/` was linted
+    // with **no environment at all**, and `pnpm lint` reported `process is not defined`
+    // and `fetch is not defined` in a Node harness script that uses both correctly.
+    //
+    // That failure is worth naming rather than just fixing: the rule was right and the
+    // file was right, and the defect was that **the configuration had no opinion about a
+    // file extension the repository had not used yet.** Naming the one file would have
+    // left the second one to fail the same way, so this block is matched by extension.
+    files: ["**/*.{js,mjs,cjs}"],
+    languageOptions: {
+      globals: { ...globals.node },
+    },
+  },
+
+  {
+    // **A fixture that runs as a service worker**, which is neither a Node process nor a
+    // page: it has `self` and `chrome`, and no `process` and no `document`.
+    //
+    // `apps/extension/e2e/fixtures/alarm-probe/` is the first file in this repository
+    // that runs in a worker. Giving it Node globals would have been the wrong fix and a
+    // silencing one — it would have taught the file it is a script, and the next
+    // `no-undef` would have been reported against the wrong environment.
+    //
+    // Matched by shape (`e2e/fixtures/`) rather than by naming this directory, so a
+    // second quarantined fixture is covered by existing rather than by remembering.
+    files: ["**/e2e/fixtures/**/*.{js,mjs,cjs}"],
+    languageOptions: {
+      globals: { ...globals.serviceworker },
+    },
+  },
+
   prettier,
 );

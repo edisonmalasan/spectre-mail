@@ -165,6 +165,42 @@ The extension would ship looking correct and simply never be able to reach the
 provider, with an opaque error. **The extension must declare
 `https://api.mail.tm/*`.** This must be covered by a test, not a code comment.
 
+#### Re-measured 2026-10-07 against the **built** extension, both ways
+
+The spike result above came from an MV3 manifest the harness generated at run
+time. M8 ships a real `dist`, so the claim was re-measured against that
+instead — and **both directions were run, because a permission that was only
+ever tested granted cannot distinguish a correct manifest from one that happens
+to work**:
+
+```text
+node apps/extension/e2e/live-host-permission.mjs
+
+  PASS  wildcard   https://api.mail.tm/*   → HTTP 200
+  PASS  slash-less https://api.mail.tm     → refused (TypeError: Failed to fetch)
+  exit 0
+```
+
+**The refused run is the load-bearing one.** A check that only confirms the
+grant succeeds would pass against a manifest with no host permission at all if
+the request happened to be reachable some other way, and would pass against the
+slash-less form if Chromium had ever treated it as a match. Watching the wrong
+form fail is what establishes that the wildcard is doing the work.
+
+**This is the only live network call in this repository**, and it is the *last*
+open item from the M0 probe list — §5.2's "there is still no Playwright suite
+for the M0 spike's own live host-permission check" is now closed, by a script
+rather than by a suite. It is deliberately **not** in `package.json`'s scripts,
+**not** run by `pnpm verify`, **not** run by either browser config, and a
+boundary assertion (`runs the live host-permission check nowhere, deliberately`)
+fails the build if any of those three changes. A test that contacts a real
+provider cannot be one a contributor runs by accident, and the quarantine is
+only worth having if something enforces it.
+
+**What it does not establish.** It does not establish that the extension works
+against Mail.tm in general — one anonymous `GET /domains` is not a mailbox
+lifecycle, and `use it externally` remains unverified. See §5.2.
+
 ### Expiration behaviour — mailbox lifetime **published**, message retention **published**
 
 Partially closed on **2026-10-02** by reading Mail.tm's own FAQ rather than the
@@ -361,6 +397,41 @@ The "normal web page" origin is a real `http://127.0.0.1:<port>` origin served
 by the harness — the same situation as a deployed SpectreMail page, where the
 origin is a public domain the provider has never heard of.
 
+### 4.1 MV3 runtime facts, measured against the **built** extension (2026-10-07)
+
+These are properties of Chromium, not of either provider, and they were
+assumptions written as if they were facts until M8 measured them. Chromium 141
+(Playwright 1.63.0), headless, unpacked.
+
+| Question | Measured answer | What it does **not** establish |
+|---|---|---|
+| Does an idle background worker survive? | **Still registered after a full 30 000 ms** idle, no events dispatched, no alarm created | **No lifetime.** It was alive when the measurement stopped, so the termination point is unmeasured. A *bound*, not a figure. |
+| Does `chrome.alarms` enforce a period floor? | **None found.** Every requested period was stored unchanged — 5 000/60 000, 30 000/60 000, `1`, `1/60`, and **0.0166 minutes (999.6 ms)** | **When Chromium fires.** Chrome documents *packing* recurring alarms to at most once per 30 s, and `getAll()` reports the **requested** period, not the packing interval. "The API accepted 5 s" and "a worker wakes every 5 s" are separate claims; only the first is established. |
+| Is `chrome.alarms` available to the shipped worker? | **No — `undefined`.** | This is a *result*, not a gap: `static/manifest.json` requests only `storage`, so the absence confirms the manifest requests nothing no surface uses. |
+
+**The alarms floor was measured through a throwaway fixture, and that is worth
+stating as a finding of its own.** The obvious instrument — calling
+`chrome.alarms` in the shipped worker — **failed with `TypeError: Cannot read
+properties of undefined (reading 'create')`**, because the API does not exist
+without the `alarms` permission, and the shipped manifest deliberately omits it.
+So the two requirements conflicted *for the instrument*: measuring the floor
+required declaring a permission no user-facing feature needs.
+
+The first attempt therefore established a fact worth more than the measurement it
+was trying to make — **the platform, not a JSON review, confirmed that the
+shipped manifest claims nothing it does not use.** The floor itself was then
+measured in `apps/extension/e2e/fixtures/alarm-probe/`, which declares `alarms`
+and ships nothing else. Same quarantine shape as the live host-permission check
+above and as `tests/provider-spike/`: **the instrument that answers a question
+may need rights the product must not have.**
+
+**The open question this leaves, named.** D1 (no polling in the background
+worker) rests on the packing interval, which is still unmeasured. Nothing in
+this repository knows whether a background poller would wake every 5 seconds or
+every 30; `packages/mailbox`'s `INBOX_POLL_PROMPT_MS` of 5 000 is a *page*
+cadence. Whoever schedules background polling inherits an unanswered question,
+and it is not one this file answers.
+
 ---
 
 ## 5. Real external delivery — **verified on both providers**
@@ -483,8 +554,19 @@ provider that has not been measured the same way.
 |---|---|---|
 | `guerrilla.long-run-expiry` | Requires holding a session open past the provider's expiry window. Neither provider exposes a TTL in its API. There is no equivalent Mail.tm probe; the same gap applies to it. | `MailboxStatus: expired` semantics |
 | Provider reputation across senders | One sender proved delivery. Bulk senders that commonly blocklist disposable domains are untested. | Any durability claim in marketing or the privacy model |
+| **Live provider polling tolerance** | Nothing in this repository has watched a real provider respond to being polled every five seconds. Both browser tiers serve **recorded** responses, and the cadence assertions read the delay the scheduler was *asked* for — which proves this repository's arithmetic and nothing about a provider's patience. | Any background-polling decision; M9 |
+| **A stored mailbox reconciled against a live session** | Adoption was exercised against a recording, never against a real Guerrilla Mail session. | `use it externally`, in either client |
+| **MV3 `chrome.alarms` packing interval** | §4.1 measured what the API *stores*, not when Chromium *fires*. | D1's successor: whether a background poller could wake at the page cadence at all |
 
 These are genuine gaps and must not be reported as successes.
+
+**One item left this list on 2026-10-07 and is now closed rather than moved
+elsewhere:** `AGENTS.md` recorded, at length, that *there is still no Playwright
+suite for the M0 spike's own live host-permission check* — the one deferred item
+from the original probe list. `apps/extension/e2e/live-host-permission.mjs` now
+runs it against the **built** extension in both directions (§2). It is a script
+rather than a suite, on purpose: it contacts a real provider, so it is outside
+all three suites and a boundary assertion fails the build if that changes.
 
 ---
 

@@ -49,8 +49,10 @@ verified (with its verification-pass repairs merged as PR **#64**), synced (**#6
 proposal **#67**, Apply **#68**, sync **#69**, **and its archive PR number is recorded at
 the archive stage, as every other slice's is.**
 The current objective is **M8 — Extension Foundation**, **proposed** as `extension-foundation` on
-branch `docs/extension-foundation-proposal`. **Slice 4, the `Extension preview`, stays blocked on
-M8 and stays unstarted.**
+branch `docs/extension-foundation-proposal` (merged as PR **#75**, commit `5ec37c5`) and **applied**
+on `feat/extension-foundation`. **Slice 4, the `Extension preview`, stays blocked on
+M8 and stays unstarted** — but M8 now exists, so the block is a scheduling question rather than a
+missing milestone, and it is **the next slice to schedule**.
 
 **M7's exit criteria are still not fully met**, because slice 4 is not deferred-and-forgotten — it
 is **blocked on a milestone that had not been started when the decision was taken**, and
@@ -75,6 +77,42 @@ change's `design.md`:
   requirement**, the same treatment slice 3 gave this page's `Extension preview` section. A
   declared surface that renders nothing is fake UI.
 
+**M8's Apply stage, measured 2026-10-07.** `apps/extension` is no longer an empty directory: it holds
+an MV3 manifest, a background service worker, a popup, a Vite build, and **16 browser cases in 4 spec
+files**. `packages/storage` grew a `chrome.storage` adapter (**10 tests**) beside its IndexedDB one, so
+the extension's persistence is the same contract rather than a second one.
+
+**`pnpm verify`: 726 tests across 39 files, exit 0**, with `PLAYWRIGHT_BROWSERS_PATH` pointed at an
+empty directory — so the "verify runs with no browser installed" property still holds, now with a
+second client in the workspace. Measured from `--reporter=json` and grouped by project, because that is
+the only method that has not been wrong before:
+
+```text
+   20  apps/extension  (new)         89  providers    (unchanged)
+  114  apps/web        (unchanged)   54  storage      44 -> 54
+   53  architecture    51 -> 53      38  ui           (unchanged)
+   54  core            (unchanged)  149  mail-parser  (unchanged)
+  155  mailbox         (unchanged)
+
+  726  TOTAL           694 -> 726     39 files       35 -> 39
+```
+
+**`pnpm test:browser` now runs both tiers under the one documented command**: the website's **34**
+cases and the extension's **16**, both green. The extension's 16 are `manifest.spec.ts` (6),
+`popup.spec.ts` (8), `measurement.spec.ts` (1) and `alarm-floor.spec.ts` (1).
+
+**Three measurements, recorded in `docs/PROVIDERS.md` §4.1 and §2 — and what they do not establish is
+a longer list than what they do:**
+
+- The service worker **survived a full 30 000 ms idle window**. That is a **bound, not a lifetime**:
+  it was alive when the measurement stopped, so the termination point is unmeasured.
+- `chrome.alarms` **stores every requested period unchanged**, down to 999.6 ms — so it raises **no
+  floor** here. It does **not** establish when Chromium *fires*, and Chrome's documented packing to at
+  most once per 30 seconds is exactly the question D1 still depends on.
+- The live host-permission check ran **both ways**: wildcard `https://api.mail.tm/*` → **HTTP 200**,
+  slash-less `https://api.mail.tm` → **`TypeError: Failed to fetch`**. Exit 0. **This closes the last
+  item on the M0 probe list**, and it closes **only** that.
+
 **M8 also owns the deferred live host-permission check**, which `README.md` recorded against "the
 milestone that owns extension and provider infrastructure". It runs **both ways** — the wildcard
 form must succeed **and** the slash-less form must fail, in the same run against the same origin —
@@ -83,6 +121,41 @@ because a check that fetches once and passes would pass regardless of the patter
 provider, and folding it into the suite would make every gate depend on Mail.tm's uptime. **It
 closes that one item and no other** — `use it externally` and the live polling cadence stay
 unverified.
+
+**Quarantine is enforced, not remembered.** A boundary assertion requires that the live check is named
+by **no** package script, is collected by **neither** browser configuration, and is not a test file by
+name — and it carries a planted control proving that a script naming the check *would* be reported.
+Confirmation by running alone would not have been enough: `pnpm verify` and `pnpm test` were also run
+with **global `fetch` patched to throw** (green at 726/39), and the guard's own positive control was
+run and failed as it must. **What that establishes is narrow and stated as such:** that no unit test
+reaches the global `fetch` in Node. It says nothing about a request issued from a Chromium process,
+and the *scripts* half of the quarantine is the boundary rule's job, not the guard's.
+
+**Three defects this milestone found in code it authored, which is the part worth keeping:**
+
+- `apps/extension/src/App.tsx` shipped `export const PRIMARY_PROVIDER_NAME = "Mail.tm"` under a comment
+  saying the name was *"named from the id list rather than written out"*. **It was written out**, and
+  `packages/providers` owns that string as `MailProvider.displayName` — so renaming Mail.tm in the
+  package would have left the popup announcing the old name **with every test green**, because the
+  browser spec asserted the heading against the very constant that had drifted. It is now read from
+  `ProviderManager.available[0].displayName`, and a boundary rule stops any client file from
+  containing a string `packages/providers` declares.
+- `packages/storage/src/chrome.test.ts` held a fake that resolved its write **synchronously**, so the
+  test named *"resolves a save only after the platform accepted the write"* could not distinguish
+  *after* from *immediately*. **The thirtieth recorded instance of a check narrower than the rule it
+  documents**, and this change both authored it and caught it. Repaired by holding the write open and
+  asserting the save has **not** resolved while it is out.
+- `pnpm verify` caught a `chrome.test.ts` fixture passing `provider` to `createMailbox`, which derives
+  it from the credential discriminant — **the unit suite was green on a file the compiler rejects**,
+  which is the recorded lesson that Vitest does not typecheck arriving once more.
+
+**Falsification: 15 deliberate violations, 15 caught by the intended assertion**, every mutated file
+restored and SHA-256 verified, `dist/` rebuilt from restored source. `falsify.mjs` lives beside the
+change's artifacts. Two harness defects are recorded because each produced a number that read like
+evidence: **8 of 12 mutations first reported `harness-error`** because a count pattern could not see
+Vitest's ANSI escapes (which would have read as "these assertions are unfalsifiable"), and **one
+mutation came back green** because it introduced a literal outside the five categories the sweep
+checks — a broken mutant, not a weak assertion.
 
 **Slice 3 shipped four sections and made the fifth's absence a requirement.** `website-sections`
 adds a **product hero** (the wordmark beside the live address, plus a filled `Replace address`),

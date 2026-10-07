@@ -19,9 +19,20 @@ ms-playwright/
 # run only, and committing them would put untrusted binary content in the repo.
 # `test-results/` is Playwright's output directory and `playwright-report/` is its
 # HTML report; neither is a build output that anyone builds on.
+#
+# **One entry per client, listed rather than globbed.** A `test-results/` pattern
+# without a leading `*` matches a path component at the repository root only, so
+# the obvious generalisation is a no-op and the extension's artifacts would be
+# committed while the website's were not — the silent-skip failure this file's
+# browser-tier section already records once, in the test-collection rules. `apps/*/`
+# is written out because the claim is "every client's artifacts", and the day a
+# third client appears this is where it is noticed.
 apps/web/test-results/
 apps/web/playwright-report/
 apps/web/.playwright/
+apps/extension/test-results/
+apps/extension/playwright-report/
+apps/extension/.playwright/
 
 # Build output
 dist/
