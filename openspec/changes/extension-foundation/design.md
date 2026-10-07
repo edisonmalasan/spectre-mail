@@ -230,6 +230,68 @@ repairs below, so the count is a record of the change as it ended rather than a 
 once. What follows is not the tally — a tally proves nothing without the mutants — but the
 results worth carrying forward.
 
+### The sync stage, and the one place the delta was weaker than the requirement it replaced
+
+**Recorded at the sync stage (2026-10-07), because the interesting part is what nearly went
+wrong and the clause that is still there because it was checked.**
+
+`provider-abstraction`'s MODIFIED block for *"Provider roles are assigned per client, not
+globally"* is **weaker** than the requirement it replaces, in one specific detail. The promoted
+spec's `A provider is unreachable from a client's environment` scenario carried two clauses the
+delta does not:
+
+```text
+- **AND** the reason SHALL be recorded in `docs/PROVIDERS.md`
+- **AND** a measured reason SHALL cite the run that observed it, while an
+  unverified reason SHALL be labelled "unverified" with **no** run claimed
+```
+
+Both were searched for across every promoted spec and **exist nowhere else.** Copying the delta
+verbatim would therefore have deleted a standing clause about evidence honesty at sync time —
+and **nothing would have caught it.** `openspec validate` does not know a clause went missing,
+and after the copy the delta and the promoted spec would be perfectly consistent with each
+other. The one instrument that would have caught it is the block-for-block comparison below, and
+that is now the recorded method for this stage rather than an optional extra.
+
+**This is the recorded M4 lesson arriving from the other direction.** That milestone's sync
+stage *added* three scenarios to a promoted spec that its delta did not contain, leaving a gap a
+reader would have to reconcile. Here the delta would have *removed* a clause — and an addition
+reads as a difference while a removal reads as nothing happening.
+
+The resolution is the same rule stated in the other direction: **the merge keeps the clauses and
+the change's delta is amended to match**, so the archived delta and the promoted spec are the
+same block. Verified after the amendment, **13 of 13 blocks byte-identical**, checked as whole
+blocks and not by title.
+
+**The comparison instrument was itself wrong first, twice, and the second failure is the one
+worth carrying.** It reported a divergence in `build-and-verification` that did not exist: the
+delta block for the browser-tier requirement had run past its section into
+`## ADDED Requirements`, so it held 51 lines where the promoted block holds 49. The spec was
+correct and the instrument was not.
+
+**That is the dangerous direction, because a verifier that reports false drift gets deleted
+rather than fixed** — and deleting the only verbatim comparison would have removed the check
+that caught the clause loss above. Fixed by truncating a block at the next `##` header as well
+as the next `### Requirement:`, then re-run.
+
+**The sync's guard regexes were silently dead for one run, and the run reported success.** Two
+guards in the spec-creation script asserted that the delta carries no `## Purpose` and is
+ADDED-only. A repair written as a `node -e` string substitution turned `/(?m)^## Purpose/` into
+`/^m## Purpose/m`, which matches a line starting with the literal characters `m` and can
+therefore never fire. The script then ran to completion and wrote a correct spec — **which is
+what makes it dangerous**, because a guard that never fires on a correct run also never fires on
+a wrong one, and the output was identical either way.
+
+Proving the guards needed **two failed harnesses** before it proved anything, and both failures
+were in the proof rather than the guard: the first extracted whole multi-line `if` statements and
+re-evaluated them, producing `Unexpected token ')'` for **all three cases including the one meant
+to pass**; the second extracted the text correctly and left `delta` unbound, erroring on line one
+before any case ran. Only the third — which extracts **the regex literal alone**, the part that
+was actually wrong — reported anything: **9 of 9 properties hold**, including the two negative
+cases that matter most (a guard must not fire on a line merely *containing* the words, and must
+not fire on a requirement body mentioning `## MODIFIED Requirements` in prose — the
+"fires on its own documentation" failure this repository records five times).
+
 ### The thirty-first recorded instance of a check narrower than the rule it documents, also authored by this change — and this one was in the rule D2 rested on
 
 Task 4.4 asked for confirmation that relocating the `chrome.storage` adapter into
