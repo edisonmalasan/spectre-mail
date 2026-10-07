@@ -53,16 +53,25 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor:** **M6 - Website Hardening, complete in scope and closed out.
-M7 - Spectral Swiss Design Pass - slice 1 (`spectral-swiss-foundation`) is applied,
-verified (with its verification-pass repairs merged as PR **#64**), synced (**#65**), and
-**ARCHIVED** — which closes M7 slice 1 completely. **Slice 2
-(`motion-and-reduced-motion`) is applied, verified, synced, and ARCHIVED**, merged as
-proposal **#67**, Apply **#68**, sync **#69**, **and its archive PR number is recorded at
-the archive stage, as every other slice's is.**
-**M8 — Extension Foundation is complete in scope**, applied, verified, synced, and **ARCHIVED** at
+**Roadmap cursor: M9 - In-Page Email Integration.** **M0 through M8 are complete in scope.**
+
+**M7 - Spectral Swiss Design Pass - is complete in scope**: slice 1 (`spectral-swiss-foundation`)
+applied, verified (with its verification-pass repairs merged as PR **#64**), synced (**#65**), and
+**ARCHIVED**; slice 2 (`motion-and-reduced-motion`) applied, verified, synced and **ARCHIVED**,
+merged as proposal **#67**, Apply **#68**, sync **#69**; slice 3 (`website-sections`) the same way
+as **#71**–**#74**; and **slice 4 (`extension-preview`) applied and verified on 2026-10-07**, with
+its proposal merged as **#79** and its archive PR number recorded at the archive stage, as every
+other slice's is.
+**M8 - Extension Foundation is complete in scope**, applied, verified, synced, and **ARCHIVED** at
 `openspec/changes/archive/2026-10-07-extension-foundation/`. Proposal PR **#75** (`5ec37c5`), Apply
 **#76** (`5feee8f`, merge `b0376a8`), sync **#77** (`323d7a1`, merge `bbe1351`).
+
+**The cursor moves to M9, In-Page Email Integration.** M0 through M8 are now complete in scope, so
+M9 is the earliest incomplete milestone — and it is the milestone that **discharges M8's first
+recorded deferral**: the content script is M9's, so the extension's declared-absent surface stops
+being absent. **Nothing about M9 has begun, and this cursor is a progress ledger rather than
+permission to skip ahead** — `extension-client`'s requirement that the popup declare no content
+script and no side panel stands until the change that adds one amends it.
 
 **Its archive ran with `--skip-specs`, because the sync stage had already promoted all four
 deltas** — running it without that flag applies the requirements twice. `openspec validate
@@ -73,20 +82,108 @@ mean something after an archive both pass — `openspec validate --specs --stric
 0 failed**, and the byte-for-byte comparison of all 13 archived requirement blocks against the
 promoted specs.
 
-**Slice 4, the `Extension preview`, is the next slice to schedule and has not begun.** M7's exit
-criteria are therefore still not fully met, and the block has **changed character**: it was
-waiting on an unbuilt client and is now waiting only on a scope decision. Nothing about it is
-blocked on missing infrastructure.
+**M7 slice 4, the `Extension preview`, is applied and verified**, and **M7's exit criteria are now
+met in scope.** Proposal merged as PR **#79** (`5062afa`); the Apply stage is
+`feat/extension-preview`. It was taken now rather than carried forward because M8 removed the only
+block it had — an unbuilt `apps/extension` — so what remained was a scope decision and the
+decision was to ship it.
 
-**M7's exit criteria are still not fully met**, because slice 4 is not deferred-and-forgotten — it
-**M7's exit criteria are still not fully met**, because slice 4 is not deferred-and-forgotten — it
-is **blocked on a milestone that had not been started when the decision was taken**, and
-`apps/extension` was still an empty directory with no MV3 manifest. The maintainer has since
-decided to **build M8 first**, which is the option that unblocks slice 4 rather than deciding
-slice 4's fate by fiat, and **no M7 slice 4 work has begun.** **That decision has now been carried
-out and M8 is archived**, so this paragraph records what the block *was* when it was taken rather
-than what it is — **which is why the paragraph above it exists and this one is kept only as the
-history of the decision.**
+**What the change is, in one sentence:** the page now describes the extension popup it already
+omitted, and the description **cannot act, cannot lie about what the popup does, and cannot go
+stale** — three properties each held by a different instrument.
+
+**Three decisions, all recorded in the change's `design.md`, and the first is the one that shapes
+the component:**
+
+- **The depiction renders no interactive element at all** (D2) — no `<button>`, no `<a>`, no
+  `role`, and **not a disabled version of one either**. A `Copy address` button inside a picture of
+  a popup would be a control on the page that does nothing when pressed, which is the same defect
+  `extension-client` removed from the popup itself. `disabled` is not the compromise: it says
+  *"this cannot act right now"*, and what is true is *"this is not a control"*.
+- **The depiction is drawn from markup, not screenshotted** (D1) — a screenshot would be an image
+  file, and `visual-system` requires the built page to fetch **no image and no font file at all**,
+  and it would rot silently the day the popup's copy changed.
+- **The website holds its own copy of the depicted labels and the *equality* is checked** (D3, as
+  amended during apply). The original decision was to import them. Measuring killed it:
+  `apps/web/tsconfig.json` includes `src`, `e2e`, `vite.config.ts` and `playwright.config.ts` and
+  nothing else, and **no shipped source file in either client imports the other today**, so the
+  import would have invented the first client→client dependency in this repository. The inversion
+  catches both drift directions — a popup rename leaves the website's literal matching no popup
+  entry, and an invented label matches none either — and it keeps the correspondence **named**,
+  which the import does not: the failure names the entry, both values, and the section.
+
+**One sentence about obtaining the extension, and no download control** (D5). There is no release
+workflow, no store listing and no signed artifact in this repository, so there is nothing a link
+could resolve to. The sentence is present because a region that previews an extension and never
+mentions how one obtains it reads as an oversight, and an undescribed absence is what the next
+change touching that file fills in with whatever it happens to assume.
+
+**No new token, no motion, no accent** (D6), so **`visual-system` is untouched by this milestone** —
+and `packages/ui` staying at **38** tests is the measurement that matters, because a rise there
+would have meant the preview had introduced visual surface the capability does not describe.
+
+**Two whole-page sweeps were false the moment this region shipped**, and the rescoping is the
+substance of that work rather than a rename. `sections.spec.ts` asserted no `\bextension\b` and no
+`mail.tm` in the page's text, on the ground that the surface did not exist. Both are now **per
+region**, with a **named** exemption for the one region allowed to differ, the failure **names the
+region**, and each ships a negative control that plants the forbidden word into the running page.
+The `mail.tm` rescope **strengthens** the rule rather than relocating it: the preview is not exempt.
+
+**A new case needed an instrument this repository did not have.** `Accessibility.getFullAXTree` is
+a whole-tree read, and a whole-tree read cannot answer *"does **this region** expose anything
+operable"* without substituting this repository's judgement about which buttons belong elsewhere.
+The case therefore queries `Accessibility.queryAXTree` **at the region's own DOM object** and lets
+Chromium do the scoping — still Chromium's tree, never a role query. It also asserts the subtree is
+**present**, and plants a `<button>` to require the reader fires: a region emptied of content
+satisfies a role sweep for the wrong reason, which is the cheapest way to produce a check narrower
+than its rule.
+
+**Measured, 2026-10-07, from `--reporter=json` and grouped by project:**
+
+```text
+   155  mailbox         (unchanged)   89  providers  (unchanged)
+   149  mail-parser     (unchanged)   54  core      (unchanged)
+   120  apps/web        114 -> 120    54  storage   (unchanged)
+    38  ui              (unchanged)   54  architecture  53 -> 54
+    25  apps/extension  20 -> 25
+
+   738  TOTAL           726 -> 738    41 files       39 -> 41
+```
+
+**`pnpm verify`: 738 tests across 41 files, exit 0**, with `PLAYWRIGHT_BROWSERS_PATH` pointed at an
+empty directory. It did **not** on the first attempt: `format:check` failed on three files committed
+earlier in the change without Prettier having been run over them, and `lint` failed on the
+falsification harness itself — four temporary scripts in the repository root, which were **deleted
+rather than fixed**, since a measuring instrument is not a shipped file. **So `pnpm verify` was run
+three times: once red on `format:check`, once red on `lint`, once green.**
+
+**`pnpm test:browser`: website 34 → 37**, with `sections.spec.ts` 13 → 16 and the extension tier
+**unchanged at 16** — which is the check that this change did not touch the extension client.
+
+**Falsification: 18 deliberate violations — 16 caught by the intended assertion, 2 recorded as
+evidence and not counted.** Restoration SHA-256 verified for every mutated file and `dist/` rebuilt
+after every restore, because a restored source file is not a restored build artefact. The full table
+is in the change's `design.md`; the two findings worth carrying here are:
+
+- **A deletion could never be confirmed as having landed.** The landing check required a non-empty
+  replacement to be findable afterwards, so a mutation that *removes* text was filed `noop` —
+  reported as never having run. **Two of the eighteen were deletions and both were filed that way.**
+  **A check that could not fail was reporting a result**, which is this repository's sharpest
+  recurring shape, reproduced inside the instrument written to detect it.
+- **The two not counted are correct results, not gaps.** Dropping a depicted label is permitted
+  (a description need not be a transcript — the obligation sits on `extension-client`'s scenario
+  *"The popup gains a surface"*), and declaring a label against the wrong popup key leaves the
+  client suite green **by design** while the boundary rule goes red by name. Both are recorded with
+  their reasons rather than filed as survivors.
+
+**What this change does not establish.** No assertion here reads a rendered pixel's colour or
+position, so every statement above is exact about what it measures and silent about whether the
+result is *good*. **A human opening the page is the only instrument for that**, and `tasks.md` 6.1
+is left unticked for exactly this reason.
+
+**M8's two deferred surfaces are still deferred.** The content script and the side panel remain M9's
+and M11's, and their absence is still a requirement. The preview does **not** name them, and a case
+asserts it — a section that describes a product which does not exist is the defect, not the feature.
 
 **M8 is the first milestone whose subject is a second client rather than a new layer**, so its
 real deliverable is a proof that the packages beneath `apps/web` can be consumed by something that
@@ -188,10 +285,12 @@ checks — a broken mutant, not a weak assertion.
 **Slice 3 shipped four sections and made the fifth's absence a requirement.** `website-sections`
 adds a **product hero** (the wordmark beside the live address, plus a filled `Replace address`),
 **What happens, in order**, **Why SpectreMail**, and a **footer** carrying the limits that used
-to sit between the product and the end of the page. **The `Extension preview` section is absent
-and its absence is asserted**, because `apps/extension` is still an empty placeholder with no
+to sit between the product and the end of the page. **`Extension preview` was absent and its
+absence was asserted**, because `apps/extension` was **then** an empty placeholder with no
 MV3 manifest: a preview of it would be fake UI, and `page-composition` requires the page not to
-describe the absence as missing or forthcoming.
+describe the absence as missing or forthcoming. **That sentence describes slice 3 and is kept as its
+history** — the surface is built and the section is shipped, and both the absence it recorded and
+the two sweeps that enforced it were replaced rather than reworded.
 
 **Three of its numbers, and two of them are "unchanged" for a reason worth reading.**
 
@@ -3118,7 +3217,7 @@ kind would have been reviewed by the standards of the first and would have passe
 | 1 | `spectral-swiss-foundation` | The token layer in `packages/ui`, the page's structural stylesheet, the accent on the surfaces of the Accent block that **exist on this page today** (active status, verification codes, focus state — *primary action* and *brand mark* arrive with the sections in slice 3, and one further use, a detected link's host, is a recorded reading rather than a listed item), **visible focus states**, and the checks that can be asserted about either — contrast as WCAG arithmetic, focus as a resolved outline in a real browser | archived — at `openspec/changes/archive/2026-10-06-spectral-swiss-foundation/` |
 | 2 | **`motion-and-reduced-motion`** | **Motion**, and `prefers-reduced-motion: reduce` governing it. The three transitions named above arrive here — **entrance only**: the Motion block's word is *"materialize/disappear"*, and only the first half is deliverable in CSS, because an element React has unmounted is gone before any transition can run. Also: a row already on the page is never re-materialised by a later poll, since the inbox polls every five seconds and an animation on every row would repeat itself for as long as the tab is open | **archived** — at `openspec/changes/archive/2026-10-07-motion-and-reduced-motion/`; proposal **#67**, Apply **#68**, sync **#69** |
 | 3 | **`website-sections`** | The **four website sections below**, plus the product region's wordmark and its primary action. **The `Extension preview` section is absent and that absence is a requirement, not an omission** — slice 4 exists because the section cannot be built before M8, and a preview of an extension with no manifest would be fake UI. All copy is data (`apps/web/src/sections.ts`), so every claim is reviewable beside the requirement it satisfies | **archived** — at `openspec/changes/archive/2026-10-07-website-sections/`; proposal **#71**, Apply **#72**, sync **#73**, archive **#74**. Adds a new `page-composition` capability; `visual-system` 8 → 9 and `website-client` 20 → 21 requirements |
-| 4 | **blocked** | The **`Extension preview`** section, below | **blocked on M8** |
+| 4 | **`extension-preview`** | The **`Extension preview`** section, below. The depiction is drawn from markup and renders **no interactive element at all**, so it can never be a control on the page that does nothing when pressed; every label it shows is one the popup itself renders, and that correspondence is **checked rather than reviewed** by a boundary assertion that reads both clients' data | **applied and verified**, 2026-10-07, on `feat/extension-preview`. Proposal **#79** (`5062afa`). Modifies `page-composition` and `extension-client`; **`visual-system` untouched** (`packages/ui` still 38) |
 
 **Slice 2 shipped entry motion, and only entry motion, and its own browser spec found a
 product defect on its first run.** Three entrances on hooks that already existed
@@ -3157,12 +3256,15 @@ animation in slice 1 would have meant shipping it *without* `prefers-reduced-mot
 is the specific defect this milestone exists to prevent: the fix for reduced motion has to
 land with the motion, never after it.
 
-**Slice 4 is blocked, and it is blocked rather than deferred.** The `Extension preview`
-section would render a screenshot or a description of an extension that **does not exist** —
-`apps/extension` is an empty placeholder and the manifest is M8's. A preview section for a
-missing thing is fake UI, and this repository's own rule about a button that reports success
-while removing nothing applies to it exactly: a section that depicts a product the user
-cannot obtain teaches a falsehood more effectively than an absent one. **Owner: M8.**
+**Slice 4 was blocked, and it was blocked rather than deferred — the block is now discharged.** The
+`Extension preview` section would have rendered a screenshot or a description of an extension that
+**did not exist**: `apps/extension` was an empty placeholder and the manifest was M8's. A preview
+section for a missing thing is fake UI, and this repository's own rule about a button that reports
+success while removing nothing applies to it exactly — a section that depicts a product the user
+cannot obtain teaches a falsehood more effectively than an absent one. **Owner: M8**, and M8 is
+archived, so the section is built. **This paragraph is kept as the reason the section waited**, and
+the rule that produced the block is unchanged: it is why the depiction **renders no interactive
+element at all** rather than a disabled one.
 
 **What slice 1 changed outside the styling.** One promoted requirement, and it is a
 **rename plus a modification**: `website-client`'s *"This milestone builds structure, not
@@ -3188,16 +3290,18 @@ Keep marketing compact:
 
 The product itself should remain the main hero.
 
-**What shipped, and the audit of the two sections this slice could not build.** The list above
-names five; `website-sections` delivers **four** and asserts the absence of the fifth:
+**What shipped, and the audit of the section that had to wait.** The list above names five;
+`website-sections` delivered **four** and asserted the absence of the fifth. **All five are now
+built** — the fifth by `extension-preview`, and the two whole-page sweeps that enforced its
+absence were rescoped per region rather than deleted.
 
 | # | Section | State |
 | --- | --- | --- |
-| 1 | Live product hero | **built** — the wordmark beside the live address, and `Replace address` as the page's filled primary action |
-| 2 | Generate → Receive → Discard | **built** — third step narrowed to *replace the address and forget it on this device*, because the roadmap's `Discard` would read as "delete the mail" and the product cannot do that |
-| 3 | Why SpectreMail | **built** — four reasons, each traceable to a measurement or a promoted requirement |
-| 4 | Extension preview | **absent, by requirement.** `apps/extension` is an empty placeholder with no MV3 manifest, so there is nothing to preview. `page-composition` requires the page to omit the section **and** to say nothing about it being missing or forthcoming, and the browser tier asserts both halves |
-| 5 | Privacy/providers/open-source footer | **built, minus the licence claim** — see the audit below |
+| 1 | Live product hero | **built** - the wordmark beside the live address, and `Replace address` as the page's filled primary action |
+| 2 | Generate → Receive → Discard | **built** - third step narrowed to *replace the address and forget it on this device*, because the roadmap's `Discard` would read as "delete the mail" and the product cannot do that |
+| 3 | Why SpectreMail | **built** - four reasons, each traceable to a measurement or a promoted requirement |
+| 4 | Extension preview | **built, by `extension-preview`** - a `<figure>` depiction drawn from markup, three of the popup's regions, **seven labels the popup itself renders**, **no interactive element of any kind**, **no provider named** (the extension reaches two; this page reaches one, and naming either here would invite a comparison of two things that are not comparable), and one present-tense sentence saying it is built in this repository and loaded unpacked. **It names no capability the extension has declared absent** — no content script, no side panel, no notification, no code copy or fill — and no polling interval, and both absences are asserted |
+| 5 | Privacy/providers/open-source footer | **built, minus the licence claim** - see the audit below |
 
 **The open-source footer was audited rather than built, and both alternatives were offered to
 the user, who chose _claim nothing; record the audit_.** This repository carries **no `LICENSE`

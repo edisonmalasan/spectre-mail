@@ -1,15 +1,15 @@
 # AGENTS.md
 
-> **Current milestone state (reconciled against Git and OpenSpec 2026-10-07): M0–M6 and M8 are
-> complete in scope; M7 slices 1–3 are archived and slice 4 is not started.** M8
-> (`extension-foundation`) is applied, verified, synced, and **archived** at
-> `openspec/changes/archive/2026-10-07-extension-foundation/` — proposal **#75**, apply **#76**,
-> sync **#77**. `openspec list` reports **No active changes** and
-> `openspec validate --specs --strict` is **13 passed, 0 failed**, across **13 capabilities
-> holding 135 requirements and 381 scenarios**. **The next slice to schedule is M7 slice 4,
-> the `Extension preview`, and no work on it has begun** — its original block was an unbuilt
-> `apps/extension`, which M8 delivered, so what remains is a scope decision rather than missing
-> infrastructure.
+> **Current milestone state (reconciled against Git and OpenSpec 2026-10-07): M0-M8 are complete in
+> scope.** M7's four slices are archived and M8 (`extension-foundation`) is applied, verified,
+> synced, and archived at `openspec/changes/archive/2026-10-07-extension-foundation/` - proposal
+> **#75**, apply **#76**, sync **#77**. **M7 slice 4 (`extension-preview`) is applied and verified**
+> on `feat/extension-preview`, proposal merged as **#79**, and its archive PR number is recorded at
+> the archive stage as every other slice's is. `openspec validate --specs --strict` is **13 passed,
+> 0 failed**, across **13 capabilities holding 135 requirements and 381 scenarios** - the
+> unmodified figures, because this change amends two capabilities' requirement blocks rather than
+> adding any, and **the counts move when the sync stage promotes them.** **The next objective is
+> M9, In-Page Email Integration, and nothing about it has begun.**
 >
 > **Read the milestone sections below as history rather than as current state.** They are kept
 > in the order the milestones happened and each records the measured counts as they stood at
@@ -70,7 +70,7 @@ provider traffic served from recorded responses: boot reads real IndexedDB throu
 `createBrowserStorage()`, a created mailbox is written and read back through the
 platform's own API, adoption is offered only after the provider confirms it, and removal
 leaves `indexedDB.databases()` empty — including a store this build does not recognise.
-**34** browser test cases in **4** spec files as of M7 slice 3 — **21** as of M7 slice 2 — **12** as of M7 slice 1 —
+**37** browser test cases in **4** spec files as of M7 slice 4 - **34** as of slice 3 - **21** as of M7 slice 2 - **12** as of M7 slice 1 -
 `pnpm test:browser`, its own CI job. **The motion spec found a product defect on its first run**
 and then found a defect in *itself* on the change's falsification pass; both are recorded below
 and in the change's `design.md` D17 and D18.
@@ -164,14 +164,19 @@ page *is made of* rather than what it does; `visual-system` went **8 → 9** and
 `website-client` **20 → 21** and **66 → 69**. `openspec list` reports **No active changes** and
 `openspec validate --specs --strict` is **12 passed, 0 failed**.
 
-**M7 slice 4 is blocked on M8 and is not silently deferred**, so **M7's exit criteria are not
-fully met** and this file does not say otherwise. **That block was a scheduling question with an
-unbuilt dependency, and M8 is now built** — `apps/extension` holds a real MV3 manifest and an
-unpacked `dist` Chromium loads. **Whether to drop slice 4, carry it into M9, or take it now is
-still a scope decision for the maintainer**, and **no slice 4 work has begun.** The sentence that
-said `apps/extension` "is still an empty directory with no MV3 manifest" became false at M8 and is
-**deleted rather than reworded**, because a `page-composition` section that previews nothing is
-exactly the fake UI this repository has refused to ship twice already.
+**M7 slice 4 is applied and verified, so M7's exit criteria are now met in scope**, and this file
+does not say otherwise. It was taken rather than carried forward because M8 removed its only block:
+an unbuilt `apps/extension` would have made the section fake UI, and with a manifest, a worker and a
+popup it is simply work. **The section ships a depiction that renders no interactive element at
+all** - not a `<button>`, not a `<a>`, not a `role`, and not a disabled version of one - because a
+`Copy address` control inside a picture of a popup would be a control on the page that does nothing
+when pressed, which is the same defect `extension-client` removed from the popup itself. **The two
+whole-page sweeps `sections.spec.ts` used to enforce its absence were rescoped per region** rather
+than deleted, each with a negative control planting the forbidden word into the running page, and a
+new case reads Chromium's accessibility tree **at the region's own DOM object** over CDP to require
+that nothing inside it is operable. **`packages/ui` is untouched at 38 tests**, which is the
+measurement that matters: a rise would have meant the preview had introduced visual surface no
+capability describes.
 
 **And the defect slice 3's own work produced is worth more than the sections.** The first version
 put the footer **inside `<main>`**, and `App.test.tsx` **passed** — Testing Library maps `footer`
@@ -359,12 +364,14 @@ Pin versions when exact versions matter.
   provider, so a figure on screen would be an invention presented as a measurement;
   a provider's own verbatim limit statement *is* shown, attributed, with its scope
   disclaimed. **The sentence that said `apps/extension` "remains an empty placeholder" became
-  false at M8 and is deleted rather than reworded** — it now holds a manifest, a worker, and a
-  popup. **The reason the M7 `Extension preview` section is still absent has therefore
-  changed, and the change matters:** it is no longer blocked on an unbuilt client, it is
-  **unbuilt work on a client that now exists**. Shipping it is no longer fake UI; it is simply
-  not done, and whether to take it as M7 slice 4 or carry it forward is a maintainer's scope
-  decision this file does not make.
+  false at M8 and is deleted rather than reworded** - it now holds a manifest, a worker, and a
+  popup. **The reason the M7 `Extension preview` section was absent has since changed twice over,
+  and the second change is why the section is here:** it was first blocked on an unbuilt client,
+  then **unbuilt work on a client that existed**, and now it is built. **The section describes the
+  popup and acts on nothing** - seven labels the popup itself renders, no interactive element of
+  any kind, no provider named, and no capability the extension has declared absent (no content
+  script, no side panel, no notification, no code copy or fill) and no polling interval, since the
+  popup's count comes from a check somebody asked for.
   **Opening a message displays what was found and acts on none of it.** `MessageView`
   renders the sender, subject, arrival time, readable text, the codes in the parser's
   rank order, and each link as text with its host visible. There is no copy control
@@ -538,17 +545,34 @@ Pin versions when exact versions matter.
   no extension build step — that is M8" became false at M8 and is deleted rather than
   reworded.**
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running **726 tests across
-  39 files** via `pnpm test` (2026-10-07, at `extension-foundation`'s apply stage, with
+- Testing: Vitest `3.2.7` at the workspace root, verified running **738 tests across
+  41 files** via `pnpm test` (2026-10-07, at `extension-preview`'s apply stage, with
   `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory), counted from a
   JSON reporter rather than read off a summary line:
   54 in `packages/core`, 89 in `packages/providers`, **149 in `packages/mail-parser`**,
-  **155 in `packages/mailbox`**, **114 in `apps/web`**,
+  **155 in `packages/mailbox`**, **120 in `apps/web`**,
   **54 in `packages/storage`** (7 stored record, 30 IndexedDB adapter, 7 browser entry
   point, **10 `chrome.storage` adapter**),
-  **20 in `apps/extension`** (**8** in `Popup.test.tsx`, **9** in `provider-config.test.ts`,
-  **3** in `service-worker.test.ts`),
-  **38 in `packages/ui`**, and **53 architecture boundary assertions**.
+  **25 in `apps/extension`** (**8** in `Popup.test.tsx`, **9** in `provider-config.test.ts`,
+  **3** in `service-worker.test.ts`, **5** in `popup-copy.test.ts`),
+  **38 in `packages/ui`**, and **54 architecture boundary assertions**.
+  **`extension-preview` moved `apps/web` 114 → 120, `apps/extension` 20 → 25, and the boundary
+  count 53 → 54, and moved nothing else.** The six client cases are the new region's own file;
+  the five extension cases are the popup copy's exported module, and **`Popup.test.tsx` stayed at
+  8** because the copy *moved* rather than changed - a string changing here would have shown as a
+  movement there. **The one boundary assertion requires every label the website depicts to be a
+  string the popup renders**, reported by name in both drift directions.
+  **`packages/ui` stayed at 38 and that is the number that mattered most in this paragraph**,
+  because `design.md` D6 committed this change to adding no token and no motion; a rise would have
+  meant the preview had introduced visual surface no capability describes. Every package is
+  untouched.
+  **`pnpm verify` was run three times at this stage, not once, and the two reds found real
+  things**: `format:check` failed on three files committed earlier in the change without Prettier
+  having been run over them, and `lint` failed on the falsification harness itself - four temporary
+  scripts in the repository root, which were **deleted rather than fixed**, since a measuring
+  instrument is not a shipped file.
+  **The paragraph below is `M8`'s and is kept because the deltas are only readable
+  against each other.**
   **`M8` moved `packages/storage` 44 → 54, `apps/extension` 0 → 20, and the boundary count
   51 → 53, and moved nothing else.** The two new boundary assertions are the live-check
   quarantine rule and the rule stopping a client restating a value `packages/providers` owns.
@@ -594,9 +618,13 @@ Pin versions when exact versions matter.
   than adding up.
   **Those counts cover one tier only.** There are now **three runners**: Playwright
   `1.63.0` in **two configurations**.
-  **The website's tier: 34 test cases in 4 spec files** in `apps/web/e2e/` — `storage.spec.ts` (**6**,
+  **The website's tier: 37 test cases in 4 spec files** in `apps/web/e2e/` - `storage.spec.ts` (**6**,
   count **unchanged by M7 slice 1**), `focus.spec.ts` (**6**, added by slice 1),
-  `motion.spec.ts` (**9**, added by slice 2) and `sections.spec.ts` (**13**, added by slice 3).
+  `motion.spec.ts` (**9**, added by slice 2) and `sections.spec.ts` (**16**, added by slice 3
+  and **13 → 16 at slice 4**, whose three new cases are the non-operable depiction read from
+  Chromium's own accessibility tree at the region's own node, the labels-are-the-popup's-own
+  case, and the declared-absent-capability case - **and whose only two edited cases are the two
+  whole-page sweeps slice 4 rescoped per region**, each now carrying a negative control).
   That the storage six kept their count is
   the evidence styling changed no behaviour that tier already covered: had a `className`
   altered a control's role or accessible name, one of those six would have stopped finding
@@ -1219,18 +1247,34 @@ pnpm test:browser
 
 ```
 
-Playwright `1.63.0`, **two configurations, 8 spec files and 50 test cases** — **Chromium
+Playwright `1.63.0`, **two configurations, 8 spec files and 53 test cases** - **Chromium
 only**. The command builds **both** clients and then runs the two suites in order:
-the website's **34** in `apps/web/e2e/`, and the extension's **16** in `apps/extension/e2e/`.
+the website's **37** in `apps/web/e2e/`, and the extension's **16** in `apps/extension/e2e/`.
 
-**The website's 4 spec files and 34 cases** — `storage.spec.ts`
+**The website's 4 spec files and 37 cases** - `storage.spec.ts`
 (**6**), `focus.spec.ts` (**6**, added by M7 slice 1), `motion.spec.ts` (**9**, added by
-M7 slice 2) and `sections.spec.ts` (**13**, added by M7 slice 3). The
+M7 slice 2) and `sections.spec.ts` (**16**; **13** added by M7 slice 3 and **three** added by
+M7 slice 4). The
 command serves `apps/web/dist` with `vite preview` on
 `http://127.0.0.1:4173` with `--strictPort`, because the page under test is the **built**
-`<App />` with no props — the page a user receives, not a composition mounted by a test.
+`<App />` with no props - the page a user receives, not a composition mounted by a test.
 
-**The extension's 4 spec files and 16 cases, added by M8** — `manifest.spec.ts` (**6**),
+**Slice 4's three, and the one thing about them worth carrying.** They are: the depiction exposes
+**nothing operable**, read from Chromium's accessibility tree **at the region's own DOM object**
+over CDP's `Accessibility.queryAXTree` rather than from `getFullAXTree` - a whole-tree read cannot
+answer *"does this region expose anything operable"* without substituting this repository's
+judgement about which buttons belong elsewhere, so the scoping is the platform's; every label the
+**built** preview shows is one the popup itself renders, read from the served page and checked
+against `POPUP_COPY` so the chain declared → rendered → the popup's own value is whole rather
+than a proxy; and the preview names no capability the extension has declared absent and no
+polling interval. **The two whole-page sweeps slice 3 used to enforce the section's *absence*
+were rescoped per region rather than deleted**, each with a negative control planting the
+forbidden word into the running page - without which a sweep matching nothing would satisfy every
+assertion above it, and the exemption would be indistinguishable from a pattern that had silently
+stopped firing. **The extension's 16 did not move**, which is the check that this change did not
+touch the extension client.
+
+**The extension's 4 spec files and 16 cases, added by M8** - `manifest.spec.ts` (**6**),
 `popup.spec.ts` (**8**), `measurement.spec.ts` (**1**) and `alarm-floor.spec.ts` (**1**).
 **It has no `webServer` at all**, which is not an omission: it loads `apps/extension/dist`
 as an unpacked extension through `chromium.launchPersistentContext`. **Two flags and an
@@ -1629,10 +1673,19 @@ through 2026-10-07:
 pnpm typecheck     9 of 9 workspace projects run tsc --noEmit
 pnpm lint          exit 0
 pnpm format:check  All matched files use Prettier code style
-pnpm test          39 files, 726 tests passed
+pnpm test          41 files, 738 tests passed
 pnpm build         vite 7.3.6, dist emitted for BOTH clients
 pnpm verify        exit 0
 ```
+
+**`pnpm verify` was run three times at `extension-preview`'s apply stage, and "All exited `0`"
+above is the third run, not the first.** That is worth recording because the two reds were real
+and neither was a flake: the first failed **`format:check`** on three files committed earlier in
+the same change without Prettier having been run over them - a gate nobody had run between two
+commits - and the second failed **`lint`** on the falsification harness itself, four temporary
+scripts in the repository root. **They were deleted rather than fixed**, on the grounds that a
+measuring instrument is not a shipped file and a measuring instrument left in the root becomes
+something every future `pnpm lint` has an opinion about.
 
 **`pnpm build` emitting two lines is M8's, and it is the first time that block's property
 has changed since it was written.** The project count went **8 → 9** for `apps/extension`,
