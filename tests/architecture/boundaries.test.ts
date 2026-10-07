@@ -1072,8 +1072,17 @@ const CHROME_GLOBAL_PATTERN = /(?<![\w$])chrome(?![\w$])/g;
  * only correct import in the codebase has to move the file or carve the pattern, and neither was
  * acceptable:** a carve-out exempting any specifier containing the word would exempt a future
  * one that reached the global. The file was renamed instead, and this allowance followed it.
+ *
+ * **It followed a second rename, and that is the reason the allowance is a whole-file pattern
+ * rather than something derived.** `local-area.ts` was accurate while it supplied only the local
+ * storage area; messaging arrived (`in-page-mailbox`), the name stopped describing the module, and
+ * it became `extension-platform.ts`. **The requirement added by that change says *exactly one
+ * module*, and a rule permitting a second one would let "one" become "two" without anybody deciding
+ * anything** - which is what a permitted list is for. So the allowance names the one module and
+ * the control below plants a probe in every file that is not it, which is the half that makes the
+ * retarget falsifiable rather than merely different.
  */
-const CHROME_PLATFORM_READER = /^local-area\.tsx?$/;
+const CHROME_PLATFORM_READER = /^extension-platform\.tsx?$/;
 
 /**
  * Modules under a scanned tree that reach the extension's platform global, reported by their

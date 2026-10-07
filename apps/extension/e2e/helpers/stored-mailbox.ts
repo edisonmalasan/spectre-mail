@@ -22,7 +22,7 @@
  * ## Why the platform global is read reflectively
  *
  * **Because that is how the shipped code reads it, and a spec should not reach a store by a
- * route the product does not.** `src/local-area.ts` is the extension's single reader of
+ * route the product does not.** `src/extension-platform.ts` is the extension's single reader of
  * the extension's `chrome` global, and it walks it with `Reflect.get` rather than naming it —
  * partly because there is no `@types/chrome` here, and partly because the boundary rule
  * (`keeps storage, cookies, and the URL out of every client`) treats a client reaching a global

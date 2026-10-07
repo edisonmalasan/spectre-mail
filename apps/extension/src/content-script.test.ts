@@ -23,11 +23,13 @@ import { createMailbox } from "@spectre-mail/core";
 
 import {
   AFFORDANCE_BUTTON_ATTRIBUTE,
+  AFFORDANCE_CREATE_LABEL,
   AFFORDANCE_HOST_ATTRIBUTE,
   AFFORDANCE_LABEL,
 } from "./content-script/affordance";
 import { startInPageIntegration } from "./content-script/controller";
 import { isEmailField } from "./content-script/email-field";
+import type { CreateMailboxAnswer } from "./protocol";
 
 const ADDRESS = "kept@address.test";
 
@@ -54,6 +56,7 @@ function harness(
   options: {
     stored?: Mailbox | null;
     loadRejects?: boolean;
+    createMailbox?: () => Promise<CreateMailboxAnswer>;
     onBlocked?: (reason: string) => void;
   } = {},
 ) {
@@ -66,6 +69,14 @@ function harness(
         Promise.resolve(options.stored === undefined ? mailbox(ADDRESS) : options.stored),
       );
 
+  // **A default that answers `notActedOn` rather than nothing, so this file's own insertion cases
+  // would fail if they ever dispatched a creation.** Every test below stores a mailbox, so the
+  // creation path is unreachable here and `createMailbox` is never called; a default of
+  // `undefined` would have made a bug that reached it a `TypeError` inside a `void`ed promise —
+  // silent, because the harness discards it — where an answer is a value the test file can read.
+  const createMailbox =
+    options.createMailbox ?? (() => Promise.resolve<CreateMailboxAnswer>({ kind: "notActedOn" }));
+
   // **`onBlocked` is spread conditionally, not passed as `possibly undefined`.** This
   // workspace sets `exactOptionalPropertyTypes`, under which an optional property may be
   // absent but may not be present-and-undefined — so the first version did not compile, and
@@ -73,11 +84,12 @@ function harness(
   const stop = startInPageIntegration({
     document,
     storage: { loadMailbox },
+    createMailbox,
     ...(options.onBlocked === undefined ? {} : { onBlocked: options.onBlocked }),
   });
   started.push(stop);
 
-  return { stop, loadMailbox, host };
+  return { stop, loadMailbox, createMailbox, host };
 }
 
 /**
@@ -262,12 +274,24 @@ describe("the affordance appears on focus, and only then", () => {
 });
 
 describe("the two refusals", () => {
-  it("offers nothing when this device holds no stored mailbox", async () => {
+  // **Renamed rather than deleted, and the change is the point.** Before `in-page-mailbox` this
+  // case asserted "offers nothing when this device holds no stored mailbox" — a refusal, and the
+  // second of the two the module note names. **It is no longer a refusal:** a device holding nothing
+  // is precisely the case a page may be offered creation on, and the delta's requirement names it.
+  // The assertion is therefore inverted rather than weakened, and it now also reads the label,
+  // because two controls being offered is the whole risk — one that inserts and one that creates
+  // differ only by name.
+  it("offers to create an address, and says so, when this device holds no stored mailbox", async () => {
     const { host } = harness({ stored: null });
     await Promise.resolve();
     await Promise.resolve();
     focusField(field(EMAIL));
-    expect(host()).toBeNull();
+    expect(host()).not.toBeNull();
+    expect(host()?.shadowRoot?.textContent).toContain(AFFORDANCE_CREATE_LABEL);
+    // **And not the inserting label.** A single label for both offers would be true of neither:
+    // the person pressing the button is the only one who can tell inserting something held from
+    // asking a provider for something that does not exist.
+    expect(host()?.shadowRoot?.textContent).not.toContain(AFFORDANCE_LABEL);
   });
 
   it("offers nothing on a field that already holds text", async () => {
@@ -335,7 +359,14 @@ describe("a blocked read is not an absent address", () => {
     expect(onBlocked).toHaveBeenCalledWith("the read failed");
   });
 
-  it("still offers nothing, because it has no address to insert", async () => {
+  // **This case stopped being about insertion alone, and that is why it is still here.**
+  // `in-page-mailbox` made a missing address mean "this device holds nothing", so a rejected
+  // read would have been folded into that and offered a creation control. It must not be: the
+  // controller cannot tell whether a mailbox exists, and creating a second one on top of an
+  // unreadable store is a cost nobody agreed to. **So a read that failed produces neither offer**,
+  // and the assertion that there is no control is now the only thing separating "blocked" from
+  // "empty" that a test can observe — `readFailed` is private, and this is its whole observable.
+  it("still offers nothing, because it neither holds nor can confirm an address", async () => {
     const { host } = harness({ loadRejects: true });
     await Promise.resolve();
     await Promise.resolve();

@@ -22,7 +22,7 @@
  * **`Reflect.get` rather than a typed global, and the reason is a checked one.**
  * There is no `chrome` declaration in this workspace's DOM lib, so a property access would not
  * compile. A `declare global` block would make the platform's shape ambient across the whole
- * package, which `local-area.ts` deliberately refuses. Reading it reflectively keeps the
+ * package, which `extension-platform.ts` deliberately refuses. Reading it reflectively keeps the
  * platform reachable from exactly one expression, and turns "no `chrome` in this environment"
  * into a value this file can branch on rather than a crash on load.
  *
@@ -43,8 +43,8 @@ import "@spectre-mail/ui/tokens.css";
 import "./styles.css";
 
 import { App } from "./App";
+import { readChromeLocalArea } from "./extension-platform";
 import { createExtensionStorage } from "./storage";
-import { readChromeLocalArea } from "./local-area";
 
 const container = document.getElementById("root");
 
