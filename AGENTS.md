@@ -4,12 +4,13 @@
 > scope.** M7's four slices are archived and M8 (`extension-foundation`) is applied, verified,
 > synced, and archived at `openspec/changes/archive/2026-10-07-extension-foundation/` - proposal
 > **#75**, apply **#76**, sync **#77**. **M7 slice 4 (`extension-preview`) is applied and verified**
-> on `feat/extension-preview`, proposal merged as **#79**, and its archive PR number is recorded at
-> the archive stage as every other slice's is. `openspec validate --specs --strict` is **13 passed,
-> 0 failed**, across **13 capabilities holding 135 requirements and 381 scenarios** - the
-> unmodified figures, because this change amends two capabilities' requirement blocks rather than
-> adding any, and **the counts move when the sync stage promotes them.** **The next objective is
-> M9, In-Page Email Integration, and nothing about it has begun.**
+> on `feat/extension-preview`, proposal merged as **#79**, Apply **#80**, and its sync and archive
+> PR numbers are recorded at their own stages, as every other slice's is.
+> `openspec validate --specs --strict` is **13 passed, 0 failed**, across **13 capabilities holding
+> 136 requirements and 390 scenarios** - measured by counting `### Requirement:` and `#### Scenario:`
+> across `openspec/specs/`, and the delta raised that by exactly **one requirement and nine
+> scenarios**. **The next objective is M9, In-Page Email Integration, and nothing about it has
+> begun.**
 >
 > **Read the milestone sections below as history rather than as current state.** They are kept
 > in the order the milestones happened and each records the measured counts as they stood at
