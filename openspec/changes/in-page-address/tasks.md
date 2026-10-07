@@ -2,16 +2,28 @@
 
 ## 1. Measure before deciding (blocking — D2 and D4 depend on these)
 
-- [ ] 1.1 Measure whether Chromium injects the declared content script **without** a matching entry
+- [x] 1.1 Measure whether Chromium injects the declared content script **without** a matching entry
       in `host_permissions`, using the extension's own tier and a throwaway build. Record the
       observed outcome in `docs/PROVIDERS.md` §4 and in this change's `design.md` D2, including
       whether `host_permissions` had to move.
-- [ ] 1.2 Measure whether assigning through the prototype's own `value` setter makes a
-      React-controlled input report the address to the page's own state, in real Chromium on the
-      built fixture. Record the observed outcome in `design.md` D4.
-- [ ] 1.3 Confirm the content script cannot reach `chrome.storage` if 1.1 shows it is not granted,
+      **Measured: injected without one, and `chrome.storage.local` was readable *and* writable from
+      the content script on the `storage` permission alone. `host_permissions` did not move, so D2's
+      preferred branch is the one that happened and `activeTab` stays rejected.**
+- [x] 1.2 **Corrected in place, because the measurement contradicted what this task predicted.** It
+      predicted that the prototype's own `value` setter is what makes a React-controlled input report
+      the address. Measured on real React `19.3.0`: **a plain `input.value = x` reaches the state
+      too**, so the setter is not what makes it work, and **the dispatched events are** - assigning
+      with no events left the state empty while the field painted the address. D4 is amended, the
+      setter is kept as *defensive* for frameworks that keep a value tracker (none measured), and the
+      event requirement now rests on an observation.
+- [x] 1.3 Confirm the content script cannot reach `chrome.storage` if 1.1 shows it is not granted,
       and record which of the two designs D3's direct read depends on. **A measurement that
       contradicts D3's premise is recorded here and acted on in D3, not worked around in the code.**
+      **The condition did not arise: the content script CAN reach `chrome.storage.local`, so D3's
+      direct read stands and slice 1 needs no message round trip to a service worker whose lifetime
+      is unmeasured.** A second measured fact from the same run is load-bearing for D4's requirement
+      wording: **a content script cannot read a page's JavaScript globals** - its `globalThis` is the
+      isolated world - so *"the page's own code reads back the address"* is observed through the DOM.
 
 ## 2. Build (D1)
 

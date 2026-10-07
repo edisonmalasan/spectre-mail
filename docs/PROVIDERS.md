@@ -432,6 +432,45 @@ every 30; `packages/mailbox`'s `INBOX_POLL_PROMPT_MS` of 5 000 is a *page*
 cadence. Whoever schedules background polling inherits an unanswered question,
 and it is not one this file answers.
 
+### 4.2 Content-script facts, measured before the in-page milestone was built (2026-10-07)
+
+Measured while `in-page-address` (M9 slice 1) was still at proposal stage, because two of its
+decisions rested on assumptions written as if they were facts. Chromium (Playwright 1.63.0),
+unpacked, against a throwaway probe whose only service worker exists so the extension loads at all.
+
+| Question | Measured answer | What it does **not** establish |
+|---|---|---|
+| Does a declared content script need a matching `host_permissions` entry to be injected? | **No.** `matches: ["http://127.0.0.1/*"]` injected with `host_permissions` left at only the two provider origins | Nothing about a page served over HTTPS. The probe origin is plain HTTP on loopback. |
+| Can a content script read `chrome.storage.local`? | **Yes**, on the `storage` permission alone — read *and* write, value read back through the platform API | Nothing about the `sync` area, and nothing about whether a large record behaves the same. |
+| Can a content script read a page's JavaScript globals? | **No.** Its `globalThis` is the **isolated world**; a value the page assigned was invisible, *including one assigned before the content script ran at all* | Nothing about the DOM, which is shared — that half is the channel this repository uses. |
+| Does a plain `input.value = x` reach a React controlled input's state? | **Yes, on React 19.3.0** — the prototype's own setter was not required | **Nothing about any other framework.** A framework that keeps its own value tracker is exactly the case where direct assignment fails, and none has been measured. |
+| Do the dispatched events matter? | **They are the whole mechanism.** Assigning the value and dispatching nothing left React's state empty while the field painted the address | Nothing about a framework listening for some third event. |
+| Does a shadow root keep a page's own styles out? | **Yes**, and demonstrably: the fixture's hostile `button { display: none !important }` computed `display: none` on the page's own button while the shadow button computed `inline-block` | **Nothing about how anything looks.** These are computed values, not rendered pixels. |
+
+**Three harness defects found while measuring this, each of which produced a confident wrong answer
+before being caught.** They are recorded because the shape is the one this repository keeps hitting.
+
+- **Reading a page global from the content script** made every arm of the insertion measurement return
+  `null`, *including the arm read before any insertion*, which should have been the empty string. Read
+  as "React did not observe the insertion", that inverts the truth **and** makes a mechanism that is
+  not load-bearing look essential.
+- **A stylesheet that was served but never linked** made "the page's styles do not reach the
+  affordance" true for the wrong reason. The control that fixed it is the page's *own* button
+  reporting `display: none`.
+- **`run_at: document_idle` fires after `DOMContentLoaded`**, so a probe listening for that event
+  never fired. The first run reported "no affordance" — a platform-shaped conclusion from a listener
+  that was registered too late.
+
+**One observation here is explicitly not a product fact.** The fixture's plain input received
+`input, input, change, change`. That is React `StrictMode` double-invoking effects in development, not
+a fact about how anything dispatches events.
+
+**What is still open, deliberately.** Whether a content script may `fetch` a provider origin
+cross-origin is **not** measured here, and it is the fact that decides the shape of M9 slice 2. Under
+MV3 a content script's `fetch` is expected to obey the **page's** CORS policy rather than the
+extension's host permissions, but nothing in this repository has observed it either way, and
+`in-page-address`'s own design records it as slice 2's question to answer before slice 2 is designed.
+
 ---
 
 ## 5. Real external delivery — **verified on both providers**

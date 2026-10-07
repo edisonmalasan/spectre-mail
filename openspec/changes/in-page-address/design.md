@@ -93,6 +93,13 @@ Both halves are recorded before implementation:
   an install prompt reading *"read and change your data on all websites"* is a real cost and it is
   paid only when a measurement says the alternative does not work.
 
+**Measured during apply (2026-10-07): the first branch is the one that happened.** Chromium injects a
+declared content script whose `matches` cover the origin **without** a matching `host_permissions`
+entry, and `chrome.storage.local` is readable *and* writable from the content script on the `storage`
+permission alone. So `permissions` stays exactly `["storage"]` and `host_permissions` stays exactly the
+two provider origins. The measurement, its harness, and the controls it ran are recorded in
+**Measurements recorded during apply** below.
+
 **`activeTab` is rejected, and the reason is that it does not match the roadmap's UX rule.**
 `activeTab` is granted by an action click, a context-menu item, or a keyboard command — **not by
 focus**, and the affordance must appear on focus. Choosing `activeTab` would mean choosing an
@@ -130,6 +137,22 @@ is painted without touching that tracker. A field filled that way submits empty.
 controlled component therefore means assigning through the prototype's own `value` setter — obtained
 from `Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")` — and then dispatching
 the events the page's own input handling listens for.
+
+**Amended by measurement during apply (2026-10-07): the prototype setter turned out not to be
+necessary on React `19.3.0`, and the events turned out to be the whole mechanism.** Three arms were
+run against a real controlled input and all three are recorded below. What survives:
+
+- The setter is now **defensive rather than load-bearing**. A framework that maintains its own value
+  tracker is precisely the case where direct assignment fails, and none has been measured here, so the
+  cheaper-looking arm is kept and its cost is stated as what it is.
+- **Dispatching the events is the load-bearing half**, and that is now an observation rather than a
+  recollection: assigning the value and dispatching nothing left React's state empty while the field
+  painted the address. That is the failure this requirement exists to prevent, and it was reproduced.
+
+**One platform fact this decision now depends on, measured here and easy to get wrong: a content
+script cannot read a page's JavaScript globals.** Its `globalThis` is the isolated world, so *"the
+page's own code reads back the address"* is observed through the **DOM** — a page rendering its own
+state into the document — and never by reading a variable off the page.
 
 **The requirement states the property**: the address becomes the value the page's own state holds,
 which is observable as *"the page's own code reads back the address"*. **This file holds the
@@ -255,3 +278,121 @@ already owns; nothing stored by any earlier build is reinterpreted.
   platform fact this repository has not measured, and it decides the whole shape of slice 2.
 - **Whether `chrome.action.openPopup()` is the right way to offer creation from a page.** It needs
   a user gesture and a recent Chromium, and slice 2 should measure rather than discover.
+
+---
+
+# Measurements recorded during apply (2026-10-07)
+
+Tasks 1.1-1.3 were blocking, so they ran before any product code. The harness lives **outside the
+repository tree**, in `%TEMP%\opencode\inpage-probe`, because `pnpm lint` rejects a root `.cjs` and
+a measuring instrument left in the root becomes something every future lint has an opinion about.
+
+Chromium is the full `channel: "chromium"` binary, launched through `chromium.launchPersistentContext`
+with `--load-extension` **and** `--disable-extensions-except` — the four-flag fact this repository
+already recorded. The extension was confirmed loaded before any result below was read, by waiting for
+its service worker to register: an extension whose declared background script is missing **does not
+load at all**, and the first run of this harness omitted `sw.js` and so read as a platform fact when it
+was a manifest defect.
+
+**The fixture is a real React `19.3.0` app**, bundled with `esbuild` from the workspace's own copy.
+React 19 ships no UMD build, so a hand-written mimic of a controlled input would have been a proxy for
+the thing under test.
+
+## D2 — measured: **no new host permission is required**
+
+With `content_scripts.matches` set to `["http://127.0.0.1/*"]` and `host_permissions` left at exactly
+the two provider origins:
+
+| Observation | Result |
+| --- | --- |
+| Content script injected | **yes** |
+| `chrome.storage.local` read **and** write | **yes**, on the `storage` permission alone |
+| Written value read back | `written-by-content-script` |
+
+**So the manifest keeps `permissions: ["storage"]` and keeps `host_permissions` at the two provider
+origins.** D2's preferred branch is the one that happened, and the requirement was written so that
+either branch would have satisfied it. `activeTab` stays rejected, and the reason it gave still holds:
+focus is not a gesture `activeTab` recognises.
+
+**D3's premise is confirmed by the same run:** a content script holds the extension's `storage`
+permission, so the direct read works and slice 1 needs no message round trip to a service worker whose
+lifetime is unmeasured.
+
+## D4 — measured: **the prototype setter is NOT what makes it work; the events are**
+
+Three arms, all against a real controlled input (`value` + `onChange`), all reading back what React
+rendered:
+
+| Arm | What was done | React's own state afterwards |
+| --- | --- | --- |
+| Prototype setter + `input` + `change` | D4's original mechanism | **updated** |
+| **Direct `input.value = x` + both events** | the control | **also updated** |
+| Prototype setter, **no events dispatched** | the control | **not updated** |
+
+**Two consequences, and the first one is a design amendment.**
+
+**1. The prototype setter is unnecessary on React `19.3.0`, so D4's mechanism is withdrawn.** A plain
+assignment reaches the controlled component's state exactly as well. The requirement stated the
+*property* rather than the mechanism, and that is now the difference between a change whose
+requirement survived its own measurement and one that would have had to be edited to accommodate it.
+
+**2. Dispatching the events is what makes it work, and that is now measured rather than remembered.**
+The third arm changed the painted value and left React's state empty — a field that looks filled and
+submits empty, which is the failure D4 exists to prevent. D4's requirement that **both** `input` and
+`change` be dispatched stands, and it now stands on an observation: dropping the events is what breaks
+it.
+
+**What this measurement does not establish.** It is one controlled-input shape, on one React version,
+in one browser. It says nothing about Vue, Svelte, or any framework that keeps its own tracker, and a
+framework that *does* maintain a value tracker is precisely the case where direct assignment fails and
+the prototype setter matters. **So the implementation keeps the prototype setter** — it costs one
+`getOwnPropertyDescriptor` call, it is what makes the arm that failed here pass on a framework whose
+tracker would reject the direct assignment, and it is the arm with no measured downside. What the
+measurement changed is the *justification*: it is defensive, not load-bearing, and D4 now says so.
+
+**And the first version of this measurement was wrong in the most expensive direction available.** It
+read a page global (`globalThis.__reactValue`) from inside the content script and got `null` for every
+arm — **including the arm taken before any insertion**, which should have been the empty string. The
+cause is that **a content script runs in an isolated world and its `globalThis` is not the page's**, so
+the probe was reading a different JavaScript world than it wrote to. On that evidence the setter
+looked *necessary* and the events looked irrelevant, which is the exact inverse of the truth and would
+have been recorded as a platform fact. Every read-back in the harness is now the DOM, which is the one
+thing a content script and a page genuinely share.
+
+## D6 — measured: shadow isolation holds, with a control that fires
+
+The fixture links a deliberately hostile stylesheet — `button { display: none !important; transform:
+scale(0.1); color: transparent }` — and the harness asserts **the page's own button really is
+`display: none`** before reading anything about the affordance. The first version of the fixture served
+that stylesheet but never linked it, so "the page's styles do not reach the affordance" was satisfied
+by the page not being hostile at all: a control that does not fire is not a control.
+
+| Observation | Result |
+| --- | --- |
+| Hostile sheet linked, and firing on the page's own button | **yes** (`display: none`) |
+| Affordance button's computed `display`, inside the shadow root | `inline-block` |
+| Affordance button's computed `transform` | `none` |
+| Buttons the page's own `document.querySelectorAll("button")` reaches | **1** — the page's own |
+| Page's `document.body.textContent` contains the affordance's label | **no** |
+
+**The two halves of D6's requirement are therefore different properties, and both were measured.** The
+label is absent from the page's text, and the page cannot reach the control by query at all — which is
+the stronger statement and the one worth keeping.
+
+## One observation recorded and explicitly not turned into a requirement
+
+The fixture's plain input received `input, input, change, change` — each event twice. That is
+**React `StrictMode` double-invoking effects in development**, not a product fact: the fixture renders
+inside `<StrictMode>`, which mounts, unmounts and remounts to surface unsafe effects. It is recorded
+here so that nobody later reads the doubled list as evidence about how the extension dispatches
+events, and the shipped fixture does not use `StrictMode` for exactly that reason.
+
+## What these measurements do not establish
+
+- **Nothing about a live provider.** No provider request was made; the probe names the two origins in
+  `host_permissions` and calls neither.
+- **Nothing about whether a content script may `fetch` cross-origin.** That is slice 2's question and
+  remains open, deliberately.
+- **Nothing about any browser but this Chromium**, on this one machine.
+- **Nothing about how anything looks.** Every style fact above is a computed value, not a rendered
+  pixel, and the affordance's appearance in a real site remains a human judgement — task 10.1.
