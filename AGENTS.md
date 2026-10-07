@@ -3,14 +3,14 @@
 > **Current milestone state (reconciled against Git and OpenSpec 2026-10-07): M0-M8 are complete in
 > scope.** M7's four slices are archived and M8 (`extension-foundation`) is applied, verified,
 > synced, and archived at `openspec/changes/archive/2026-10-07-extension-foundation/` - proposal
-> **#75**, apply **#76**, sync **#77**. **M7 slice 4 (`extension-preview`) is applied and verified**
-> on `feat/extension-preview`, proposal merged as **#79**, Apply **#80**, and its sync and archive
-> PR numbers are recorded at their own stages, as every other slice's is.
-> `openspec validate --specs --strict` is **13 passed, 0 failed**, across **13 capabilities holding
-> 136 requirements and 390 scenarios** - measured by counting `### Requirement:` and `#### Scenario:`
-> across `openspec/specs/`, and the delta raised that by exactly **one requirement and nine
-> scenarios**. **The next objective is M9, In-Page Email Integration, and nothing about it has
-> begun.**
+> **#75**, apply **#76**, sync **#77**. **M7 slice 4 (`extension-preview`) is applied, verified,
+> synced and ARCHIVED** at `openspec/changes/archive/2026-10-07-extension-preview/` - proposal
+> **#79** (`5062afa`), apply **#80** (`586d58a`), sync **#81** (`46ae462`), archive **#82**.
+> `openspec list` reports **No active changes** and `openspec validate --specs --strict` is
+> **13 passed, 0 failed**, across **13 capabilities holding 136 requirements and 390 scenarios** -
+> measured by counting `### Requirement:` and `#### Scenario:` across `openspec/specs/`, and the
+> delta raised that by exactly **one requirement and nine scenarios**. **The next objective is
+> M9, In-Page Email Integration, and nothing about it has begun.**
 >
 > **Read the milestone sections below as history rather than as current state.** They are kept
 > in the order the milestones happened and each records the measured counts as they stood at
@@ -165,7 +165,8 @@ page *is made of* rather than what it does; `visual-system` went **8 → 9** and
 `website-client` **20 → 21** and **66 → 69**. `openspec list` reports **No active changes** and
 `openspec validate --specs --strict` is **12 passed, 0 failed**.
 
-**M7 slice 4 is applied and verified, so M7's exit criteria are now met in scope**, and this file
+**M7 slice 4 is applied, verified, synced and archived, so M7's exit criteria are met in scope and
+M7 is closed**, and this file
 does not say otherwise. It was taken rather than carried forward because M8 removed its only block:
 an unbuilt `apps/extension` would have made the section fake UI, and with a manifest, a worker and a
 popup it is simply work. **The section ships a depiction that renders no interactive element at
@@ -177,7 +178,12 @@ than deleted, each with a negative control planting the forbidden word into the 
 new case reads Chromium's accessibility tree **at the region's own DOM object** over CDP to require
 that nothing inside it is operable. **`packages/ui` is untouched at 38 tests**, which is the
 measurement that matters: a rise would have meant the preview had introduced visual surface no
-capability describes.
+capability describes. **Its sync promoted four blocks and moved the counts by one requirement and
+nine scenarios** — `page-composition` **5 → 6** and **14 → 20**, `extension-client` **6 → 6** and
+**17 → 20** — each verified byte-identical against its delta, **and re-verified against the
+archived copies after the move**, because archiving is a move and a move is the operation most
+likely to quietly drop a file. **All six archived files are SHA-256 identical to their pre-archive
+originals.**
 
 **And the defect slice 3's own work produced is worth more than the sections.** The first version
 put the footer **inside `<main>`**, and `App.test.tsx` **passed** — Testing Library maps `footer`
@@ -1840,6 +1846,19 @@ the reason 44 storage tests were never going to find it.
   one. Neither green run reads a rendered pixel: `verify` is a browser-free tier and `browser`
   reads computed styles, element identity, and real IndexedDB. The sync run `37498430362`
   (PR **#69**) passed the same three jobs.
+
+  **And slice 4's Apply run was green on its first attempt too — and this one had a falsification
+  pass behind it, which is the difference worth recording.** Runs `37596230069` (Apply, PR
+  **#80**) and `37597429311` (sync, PR **#81**) both passed all three jobs on the first attempt.
+  **It is recorded against the same pattern rather than as a reversal of it**: a first CI run that
+  is green is a fact about one execution, slice 1's was red twice for three separate reasons, and
+  **the only instrument that has ever distinguished the two is re-running.** What is different is
+  where the work happened — slice 4's browser cases were authored, mutation-tested to 16 of 18
+  caught, and had **two whole-page assertions found false by their own change before the push**,
+  which is why `Accessibility.queryAXTree` exists and why both rescoped sweeps ship a negative
+  control. **The three new cases read a served stylesheet, a built DOM, and Chromium's
+  accessibility tree at one region's own node, and none of them is a rendered pixel**, so the same
+  fourth limit applies unchanged.
 
   **This is the strongest evidence yet for the two-tier split.** `pnpm verify` was green
   throughout, on this machine, on the commit that carried the defect — **689** unit tests
