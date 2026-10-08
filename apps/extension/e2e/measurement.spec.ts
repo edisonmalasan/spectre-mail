@@ -1,4 +1,4 @@
-﻿/**
+/**
  * The two measurements `design.md` D1 requires before anything decides where the session
  * lives.
  *

@@ -21,11 +21,27 @@
  * platform's own words, and the content script keeps that reason for itself — the popup is where
  * it is shown to a person, and it already shows it.
  *
+ * ## Why creating a mailbox needs both refusals above to be false first
+ *
+ * Because this script does not create the mailbox. It **asks this extension's background context
+ * to**, and that request is the only way a provider can be reached from a page: measured on
+ * 2026-10-08 and recorded in `docs/PROVIDERS.md` §4.4, a content script's own cross-origin
+ * request obeys the **page's** CORS policy while the extension's `host_permissions` do not reach
+ * it, and the identical request from the background worker succeeds.
+ *
+ * **The store is still required here even though this script does not write.** The page reads it
+ * twice: once at boot to decide which of the two offers to make, and once after a wait passes to
+ * see whether a mailbox this extension asked for now exists. A context that could not read would
+ * have to report "could not confirm" for every creation on every page, which is a worse answer than
+ * offering no control at all — and offering no control is the refusal this module already makes.
+ *
  * @module
  */
 
+import { CREATE_MAILBOX_REQUEST, readCreateMailboxAnswer } from "../protocol";
+import type { CreateMailboxAnswer } from "../protocol";
 import { createExtensionStorage } from "../storage";
-import { readChromeLocalArea } from "../local-area";
+import { readChromeLocalArea, sendToBackground } from "../extension-platform";
 import { startInPageIntegration } from "./controller";
 
 /**
@@ -58,5 +74,31 @@ whenDomReady(() => {
     return;
   }
 
-  startInPageIntegration({ document, storage: storage.storage });
+  startInPageIntegration({
+    document,
+    storage: storage.storage,
+    createMailbox: () => askTheBackgroundToCreate(),
+  });
 });
+
+/**
+ * Ask this extension's background context for a mailbox, and report what it answers.
+ *
+ * **Every shape that is not a recognised answer becomes `notActedOn`,** which is the answer that
+ * says *nothing was created and nothing kept here* rather than the one that says a provider
+ * refused. The seam already collapses an unreachable background context to no answer at all, and
+ * this is the second half of the same rule: a reply nobody recognised is not a worse answer, it is
+ * no answer, and the page has copy for that which makes no claim at all.
+ *
+ * **No timeout is imposed here.** The page owns how long it is willing to wait — it is a product
+ * decision about a person's patience on somebody else's form, and the reasoning for the figure lives
+ * with the one that uses it (`create-wait.ts`). A second deadline in the transport would be a second
+ * place that figure could differ from the first.
+ */
+async function askTheBackgroundToCreate(): Promise<CreateMailboxAnswer> {
+  return (
+    readCreateMailboxAnswer(await sendToBackground(CREATE_MAILBOX_REQUEST)) ?? {
+      kind: "notActedOn",
+    }
+  );
+}

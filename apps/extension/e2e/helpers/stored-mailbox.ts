@@ -22,7 +22,7 @@
  * ## Why the platform global is read reflectively
  *
  * **Because that is how the shipped code reads it, and a spec should not reach a store by a
- * route the product does not.** `src/local-area.ts` is the extension's single reader of
+ * route the product does not.** `src/extension-platform.ts` is the extension's single reader of
  * the extension's `chrome` global, and it walks it with `Reflect.get` rather than naming it —
  * partly because there is no `@types/chrome` here, and partly because the boundary rule
  * (`keeps storage, cookies, and the URL out of every client`) treats a client reaching a global
@@ -155,4 +155,71 @@ export async function resetStoredMailbox(
 ): Promise<void> {
   await clearStoredMailbox(extension);
   await seedStoredMailbox(extension, mailbox);
+}
+
+/**
+ * The address this device holds, or `null` when it holds nothing.
+ *
+ * **A narrowing rather than a cast, and the distinction is the point.** The stored record is
+ * *versioned* — `{ version, mailbox }` — so a spec that read `.address` off it found `undefined`
+ * on a record that was present and correct, and the first version of the late-answer case reported
+ * that as the address missing. Narrowing through the product's own declared type means the value
+ * this returns is one this build wrote, which is what "the device holds that address" has to mean.
+ *
+ * **It does not go through `packages/storage`'s reader.** That reader *discards* a record it cannot
+ * narrow, and a suite asserting "nothing is stored" from it would pass for the wrong reason on any
+ * future version bump — the same trap this file's module note records from the other direction.
+ */
+export async function readStoredMailboxAddress(
+  extension: LaunchedExtension,
+): Promise<string | null> {
+  const record = (await readStoredMailboxRecord(extension)) as StoredMailboxRecord | null;
+  return record === null ? null : record.mailbox.address;
+}
+
+/**
+ * Empty the storage and **leave it empty**, for a spec whose subject is a first visit.
+ *
+ * **A separate name rather than an optional argument**, and the reason is that an optional
+ * one would read as two ways of doing the same thing. `resetStoredMailbox` answers "make this
+ * device hold exactly this mailbox"; this answers "make this device hold nothing", which is
+ * the state `in-page-mailbox`'s creation cases require — **no mailbox and no seeded one**, so
+ * the affordance offers to create rather than to insert.
+ *
+ * **Clearing before the page opens, always** — the controller reads storage **once, at boot**.
+ * The same rule `openWithStoredMailbox` in `in-page.spec.ts` documents for seeding: navigate
+ * first and clear second would be testing a controller that had already decided.
+ */
+export async function clearStoredMailboxBeforeNavigation(
+  extension: LaunchedExtension,
+): Promise<void> {
+  await clearStoredMailbox(extension);
+}
+
+/**
+ * What this device holds, read through the platform's own API inside the worker's own context.
+ *
+ * **A raw value rather than a `Mailbox`, deliberately.** `StoredMailboxRecord` is the *stored*
+ * shape, and reading it rather than narrowing it through `packages/storage` is what makes the
+ * assertion about what is on the device rather than about this build's ability to read it. A
+ * spec that reused the product's reader would go green on an unreadable record and report
+ * "nothing is held" — which is the exact trap `stored-mailbox.ts`'s module note names for a
+ * hand-written record, reached from the other direction.
+ *
+ * @returns The raw stored record, or `null` when the device holds nothing.
+ */
+export async function readStoredMailboxRecord(
+  extension: LaunchedExtension,
+): Promise<unknown | null> {
+  return extension.worker.evaluate(
+    async ([path, key]) => {
+      const area = (path as readonly string[]).reduce<object>(
+        (node, step) => Reflect.get(node, step),
+        globalThis,
+      ) as StorageArea;
+      const found = await area.get(key as string);
+      return found[key as string] ?? null;
+    },
+    [[...AREA_PATH], EXTENSION_MAILBOX_KEY] as const,
+  );
 }

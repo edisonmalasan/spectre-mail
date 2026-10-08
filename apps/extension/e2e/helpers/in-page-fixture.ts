@@ -122,6 +122,29 @@ async function fulfil(route: Route, body: string, contentType: string): Promise<
   await route.fulfill({ status: 200, contentType, body });
 }
 
+/** What a case wants the page's own cross-origin requests to meet. */
+export interface FixturePageOptions {
+  /** The origin to serve the fixture from. Defaults to the `https` one. */
+  readonly origin?: string;
+
+  /**
+   * A `connect-src` to put on the document response, in the CSP's own spelling.
+   *
+   * **This is how a page forbids cross-origin requests, and it is the only way this tier can
+   * stage one.** The obvious implementation - have the page try the request and see whether it is
+   * refused - was measured and does not work: with `context.route` in front of the provider origin,
+   * **the page's own `fetch` to `api.mail.tm` succeeds and returns the recorded body**, because
+   * a fulfilled route is not a cross-origin response in the page's sense of one. So an assertion
+   * that the page's request was refused passed for a reason that had nothing to do with the page's
+   * policy, and would have kept passing if the extension had been doing the fetch itself.
+   *
+   * A `connect-src` is refused by the platform rather than by the harness, so it is the real
+   * mechanism the requirement names: the document's policy governs the page's own requests and
+   * nothing else.
+   */
+  readonly connectSrc?: string;
+}
+
 /**
  * Put the fixture's three responses in place on a fresh page.
  *
@@ -131,10 +154,16 @@ async function fulfil(route: Route, body: string, contentType: string): Promise<
  */
 export async function openFixturePage(
   context: BrowserContext,
-  origin: string = FIXTURE_ORIGIN,
+  options: string | FixturePageOptions = {},
 ): Promise<Page> {
   const script = requireBuiltFixture();
   const html = fs.readFileSync(path.join(FIXTURE_DIR, "index.html"), "utf8");
+
+  // **A string is accepted as the origin, because five existing callers pass one.** Changing the
+  // signature to options-only would have meant editing every one of them to learn a shape that
+  // most of them do not use - and a mechanical edit of five working cases is where a mistake hides.
+  const resolved: FixturePageOptions = typeof options === "string" ? { origin: options } : options;
+  const origin = resolved.origin ?? FIXTURE_ORIGIN;
 
   const page = await context.newPage();
 
@@ -142,7 +171,28 @@ export async function openFixturePage(
     const pathname = new URL(route.request().url()).pathname;
 
     if (pathname === "/" || pathname === "/index.html") {
-      await fulfil(route, html, "text/html; charset=utf-8");
+      // **The document's own policy, and only the document's.** `content-security-policy` is
+      // attached here rather than injected into the HTML so that it is a response header, which is
+      // where a real server puts it. A `<meta http-equiv>` would be nearly the same experiment and
+      // a worse one: it cannot express `frame-ancestors`, is ignored for some directives, and is a
+      // spelling no site ships.
+      // **`headers` is conditional rather than an object carrying `undefined`.** `exactOptionalPropertyTypes`
+      // is on across this workspace, and an absent `headers` is not the same type as
+      // `headers: undefined` — so the single-object spelling does not compile. The fix that
+      // compiles is two `fulfill` calls, which is also the version that cannot accidentally send a
+      // policy of `undefined`.
+      if (resolved.connectSrc === undefined) {
+        await route.fulfill({ status: 200, contentType: "text/html; charset=utf-8", body: html });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "text/html; charset=utf-8",
+        body: html,
+        headers: {
+          "content-security-policy": `connect-src ${resolved.connectSrc}; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'`,
+        },
+      });
       return;
     }
     if (pathname === "/fixture.js") {

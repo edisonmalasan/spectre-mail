@@ -224,6 +224,100 @@ one-live-call rule), or unit coverage only. F establishes none of those are need
 tier routes provider traffic, and a case whose assertion only holds when the worker's request was
 fulfilled would be a case that silently depends on a live provider the rest of the time.
 
+### D10 - A late answer inserts nothing, and the address is still recorded
+
+**Chosen:** after the ceiling has passed and the page has reported it could not confirm, an answer
+that arrives afterwards writes nothing into the field. The created address is recorded as this
+device's mailbox, so the next field focus offers it rather than offering a creation.
+
+**This decision did not exist when the change was proposed, and the gap it closes was in the
+proposal's own scenarios.** D5 names a ceiling precisely because a provider round trip is not bounded
+by anything this product decided - which means a late answer is *the case the ceiling exists to
+create*, not an edge around it. "The wait passes and nothing was stored" ended with the affordance
+remaining available and said nothing about what a subsequent answer does.
+
+**Two halves, and the second is the one that is easy to leave out.** Inserting nothing is the
+obvious half: the page has already told a person it could not stand behind the request, and writing
+into the field afterwards is acting on an offer it withdrew. **Recording the address anyway is the
+half that costs something to get right.** D3 has the worker persist a mailbox *before* it answers,
+so a late `created` answer describes a mailbox that is real and is this device's. A controller that
+learned the address only by inserting it would offer to create a **second** mailbox on the next
+field focus - and the requirement already states the cost of permitting a further request, so this
+would be a second way of paying it, silently, on the path nobody would think to check.
+
+**Considered and rejected: insert on the late answer too.** It is the more helpful behaviour when the
+field still has focus and is empty, and it is still wrong: the page has said "could not confirm", and
+an address appearing afterwards without explanation is the product contradicting itself in the one
+place there is no region to explain the contradiction in.
+
+**Considered and rejected: ignore the late answer entirely.** Correct on the field, and wrong on the
+device - it leaves a stored mailbox the controller does not know about, which is the same "create a
+second mailbox" defect by a shorter route.
+
+The amendment is in `specs/in-page-integration/spec.md`, recorded in place with the reason.
+
+### D11 - The outstanding-request exception lives in the focus *arrival*, not the departure
+
+**Chosen:** while a request is outstanding, no focus event anywhere on the page changes the
+affordance - it stays where it is, and nothing new is offered.
+
+**Found by the browser tier on its first run, and it was in the wrong place.** D8 put the exception
+in the *removal* branch, which is where the proposal put it, and which is why onFocusOut returns
+early while a request is outstanding. That branch is correct and it is insufficient: **ocusin
+reaches the same controller for whatever was focused next**, and every branch of onFocusIn either
+removes the control or builds a new one. A person who pressed *Create* and then tabbed to the next
+input lost the control on every one of those paths - and the failure looked like a hung request,
+because the request was genuinely still in flight and genuinely had nowhere left to be reported.
+
+**The unit tier could not have found this**, which is worth stating because it is the shape of the
+defect. content-script-create.test.ts dispatches ocusout and ocusin by hand, and its
+"keeps the control when focus leaves" case asserts the count immediately after ocusout. That
+passes on the shipped code. The failure needs the two events the platform delivers in one task - out,
+then in - with nothing dispatched between them, which is what a real focus move is and what a
+hand-dispatched pair is not.
+
+**The second half is the one that is easy to omit.** While a request is outstanding, address is
+still 
+ull, so an affordance built for the newly focused field would offer *creation* - and
+askForAnAddress returns immediately because outstanding is set. That is a control that cannot
+act, drawn inside somebody else's form, whose only reachable outcome is to report a provider
+failure by doing nothing. Returning early prevents it, and it is the same reasoning
+\in-page-integration\ already applies to a device whose boot read failed: **a control whose only
+reachable answer is a guess is a control that cannot act.**
+
+**Considered and rejected: let the new field take over.** It would keep a control visible per field
+and let the answer land in a field nobody asked for. The request records the field it was made for,
+so the answer would insert into a field the person has left - the same mistake the late-answer rule
+avoids, reached by a different route.
+
+### D12 - A refusal reaches the page as the adapter's report, not a provider's body
+
+**Chosen:** the control's name is the extension's composed refusal report - the manager's sentence
+naming every provider that was asked, and for each one its id, its normalised error code, and the
+condition in full.
+
+**The proposal's wording was false and this records that rather than quietly matching the code.**
+The proposal required a refusal *"in the words the provider used"*, and the browser tier's first
+refusal case read the control's name in real Chromium and found
+\No configured provider could create a mailbox.\ followed by \mailtm: RATE_LIMITED - Mail.tm is
+throttling this request while creating a mailbox.\ **The provider's raw body never reaches this
+surface**: the adapter classifies a throttled creation as \RATE_LIMITED\ and substitutes its own
+sentence, and the recorded body (\Too many accounts created. Please wait and try again.\) is
+discarded before the page is involved at all.
+
+So the requirement was amended, and the amendment is not a loosening: *"the provider's own words"*
+was **uncheckable as written** - nothing defined what those words were, so any prose would satisfy
+it - while naming the provider, the code, and the condition in full is something a reader can go and
+look for. **Carrying the raw body through instead would mean widening \provider-abstraction\'s error
+contract**, which changes what every client shows and is not this change's business.
+
+**One consequence worth stating, because it is how this branch is reached at all.** The extension's
+manager prefers Mail.tm and falls back, so throttling only Mail.tm produces *a mailbox created by
+Guerrilla Mail* - correct behaviour, and unreachable as this branch. Every case that exercises it
+stages two refusals, and **Guerrilla's 429 is synthetic**: none was ever observed. So the tier
+establishes that a refusal reaches the page when no provider could serve the request, and nothing
+about what any one provider does when it refuses.
+
 ### Risks / Trade-offs
 
 - **[The worker is terminated and never wakes, so a page waits out its ceiling]** → the page's
@@ -243,6 +337,18 @@ fulfilled would be a case that silently depends on a live provider the rest of t
   does **not** establish, as §4.2 does: nothing about a live provider, nothing about a real provider's
   latency, nothing about how long the worker survives.
 
+
+- **[The worker's absence rule listed identifiers it has never mentioned]**  → `createMailboxSession`
+  and `createExtensionProviderManager` had been passing by import indirection, so the rule could not
+  fail however the worker behaved - the thirty-first recorded instance of a check narrower than its
+  rule, and the first that was *true while guarding nothing*. It now reads the property the
+  requirement was amended to name: neither the worker nor the module that performs the work may
+  declare a module-scope binding, because that is the only shape a value surviving a request can take.
+- **[The renamed module's boundary control now fails loudly on a rename]**  → it copied the reader
+  by its old name and stopped with `ENOENT`, which is the outcome worth having. A control that fell
+  back to "any reader-shaped file" would have kept passing while the exemption covered a path nothing
+  shipped.
+
 ## Migration Plan
 
 None. No stored record changes shape, no version bump, and the `chrome.storage` key is unchanged.
@@ -259,3 +365,131 @@ None that change the specs, the approach, or the task breakdown. Two things are 
 and when an MV3 worker is actually terminated. The first is why D5's interval is declared as a
 product choice, and the second is why D2 retains nothing. Neither blocks this slice, and a later
 milestone may measure either without amending anything here.
+
+## Falsification
+
+Fifteen deliberate violations, run against the working tree with the tree restored and verified by
+SHA-256 after each. **Fourteen were caught by the assertion each was aimed at; one is recorded as
+evidence and not counted.** The instrument lives **outside the repository** - a measuring script left
+in the root is something every future `pnpm lint` has an opinion about, and `extension-preview`'s
+verification pass failed on exactly that, with four temporary scripts deleted rather than fixed.
+
+**And one assertion did not survive its own first mutation**, which is the finding worth leading
+with, so it is written first.
+
+### The one-request claim rested on a mechanism that never ran
+
+`M03` deletes the guard inside `askForAnAddress` that refuses a second request while one is
+outstanding. **The whole workspace stayed green at 844 of 844.**
+
+The reason is worth keeping because it is not about the guard. The case that carried the requirement
+pressed the control twice with `HTMLElement.click()`, and **`click()` respects `disabled`** - that is
+what `disabled` means on this platform - so neither press ever reached the handler. The case was
+asserting the *button's state*, and the case's own comment claimed it would also have caught a guard
+in the handler. It would not have. **The requirement is that a provider is asked once; the evidence
+was that a button is disabled; and only one of those is the claim.**
+
+This is the repository's most repeated defect shape - an assertion narrower than the rule it
+documents - and it was **authored and caught inside this change**, which is the third time that has
+happened and the first time it was a *precondition* that could never fail rather than an assertion
+pointed at the wrong thing.
+
+A case now reaches the handler by `dispatchEvent`, which bypasses activation behaviour, and reads the
+control's own refusal first so it cannot be satisfied by a button that never became disabled. **It is
+the second half rather than a replacement**: a dispatched event is not a press a person can make, and
+the requirement is about a person.
+
+### The table
+
+| # | Tier | Deliberate violation | Caught by | Outcome |
+| --- | --- | --- | --- | --- |
+| M01 | unit | the `onFocusIn` outstanding arm deleted | `ignores focus arriving elsewhere while a request is outstanding` | caught |
+| M02 | unit | **the same arm narrowed** to a condition false whenever consulted | the same case | caught |
+| M03 | unit | the one-request guard in `askForAnAddress` deleted | `asks once even when an activation bypasses the disabled control` | caught, **after the case above was written** |
+| M04 | unit | the control never re-offered after the wait passes | `reports that it could not confirm when nothing is held, and stays offered` | caught |
+| M05 | browser | the unconfirmed label claims `no mailbox was created` | the page-text sweep in `in-page-create.spec.ts` | caught |
+| M06 | browser | the ceiling pushed to `2_147_483_647` | the same case, after waiting the real ceiling | caught |
+| M07 | unit | the worker's `saveMailbox` removed | `creates through the shared session, stores the mailbox, and only then answers` | caught |
+| M08 | unit | a module-scope binding in `create-mailbox.ts` | `retains nothing, so a woken worker and a cold one behave identically` | caught |
+| M09 | unit | a platform handle cached at module scope in `service-worker.ts` | the same case | caught |
+| M10 | unit | `CHROME_PLATFORM_READER` retargeted to the file's pre-rename name | `keeps the extension platform global to one module` | caught |
+| M11 | unit | **a fresh path planted**, which the rule must report by name | the same case | caught |
+| M12 | unit | the answer reader invents a `created` address from an unrecognised message | `reports no answer for a variant this product does not write` | caught |
+| M13 | unit | a thrown platform call answered as a provider refusal | `resolves no answer when the platform throws rather than answering` | caught |
+| M14 | unit | a payload added to the payload-free `notActedOn` answer | `answers notActedOn for a message it does not recognise, without asking anything` | caught |
+| M15 | browser | the account-creation hold gate removed | **the case's premise, not its claim** | evidence |
+
+### Four results in that table are worth reading twice
+
+**M05 cannot be caught by the case's own text assertion, and that is why the sweep is there.** The
+case asserts `toHaveText(AFFORDANCE_UNCONFIRMED_LABEL)`, and `AFFORDANCE_UNCONFIRMED_LABEL` is
+imported from the very module the mutation edits - so a literal assertion on a constant cannot fail
+when the constant changes. The sweep over the page's text is the only assertion in the file that can,
+and it is the one that caught it. **A case carrying both a literal assertion and a sweep is not
+redundant.**
+
+**M06 is the only instrument in this repository that can fail, because it is the only one that waits
+the real number.** Every unit case advances timers by `IN_PAGE_CREATE_CEILING_MS` itself, so
+lengthening the constant to twenty-four days leaves all of them passing. **An assertion that imports
+the value under test cannot fail when the value changes.** This is the same finding as
+`AGENTS.md`'s `INBOX_POLL_CEILING_MS` entry, reached from the opposite direction: there the ceiling
+was too small and a hand-picked fix would have drifted; here there is no fix at all, only an
+instrument that reads the product's own value.
+
+**M14 was declared `nocompile` before it was run, and it compiled.** That was a prediction about the
+type system rather than a measurement: an answer carrying an extra field on a payload-free variant
+passes `tsc`, because the return position never sees an object literal excess-property checking would
+have caught. **So the type is not what keeps that payload out - the assertion is.** Had the row been
+filed on the strength of the prediction, this list would carry a claim no run established. The
+harness reports a declared outcome that turns out wrong as an explicit `MISMATCH` for the same reason
+it reports a mutation that did not compile as its own class: *a mutation that cannot compile is not
+evidence about an assertion*, and neither is a prediction that one will.
+
+**M15 was predicted to be a reliability measure, and it is load-bearing for something.** This entry's
+first text followed `M7 slice 2`'s held-listing finding: a hold that only makes a wait dependable, not
+the catcher. Measured, the case fails at its **second activation** - `dispatchEvent` cannot find the
+button, because without the hold the answer arrives, the address is inserted, and the control is
+**removed**. So the hold is load-bearing for the case's **premise**: without it there is no
+outstanding request, no second activation, and no test of "a provider is asked once" at all. The case
+would still have read as the test it names. It is recorded as evidence rather than counted because
+what the run establishes is about the case, not about the product - a tally reading `caught` would
+credit an assertion with a defect the product does not have.
+
+### The instrument was wrong five times before it produced that table
+
+1. **Every runner path was hardcoded to the repository root.** `vitest` and `typescript` are root dev
+   dependencies; `vite` and `playwright` are not, because pnpm does not hoist a workspace member's
+   dependencies. **The final rebuild reported `MODULE_NOT_FOUND` after all fifteen mutations had been
+   applied and restored** - and that is the exact shape of the recorded `archive-bytes` defect: a
+   measurement of the instrument rather than of the thing measured. Both are now resolved from the
+   package that owns them, so a dependency bump cannot break the instrument either.
+2. **`vite/bin/vite.js` is not an exported subpath.** `vite` declares an `exports` map that does not
+   publish `bin/`, so resolving it directly fails with `ERR_PACKAGE_PATH_NOT_EXPORTED`. The manifest
+   is resolved and the entry joined onto it, which is the spelling that works for a package that keeps
+   a manifest out of its export map - which is most of them.
+3. **Playwright was resolved from `apps/web` and then from `playwright`.** Neither exists there: both
+   clients declare `@playwright/test`, whose own `cli.js` is the binary. A missing runner produces no
+   output, and *no output read as green* is the single worst failure mode in this repository's
+   instrument history - it is why `harness-error` is an outcome class at all.
+4. **`M04`'s declared catcher was a browser case that two unit assertions already covered.** The run
+   said `wrongcatch`, and the reason was worth recording rather than re-running until it agreed. **A
+   `wrongcatch` naming an assertion about the same property is an attribution to fix; one naming an
+   unrelated assertion is the real thing.**
+5. **`M12`'s declared catcher was that file's *control*, and the control was correctly unaffected.**
+   The control asserts the reader is *permissive* where it should be, so making the reader permissive
+   cannot fail it; the seven rows that assert refusals are what carry the requirement. **A control
+   surviving a mutation is the control working.**
+
+And one of the five was found by a mechanism rather than by reading: with `catcher: null`, the
+Playwright `-g` pattern fell back to one from an unrelated spec, so `M15`'s first run recorded a
+failure in a file the mutation had nothing to do with. **A recorded observation about the wrong test is
+worse than no observation**, and every evidence row now names the case its run is pointed at.
+
+### What this block does not establish
+
+**The mutations establish that the assertions can fail, which is not the same claim as that the
+product is right.** Every number here is about this repository's own checks. In particular: the
+content script's delegated request was never made against a live provider, the ceiling has never
+elapsed against a real provider round trip, and no test in either tier reads a rendered pixel - so
+what the affordance looks like inside somebody else's page is still a human judgement, and that task
+is left unticked for the same reason slice 1 left it unticked.

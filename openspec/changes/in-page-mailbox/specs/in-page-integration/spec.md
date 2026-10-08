@@ -53,6 +53,33 @@ and nothing here permits a control to survive a settled request.
 - **WHEN** an email field takes focus while another field's affordance is shown
 - **THEN** the extension SHALL show an affordance for the newly focused field
 - **AND** it SHALL show no affordance for the other field
+#### Scenario: Focus arrives elsewhere while an answer is outstanding
+
+- **WHEN** an answer to a request this extension made is still outstanding
+- **AND** focus arrives at any other element on the page
+- **THEN** the extension SHALL leave the outstanding affordance in place
+- **AND** it SHALL offer no affordance for the newly focused element
+
+**Amendment, recorded during apply (2026-10-08), by in-page-mailbox.** This scenario was **not in
+the proposal**, and the browser tier found the product doing the opposite on its first run. The
+proposal's exception lived only in the *removal* rule, so tabbing away appeared to be handled - and
+it is, until the arriving focus does something. **Focusing anything runs the same handler as
+focusing the field the request was made for**, and every branch of it either removes the control or
+builds a new one. So a person who pressed *Create* and then tabbed to the next input lost the only
+place the answer could be reported, on every one of those paths.
+
+**The second bullet is the half that is easy to leave out, and it is a claim about a control that
+would not work.** While a request is outstanding this device holds no address - address is still
+
+ull - so any affordance built for the newly focused field would offer *creation*, and creating a
+second time is refused while the first is out. The person would be shown a button whose only
+reachable behaviour is to report a provider failure by doing nothing, which is the outcome this
+same capability names as the reason to offer nothing at all. So while an answer is outstanding the
+extension offers nothing new anywhere on the page.
+
+**It is not a licence to persist.** Every path that settles a request clears it, including the one
+that reports nothing, so the control cannot outlive a settled request - which is what the
+requirement's own last sentence requires and what the scenario above already covers.
 
 #### Scenario: A field is not an email field
 
@@ -188,8 +215,29 @@ that read returns: a mailbox stored there SHALL be treated as the created addres
 the absence of one SHALL be reported as an outcome this page could not confirm rather than as a
 failure.
 
-A refusal the extension reports SHALL be reported as a refusal, in the words the provider used, and
-SHALL NOT be reported as a success or as an absence of mailboxes.
+A refusal the extension reports SHALL be reported as a refusal, in the report the provider's adapter
+composed for it, and SHALL NOT be reported as a success or as an absence of mailboxes.
+
+**Amendment, recorded during apply (2026-10-08), by in-page-mailbox.** This sentence previously
+read *"in the words the provider used"*, and **it was false of the product this change shipped** -
+found by the first browser run of the refusal case, which read the control's own name in a real
+Chromium. The name is:
+
+No configured provider could create a mailbox. then, per provider, <id>: <CODE> - <description>.
+
+The provider's **raw response body is discarded upstream of this surface**: Mail.tm answered the
+recorded throttled creation with Too many accounts created. Please wait and try again., the
+adapter classified that as RATE_LIMITED, and the sentence a person reads is the adapter's own.
+So a requirement demanding the provider's verbatim words would be demanding something no surface in
+this product produces, and a case asserting it would fail against correct code.
+
+What is replaced is not a weakening, and the difference is worth being precise about: the original
+clause would have been satisfied by any prose at all, because nothing defined "the words the
+provider used" in a checkable way. This one names three things a reader can go and look for - **which
+provider**, **which normalised condition**, and **the condition stated in full** - and it keeps the
+clause that mattered, which is that the page adds no summary of its own. Carrying the raw body
+through instead would mean widening provider-abstraction's error contract, which is not this
+change's business and which would have changed what every client shows.
 
 **A person may press again after an unconfirmed outcome, and the extension SHALL let them.** The
 alternative leaves somebody who has been told nothing with no way forward, and the possibility that a
@@ -222,5 +270,38 @@ on the strength of a report the extension has already told them is unconfirmed.
 
 - **WHEN** the extension answers that the provider refused the request
 - **THEN** the page SHALL report a refusal
-- **AND** it SHALL report the provider's own words for it
+- **AND** it SHALL report the refusal the extension composed, naming the provider that refused
 - **AND** it SHALL NOT report a success
+
+**Amendment, recorded during apply (2026-10-08), by in-page-mailbox.** The third bullet previously
+read *\"the provider's own words\"*, for the reason the requirement above records: no surface in this
+product carries a provider's raw body, and the adapter's own condition report is what reaches the
+page. **Both providers must have refused for this branch to be reachable at all**, because the
+extension's manager prefers Mail.tm and falls back - so the case that exercises it stages two
+refusals, one of which (guerrillaThrottled) is **synthetic**: no 429 was ever observed from
+Guerrilla Mail. What the browser tier establishes is that a refusal reaches the page when no
+provider could serve the request, and nothing about what any single provider does when it refuses.
+
+#### Scenario: An answer arrives after the wait already passed
+
+- **WHEN** the page's wait for an answer passes with no answer
+- **AND** this device holds no stored mailbox
+- **AND** the extension then answers that a mailbox was created
+- **THEN** the page SHALL insert nothing
+- **AND** it SHALL report nothing further
+- **AND** it SHALL record the created address as this device's mailbox
+- **AND** a later field focus SHALL offer that address rather than a further creation
+
+**Amendment, recorded during apply (2026-10-08), by `in-page-mailbox`.** This scenario was **not in
+the proposal**, and the proposal's own scenarios had a hole: "the wait passes and nothing was stored"
+ends with the page reporting that it could not confirm and its affordance remaining available, and
+nothing said what happens when the request is answered *afterwards*. That is not a corner — a provider
+round trip is not bounded by anything this product decided, which is the entire reason the wait has a
+ceiling, so the late answer is the case the ceiling exists to create. Two behaviours were written
+during apply and are now stated here because they are product decisions rather than implementation
+detail. **The page inserts nothing, having already withdrawn its offer** — inserting afterwards would
+be acting on a control the page had already said it could not stand behind. **And it records the
+address anyway**, because the worker persists a mailbox *before* it answers (D3), so the mailbox is
+real and is this device's; a controller that learned the address only by inserting it would offer to
+create a **second** mailbox on the next field focus, which the cost clause above already treats as
+the price of permitting a further request.

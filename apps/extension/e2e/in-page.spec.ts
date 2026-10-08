@@ -32,6 +32,7 @@ import type { Page } from "@playwright/test";
 
 import { launchExtension } from "./launch-extension";
 import type { LaunchedExtension } from "./launch-extension";
+import { AFFORDANCE_CREATE_LABEL } from "../src/content-script/affordance";
 import {
   FIXTURE_HTTP_ORIGIN,
   FIXTURE_ORIGIN,
@@ -159,15 +160,32 @@ test.describe("the affordance appears, and only when it can act", () => {
     expect(await affordanceCount(page)).toBe(0);
   });
 
-  test("offers nothing when this device holds no stored mailbox", async () => {
+  test("offers to create, rather than nothing, when this device holds no stored mailbox", async () => {
+    // **This case was inverted by `in-page-mailbox`, and the inversion is the slice's whole point.**
+    //
+    // It read "offers nothing when this device holds no stored mailbox", and the reasoning behind
+    // that text is still sound: a control whose only reachable answer is "there is not an address
+    // yet" is a control that cannot act, and this product does not ship those. **What changed is
+    // what the control can now say.** With nothing stored it offers to *create* an address, and
+    // creating one is a thing it can do - so the control is present and it can act, and the
+    // requirement it was written against (`in-page-address`, slice 1) is superseded on this point
+    // rather than weakened. The record is in `in-page-mailbox`'s delta.
+    //
+    // **The refusal half of the original rule survives, and this case still holds it.** A device
+    // whose stored mailbox *cannot be read* is still offered nothing, because creation is only
+    // offered to a device this product knows is empty - offering to create on a read that failed
+    // would present a guess as knowledge, and would be a second mailbox on a device that already
+    // has one. That case is `in-page.spec.ts`'s to keep and `entry.ts` names.
     await clearStoredMailbox(extension);
     const page = await openFixturePage(extension.context);
 
     await focusField(page, "react-input");
 
-    // **A control whose only reachable answer is "there is not an address yet" is a control
-    // that cannot act**, and this product does not ship those. It is absent, not disabled.
-    expect(await affordanceCount(page)).toBe(0);
+    // **The label, not the count.** "A control exists" and "a control that can act" are different
+    // claims, and only the second is what this product owes: a control offering creation is
+    // present *and* does something, while the control slice 1 forbade was present and did nothing.
+    expect(await affordanceCount(page)).toBe(1);
+    await expect(affordanceButton(page)).toHaveText(AFFORDANCE_CREATE_LABEL);
   });
 });
 

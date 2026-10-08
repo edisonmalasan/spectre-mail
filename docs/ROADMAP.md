@@ -53,7 +53,7 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor: M9 - In-Page Email Integration, slice 1 (`in-page-address`) applied, verified, SYNCED and ARCHIVED; slice 2 (`in-page-mailbox`) is next.**
+**Roadmap cursor: M9 - In-Page Email Integration, slice 1 (`in-page-address`) applied, verified, SYNCED and ARCHIVED; slice 2 (`in-page-mailbox`) APPLIED and VERIFIED, Sync and Archive to follow; slice 3 (`site-associations`) is next.**
 **M0 through M8 are complete in scope; M9 has three slices and the first is closed.**
 **Its sync promoted the delta, so the promoted specs moved 13 → 14 capabilities, 136 → 143
 requirements and 390 → 408 scenarios** - the fourteenth is `in-page-integration` at 7 requirements /
@@ -112,9 +112,19 @@ site - and the UX rules add a three-way choice on top. One change cannot carry t
   designed to avoid is not needed at all and `activeTab` stays rejected. See `docs/PROVIDERS.md`
   §4.2 for the probe and §4.3 for the same question asked of the **built** extension, over both
   declared URL schemes.
-- **Slice 2, `in-page-mailbox`.** Creating a mailbox from a page. This is where the worker's
-  unmeasured lifetime and MV3's rule that a content script's `fetch` obeys the **page's** CORS policy
-  become load-bearing, and both must be measured before it is designed.
+- **Slice 2, `in-page-mailbox` (APPLIED and VERIFIED - proposal PR **#88**, merged `c59bf79`;
+  Sync and Archive to follow).** The content script's control now **offers creation** and, when
+  pressed, **asks this extension's service worker to make one** - it does not contact a provider
+  itself. **That split was measured, not designed around: a content script's `fetch` obeys the
+  page's CORS policy while the extension's `host_permissions` do not reach it** (`docs/PROVIDERS.md`
+  §4.4), and a third probe established that `context.route` **does** reach a service worker, which
+  is what makes the delegation verifiable offline at all. The worker's round trip was measured at
+  17 ms, 5 ms and 5 ms across idle gaps of 0, 5 and 35 seconds - **a bound on latency, not a
+  measurement of lifetime**, and the page's wait is capped at a ceiling declared as a product choice
+  precisely because **no provider's creation latency was ever measured**. What it establishes is
+  narrow: eight browser cases over recorded provider responses, plus a worker that retains nothing
+  between requests. `tasks.md` **"look at the affordance on a real site" is deliberately unticked**,
+  as at slice 1.
 - **Slice 3, `site-associations`.** `hostname -> mailbox`. A **second stored record kind**, and
   `spectre-storage`'s contract says in its own opening that it has room for one - so this slice has
   to answer a contract question, not only a client one.
@@ -124,7 +134,9 @@ below it exists and is verified.** Detection and insertion are below creation an
 mapping, and neither of the latter two can be verified honestly until the first exists.
 
 **Two absences are deliberate and will be asserted**, rather than shipped as controls that cannot
-act: **no affordance when this device holds no stored mailbox** (slice 2 is what can create one), and
+act: **no affordance when this device holds no stored mailbox was slice 1's rule and slice 2
+superseded it** - the control now offers creation, which it can act on, so a requirement that has
+stopped applying is amended in the change's own delta rather than left to look current; and
 **no affordance on a field that already holds text** (the roadmap's *"never overwrite existing text
 without user action"*, answered by absence rather than by a replacement gesture).
 
