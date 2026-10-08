@@ -53,8 +53,9 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor: M9 - In-Page Email Integration, slice 1 (`in-page-address`) applied, verified, SYNCED and ARCHIVED; slice 2 (`in-page-mailbox`) APPLIED, VERIFIED and SYNCED, Archive to follow; slice 3 (`site-associations`) is next.**
-**M0 through M8 are complete in scope; M9 has three slices and the first is closed.**
+**Roadmap cursor: M9 - In-Page Email Integration, slices 1 (`in-page-address`) and 2
+(`in-page-mailbox`) applied, verified, SYNCED and ARCHIVED; slice 3 (`site-associations`) is next.**
+**M0 through M8 are complete in scope; M9 has three slices and two are closed.**
 **Slice 1's sync promoted the delta, so the promoted specs moved 13 → 14 capabilities, 136 → 143
 requirements and 390 → 408 scenarios** - the fourteenth is `in-page-integration` at 7 requirements /
 18 scenarios. Every promoted block was copied programmatically from the delta rather than retyped,
@@ -71,7 +72,11 @@ blocks are `MODIFIED`** - a modified block replaces what is there, so it adds no
 byte-identity check found a defect in itself on its first run**, which is worth recording because a
 verifier that reports a false difference is the failure mode a reader cannot detect: its block reader
 ended a block at the next `### Requirement:` rather than at the next `## `, so in the delta file it
-absorbed `## ADDED Requirements` into the block above and called a correct promotion corrupt.
+absorbed `## ADDED Requirements` into the block above and called a correct promotion corrupt. **Its
+archive moved six files, every one SHA-256 identical to a digest taken before the command ran, and
+re-checked all five blocks against the promoted spec after the move** - and unlike slice 1's, **it
+kept `.openspec.yaml`**, so the archive defect recorded below was a proposal-stage omission rather
+than something the archive command does.
 
 **One archive defect worth naming, and it is a proposal-stage omission rather than an archive one.**
 `openspec/changes/archive/2026-10-08-in-page-address/` has **no `.openspec.yaml`**, and **every
@@ -121,8 +126,9 @@ site - and the UX rules add a three-way choice on top. One change cannot carry t
   designed to avoid is not needed at all and `activeTab` stays rejected. See `docs/PROVIDERS.md`
   §4.2 for the probe and §4.3 for the same question asked of the **built** extension, over both
   declared URL schemes.
-- **Slice 2, `in-page-mailbox` (APPLIED and VERIFIED - proposal PR **#88**, merged `c59bf79`;
-  Sync and Archive to follow).** The content script's control now **offers creation** and, when
+- **Slice 2, `in-page-mailbox` (APPLIED, VERIFIED, SYNCED and ARCHIVED at
+  `openspec/changes/archive/2026-10-08-in-page-mailbox/` - proposal PR **#88** merged `c59bf79`,
+  Apply **#89**, sync **#90**).** The content script's control now **offers creation** and, when
   pressed, **asks this extension's service worker to make one** - it does not contact a provider
   itself. **That split was measured, not designed around: a content script's `fetch` obeys the
   page's CORS policy while the extension's `host_permissions` do not reach it** (`docs/PROVIDERS.md`
