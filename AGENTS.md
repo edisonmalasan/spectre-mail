@@ -11,9 +11,10 @@
 > **#80** (`586d58a`), sync **#81** (`46ae462`), archive **#82**. **`in-page-address` (M9 slice 1)
 > is applied, verified, synced and ARCHIVED** at
 > `openspec/changes/archive/2026-10-08-in-page-address/` - proposal **#84**, apply **#85**, sync
-> **#86**, archive **#87**. **`in-page-mailbox` (M9 slice 2) is APPLIED, verified and SYNCED**, with its
-> Archive stage to follow - proposal **#88** merged (`c59bf79`), apply **#89** - **and M9's slice 3
-> (`site-associations`) has not begun.** **The sync promoted the delta, so the promoted specs now
+> **#86**, archive **#87**. **`in-page-mailbox` (M9 slice 2) is APPLIED, VERIFIED, SYNCED and
+> ARCHIVED** at `openspec/changes/archive/2026-10-08-in-page-mailbox/` - proposal **#88** merged
+> (`c59bf79`), apply **#89**, sync **#90** - **and M9's slice 3 (`site-associations`) has not begun.**
+> **The sync promoted the delta, so the promoted specs now
 > hold what it asked for:** `openspec validate --specs --strict` is **14 passed, 0 failed**, across
 > **14 capabilities holding 146 requirements and 422 scenarios** - measured by counting
 > `### Requirement:` and `#### Scenario:` across `openspec/specs/`, not transcribed. That is
@@ -27,10 +28,11 @@
 > it swallowed the `## ADDED Requirements` heading into the block above it and reported one block as
 > differing when the promoted copy was right. **A verifier that reports a difference is doing
 > something; a verifier that reports a difference for the wrong reason is worse than no verifier**,
-> and the fix was to end blocks at both headings. **Slice 1's own archive verification is the record
-> below and is kept as history**: all five files SHA-256 identical to their pre-archive digests, and
-> all eight promoted blocks identical after the move, by a 23-check read-only verifier - because
-> archiving is a move and a move is the operation most likely to quietly drop a file.
+> and the fix was to end blocks at both headings. **And the archive moved six files, all SHA-256
+> identical to digests taken before the command ran, with all five promoted blocks identical again
+> after the move** - because archiving is a move and a move is the operation most likely to quietly
+> drop a file. **This change's archive is the first one that kept `.openspec.yaml`**, where slice
+> 1's did not and `docs/ROADMAP.md` records that defect.
 >
 > **Read the milestone sections below as history rather than as current state.** They are kept
 > in the order the milestones happened and each records the measured counts as they stood at
