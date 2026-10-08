@@ -43,10 +43,10 @@ on. See [Current status](#current-status).
 | `page-composition`       |            6 | live                                |
 | `browser-verification`   |            5 | live                                |
 | `extension-client`       |            6 | live                                |
-| `in-page-integration`    |            7 | live                                |
+| `in-page-integration`    |           10 | live                                |
 
 `mailbox-session` and `website-client` were promoted at M5's sync stages, and
-`spectre-storage` at M6 slice 1's. **Fourteen capabilities, 143 requirements and 408
+`spectre-storage` at M6 slice 1's. **Fourteen capabilities, 146 requirements and 422
 scenarios**, counted by `### Requirement:` and `#### Scenario:` across `openspec/specs/`
 rather than carried over from a previous claim — this repository has published a wrong
 total five times, and the last one was caught only because the count was re-derived

@@ -11,20 +11,26 @@
 > **#80** (`586d58a`), sync **#81** (`46ae462`), archive **#82**. **`in-page-address` (M9 slice 1)
 > is applied, verified, synced and ARCHIVED** at
 > `openspec/changes/archive/2026-10-08-in-page-address/` - proposal **#84**, apply **#85**, sync
-> **#86**, archive **#87**. **`in-page-mailbox` (M9 slice 2) is APPLIED and verified** - proposal
-> **#88** merged (`c59bf79`) - **and M9's slice 3 (`site-associations`) has not begun.** **The sync promoted the delta,
-> so the promoted specs now hold what it asked for:** `openspec validate --specs --strict` is
-> **14 passed, 0 failed**, across **14 capabilities holding 143 requirements and 408 scenarios** -
-> measured by counting `### Requirement:` and `#### Scenario:` across `openspec/specs/`, not
-> transcribed. That is **13 → 14 capabilities, 136 → 143 requirements, 390 → 408 scenarios**: the
-> fourteenth is `in-page-integration` at 7 requirements / 18 scenarios, and `extension-client` holds
-> **6 requirements / 20 scenarios**, unchanged in requirement count because a `MODIFIED` delta
-> replaces a block rather than adding one. **Each promoted block was verified byte-identical to the
-> delta it came from, by copying the blocks programmatically rather than retyping them** - so
-> identity is structural rather than a comparison performed afterwards - **and re-verified against
-> the ARCHIVED copies after the move**, because archiving is a move and a move is the operation most
-> likely to quietly drop a file: all five files SHA-256 identical to their pre-archive digests, and
-> all eight promoted blocks identical after the move, by a 23-check read-only verifier.
+> **#86**, archive **#87**. **`in-page-mailbox` (M9 slice 2) is APPLIED, verified and SYNCED**, with its
+> Archive stage to follow - proposal **#88** merged (`c59bf79`), apply **#89** - **and M9's slice 3
+> (`site-associations`) has not begun.** **The sync promoted the delta, so the promoted specs now
+> hold what it asked for:** `openspec validate --specs --strict` is **14 passed, 0 failed**, across
+> **14 capabilities holding 146 requirements and 422 scenarios** - measured by counting
+> `### Requirement:` and `#### Scenario:` across `openspec/specs/`, not transcribed. That is
+> **143 → 146 requirements and 408 → 422 scenarios**, all of it in `in-page-integration`, which went
+> **7 → 10** and **18 → 32**: two `MODIFIED` blocks replaced rather than added to, so the requirement
+> count rose by three and not five. **Each promoted block was verified byte-identical to the delta it
+> came from, by copying the blocks programmatically rather than retyping them** - so identity is
+> structural rather than a comparison performed afterwards - and the comparison **found a defect in
+> the comparison itself** on its first run, which is the reason it is named: the verifier's block
+> reader ended a block at the next `### Requirement:` and not at the next `## `, so in the delta file
+> it swallowed the `## ADDED Requirements` heading into the block above it and reported one block as
+> differing when the promoted copy was right. **A verifier that reports a difference is doing
+> something; a verifier that reports a difference for the wrong reason is worse than no verifier**,
+> and the fix was to end blocks at both headings. **Slice 1's own archive verification is the record
+> below and is kept as history**: all five files SHA-256 identical to their pre-archive digests, and
+> all eight promoted blocks identical after the move, by a 23-check read-only verifier - because
+> archiving is a move and a move is the operation most likely to quietly drop a file.
 >
 > **Read the milestone sections below as history rather than as current state.** They are kept
 > in the order the milestones happened and each records the measured counts as they stood at
