@@ -53,9 +53,9 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor: M9 - In-Page Email Integration, slice 1 (`in-page-address`) applied, verified, SYNCED and ARCHIVED; slice 2 (`in-page-mailbox`) APPLIED and VERIFIED, Sync and Archive to follow; slice 3 (`site-associations`) is next.**
+**Roadmap cursor: M9 - In-Page Email Integration, slice 1 (`in-page-address`) applied, verified, SYNCED and ARCHIVED; slice 2 (`in-page-mailbox`) APPLIED, VERIFIED and SYNCED, Archive to follow; slice 3 (`site-associations`) is next.**
 **M0 through M8 are complete in scope; M9 has three slices and the first is closed.**
-**Its sync promoted the delta, so the promoted specs moved 13 → 14 capabilities, 136 → 143
+**Slice 1's sync promoted the delta, so the promoted specs moved 13 → 14 capabilities, 136 → 143
 requirements and 390 → 408 scenarios** - the fourteenth is `in-page-integration` at 7 requirements /
 18 scenarios. Every promoted block was copied programmatically from the delta rather than retyped,
 which makes the byte-identity `AGENTS.md` asks for a property of the promotion instead of a
@@ -63,6 +63,15 @@ comparison performed afterwards. The archive then re-verified it: **all five cha
 SHA-256 identical to digests taken before the archive command ran, and all eight promoted blocks are
 identical again after the move** - archiving is a move, and a move is the operation most likely to
 quietly drop a file.
+
+**Slice 2's sync promoted 5 blocks into `in-page-integration`, which moved 7 → 10 requirements and
+18 → 32 scenarios, and nothing else: 14 capabilities, 146 requirements, 422 scenarios, counted
+rather than transcribed.** The requirement count rose by three and not five, because **two of the five
+blocks are `MODIFIED`** - a modified block replaces what is there, so it adds no requirement. **The
+byte-identity check found a defect in itself on its first run**, which is worth recording because a
+verifier that reports a false difference is the failure mode a reader cannot detect: its block reader
+ended a block at the next `### Requirement:` rather than at the next `## `, so in the delta file it
+absorbed `## ADDED Requirements` into the block above and called a correct promotion corrupt.
 
 **One archive defect worth naming, and it is a proposal-stage omission rather than an archive one.**
 `openspec/changes/archive/2026-10-08-in-page-address/` has **no `.openspec.yaml`**, and **every

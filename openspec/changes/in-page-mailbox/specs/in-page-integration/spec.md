@@ -69,9 +69,8 @@ builds a new one. So a person who pressed *Create* and then tabbed to the next i
 place the answer could be reported, on every one of those paths.
 
 **The second bullet is the half that is easy to leave out, and it is a claim about a control that
-would not work.** While a request is outstanding this device holds no address - address is still
-
-ull - so any affordance built for the newly focused field would offer *creation*, and creating a
+would not work.** While a request is outstanding this device holds no address — address is still
+`null` — so any affordance built for the newly focused field would offer *creation*, and creating a
 second time is refused while the first is out. The person would be shown a button whose only
 reachable behaviour is to report a provider failure by doing nothing, which is the outcome this
 same capability names as the reason to offer nothing at all. So while an answer is outstanding the
