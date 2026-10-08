@@ -1,7 +1,8 @@
 # AGENTS.md
 
 > **Current milestone state (reconciled against Git and OpenSpec 2026-10-08): M0-M8 are complete in
-> scope, and M9's first slice is applied, verified, synced and ARCHIVED; its slice 2 follows.** M7's four
+> scope, M9 slice 1 is applied, verified, synced and ARCHIVED, and M9 slice 2 (`in-page-mailbox`) is
+> APPLIED and verified with its Sync and Archive stages to follow.** M7's four
 > slices are archived and M8
 > (`extension-foundation`) is applied, verified, synced, and archived at
 > `openspec/changes/archive/2026-10-07-extension-foundation/` - proposal **#75**, apply **#76**,
@@ -10,8 +11,8 @@
 > **#80** (`586d58a`), sync **#81** (`46ae462`), archive **#82**. **`in-page-address` (M9 slice 1)
 > is applied, verified, synced and ARCHIVED** at
 > `openspec/changes/archive/2026-10-08-in-page-address/` - proposal **#84**, apply **#85**, sync
-> **#86**, archive **#87** - **and M9's slices 2 (`in-page-mailbox`) and 3 (`site-associations`)
-> have not begun.** **The sync promoted the delta,
+> **#86**, archive **#87**. **`in-page-mailbox` (M9 slice 2) is APPLIED and verified** - proposal
+> **#88** merged (`c59bf79`) - **and M9's slice 3 (`site-associations`) has not begun.** **The sync promoted the delta,
 > so the promoted specs now hold what it asked for:** `openspec validate --specs --strict` is
 > **14 passed, 0 failed**, across **14 capabilities holding 143 requirements and 408 scenarios** -
 > measured by counting `### Requirement:` and `#### Scenario:` across `openspec/specs/`, not
@@ -136,8 +137,13 @@ The current state, in dependency order:
   stays rejected. **It is a control inside somebody else's page, so two things follow that
   are worth stating rather than discovering.** Its styles live in the shadow root because the
   page's stylesheet can neither reach them nor be reached by them; and it acts on **nothing but
-  the address**: **no provider is contacted from in-page**, no polling runs, and there is no
-  copy, no side panel and no site association, because M9's slices 2 and 3 own those.
+  the address the device holds or the one it can have made**: **since M9 slice 2 the control also
+  offers creation, and the request is delegated to the service worker** — measured, not preferred:
+  a content script's `fetch` obeys the **page's** CORS policy while the extension's
+  `host_permissions` do not reach it (`docs/PROVIDERS.md` §4.4, measured 2026-10-08), so the
+  provider is contacted from **exactly one context**. **Still no polling in-page, no copy, no side
+  panel and no site association**, because M9's slice 3 owns the last of those and nothing after
+  this one owns the others.
 - A design-token layer (`packages/ui`) that both clients will consume, holding colour for
   **two declared schemes**, type, spacing, radius, two **measures**, and motion, and **no**
   layout and no component styles. **"No layout" is qualified, and the qualification was
@@ -320,8 +326,9 @@ Pin versions when exact versions matter.
 
 - Framework(s): React `19.3.0` with Vite `7.3.6` for **both** clients, verified building,
   type checking, linting, and serving. The extension client is React **and** has a real
-  Manifest V3 manifest, an unpacked `dist` that Chromium loads, **36** browser cases, and
-  **25** unit tests for the content script alone — as of M9 slice 1. It was a placeholder with
+  Manifest V3 manifest, an unpacked `dist` that Chromium loads, **44** browser cases, and
+  **25** unit tests for the content script alone plus **17** for its creation path - as of M9
+  slice 2. It was a placeholder with
   **no framework and no manifest** until M8, and that sentence is **deleted rather than
   reworded** because it became false the moment `static/manifest.json` landed. **Its entry points
   were a popup only, and that sentence is deleted too: M9 slice 1 added a content script**, so
@@ -581,18 +588,32 @@ Pin versions when exact versions matter.
   no extension build step — that is M8" became false at M8 and is deleted rather than
   reworded.**
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running **765 tests across
-  42 files** via `pnpm test` (2026-10-08, at `in-page-address`'s apply stage, with
+- Testing: Vitest `3.2.7` at the workspace root, verified running **845 tests across
+  47 files** via `pnpm test` (2026-10-08, at `in-page-mailbox`'s apply stage, with
   `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory), counted from a
   JSON reporter **grouped by project** rather than read off a summary line:
   54 in `packages/core`, 89 in `packages/providers`, **149 in `packages/mail-parser`**,
   **155 in `packages/mailbox`**, **120 in `apps/web`**,
   **54 in `packages/storage`** (7 stored record, 30 IndexedDB adapter, 7 browser entry
   point, **10 `chrome.storage` adapter**),
-  **50 in `apps/extension`** (**25** in `content-script.test.ts`, **8** in `Popup.test.tsx`,
-  **9** in `provider-config.test.ts`, **3** in `service-worker.test.ts`, **5** in
-  `popup-copy.test.ts`),
+  **130 in `apps/extension`** (**25** in `content-script.test.ts`, **25** in `protocol.test.ts`,
+  **21** in `extension-platform.test.ts`, **17** in `content-script-create.test.ts`, **11** in
+  `create-mailbox.test.ts`, **9** in `provider-config.test.ts`, **8** in `Popup.test.tsx`,
+  **5** in `popup-copy.test.ts`, **5** in `service-worker.test.ts`, **4** in `scheduler.test.ts`),
   **38 in `packages/ui`**, and **56 architecture boundary assertions**.
+  **`in-page-mailbox` moved `apps/extension` 50 → 130 and moved nothing else - including the
+  boundary count, which stayed at 56, and that is a finding rather than an omission**: the rule
+  slice 1 added was **rewritten rather than added to**, because the absence check it was born as
+  could not see either of the two forms the defect actually takes (see the retention paragraph
+  below). **The five files are new, so nothing was edited** - `protocol.test.ts`,
+  `extension-platform.test.ts`, `content-script-create.test.ts` and `create-mailbox.test.ts` did not
+  exist at the baseline, and `service-worker.test.ts` is 3 → 5. **`packages/ui` stayed at 38 for the
+  fifth time**, and the boundary count for the first time moved by nothing at all, on a slice that
+  added both a new surface inside somebody else's page and a new rule about what that page may ask
+  for. **And the baseline itself was measured rather than read**: a `git worktree` at the merge-base
+  (`c59bf79`) was installed and measured with the same reporter, giving **765 across 42 files** -
+  which is the figure `AGENTS.md` already carried, and which is now a measurement rather than a
+  number transcribed from an earlier session's summary.
   **`in-page-address` moved `apps/extension` 25 → 50 and the boundary count 54 → 56, and moved
   nothing else.** **Every other total is identical to the baseline it recorded before proposing,
   and `packages/ui` stayed at 38 for the fourth time** - which is the measurement that mattered,
@@ -1309,9 +1330,9 @@ pnpm test:browser
 
 ```
 
-Playwright `1.63.0`, **two configurations, 9 spec files and 73 test cases** - **Chromium
+Playwright `1.63.0`, **two configurations, 10 spec files and 81 test cases** - **Chromium
 only**. The command builds **both** clients, then the in-page fixture, and then runs the two
-suites in order: the website's **37** in `apps/web/e2e/`, and the extension's **36** in
+suites in order: the website's **37** in `apps/web/e2e/`, and the extension's **44** in
 `apps/extension/e2e/`.
 
 **The website's 4 spec files and 37 cases** - `storage.spec.ts`
@@ -1337,9 +1358,11 @@ assertion above it, and the exemption would be indistinguishable from a pattern 
 stopped firing. **The extension's 16 did not move**, which is the check that this change did not
 touch the extension client.
 
-**The extension's 5 spec files and 36 cases** - `manifest.spec.ts` (**9**; **6** added by M8 and
+**The extension's 6 spec files and 44 cases** - `manifest.spec.ts` (**9**; **6** added by M8 and
 **three** by `in-page-address`), `popup.spec.ts` (**8**), `in-page.spec.ts` (**17**, added by
-`in-page-address`), `measurement.spec.ts` (**1**) and `alarm-floor.spec.ts` (**1**).
+`in-page-address`), **`in-page-create.spec.ts` (**8**, added by `in-page-mailbox`)**,
+`measurement.spec.ts` (**1**) and `alarm-floor.spec.ts` (**1**) - **44 in 6 files, against the
+extension's 36 in 5 at slice 1, and the 16 in 4 that `extension-preview` recorded**.
 **It has no `webServer` at all**, which is not an omission: it loads `apps/extension/dist`
 as an unpacked extension through `chromium.launchPersistentContext`. **Two flags and an
 absolute path are all it takes, and this was measured by getting it wrong four ways** —
@@ -1426,6 +1449,40 @@ The assertion is now the thing it names — the mark must *be* an inline `<svg>`
 file at all**, so a webfont is caught too. `ProviderTraffic` now carries **every** URL the page
 requested whatever its origin. Both halves were falsified separately.
 
+**And one case was inverted rather than added.** Slice 1 required the in-page client to **offer
+nothing when this device holds no stored mailbox**, on the reasoning that a control which can act
+on nothing is fake UI. Slice 2 made it act - the control now offers **creation**, delegated to the
+service worker - so the requirement was superseded on that point and the case reads the opposite
+way. **The supersession is recorded in the change's own delta rather than left for a reader to
+infer**, because a case that flipped direction with no note attached is the same defect as a
+requirement that quietly stopped applying.
+
+**`in-page-create.spec.ts`'s 8 cases are about delegation, and the delegation is the whole point.**
+A content script may not `fetch` a provider origin: measured on 2026-10-08 and recorded in
+`docs/PROVIDERS.md` §4.4, its request obeys the **page's** CORS policy while the extension's
+`host_permissions` do not reach it, and the service worker's request to the same URL succeeds. So
+creation is delegated over `chrome.runtime` and **the provider is contacted from exactly one
+context**, which the cases establish by counting origins rather than by asserting it in prose.
+
+**Two findings in that file are platform behaviours that produce silence rather than an error.**
+`context.route` **does** reach an extension's service worker, which is what makes delegated
+creation verifiable offline at all - and this was the third probe taken before the design was
+written, because the first two had already ruled out the alternatives. And **`route.fulfill`
+bypasses the CORS check**: the fixture page's own cross-origin `fetch` to `api.mail.tm` came back
+`200` with the recorded body. **That silently invalidated the case that was written for the refusal
+arm** - the page *would* have been allowed to make the request itself, so that case kept passing
+even with the delegation removed, which is the recorded shape of an assertion that cannot fail. The
+arm is now staged with a real `Content-Security-Policy: connect-src 'self'` response header on the
+fixture document, **plus a same-origin positive control**, because a policy that is only ever
+observed to block proves nothing about whether it is the policy doing the blocking.
+
+**And one case changed the harness, not the product.** A case that releases its account-creation
+gate and returns leaves the worker still writing a mailbox after the **next** case has cleared
+storage, so a later case reads a mailbox it did not create. **Every case that starts provider work
+must finish it**, and closing the page does not fix it - the worker outlives the page. This is the
+fifth recorded instance of a **precondition** defect in this repository, and the second found by
+this change.
+
 **And, since M8, the extension's tier.** That the built `dist` loads as an unpacked
 extension in a real Chromium; that **Chromium parses its manifest to the same host permissions
 the file declares** — accepted, which is **not** the same as *granted*, and the difference is
@@ -1469,7 +1526,18 @@ it or inherit the previous one's mailbox.
   judgement the task asks for.
 - **Nothing about a service worker's actual lifetime.** The measurement is a **bound**, not a
   figure: the worker was alive when the 30 000 ms window closed, so the termination point is
-  unmeasured and no document here claims one.
+  unmeasured and no document here claims one. **The delegated creation path rests on that same
+  bound** - a worker that has already been terminated is woken by the message, which is what MV3
+  promises, and **nothing in this repository has observed that wake.** The round trip measured at
+  idle gaps of 0, 5 and 35 seconds is a bound on latency, not a measurement of lifetime, and the
+  ceiling the page waits is declared as a product choice **because no provider's creation latency
+  was ever measured.**
+- **Nothing about `notActedOn` end to end, and the reason is a platform rule rather than an
+  oversight.** A content script always sends this extension's own recognised request, so no
+  browser case can make the worker answer "this message was not one of mine" - the case would have
+  to lie about the sender. **The reader half is unit-tested** (`create-mailbox.test.ts`), so the
+  variant is exercised where it can be, and **the end-to-end half is recorded as deliberate
+  non-coverage in the change's own spec** rather than left to look like coverage.
 - **Nothing about when `chrome.alarms` fires.** The suite establishes what the API
   **stores**; Chrome's documented **packing** of recurring alarms to at most once per 30 seconds
   is a separate behaviour this repository has still not observed. `docs/PROVIDERS.md` §4.1
@@ -1762,17 +1830,22 @@ M5 slice 1 apply stage, again after its independent verification repairs (all on
 verification repairs, again after the M5 slice 4 apply stage, and again after the
 M6 slice 1 apply stage, again after the M6 slice 2 apply stage, and again after the
 M6 slice 3 apply stage, again after the `browser-verification` apply stage, and again after
-the M7 slice 1 apply stage and its verification-pass repair, and again at M9 slice 1's
-apply stage on **2026-10-08**:
+the M7 slice 1 apply stage and its verification-pass repair, again at M9 slice 1's
+apply stage, and again at M9 slice 2's apply stage on **2026-10-08**:
 
 ```text
 pnpm typecheck     9 of 9 workspace projects run tsc --noEmit
 pnpm lint          exit 0
 pnpm format:check  All matched files use Prettier code style
-pnpm test          42 files, 765 tests passed
+pnpm test          47 files, 845 tests passed
 pnpm build         vite 7.3.6, dist emitted for BOTH clients
 pnpm verify        exit 0
 ```
+
+**`pnpm verify` was run three times at M9 slice 2's apply stage and all three were green - which is
+recorded because the two reds at slice 1's stage are the reason the gate is run three times at all,
+and a run's own output reports no history.** No red this time is a fact about this change's tree and
+nothing else.
 
 **`pnpm verify` was run six times at M9 slice 1's apply stage, and the two reds are named rather
 than the sixth counted.** **The first was red, on two things, and neither was a flake.**
@@ -1791,9 +1864,70 @@ library — is not true of it. **The fix was a config block scoped to `e2e/fixtu
 not a file-level suppression**, so a second entry-point fixture is covered by existing rather
 than by remembering.
 
-**`pnpm test:browser` was run thirty consecutive times at this stage, in three blocks of ten,
-counting failures: 30 passed, 0 failed, 36 cases on every run.** The precedent in this file is one
-run in three failing on a weak precondition, and a first green run is a fact about one execution — so
+**`in-page-mailbox` ran 15 deliberate violations: 14 counted and caught by the assertion each was
+aimed at, one recorded as evidence and not counted**, with restoration SHA-256 verified for every
+mutated file, `dist/` rebuilt from the restored source, **and the instrument living outside the
+repository** - a measuring script left in the root is something every future `pnpm lint` has an
+opinion about, and `extension-preview`'s pass failed on exactly that. **The finding worth leading
+with is the thirty-first recorded instance of an assertion narrower than the rule it documents, and
+it is the sixth recorded *precondition* defect and the second this change authored.**
+
+**Deleting the one-request guard inside `askForAnAddress` left the whole workspace green at 844 of
+844.** The case carrying the requirement pressed the control twice with `HTMLElement.click()` - and
+**`click()` respects `disabled`**, which is what `disabled` means on this platform, so neither press
+ever reached the handler. **The requirement is that a provider is asked once; the evidence was that a
+button is disabled; and only one of those is the claim.** The case's own comment asserted it would
+also have caught a guard in the handler, and the mutation is what showed it would not. **A case now
+reaches the handler by `dispatchEvent`, which bypasses activation behaviour, and reads the control's
+own refusal first** so it cannot be satisfied by a button that never became disabled. It is the
+*second* half and not a replacement: a dispatched event is not a press a person can make, and the
+requirement is about a person.
+
+**Three more results change how the table reads.** The unconfirmed label **cannot** be caught by
+the assertion that imports it - `toHaveText(AFFORDANCE_UNCONFIRMED_LABEL)` reads the very constant
+the mutation edits - so **only the sweep over the page's text can fail**, and a case carrying both a
+literal assertion and a sweep is not redundant. The ceiling is held down **solely by the browser
+case**, because every unit case advances timers by `IN_PAGE_CREATE_CEILING_MS` itself: **an
+assertion that imports the value under test cannot fail when the value changes**, and pushing the
+constant to twenty-four days leaves the unit tier green. And the hold gate, **predicted** to be a
+reliability measure on the strength of `M7 slice 2`'s held listing, **is load-bearing for its case's
+premise** - without it the answer arrives, the control is removed, and there is no second activation
+to make. **A prediction that a mutation will not be caught is recorded as a prediction and corrected
+when it is wrong, not kept because it was the newer claim.**
+
+**And one entry was declared `nocompile` before it was run, and compiled.** An answer carrying an
+extra field on a payload-free variant passes `tsc`, because the return position never sees an object
+literal that excess-property checking would have caught - so **the type is not what keeps that
+payload out, the assertion is.** The harness reports a declared outcome that turns out wrong as an
+explicit `MISMATCH`, for the same reason it reports a mutation that did not compile as its own
+class: **a mutation that cannot compile is not evidence about an assertion, and neither is a
+prediction that one will.**
+
+**The instrument was wrong five times before producing that table**, and three of the five were the
+same defect. Every runner path was hardcoded to the repository root, which resolves for `vitest`
+and `typescript` (both root dev dependencies) and **not** for `vite` or `playwright` (neither is
+hoisted out of its workspace member by pnpm) - so the **final rebuild reported
+`MODULE_NOT_FOUND` after all fifteen mutations had been applied and restored**, which is exactly the
+shape of the recorded `archive-bytes` defect: a measurement of the instrument rather than of the
+thing measured. Both are now resolved from the package that owns them, so a dependency bump cannot
+break the instrument either. `vite` additionally publishes no `bin/` subpath, so its manifest is
+resolved and the entry joined onto it. Two more were attributions: one mutation's declared catcher
+was a **browser** case that two unit assertions already covered - **a `wrongcatch` naming an
+assertion about the same property is an attribution to fix, one naming an unrelated assertion is the
+real thing** - and another was that file's **control**, which was correctly unaffected by a mutation
+making the reader permissive. **A control surviving a mutation is the control working.** The fifth
+was found by a mechanism rather than by reading: with no declared catcher the Playwright `-g` fell
+back to a pattern from an unrelated spec, so the recorded observation was a failure in a file the
+mutation had nothing to do with. **A recorded observation about the wrong test is worse than none.**
+
+**`pnpm verify` was run three times at this stage, all green, and `pnpm test:browser` thirty
+consecutive times in three blocks of ten: 30 passed, 0 failed, 37 website and 44 extension cases on
+every run.**
+
+**`pnpm test:browser` was run thirty consecutive times at `M9 slice 1`'s stage, in three blocks of
+ten, counting failures: 30 passed, 0 failed, 36 cases on every run.** The precedent in this file is
+one run in three failing on a weak precondition, and a first green run is a fact about one
+execution - so
 ten, and then ten more, because **the second block exists for a reason worth recording**: a
 comment-only correction landed between the first two, and rather than reason about whether that
 invalidated the first block, a second block was run from scratch. **The third block is on the tree

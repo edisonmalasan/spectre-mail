@@ -114,9 +114,23 @@ and a closed document cannot recall it.
 
 ## 9. Gates, counts, and records
 
-- [ ] 9.1 `pnpm verify` with `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory, recorded per run including every red.
-- [ ] 9.2 `pnpm test:browser` as three blocks of ten, counting failures, and stating any exception rather than claiming the tree was frozen.
-- [ ] 9.3 Test counts from `--reporter=json` grouped by project — never transcribed — recording the baseline before this change and the delta. `packages/ui` must still be 38.
-- [ ] 9.4 Update `AGENTS.md`, `docs/ROADMAP.md` and `README.md` with observed counts and with the new limits this slice adds, including that no case here reads a rendered pixel and that nothing about a real provider's latency is measured.
-- [ ] 9.5 `openspec validate in-page-mailbox --type change --strict`, and `openspec validate --specs --strict` to confirm nothing promoted was disturbed.
-- [ ] 9.6 Record which tasks are **deliberately unticked** and why — a human opening a real site is not a judgement an agent can make on the task's behalf.
+- [x] 9.1 `pnpm verify` with `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory, recorded per run including every red.
+- [x] 9.2 `pnpm test:browser` as three blocks of ten, counting failures, and stating any exception rather than claiming the tree was frozen.
+- [x] 9.3 Test counts from `--reporter=json` grouped by project — never transcribed — recording the baseline before this change and the delta. `packages/ui` must still be 38.
+- [x] 9.4 Update `AGENTS.md`, `docs/ROADMAP.md` and `README.md` with observed counts and with the new limits this slice adds, including that no case here reads a rendered pixel and that nothing about a real provider's latency is measured.
+- [x] 9.5 `openspec validate in-page-mailbox --type change --strict`, and `openspec validate --specs --strict` to confirm nothing promoted was disturbed.
+- [x] 9.6 Record which tasks are **deliberately unticked** and why — a human opening a real site is not a judgement an agent can make on the task's behalf.
+
+## 10. Deliberately unticked
+
+**This change carries no task that needs a human judgement, so the answer to 9.6 is "none in this
+file" - and that answer is worth more than a tick.** The falsification pass found a case that could
+not fail, a precondition that could never be satisfied, and an assertion importing the value it was
+testing; none of those needs a person. What needs a person is whether the affordance reads as right
+inside somebody else's page, and no test in either tier reads a rendered pixel.
+
+**That task belongs to slice 1 and lives in `openspec/changes/archive/2026-10-08-in-page-address/`
+as `tasks.md` 10.1, still unticked there.** An archived change's tasks are a historical record and are
+not edited by a later change, so this file is where the fact is recorded for a reader who will look
+here: **it was not performed, it was not performed because an agent opening a page is not the
+judgement the task asks for, and nothing in slice 2 changed that.**

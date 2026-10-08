@@ -23,27 +23,36 @@ on. See [Current status](#current-status).
 | M4 — Mail parsing engine          | complete and archived                                                       |
 | M5 — Website core MVP             | complete in scope — 4 slices archived; 3 acceptance lines are M6's or M10's |
 | M6 — Website hardening            | complete in scope — 3 slices archived; a 4th was audited, not built         |
-| M7–M15                            | not started                                                                 |
+| M7 — Spectral Swiss visual system | complete in scope — 4 slices archived                                       |
+| M8 — Extension foundation         | complete in scope — applied, verified, synced, archived                     |
+| M9 — In-page email integration    | slice 1 archived; slice 2 applied and verified — slice 3 remains            |
+| M10–M15                           | not started                                                                 |
 
-| Capability spec          | Requirements | State                              |
-| ------------------------ | -----------: | ---------------------------------- |
-| `provider-abstraction`   |            9 | live                               |
-| `monorepo-foundation`    |            5 | live                               |
-| `build-and-verification` |            6 | live                               |
-| `shared-domain-model`    |            9 | live                               |
-| `provider-adapters`      |           12 | live                               |
-| `mail-parsing`           |            9 | live                               |
-| `mailbox-session`        |           22 | live                               |
-| `website-client`         |           18 | live                               |
-| `spectre-storage`        |            9 | live — **consumed by the website** |
+| Capability spec          | Requirements | State                               |
+| ------------------------ | -----------: | ----------------------------------- |
+| `provider-abstraction`   |            9 | live                                |
+| `monorepo-foundation`    |            5 | live                                |
+| `build-and-verification` |           10 | live                                |
+| `shared-domain-model`    |            9 | live                                |
+| `provider-adapters`      |           12 | live                                |
+| `mail-parsing`           |            9 | live                                |
+| `mailbox-session`        |           23 | live                                |
+| `website-client`         |           21 | live                                |
+| `spectre-storage`        |           12 | live — **consumed by both clients** |
+| `visual-system`          |            9 | live                                |
+| `page-composition`       |            6 | live                                |
+| `browser-verification`   |            5 | live                                |
+| `extension-client`       |            6 | live                                |
+| `in-page-integration`    |            7 | live                                |
 
 `mailbox-session` and `website-client` were promoted at M5's sync stages, and
-`spectre-storage` at M6 slice 1's. **Nine capabilities, 99 requirements and 271
-scenarios**, counted from the promoted files rather than carried over from a previous
-claim — this repository has published a wrong total five times, and the last one was
-caught only because the count was re-derived rather than re-read. This table itself was
-stale when corrected: it read 93 requirements and 232 scenarios, and gave
-`spectre-storage` 7, none of which had been re-counted since their slice's sync.
+`spectre-storage` at M6 slice 1's. **Fourteen capabilities, 143 requirements and 408
+scenarios**, counted by `### Requirement:` and `#### Scenario:` across `openspec/specs/`
+rather than carried over from a previous claim — this repository has published a wrong
+total five times, and the last one was caught only because the count was re-derived
+rather than re-read. **This table had fallen five milestones behind** — it read nine
+capabilities and 99 requirements, and stopped at M6 — so it is corrected here by
+measurement rather than by editing the five milestone rows into place by hand.
 
 **`spectre-storage` is no longer "consumed by no client".** That was true at slice 1 and
 false from slice 2, which adopted a stored mailbox and from slice 3, which uses all three
@@ -65,9 +74,19 @@ can honestly claim is narrower than it sounds: every colour the page uses is a d
 value whose contrast is asserted as a WCAG ratio in both light and dark schemes, and every
 control is keyboard-reachable with a focus indicator this product drew, checked by reading
 the **resolved** outline in a real browser. **No test reads a rendered pixel's colour**, so
-whether it _looks_ right is a judgement no gate here can make. Motion is still absent and
-arrives with its reduced-motion handling, so it cannot arrive as animation a visitor cannot
-switch off.
+whether it _looks_ right is a judgement no gate here can make. Motion arrives on three
+entrances and is a **removal** under `prefers-reduced-motion: reduce`, not a substitute
+timing — checked against a resolved duration in a real browser, again not against a pixel.
+
+**And the extension client now offers a mailbox inside somebody else's page.** Its content
+script watches for an email field taking focus, offers a control in a shadow root the
+page's stylesheet cannot reach, and inserts the address **this device already holds**.
+When the device holds none, it offers to **make** one and **delegates the request to the
+service worker** — measured, not preferred: a content script's `fetch` obeys the **page's**
+CORS policy while the extension's `host_permissions` do not reach it, so the provider is
+contacted from exactly one context. **What none of that establishes is how it looks inside a
+real third party's page**, which is a human judgement and the task that asks for it is left
+unticked rather than answered by an agent opening a page.
 
 **The website persists a mailbox and removes it on request, and it has now run in a real
 browser.** It reads its
@@ -81,7 +100,8 @@ measured `records=1 claimsStored=0 offersRemoval=0` in Chromium, while 152 unit 
 passed. The cause was an unmount guard scoped to one effect invocation, which that
 effect's own cleanup cleared whenever the inbox published new state mid-write. It is fixed,
 pinned by a unit regression test that holds a write open, and now covered in real Chromium
-by `pnpm test:browser` (Playwright `1.63.0`, now 12 specs, its own CI job).
+by `pnpm test:browser` (Playwright `1.63.0`, now 81 cases across 10 spec files, its own
+CI job).
 
 **And a CI run carrying this page's new specs went red on 2026-10-06** — see below.
 
@@ -279,6 +299,7 @@ Full detail, including why each rule exists: [`docs/ARCHITECTURE.md`](docs/ARCHI
 apps/
   web/                 Vite + React website client — creates a mailbox, shows its address
   extension/           Chromium MV3 client — a popup, a service worker, and a content script
+                       that offers your address inside a page and can ask the worker to make one
 packages/
   core/                normalized domain model
   providers/           provider adapters
