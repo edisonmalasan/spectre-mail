@@ -210,6 +210,53 @@ describe("while a request is outstanding", () => {
     await Promise.resolve();
   });
 
+  it("asks once even when an activation bypasses the disabled control", async () => {
+    // **This case exists because the case above cannot reach half the rule.**
+    //
+    // **`HTMLElement.click()` respects `disabled` - that is what `disabled` means on this platform** -
+    // so the two extra presses never arrive at the handler, and the guard inside `askForAnAddress` is
+    // unreachable through the control this product ships. **That was measured rather than argued:**
+    // a mutation deleting that guard ran the whole workspace and stayed green at 844 of 844. The case
+    // above's own comment says "a guard in the handler would satisfy a single press", and this is the
+    // run that shows it satisfies *no* press this tier can make - so the one-request claim rested
+    // entirely on one mechanism, and a mechanism that never ran is not coverage.
+    //
+    // **`dispatchEvent` bypasses activation behaviour**, which is the only way to arrive at the
+    // handler from this tier. **A dispatched event is not a press a person can make**, and that is
+    // why this is the *second* half rather than a replacement: the requirement is about a person, and
+    // the case above is the one about a person. This one is about the handler being correct on its own
+    // terms, so that neither mechanism is the sole witness to the claim.
+    const answer = deferred<CreateMailboxAnswer>();
+    const { createMailbox } = harness();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    field();
+    createMailbox.mockReturnValue(answer.promise);
+    button()?.click();
+    await Promise.resolve();
+
+    expect(button()?.disabled).toBe(true);
+
+    // **A real press first, read as the control's own refusal**, so the assertion below cannot be
+    // satisfied by a button that never became disabled - which is what would happen if
+    // `setPending(true)` were the only thing under test here.
+    button()?.click();
+    await Promise.resolve();
+    expect(createMailbox).toHaveBeenCalledTimes(1);
+
+    button()?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    button()?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await Promise.resolve();
+
+    expect(createMailbox).toHaveBeenCalledTimes(1);
+
+    answer.resolve({ kind: "created", address: ADDRESS });
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
   it("keeps the control when focus leaves, and removes it once the answer arrives", async () => {
     const answer = deferred<CreateMailboxAnswer>();
     const { createMailbox } = harness();

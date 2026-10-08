@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Creating a mailbox from inside somebody else's page, in a real browser.
  *
  * ## Why these cases exist at all, given that the unit tier covers the same claims

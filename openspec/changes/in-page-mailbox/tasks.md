@@ -1,4 +1,4 @@
-﻿# Tasks
+# Tasks
 
 Each group lands the tests and documentation its own work calls for. Nothing is deferred to a final
 testing group, because a group that first exercises an earlier group's work makes the failures
@@ -108,9 +108,9 @@ and a closed document cannot recall it.
 
 ## 8. Falsification
 
-- [ ] 8.1 The harness lives **outside the repository tree**, per slice 1's task 7.6, and reports `harness-error` for an output containing neither a passed nor a failed count.
-- [ ] 8.2 Deliberate violations for each new assertion, including **one targeting the retargeted boundary rule** — a fresh-path probe the rule must report — and one removing the outstanding-answer hold.
-- [ ] 8.3 Each violation must be caught by its **intended** assertion, with restoration verified by SHA-256 and `dist/` rebuilt from the restored source. Record the full table in `design.md`, including any that survived.
+- [x] 8.1 The harness lives **outside the repository tree**, per slice 1's task 7.6, and reports `harness-error` for an output containing neither a passed nor a failed count.
+- [x] 8.2 Deliberate violations for each new assertion, including **one targeting the retargeted boundary rule** — a fresh-path probe the rule must report — and one removing the outstanding-answer hold.
+- [x] 8.3 Each violation must be caught by its **intended** assertion, with restoration verified by SHA-256 and `dist/` rebuilt from the restored source. Record the full table in `design.md`, including any that survived.
 
 ## 9. Gates, counts, and records
 

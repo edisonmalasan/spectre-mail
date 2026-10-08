@@ -1,4 +1,4 @@
-﻿/**
+/**
  * The in-page integration, in a real browser against a real page.
  *
  * ## What makes these cases worth the tier

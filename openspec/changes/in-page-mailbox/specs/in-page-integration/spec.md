@@ -1,4 +1,4 @@
-﻿# Spec Delta
+# Spec Delta
 
 ## MODIFIED Requirements
 
