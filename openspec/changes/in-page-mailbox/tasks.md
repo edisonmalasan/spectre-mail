@@ -48,14 +48,63 @@ cascade back through everything in between.
 
 ## 7. The browser tier, offline, against the built extension
 
-- [ ] 7.1 Extend the extension tier's routing so the worker's provider requests are fulfilled by the recorded responses and not only the page's. Verify by a case that fails if the worker's request is the one left unfilled — otherwise a green run could be a live call.
-- [ ] 7.2 A case that activation reaches the provider **through the worker** while the page itself refuses cross-origin requests, and the address reaches the field. Verify the page's hostile CORS posture is established before the assertion, not assumed.
-- [ ] 7.3 A case that the page's own code reads the created address back as the field's value, on a controlled input, so this path is covered by the same property slice 1 established for insertion.
-- [ ] 7.4 A case that a second activation while one is outstanding causes no second provider request to the provider.
-- [ ] 7.5 A case that the wait passing with nothing stored reports **could not confirm**, and reports no failure and no absence of mailboxes.
-- [ ] 7.6 A case that the worker retained nothing: a second request creates an independent mailbox.
-- [ ] 7.7 A case that a provider refusal reaches the page in the provider's own words.
-- [ ] 7.8 A negative control for each sweep in this group, so a pattern matching nothing cannot satisfy the assertions above it.
+- [x] 7.1 Extend the extension tier's routing so the worker's provider requests are fulfilled by the recorded responses and not only the page's. Verify by a case that fails if the worker's request is the one left unfilled — otherwise a green run could be a live call.
+- [x] 7.2 A case that activation reaches the provider **through the worker** while the page itself refuses cross-origin requests, and the address reaches the field. Verify the page's hostile CORS posture is established before the assertion, not assumed.
+- [x] 7.3 A case that the page's own code reads the created address back as the field's value, on a controlled input, so this path is covered by the same property slice 1 established for insertion.
+- [x] 7.4 A case that a second activation while one is outstanding causes no second provider request to the provider.
+- [x] 7.5 A case that the wait passing with nothing stored reports **could not confirm**, and reports no failure and no absence of mailboxes.
+- [x] 7.6 A case that the worker retained nothing: a second request creates an independent mailbox.
+- [x] 7.7 A case that a provider refusal reaches the page in the provider's own words.
+- [x] 7.8 A negative control for each sweep in this group, so a pattern matching nothing cannot satisfy the assertions above it.
+
+
+### What group 7 found, recorded because three of these were not the task as written
+
+**1. A product defect, in the wrong handler, and the browser tier found it on its first run.**
+`D8` put the outstanding-request exception in the *removal* branch, so `onFocusOut` returns while
+a request is out - and tabbing away appeared to be handled. It is not: **`focusin` reaches the same
+controller for whatever was focused next**, and every branch of `onFocusIn` either removes the
+control or builds a new one. A person who pressed *Create* and then tabbed to the next input lost
+the only place the answer could be reported. Repaired, and the repair is `design.md` D11; the delta
+gained the scenario the repair introduces, because "leave the control alone while an answer is out"
+and "offer nothing new while an answer is out" are two claims and only the first was written down.
+
+**2. `7.2` could not be staged the way it was written, and the reason is worth keeping.** The task
+says the page must be shown to refuse cross-origin requests, and the first implementation asserted
+exactly that by having the page attempt the same `fetch` and requiring a CORS failure. **It does
+not fail**: with `context.route` answering the provider origin, the page's own cross-origin
+`fetch` succeeds and returns the recorded body - measured, not reasoned, and the probe's output is
+quoted in the case. A route fulfilled by the harness is not a cross-origin response in the page's
+sense of one. **So that version of the case would have kept passing if the extension had been
+making the request itself**, which is the failure mode a case about *who* makes a request cannot
+have. The fixture now serves a real `connect-src`, which the platform refuses and the harness
+cannot, and the case carries a same-origin positive control so "the page's requests are broken"
+cannot satisfy it.
+
+**3. `7.7` asked for something no surface in this product produces, and was corrected rather than
+satisfied.** The task says the refusal reaches the page "in the provider's own words". It does not,
+and never has: the adapter classifies a throttled creation as `RATE_LIMITED` and substitutes its
+own sentence, so the provider's recorded body is discarded upstream of the page. The requirement
+was amended, the case asserts what the control actually reads - the manager's composed report
+naming every provider asked, each with its id and its normalised condition - and `design.md` D12
+records why that is a correction rather than a weakening. **A task that names words no code
+produces is a task that would have been satisfied by a test asserting nothing.**
+
+**4. Two of this group's cases asserted the wrong shape of the product's behaviour, and both were
+the task's fault rather than the code's.** A control does not survive a successful insertion - it
+is removed, because there is nothing left to offer - and a field that acquired text is refused the
+affordance outright, so the "offers insertion next time" case has to use a field a person could
+still use. Both were corrected in the *expectation*, and the second is why the case reaches for
+`#in-form` rather than the field it typed into.
+
+**5. A precondition defect in this file, which is the fifth recorded instance of that shape.** A
+case that releases its gate and returns leaves the harness fulfilling a provider request and the
+worker writing a mailbox **after** the next case has cleared storage and booted its page. That next
+case then finds an address it did not create, offers insertion where it meant to offer creation,
+and fails on an assertion that says nothing about itself - which is exactly how it presented. Every
+case that starts provider work now finishes it, and the "could not confirm" case's late-answer half
+is what drains it. **Closing the page does not fix this**: the request has already been dispatched,
+and a closed document cannot recall it.
 
 ## 8. Falsification
 

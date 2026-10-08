@@ -514,6 +514,71 @@ describe("when the wait passes", () => {
     expect(createMailbox).toHaveBeenCalledTimes(1);
   });
 
+  it("ignores focus arriving elsewhere while a request is outstanding", async () => {
+    vi.useFakeTimers();
+
+    const { answer, createMailbox } = holdOpen();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const target = field();
+    createMailbox.mockReturnValue(answer.promise);
+    button()?.click();
+    await Promise.resolve();
+    expect(button()?.textContent).toBe(AFFORDANCE_WAITING_LABEL);
+
+    // **Focus arrives somewhere else entirely, and the two arms of the arrival are both reached.**
+    //
+    // **The unit tier cannot reproduce the real ordering, and this case says so rather than
+    // pretending otherwise.** A real focus move delivers `focusout` then `focusin` in one task with
+    // nothing dispatched between them; this dispatches them by hand, so it proves the branch rather
+    // than the platform's ordering. The browser tier is where the ordering is real — and where this
+    // was found, after the hand-dispatched `focusout`-only case passed on the shipped code.
+    //
+    // **A non-email field, and a second email field, are two different branches of the same handler
+    // and both would have built or destroyed the control.** One removes it; the other builds a
+    // second one offering *creation*, which cannot act while the first request is out. Neither is
+    // asserted here by count alone: the second field's case below presses the new control and
+    // requires that no second request results.
+    blur(target);
+
+    // **A field that is not an email field takes focus** — the branch that removes the control.
+    const username = document.createElement("input");
+    username.setAttribute("type", "text");
+    username.setAttribute("name", "username");
+    document.body.append(username);
+    username.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+    await Promise.resolve();
+
+    expect(button()?.textContent).toBe(AFFORDANCE_WAITING_LABEL);
+    expect(button()?.disabled).toBe(true);
+
+    // **And a second email field takes focus** — the branch that builds a new control. This is the
+    // one that would offer *creation* and could not act, so it is asserted on the request count and
+    // not on the presence of a control: a second control is not a lesser outcome than no control,
+    // it is a worse one.
+    const other = document.createElement("input");
+    other.setAttribute("type", "email");
+    other.setAttribute("name", "email");
+    document.body.append(other);
+    other.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+    await Promise.resolve();
+
+    expect(document.querySelectorAll(`[${AFFORDANCE_HOST_ATTRIBUTE}]`)).toHaveLength(1);
+    expect(button()?.textContent).toBe(AFFORDANCE_WAITING_LABEL);
+
+    // **And pressing whatever is on screen does not produce a second request**, which is what
+    // distinguishes "the control cannot act" from "the control is gone".
+    button()?.click();
+    await Promise.resolve();
+    expect(createMailbox).toHaveBeenCalledTimes(1);
+
+    answer.resolve({ kind: "created", address: ADDRESS });
+    await Promise.resolve();
+    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+  });
+
   it("acts on nothing when a late answer arrives after the wait already passed", async () => {
     vi.useFakeTimers();
 

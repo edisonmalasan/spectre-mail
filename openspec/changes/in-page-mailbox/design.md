@@ -256,6 +256,68 @@ second mailbox" defect by a shorter route.
 
 The amendment is in `specs/in-page-integration/spec.md`, recorded in place with the reason.
 
+### D11 - The outstanding-request exception lives in the focus *arrival*, not the departure
+
+**Chosen:** while a request is outstanding, no focus event anywhere on the page changes the
+affordance - it stays where it is, and nothing new is offered.
+
+**Found by the browser tier on its first run, and it was in the wrong place.** D8 put the exception
+in the *removal* branch, which is where the proposal put it, and which is why onFocusOut returns
+early while a request is outstanding. That branch is correct and it is insufficient: **ocusin
+reaches the same controller for whatever was focused next**, and every branch of onFocusIn either
+removes the control or builds a new one. A person who pressed *Create* and then tabbed to the next
+input lost the control on every one of those paths - and the failure looked like a hung request,
+because the request was genuinely still in flight and genuinely had nowhere left to be reported.
+
+**The unit tier could not have found this**, which is worth stating because it is the shape of the
+defect. content-script-create.test.ts dispatches ocusout and ocusin by hand, and its
+"keeps the control when focus leaves" case asserts the count immediately after ocusout. That
+passes on the shipped code. The failure needs the two events the platform delivers in one task - out,
+then in - with nothing dispatched between them, which is what a real focus move is and what a
+hand-dispatched pair is not.
+
+**The second half is the one that is easy to omit.** While a request is outstanding, address is
+still 
+ull, so an affordance built for the newly focused field would offer *creation* - and
+askForAnAddress returns immediately because outstanding is set. That is a control that cannot
+act, drawn inside somebody else's form, whose only reachable outcome is to report a provider
+failure by doing nothing. Returning early prevents it, and it is the same reasoning
+\in-page-integration\ already applies to a device whose boot read failed: **a control whose only
+reachable answer is a guess is a control that cannot act.**
+
+**Considered and rejected: let the new field take over.** It would keep a control visible per field
+and let the answer land in a field nobody asked for. The request records the field it was made for,
+so the answer would insert into a field the person has left - the same mistake the late-answer rule
+avoids, reached by a different route.
+
+### D12 - A refusal reaches the page as the adapter's report, not a provider's body
+
+**Chosen:** the control's name is the extension's composed refusal report - the manager's sentence
+naming every provider that was asked, and for each one its id, its normalised error code, and the
+condition in full.
+
+**The proposal's wording was false and this records that rather than quietly matching the code.**
+The proposal required a refusal *"in the words the provider used"*, and the browser tier's first
+refusal case read the control's name in real Chromium and found
+\No configured provider could create a mailbox.\ followed by \mailtm: RATE_LIMITED - Mail.tm is
+throttling this request while creating a mailbox.\ **The provider's raw body never reaches this
+surface**: the adapter classifies a throttled creation as \RATE_LIMITED\ and substitutes its own
+sentence, and the recorded body (\Too many accounts created. Please wait and try again.\) is
+discarded before the page is involved at all.
+
+So the requirement was amended, and the amendment is not a loosening: *"the provider's own words"*
+was **uncheckable as written** - nothing defined what those words were, so any prose would satisfy
+it - while naming the provider, the code, and the condition in full is something a reader can go and
+look for. **Carrying the raw body through instead would mean widening \provider-abstraction\'s error
+contract**, which changes what every client shows and is not this change's business.
+
+**One consequence worth stating, because it is how this branch is reached at all.** The extension's
+manager prefers Mail.tm and falls back, so throttling only Mail.tm produces *a mailbox created by
+Guerrilla Mail* - correct behaviour, and unreachable as this branch. Every case that exercises it
+stages two refusals, and **Guerrilla's 429 is synthetic**: none was ever observed. So the tier
+establishes that a refusal reaches the page when no provider could serve the request, and nothing
+about what any one provider does when it refuses.
+
 ### Risks / Trade-offs
 
 - **[The worker is terminated and never wakes, so a page waits out its ceiling]** → the page's

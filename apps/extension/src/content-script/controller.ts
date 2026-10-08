@@ -206,6 +206,35 @@ export function startInPageIntegration(options: InPageOptions): () => void {
       return;
     }
 
+    // **An answer is still outstanding, so this focus event changes nothing.**
+    //
+    // **This arm is a defect the browser tier found on its first run, and it was not in the
+    // `focusout` branch.** `onFocusOut` already returns while a request is outstanding, so
+    // tabbing away appeared to be handled — and it is, until the arriving focus does anything.
+    // Focusing *anything* runs this handler, and every branch below it either removes the control
+    // or builds a new one: a non-email field, a field that holds text, a device that may not offer,
+    // or a second email field. So focus moving from the created-on field to the next thing took the
+    // control away, in every one of those cases, while the answer was still on its way.
+    //
+    // **Two reasons to return here, and the second is the one the unit tier could not find.**
+    //
+    // 1. The requirement states the affordance remains until the answer arrives, and the answer has
+    //    exactly one place to be reported. `onFocusOut`'s own note says so; this is the same reason
+    //    arriving by a different event.
+    // 2. **Building a second control would be a control that cannot act.** `address` is still
+    //    `null` while a request is outstanding, so any affordance built here would offer
+    //    *creation* — and `askForAnAddress` returns immediately because `outstanding` is set. The
+    //    person would be shown a button that reports a provider failure by doing nothing at all,
+    //    which is the outcome the storage requirement names as the reason to offer nothing.
+    //
+    // **And it is not a licence to persist**: the arm is `outstanding !== null`, and every path
+    // that settles a request (`readTheAnswer`, `confirmWhatIsStored`, teardown) clears it. So the
+    // control cannot outlive a settled request, which is what the amendment's last sentence
+    // requires.
+    if (outstanding !== null) {
+      return;
+    }
+
     // **A target the document no longer holds.** A node removed between dispatch and delivery is
     // still delivered, and `contains` is how a controller distinguishes that from a person focusing
     // something.

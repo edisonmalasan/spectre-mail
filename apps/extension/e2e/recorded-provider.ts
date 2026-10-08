@@ -38,11 +38,44 @@ import {
   FIXTURE_IDS,
   guerrillaLiveList,
   guerrillaSessionCreated,
+  guerrillaThrottled,
   mailtmAccountCreated,
   mailtmDomains,
   mailtmMessageList,
+  mailtmThrottled,
   mailtmToken,
 } from "../../../packages/providers/src/fixtures";
+
+/**
+ * Mail.tm's account creation, as the adapter spells it in a URL.
+ *
+ * **One constant rather than three literals.** The gate, the throttle, and the spec that
+ * counts requests all have to name the same request, and a spec that retyped the path
+ * would silently hold nothing if the adapter's spelling ever changed - a gate that never
+ * fires is indistinguishable from no gate at all.
+ */
+export const MAILTM_ACCOUNTS = "https://api.mail.tm/accounts";
+
+/**
+ * Guerrilla Mail's single operation, as the adapter spells it in a URL.
+ *
+ * **One constant for the same reason as {@link MAILTM_ACCOUNTS}**, and this one has a
+ * query parameter behind it: the adapter spells the operation in `f`, so a spec that
+ * matched on a bare host would also match nothing here.
+ */
+export const GUERRILLA_AJAX = "https://api.guerrillamail.com/ajax.php";
+
+/**
+ * A recorded **refusal** per creation path, for {@link RecordingOptions.allProvidersThrottled}.
+ *
+ * **Keyed by the same prefixes as {@link SCRIPT}, deliberately.** A throttle table keyed
+ * differently from the script table would let the two drift, and the drift would read as
+ * "the refusal path was not exercised" rather than as a broken key.
+ */
+const REFUSALS: ReadonlyArray<readonly [string, ScriptedResponse]> = [
+  [MAILTM_ACCOUNTS, recorded(mailtmThrottled)],
+  [GUERRILLA_AJAX, recorded(guerrillaThrottled)],
+];
 
 /** One scripted answer. */
 interface ScriptedResponse {
@@ -65,10 +98,10 @@ interface ScriptedResponse {
  */
 const SCRIPT: ReadonlyArray<readonly [string, ScriptedResponse]> = [
   ["https://api.mail.tm/domains", recorded(mailtmDomains)],
-  ["https://api.mail.tm/accounts", recorded(mailtmAccountCreated)],
+  [MAILTM_ACCOUNTS, recorded(mailtmAccountCreated)],
   ["https://api.mail.tm/token", recorded(mailtmToken)],
   ["https://api.mail.tm/messages", recorded(mailtmMessageList)],
-  ["https://api.guerrillamail.com/ajax.php", recorded(guerrillaLiveList)],
+  [GUERRILLA_AJAX, recorded(guerrillaLiveList)],
 ];
 
 /**
@@ -118,6 +151,46 @@ export const SCRIPTED_PROVIDER_ORIGINS: readonly string[] = [
 export interface RecordingOptions {
   /** Answer Mail.tm with 503 so the fallback path runs. Off by default. */
   readonly mailTmUnavailable?: boolean;
+
+  /**
+   * Make **every configured provider refuse** to create a mailbox, each with its own
+   * recorded refusal, so the composed refusal a person reads reaches the page at all.
+   *
+   * **Why "every" is the condition and not a detail.** The extension's manager tries
+   * Mail.tm and then Guerrilla Mail, and falls back — a design `provider-abstraction`
+   * requires. So throttling one provider reaches the page as **a mailbox created by the
+   * other**, which is correct product behaviour and makes this case impossible to stage
+   * any other way. What the case establishes is that a refusal reaches the page *when no
+   * provider could serve it*, not that either provider refuses.
+   *
+   * **One is measured and one is synthetic, and the asymmetry matters.** Mail.tm's 429 was
+   * observed (`docs/PROVIDERS.md` §3) and its body is the sentence the page must carry
+   * verbatim. **Guerrilla Mail was never observed to send a 429** — `fixtures.ts` labels
+   * its copy `SYNTHETIC` — so that half stages a second refusal and establishes nothing
+   * about that provider. A case reading both bodies as though both were measured would be
+   * the same defect as transcribing a fixture into a spec, in the direction where the
+   * invented one is the one asserted on.
+   *
+   * **Only account creation is refused.** `GET /domains` and `POST /token` still succeed,
+   * so Mail.tm's 429 answers the request it is actually about rather than being the
+   * response to a question that never came up.
+   */
+  readonly allProvidersThrottled?: boolean;
+
+  /**
+   * Awaited before any account-creation request is fulfilled.
+   *
+   * **Why a gate and not a delay.** A spec that wants "what does the control do while the
+   * answer is outstanding" has to reach that state, and a fixed sleep would be a number
+   * chosen to be long enough - the recorded defect with a larger constant, recorded again
+   * in `AGENTS.md` about `INBOX_POLL_CEILING_MS`. A gate makes the state something the
+   * spec *releases*, so the assertions either side of it are both deliberate.
+   *
+   * **It holds only `/accounts`, not every request.** A gate on the whole route table
+   * would also hold the `GET /domains` that precedes creation, and the spec would then be
+   * waiting on a request that is not the one under test.
+   */
+  readonly holdAccountCreation?: Promise<unknown>;
 }
 
 /** What the interception saw. */
@@ -157,6 +230,26 @@ export async function recordProviderTraffic(
     if (options.mailTmUnavailable && url.startsWith("https://api.mail.tm")) {
       await route.fulfill({ status: 503, contentType: "application/json", body: "{}" });
       return;
+    }
+
+    // **The gate, and it is released by the spec rather than waited for.** `push` has already
+    // happened by the time this runs, so a spec that wants to know whether the request was
+    // *made* — rather than merely scripted — reads `requested` while the gate is still
+    // shut. That is what lets a case hold a request open and still assert on it.
+    if (options.holdAccountCreation !== undefined && url.startsWith(MAILTM_ACCOUNTS)) {
+      await options.holdAccountCreation;
+    }
+
+    if (options.allProvidersThrottled) {
+      const refusal = REFUSALS.find(([prefix]) => url.startsWith(prefix));
+      if (refusal !== undefined) {
+        await route.fulfill({
+          status: refusal[1].status,
+          contentType: "text/plain",
+          body: refusal[1].body,
+        });
+        return;
+      }
     }
 
     const match = SCRIPT.find(([prefix]) => url.startsWith(prefix));
