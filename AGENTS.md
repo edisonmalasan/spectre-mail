@@ -4,9 +4,9 @@
 > in scope, M10 slice 1 (`verification-actions`) is **APPLIED, VERIFIED, SYNCED and ARCHIVED**
 > at `openspec/changes/archive/2026-10-10-verification-actions/`** — proposal PR **#96** merged
 > `421d56f`, apply PR **#97** merged `bdd13b6`, sync PR **#98** merged `550741f`, archive PR
-> **#99** — and **M10 slice 2 (`in-page-fill`) is APPLIED, VERIFIED and SYNCED**: proposal PR
-> **#100** merged `11c28fa`, apply PR **#101** merged `99bc35c`, and its sync has run on
-> `docs/in-page-fill-spec-sync`, awaiting its archive.
+> **#99** — and **M10 slice 2 (`in-page-fill`) is APPLIED, VERIFIED, SYNCED and ARCHIVED**
+> at `openspec/changes/archive/2026-10-10-in-page-fill/`: proposal PR **#100** merged `11c28fa`,
+> apply PR **#101** merged `99bc35c`, sync PR **#102**.
 > (An archive's own merge SHA is not written here because a commit cannot contain its own merge
 > commit; `git log --merges --oneline -1 main` is the record.)
 > M9's three slices are
