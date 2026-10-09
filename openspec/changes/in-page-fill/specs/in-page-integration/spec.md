@@ -209,6 +209,49 @@ Where more than one signal applies to a field, the field that **declares** a one
 `autocomplete` SHALL be preferred over one that is only inferred from its name, because a page that
 states the purpose of a field is telling the truth about it in the one way a machine can read.
 
+**Preferring a field is not a licence to fill it, and this is stated here because the scenario at the
+end of this requirement is titled `Two fields qualify and one declares itself` and reads as if it
+were.** Preference decides the order the options are offered in and which one is marked; the asking
+requirement below decides whether anything is written, and it says that several qualifying fields are
+put to the person even when one of them is preferred. Two requirements touching one decision is the
+arrangement that needs saying out loud, because the wrong reading of the first one fills somebody's
+checkout form.
+
+**A declaration SHALL outrank a disqualifying name, and this is recorded because the two rules were
+written by different measurements and they point opposite ways on one shape of field.** A page that
+writes `autocomplete="one-time-code"` on a field named `couponCode` has said what the field is, in the
+strongest way available to it, and this extension's own note in `code-field.ts` says so. A
+disqualifying name on a field that declares nothing is different: the name is the only evidence there
+is, and it is evidence of something else.
+
+**A name or id that identifies the field as something other than a one-time code SHALL NOT be
+recognised, however well it matches the code words.** This narrows the second signal, and the
+narrowing was measured rather than preferred. `discountCode`, `countryCode`, `securityCode`,
+`postalCode` and `couponCode` all contain the whole word `code`, so a whole-word test on the name
+recognises every one of them — and each is a field where a verification code is wrong in a way the
+person submits without noticing. **A whole-word match is necessary and not sufficient**, and the
+recogniser keeps a list of the classes that disqualify an identity: a price, a discount or promotion,
+a country, a product, a postal or tax identifier, a security answer, a reference or tracking number,
+and a gift or voucher.
+
+**An input that cannot be typed into SHALL NOT be recognised**, whatever else it says about itself.
+`hidden`, `submit`, `reset`, `button`, `checkbox`, `radio`, `file`, `image`, `range` and `color` all
+take `name` and `autocomplete` attributes and all reject everything this extension could write, so
+recognising one would produce a fill whose result cannot be read by the person or by the page.
+
+**Amendment, recorded during apply (2026-10-10), by in-page-fill.** Two things in the paragraph above
+were written after the implementation, and both are changes to what this requirement *permits* rather
+than to what it asks for — recorded here because a requirement narrowed by code and left standing in
+the delta would ship a promoted spec saying the code does something it forbids.
+
+The **numeric `inputmode`** signal is **subsumed** rather than unimplemented, and the requirement's
+text is left standing because it is still true: a field whose `name` or `id` identifies a code is
+recognised whether or not it also declares numeric entry, which is a superset of "numeric entry
+together with such a name or id". The consequence worth stating is the one the requirement does not
+say — **`inputmode` contributes nothing at all**, so it is read but never load-bearing, and deleting
+every reference to it from the module would change no outcome. Only the refusal is load-bearing: a
+numeric field named as nothing is not recognised, which is the scenario below.
+
 #### Scenario: A field declares a one-time code
 
 - **WHEN** a page holds an empty input whose `autocomplete` declares a one-time code
@@ -226,10 +269,22 @@ states the purpose of a field is telling the truth about it in the one way a mac
       as no kind of code
 - **THEN** the extension SHALL NOT recognise that input as a one-time-code field
 
+#### Scenario: A field is named as something else that ends in "code"
+
+- **WHEN** a page holds an empty input whose `name` or `id` identifies it as a discount, a country, a
+      product, a postal or tax identifier, a security answer or a tracking number, and which carries
+      the word `code` among others
+- **THEN** the extension SHALL NOT recognise that input as a one-time-code field
+
 #### Scenario: A field is not an input
 
 - **WHEN** an element that is not an input identifies itself as a one-time-code field
 - **THEN** the extension SHALL NOT treat it as one
+
+#### Scenario: A field cannot be typed into
+
+- **WHEN** an input that cannot receive typed text declares or is named as a one-time-code field
+- **THEN** the extension SHALL NOT recognise it as one
 
 #### Scenario: Two fields qualify and one declares itself
 
@@ -292,10 +347,33 @@ SHALL be the fields themselves rather than a count or a guess at an index. **No 
 filled until the person has chosen**, because the asking is not a confirmation step after a decision
 has already been taken.
 
+**A field that already holds text SHALL NOT be counted as one of the fields to choose between, and
+this narrows the requirement above — recorded during apply (2026-10-10) because the implementation
+filled where the proposal's words said it should have asked.** The other requirement in this change
+already forbids writing into a field holding text, which makes such a field a field this extension
+cannot use; counting it as a choice would put a question to the person whose every answer is a refusal
+except one — the only field they could have meant anyway.
+
+So a page holding one empty qualifying field and one already-filled qualifying field is a page with
+**exactly one field to fill**, and it is filled without asking. Asking there would be a question with
+one answer, and the cost of asking for its own sake is that a person on a signup page has to dismiss a
+control before anything happens.
+
+**The count is taken after the emptiness filter and not before, and the order is the requirement.** A
+field that holds text is not a candidate this extension can act on, so counting it and then refusing
+it would produce the refusal as the answer rather than as an accident of ordering.
+
 #### Scenario: Exactly one field qualifies
 
-- **WHEN** a page holds exactly one field recognised as a one-time-code field
+- **WHEN** a page holds exactly one empty field recognised as a one-time-code field
 - **THEN** the extension SHALL put the code into that field without asking which field to use
+
+#### Scenario: One field qualifies and another already holds text
+
+- **WHEN** a page holds two fields recognised as one-time-code fields
+- **AND** exactly one of them is empty
+- **THEN** the extension SHALL put the code into the empty one without asking which field to use
+- **AND** it SHALL leave the field holding text unchanged
 
 #### Scenario: Several fields qualify
 

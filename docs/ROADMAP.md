@@ -72,8 +72,10 @@
 > landing it would create permanent spec debt for disposable scaffolding.
 
 **Roadmap cursor: M10 - Verification Workflow, slice 1 (`verification-actions`) is APPLIED,
-VERIFIED, SYNCED and ARCHIVED at `openspec/changes/archive/2026-10-10-verification-actions/`.
-M9 is complete in scope** - all three of its slices
+VERIFIED, SYNCED and ARCHIVED at `openspec/changes/archive/2026-10-10-verification-actions/`,
+and **slice 2 (`in-page-fill`) is APPLIED and VERIFIED on `feat/in-page-fill`** (proposal PR
+#100 merged `11c28fa`), awaiting its apply merge, sync and archive. **M9 is complete in scope** -
+all three of its slices
 (`in-page-address`, `in-page-mailbox`, `site-associations`) applied, verified, synced and
 archived, slice 3 at `openspec/changes/archive/2026-10-09-site-associations/` with proposal PR
 #92 merged `7755131`, apply PR #93 merged `1ff7c24`, sync PR #94 merged `18bbe00`, archive PR
@@ -81,13 +83,14 @@ archived, slice 3 at `openspec/changes/archive/2026-10-09-site-associations/` wi
 lifecycle: proposal PR #96 merged `421d56f` (artifacts commit `e196b8d`), apply PR #97 merged
 `bdd13b6`, sync PR #98 merged `550741f`, archive PR #99.
 
-**M10 is four slices, and only the first is under way: copy a detected code and open a detected
-link on the website.** The roadmap's M10 lists four user actions - *copy code*, *open
-SpectreMail*, *fill code*, *open verification link* - plus an incoming-mail notification, and
-slice 1 takes the two that are website actions and **no** notification, **no** fill and **no**
-`chrome` permission of any kind. `design.md` D1 records why the old prohibition was **removed**
-rather than amended: `website-client`'s *"This slice shows what it found and does not act on
-it"* forbade exactly the two actions this product exists for.
+**M10 is four slices, and two of them are now applied.** The roadmap's M10 lists four user actions -
+*copy code*, *open SpectreMail*, *fill code*, *open verification link* - plus an incoming-mail
+notification, and slice 1 takes the two that are website actions and **no** notification, **no** fill
+and **no** `chrome` permission of any kind. `design.md` D1 records why the old prohibition was
+**removed** rather than amended: `website-client`'s *"This slice shows what it found and does not act
+on it"* forbade exactly the two actions this product exists for. **Slice 2 is the first `fill
+code`**, it lives in the extension's popup rather than on the website, and it adds **no**
+permission, **no** background polling and **no** new persisted record.
 
 **What slice 1's apply stage actually measured, all of it re-measured rather than
 transcribed:** `pnpm test` is **895 tests across 52 files**, grouped from a JSON reporter -
@@ -104,6 +107,69 @@ three times** with `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory, and
 40 website and 56 extension cases on every run.** Nine deliberate violations were all caught by
 the assertion each was aimed at, with `wrongcatch`, `green`, `nocompile`, `noop` and
 `harness-error` all zero and restoration SHA-256 verified per mutated file.
+
+**What slice 2's apply stage measured, and the three numbers that did not move are the claim.**
+`pnpm test` is **1009 tests across 54 files**, grouped from a JSON reporter rather than read off
+a summary line: `apps/extension` **262** (from **151**), `packages/mailbox` **158** (from
+**155**), and `apps/web` **125**, `packages/providers` **92** and **`packages/ui` 38 for the
+eighth time** all unmoved — plus the architecture boundaries **still 53**, which is this slice's
+own claim about *how* the delivery was built rather than a note saying so: `chrome.tabs` is read
+through the module that already owns the extension's platform global, and a second reader planted
+in a shipped module is still reported by name. The browser tier is **103 cases across 13 spec
+files** — the website's **40** unchanged, and the extension's **63** (from **56**, `in-page-fill`
+adding seven). **`pnpm test:browser` then ran forty consecutive times in four blocks of ten at `website=40` and
+`extension=63` on every run that produced a measurement**, and the tally is given with the run that
+produced none rather than rounded to a clean forty: `passed=39 failed=0 harness-error=1`. **Ten of
+those forty are on the exact tree this stage commits**, established by a timestamp bracket rather
+than by assertion: no source file has a write time inside the fourth block's window.
+
+**And five things this stage found are recorded here because they change what the roadmap's own
+words can be taken to mean.**
+
+1. **`fill code` on the roadmap is a *popup* action, not an in-page one, and that was measured
+   before it was designed.** A real popup holds `chrome.tabs` on `permissions: ["storage"]`
+   alone; `chrome.permissions.contains({permissions:["tabs"]})` is `false`, `query({active:true,
+   currentWindow:true})` names the docked tab, and `sendMessage` reaches a content script on an
+   origin this extension has no host permission for. **So the chain is popup → content script and
+   the service worker is not in it**, which also means no `tabs` permission is added and
+   `apps/extension/static/manifest.json` is untouched.
+2. **The roadmap's *copy code* is still owed, and it is now owed in the popup rather than on the
+   website.** Slice 1 put copy on the website; this slice deliberately did not add it to the
+   popup, because a clipboard write is a different act from a field write and folding it into
+   this slice would have widened it. `extension-client`'s declared-absence list keeps *copy
+   control* on it, so the next slice has an unambiguous target.
+3. **`packages/mailbox` had a latent cost that no unit test could see.** Closing an opened message
+   and re-opening it issued a second provider request, because `closeMessage()` reached the
+   method that sheds retained readings. **The requirement was already right** — it bounds
+   retention to the listing and the mailbox, and names no third bound — so **no delta block was
+   added for it**; the code was changed and the browser tier now counts the requests.
+4. **`filled` was returned from a branch that had not written.** The single-candidate arm read
+   `if (only !== undefined) { insertValue(…) } return { kind: "filled" }`, because
+   `noUncheckedIndexedAccess` makes `empty[0]` a `| undefined` where the length has just been
+   checked. The path is unreachable and the defect is not reachability — it is that the shape says
+   something untrue, and `filled` is the one answer in the union that claims a code went somewhere.
+   **No mutation could have found it**, and it was found by reading `fill.ts` against this
+   repository's own idiom for the same situation in `provider-config.ts`, which *handles* the
+   unreachable case rather than falling through. The five falsification arms whose mutated file is
+   `fill.ts` were re-run against the repaired tree and all five were caught as before.
+5. **A block of ten repeated runs stopped its script and not its wrapper, so two block series ran
+   against a tree that was being edited underneath them.** One of the thirty runs reported
+   `HARNESS-ERROR` rather than `passed`, and the instrument was right to refuse it: a run whose
+   output carries no tier summary never reached Playwright at all. **Two causes were tried and both
+   were false**, so the third was a reproduction — two runs started at the same instant, and the
+   loser printed `Process from config.webServer was not able to start`, because the website tier's
+   `vite preview` runs with `--strictPort`. **The other block series' three red runs were thrown
+   away rather than reconciled.** A measurement taken while the tree is moving is not a weak
+   measurement; it is not a measurement.
+
+**Twenty-four deliberate violations across both tiers: 21 caught by the assertion each was aimed
+at, 3 recorded as evidence rather than counted**, `wrongcatch`, `green`, `noop`, `nocompile` and
+`harness-error` all zero, restoration SHA-256 verified per mutated file, `dist/` rebuilt from the
+restored source, and the harness outside this repository. **The falsification harness was itself
+wrong twice before producing that table** — a vitest invocation missing `--reporter=json`, which
+filed eighteen arms as `harness-error` while those runs' own output was full of failing
+assertions, and one browser arm pointed at a different case from its named catcher. **Both were
+found and repaired before the numbers above were believed, and the second by hand first.**
 
 **What slice 1's sync stage measured, and it is a smaller set of facts than the apply
 stage's.** `openspec validate --specs --strict` is **14 passed, 0 failed**; `openspec validate

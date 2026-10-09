@@ -1,12 +1,13 @@
 # AGENTS.md
 
 > **Current milestone state (reconciled against Git and OpenSpec 2026-10-10): M0-M9 are complete
-> in scope, and M10 slice 1 (`verification-actions`) is **APPLIED, VERIFIED, SYNCED and ARCHIVED**
+> in scope, M10 slice 1 (`verification-actions`) is **APPLIED, VERIFIED, SYNCED and ARCHIVED**
 > at `openspec/changes/archive/2026-10-10-verification-actions/`** — proposal PR **#96** merged
 > `421d56f`, apply PR **#97** merged `bdd13b6`, sync PR **#98** merged `550741f`, archive PR
-> **#99**. **`openspec list` reports no active changes.** (The archive's own merge SHA is not
-> written here because a commit cannot contain its own merge commit; `git log --merges --oneline
-> -1 main` is the record.)
+> **#99** — and **M10 slice 2 (`in-page-fill`) is APPLIED and VERIFIED on `feat/in-page-fill`**
+> (proposal PR **#100** merged `11c28fa`), awaiting its apply merge and then its sync and archive.
+> (An archive's own merge SHA is not written here because a commit cannot contain its own merge
+> commit; `git log --merges --oneline -1 main` is the record.)
 > M9's three slices are
 > all applied, verified, synced and archived, and M7's four
 > slices are archived and M8
@@ -76,6 +77,74 @@
 > **Tasks 7.1 and 7.2 are deliberately unticked** — a human looking at the page, and a real
 > clipboard in a real browser — and the reasons are the recorded ones: an agent opening a page is
 > not the judgement the task asks for, and one substrate corroborated is not a general licence.
+>
+> **M10 slice 2 (`in-page-fill`) is APPLIED and VERIFIED on `feat/in-page-fill`** — proposal PR
+> **#100** merged `11c28fa`. **Twenty-four deliberate violations across both tiers: 21 caught by
+> the assertion each was aimed at, 3 recorded as evidence rather than counted, with `wrongcatch`,
+> `green`, `noop`, `nocompile` and `harness-error` all zero**, restoration SHA-256 verified per
+> mutated file, `dist/` rebuilt from the restored source, and the instrument living outside the
+> repository. `pnpm verify` exited 0 with `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty
+> directory, and `pnpm test` is **1009 tests across 54 files**: `apps/extension` 151 → **262**,
+> `packages/mailbox` 155 → **158**, and `apps/web` **125**, `packages/providers` **92**,
+> `packages/ui` **38** and the boundary count **53** all unmoved.
+>
+> **Five findings in this slice are worth more than the feature, and the first three were found
+> by instruments rather than by reading the requirements.** The fourth was found by reading one file
+> against another, which is a different kind of instrument and a weaker one, and the fifth is a
+> defect in the measuring instrument rather than in the code.
+>
+> **The requirement was right and the code was wrong, in the direction that is hardest to see:**
+> `closeMessage()` called `reset()`, which cleared the reported state *and* dropped every reading —
+> so closing a message and re-opening it cost a provider request. **The unit suite was green
+> throughout**, because the case asserting `reset` sheds a reading passed and the case asserting
+> close clears the state also passed; **the two methods were indistinguishable through everything
+> either test could observe, and the only observable difference is a request this repository
+> never made.** `OpenedMessages.close()` is now split out from `reset()`, and the browser tier
+> found it by **counting requests across a close and a re-open**.
+>
+> **A product defect was found by the new cases, and it was in the code the change had just
+> written**: the asking control removed itself from the page without telling the caller, so the
+> controller's reference outlived it and a second fill request could be swallowed. The fix is
+> `onDismissed`, called after `remove`, and `content-script-fill.test.ts` holds it — *reports no
+> control on the page once one has been answered*.
+>
+> **And the falsification harness was wrong twice before producing that table, in shapes this
+> file has recorded before.** Its vitest invocation omitted `--reporter=json`, so the report was
+> never written and eighteen arms were filed as `harness-error` **while the same runs' own output
+> was full of failing assertions naming the right cases**; and one browser arm pointed `-g` at a
+> *different* case from the one it named as its catcher, so it read green and said nothing. **The
+> second was repaired by hand first** — mutation applied, both builds run, the asking case failing
+> — **and only then in the harness.** Three arms are recorded as evidence and not counted: **one
+> was a broken mutant** (a logically identical rewrite, so green was correct) and **two were the
+> prototype-setter measurement**, whose green is the *designed* result because `design.md` D6 holds
+> that mechanism in a decision rather than in a requirement.
+>
+> **The boundary suite earned its place by failing on the shipped tree**: the new message list
+> rendered `message__from` and `message__subject`, and the rule requiring every class hook a client
+> renders to be selected by a stylesheet reported both — **and no test in the repository would
+> ever have said so.**
+>
+> **And the tree changed after that pass, so the table above described a file that was no longer
+> there.** Reading `fill.ts` against the repository's own idiom for a compiler-forced branch —
+> `provider-config.ts`'s `primaryProviderName`, which *handles* the unreachable case instead of
+> falling through — found that the single-candidate arm returned `{ kind: "filled" }` from
+> **outside** the `!== undefined` guard: a path that writes nothing and reports that it wrote
+> something, and `filled` is the one answer in the union that claims anything happened. **No
+> mutation could have found it** — the branch is unreachable, and a mutation of unreachable code
+> proves nothing. The five arms whose mutated file is `fill.ts` were re-run against the repaired
+> tree and all five were caught by the assertion each was aimed at. See `design.md` D12.
+>
+> **And one run of the thirty repeated browser runs measured nothing at all, and the instrument said
+> so rather than counting it.** The block runner prints `HARNESS-ERROR` instead of `passed` when a
+> run's output carries no tier summary, because `pnpm test:browser` is `build && build:fixture &&
+> web tier && extension tier` and such a run never reached Playwright. **Two explanations were tried
+> and both were false**, so the third was a reproduction: two runs started at the same instant, and
+> the loser printed `Process from config.webServer was not able to start` with zero tier summaries,
+> because the website tier's `vite preview` runs with `--strictPort`. **The two streams existed
+> because stopping a block stopped the block script and not its wrapper** — a discarded block series
+> kept running against a tree that was being edited underneath it, and **its three red runs were
+> thrown away rather than reconciled**. A measurement taken while the tree is moving is not a weak
+> measurement; it is not a measurement. See `design.md` D13.
 >
 > **`site-associations`' sync promoted eight blocks - two `MODIFIED` and three `ADDED` in `spectre-storage`,
 > one `MODIFIED` and two `ADDED` in `in-page-integration` - and the counts moved by five requirements
@@ -259,8 +328,28 @@ The current state, in dependency order:
   stranger's page, so a host with an association cannot have a *different existing* mailbox
   chosen for it; a **stale** association is ignored and **left in place**, replaced only by an
   insertion with a different mailbox; and a document with **no host** reads and writes no
-  association at all. **Still no polling in-page, no copy and no side panel**, and nothing after
-  this slice owns any of the three.
+  association at all.
+  **Since M10 slice 2 this content script has a second job, and it is the one the product exists
+  for**: on a request carrying a code, it **writes that code into the page's own one-time-code
+  field**. It reaches the field through a recogniser that answers from named signals only —
+  `autocomplete="one-time-code"`, or a `name`/`id` that identifies a code, verification or
+  one-time-password field, or a numeric `inputmode` **together with** such a name — so a quantity
+  or a postcode or a discount box is not a target. **The write happens only because a person
+  pressed something**: the control is in the **popup**, so the chain is *popup →
+  `chrome.tabs.sendMessage` → content script*, and **the service worker is not in it at all** —
+  `chrome.tabs.query({active: true, currentWindow: true})` needs no `tabs` permission (measured),
+  and a `notActedOn` answer is this extension's own message coming back. **The decision table is
+  the claim**, and each arm is one the page can earn: not the top frame → `notTopFrame`; a field
+  that already holds text → `fieldHoldsText` and nothing inserted, because that is the field the
+  browser autofilled; **exactly one empty candidate → filled, and several → the fields are put to
+  the person**, each named by the page's own label, one of them marked preferred when the page
+  declared it. **Preferring is not a licence to fill**, so the declaration only orders the list.
+  **Nothing is submitted and no control in the form is pressed**, which is the whole difference
+  between filling a field and completing a form on somebody's behalf.
+  **Still no polling in-page, no copy control and no side panel** — and the *copy* control in the
+  popup is deliberately still absent: this slice fills, it does not put anything on the clipboard,
+  and a capability that offers a control a person cannot use from the page they are looking at is
+  the fake-UI defect `page-composition` already forbids.
 - A design-token layer (`packages/ui`) that both clients will consume, holding colour for
   **two declared schemes**, type, spacing, radius, two **measures**, and motion, and **no**
   layout and no component styles. **"No layout" is qualified, and the qualification was
@@ -714,21 +803,44 @@ Pin versions when exact versions matter.
   no extension build step — that is M8" became false at M8 and is deleted rather than
   reworded.**
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running **895 tests across
-  52 files** via `pnpm test` (2026-10-09, at `verification-actions`' apply stage, with
+- Testing: Vitest `3.2.7` at the workspace root, verified running **1009 tests across
+  54 files** via `pnpm test` (2026-10-10, at `in-page-fill`'s apply stage, with
   `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory), counted from a
   JSON reporter **grouped by project** rather than read off a summary line:
   54 in `packages/core`, 92 in `packages/providers`, **149 in `packages/mail-parser`**,
-  **155 in `packages/mailbox`**, **125 in `apps/web`**,
+  **158 in `packages/mailbox`**, **125 in `apps/web`**,
   **78 in `packages/storage`** (7 stored record, **11 mailbox collection**, 30 IndexedDB adapter,
   **11 site associations**, 7 browser entry point, **12 `chrome.storage` adapter**),
-  **151 in `apps/extension`** (**25** in `content-script.test.ts`, **28** in `protocol.test.ts`,
-  **21** in `extension-platform.test.ts`, **17** in `content-script-create.test.ts`, **9** in
-  `content-script-associations.test.ts`, **11** in
-  `create-mailbox.test.ts`, **9** in `storage.test.ts`, **9** in `provider-config.test.ts`,
-  **8** in `Popup.test.tsx`,
+  **262 in `apps/extension`** (**25** in `content-script.test.ts`, **52** in `protocol.test.ts`,
+  **47** in `extension-platform.test.ts`, **23** in `content-script-fill.test.ts`, **22** in
+  `code-field.test.ts`, **24** in `Popup.test.tsx`, **17** in `content-script-create.test.ts`,
+  **9** in `content-script-associations.test.ts`, **11** in `create-mailbox.test.ts`, **9** in
+  `storage.test.ts`, **9** in `provider-config.test.ts`,
   **5** in `popup-copy.test.ts`, **5** in `service-worker.test.ts`, **4** in `scheduler.test.ts`),
   **38 in `packages/ui`**, and **53 architecture boundary assertions**.
+  **`in-page-fill` moved `apps/extension` 151 → 262, `packages/mailbox` 155 → 158, and moved
+  nothing else — and the three numbers that did not move are the measurement this slice's plan
+  turned on.** `apps/web` is still **125** and `packages/providers` still **92**, which is how the
+  change shows it touched neither the website's message view nor a provider adapter, and **the
+  boundary count is still 53**, which is task 2.2's claim made by the suite rather than by a note:
+  the delivery reads `chrome.tabs` through the module that already owns the extension's platform
+  global, so the rule is **worked with and not widened** — a second reader planted in a shipped
+  module is still reported by name (`B01` in the falsification record below).
+  **`packages/ui` is still 38 for the eighth time**, because `design.md` D8 commits this change to
+  **no new token and no new motion**; a rise would have meant visual surface no capability
+  describes.
+  **The arithmetic is the check that the movement is accounted for**: `apps/extension` 151 + 22
+  (`code-field.test.ts`, new) + 23 (`content-script-fill.test.ts`, new) + 26 (`extension-platform`,
+  the tab seam) + 24 (`protocol`, the fill pair) + 16 (`Popup`, the listing, the opened message and
+  the per-code control) = **262**; `packages/mailbox` 155 + 3 = **158**, the three being `close()`'s
+  two cases and the session's re-open case. `Popup.test.tsx` went **8 → 24** and
+  `extension-platform.test.ts` **21 → 47**, which is where a slice that puts a control in a popup
+  and a message channel into a content script necessarily lands.
+  **And one boundary failure was this change's own, found by that suite and by no test**: the new
+  message list rendered `message__from` and `message__subject`, and the rule requiring every class
+  hook a client renders to be selected by a stylesheet reported both. The repair was **two rules
+  written in tokens the popup already used**, in line with D8's "no new token", rather than deleting
+  the hooks the way `website-sections` deleted three that no stylesheet was ever meant to select.
   **`verification-actions` moved `packages/providers` 89 → 92, `apps/web` 120 → 125, the
   boundary count 57 → 53, and moved nothing else - and the two directions are both
   deliberate and both load-bearing.**
@@ -1504,9 +1616,9 @@ pnpm test:browser
 
 ```
 
-Playwright `1.63.0`, **two configurations, 12 spec files and 96 test cases** - **Chromium
+Playwright `1.63.0`, **two configurations, 13 spec files and 103 test cases** - **Chromium
 only**. The command builds **both** clients, then the in-page fixture, and then runs the two
-suites in order: the website's **40** in `apps/web/e2e/`, and the extension's **56** in
+suites in order: the website's **40** in `apps/web/e2e/`, and the extension's **63** in
 `apps/extension/e2e/`.
 
 **The website's 5 spec files and 40 cases** - `storage.spec.ts`
@@ -1560,12 +1672,30 @@ depends on **did not work as first written**: with the destination as plain text
 the page said *"No verification link was found in this message"* on a message whose readable
 text plainly contained the URL.
 
-**The extension's 7 spec files and 56 cases** - `manifest.spec.ts` (**9**; **6** added by M8 and
+**The extension's 8 spec files and 63 cases** - `manifest.spec.ts` (**9**; **6** added by M8 and
 **three** by `in-page-address`), `popup.spec.ts` (**8**), `in-page.spec.ts` (**17**, added by
 `in-page-address`), `in-page-create.spec.ts` (**8**, added by `in-page-mailbox`),
 **`in-page-associations.spec.ts` (**12**, added by `site-associations`)**,
-`measurement.spec.ts` (**1**) and `alarm-floor.spec.ts` (**1**) - **56 in 7 files, against the
-extension's 36 in 5 at slice 1, and the 16 in 4 that `extension-preview` recorded**.
+**`in-page-fill.spec.ts` (**7**, added by `in-page-fill`)**,
+`measurement.spec.ts` (**1**) and `alarm-floor.spec.ts` (**1**) - **63 in 8 files, against the
+extension's 56 in 7 that `verification-actions` recorded, the 36 in 5 at slice 1, and the 16 in 4
+that `extension-preview` recorded**.
+
+**`in-page-fill.spec.ts`'s seven are the only cases in this repository that drive the popup, and
+the way they do it was measured rather than chosen.** A real popup is a `chrome-extension://`
+document in a surface Playwright has no `Page` for: `chrome.action.openPopup()` **adds no Page**
+(measured), and a popup opened *as a tab* **is** its own active tab. So the file opens the built
+`popup.html` as a second tab of the same window, **brings the fixture page to front** so the popup's
+own `chrome.tabs.query({active:true, currentWindow:true})` names the page rather than the popup, and
+then presses the control the way a person would. **That arrangement is a substitute for the real
+docked popup and is recorded as one in `design.md` D10** - what it holds is the delivery, the answer,
+the report and the page's own React state; what it does not hold is anything about how a real popup
+window is presented, which no case in either tier could measure.
+
+**And the seven include a request-count readback, because that is how `design.md` D9's defect was
+found.** Reading a message, closing it, and reading it again must cost **one** provider request in
+total; the case asserts the count across the close and the re-open, so a `close()` that shed the
+reading would be caught here and not only in the unit tier.
 **It has no `webServer` at all**, which is not an omission: it loads `apps/extension/dist`
 as an unpacked extension through `chromium.launchPersistentContext`. **Two flags and an
 absolute path are all it takes, and this was measured by getting it wrong four ways** —
@@ -1923,6 +2053,22 @@ it or inherit the previous one's mailbox.
   about whether the control reads as right, legible or un-ugly in a page nobody here designed.
   **`tasks.md` 10.1 — load the extension on a real site and look at it — is deliberately left
   unticked**, because an agent opening a page is not the judgement the task asks for.
+- **Nothing about a real popup window, and the substitute that took its place is named rather
+  than quietly used.** The seven `in-page-fill` cases open the built `popup.html` **as a tab** and
+  bring the fixture page to front, because `chrome.action.openPopup()` **adds no Playwright Page**
+  and a popup opened as a tab is its own active tab. What that measures is real: the delivery, the
+  answer the page sent back, the report the popup rendered, and the fixture page's own React
+  state. **What it does not measure is a person clicking the toolbar icon** — the docked surface,
+  its width, and whether Chromium closes it when the person looks away are **all unmeasured**, and
+  nothing in this repository claims otherwise.
+- **Nothing about per-frame delivery, and the check that guards it cannot be reached from the
+  browser tier at all.** `chrome.tabs.sendMessage` without a `frameId` is documented as reaching
+  **every frame**; the mitigation is the content script's own refusal to fill when it is not the
+  top-level document. **The manifest declares no `all_frames`**, so no content script exists in a
+  subframe: a case built on a framed page would be satisfied by the script's **absence** rather
+  than by the check, which is this repository's most-recorded defect wearing a new hat. **The
+  check therefore lives in the unit tier, where a framed `window` is one line**, and the browser
+  tier cannot falsify it.
 - **Nothing about any browser other than the one that ran.** Chromium, on **one machine**
   (Windows 11) and on GitHub-hosted Linux runners. It is now repeatable — the `browser` job
   has run and **passed** in CI since run `37374154930` (2026-10-05) — but repeatability on
@@ -2262,6 +2408,113 @@ boundary rule leaves behind and which is the reason that fixture is deleted rath
 its exit code come from the same variables, because the instrument before it printed its tally
 and then fell off the end - so a **completed** block reported `exit 1` and an **aborted** one
 reported the same.
+
+**`in-page-fill` ran 24 deliberate violations across both tiers: 21 caught by the assertion each
+was aimed at, 3 recorded as evidence rather than counted, with `wrongcatch`, `green`, `noop`,
+`nocompile` and `harness-error` all zero** - restoration SHA-256 verified for every mutated file,
+`dist/` rebuilt from the restored source, and the instrument living outside the repository.
+**The three are the interesting half, and all three were read before being recorded rather than
+being filed as holes.**
+
+- **One was a broken mutant, and that is the recorded rule applied to itself**: a rewrite of the
+  declaration's precedence (`declaresItself(element) && !identifiesACode(element)`) is
+  *logically identical* - declared-and-unidentified returns `true` and everything else falls
+  through to the same call - so the whole 22-case file stayed green and **green was the correct
+  outcome**. **A survivor means "the assertion did not catch this", never "the assertion is too
+  weak", until the mutant has been read and shown to be the thing it claims.**
+- **Two were the same mutation at two tiers, and their green is the *designed* result.**
+  `insert.ts` writes a value through the element's **prototype setter**, and that mechanism is held
+  in `design.md` D6 rather than in a requirement - deliberately, because "a requirement naming one
+  setter would fail any correct implementation that used a different one". Removing it leaves
+  **23 unit cases green in jsdom and the browser case green in real Chromium against React 19**,
+  where `element.value = code` followed by a dispatched bubbling `input` event *does* reach
+  `onChange` and the component's state. **So the suite asserts the property the requirement names -
+  the page's own code reads the value back - and not the mechanism, which is what D6 says should
+  happen.** What is *not* claimed is that any other framework or React version behaves the same way;
+  the setter is kept as the mechanism that reaches framework state, not on the strength of evidence
+  that plain assignment fails somewhere, because this repository has none.
+
+**And the first run of that harness produced eighteen `harness-error`s, which is the same
+false-green-adjacent shape as `pnpm.cmd` failing to spawn - read here with the opposite verdict.**
+The vitest invocation omitted `--reporter=json`, so the JSON report was never written and every
+unit and boundary arm was classified `harness-error` - **and the console output of those same runs
+was full of failing assertions naming the right cases.** Three arms came back `caught` anyway,
+because those were browser arms reading a different file. **A defect caught in the browser tier and
+nowhere else is a fact about the tier, not about the suite**, and the mirror of it is worse: a
+harness that reports eighteen measured outcomes it did not measure, while the measurements it
+supposed to be reporting are visible in its own scrollback.
+
+**Two more instrument defects, and the first is the one worth carrying: a green browser arm whose
+catcher is a *different* case from the one it ran.** W01 ran `-g "writes the code into the page's
+own field"` and its catcher was the *asking* case; under that mutation the single-field case
+correctly still passes, so the arm read green and said nothing. **Repaired by hand first** - the
+mutation applied, both builds run, the asking case failing on `toHaveCount(1)` for the choice
+control - **and only then corrected in the harness.** A suite green four times in ten has told us
+nothing; an arm pointed at the wrong case has told us nothing *while looking rigorous*.
+
+**And the boundary tier earned its place by failing on the shipped tree.** The probe arm reported
+`message__from is rendered but no stylesheet selects it`, which was **not** caused by the probe:
+`pnpm test tests/architecture` on the clean tree reproduced it. Two new class hooks in the popup's
+new message list had no rule selecting them, and **no test in the repository would ever have said
+so** - the rule that did is the one requiring every class hook a client renders to be styled.
+
+**And the tree changed after that pass, which is a finding about the pass rather than about the
+code.** Reading `fill.ts` against the repository's own idiom for a compiler-forced branch —
+`provider-config.ts`'s `primaryProviderName`, which *handles* the unreachable case instead of
+falling through — found that the single-candidate arm returned `{ kind: "filled" }` from **outside**
+the `!== undefined` guard: a path that writes nothing and reports that it wrote something, and
+`filled` is the only answer in the union that claims anything happened. **No mutation could have
+found it**, because the branch is unreachable and a mutation of unreachable code proves nothing;
+it was found by reading one file against another. The five arms whose mutated file is `fill.ts`
+were re-run against the repaired tree and all five were caught as before — **a pass reporting
+"twenty-four of twenty-four" without saying the tree moved afterwards would have been reporting a
+property of a file that was no longer there.** See the change's `design.md` D12.
+
+**`pnpm test:browser` was then run forty consecutive times in four blocks of ten, and the tally is
+reported with the run that measured nothing rather than rounded to a clean forty: `passed=39
+failed=0 harness-error=1`, at `website=40` and `extension=63` on every run that produced a
+measurement.** The block instrument prints `HARNESS-ERROR` rather than `passed` when a run's output
+carries fewer than two tier summary lines, and exits non-zero on that count, because
+`pnpm test:browser` is `build && build:fixture && web tier && extension tier` — a run with **no**
+tier summary never reached Playwright, so counting it would be counting a run that did not run.
+
+**Two explanations were tried and both were false, which is why the third was a reproduction rather
+than a reason.** *"The falsification pass had just rebuilt the extension"* was tested and did not
+reproduce; *"two concurrent runs collide"* was tested at a twelve-second gap and did not reproduce
+either. **Reproduced deliberately** — two `pnpm test:browser` runs started at the **same instant**,
+and the loser printed `Error: Process from config.webServer was not able to start. Exit code: 1`
+with zero tier summaries, because the website tier's `vite preview` runs with `--strictPort` and
+cannot bind 4173 while the other run holds it. **A twelve-second gap is long enough to hide this,
+because it lets the first run finish its build first** — so the first probe read `NOT reproduced`
+and stopping there would have left the cause a shrug.
+
+**And the two streams existed because of a mistake in this session rather than a flake in the
+product.** Stopping a block of ten when `fill.ts` changed stopped the block *script* and not its
+wrapper, so a second block series carried on against a tree that was being edited and re-measured
+underneath it. **Its output — three red runs and two harness-errors — was discarded rather than
+reconciled**, and those reds are now explained by the same port collision measured in the other
+direction. `design.md` D13 records it in full. **A measurement taken while the tree is moving is not
+a weak measurement; it is not a measurement.**
+
+**And a fourth block was run against the exact tree being committed, which is the distinction
+`site-associations` had to establish by hand and is here a timestamp bracket rather than an
+assertion.** The block's fingerprint files are written at **04:50:33** and **04:59:12**, and **none of
+the 413 source files under `apps/`, `packages/`, `tests/`, `openspec/`, `docs/` and the root
+configuration has a write time inside that window** — the latest is **04:40:40**, ten minutes before
+the block opened. **Ten runs, all green at 40 website and 63 extension, on the tree this commit
+ships.**
+
+**The instrument that established that was wrong twice before it measured anything, and both failures
+are shapes this file has recorded before.** It first stamped into a directory that did not exist, so
+`Set-Content` failed as a non-terminating error, the function still returned a count, and the
+comparison read a file that had never been written — **printing `files that changed during the block:
+1` beside a comparison that never happened, naming no file.** It then swept in
+`apps/extension/test-results/`, the extension profiles Playwright writes on every run, so the same
+comparison reported **2930 changed files**, every one produced by the measurement. **A fingerprint
+that cannot tell a source file from an artefact the measurement itself creates reports a change
+every time** — the same defect as a sweep matching nothing, in the direction where it looks busy
+rather than vacuous. Both versions were discarded rather than repaired in place, because their output
+was already wrong.
 
 **`in-page-mailbox` ran 15 deliberate violations: 14 counted and caught by the assertion each was
 aimed at, one recorded as evidence and not counted**, with restoration SHA-256 verified for every

@@ -130,6 +130,18 @@ one it fell back from.
 - **THEN** the popup SHALL render its codes
 - **AND** no provider request SHALL be made to obtain them
 
+**Amendment, recorded during apply (2026-10-10), by `in-page-fill`. This scenario was measured
+false against a closed-and-reopened message, and the requirement was right while the code was
+wrong.** The paragraph above says *"only while this session has not already analysed that message"*,
+and `packages/mailbox` bounded its retention by the current listing and by mailbox replacement — but
+`closeMessage()` reached the method that forgets both, so closing a message in the popup and opening
+it again cost a second `/messages/{id}` request. `design.md` D9 records the repair; two unit cases
+and one browser case hold it.
+
+**It is recorded here rather than only in `design.md` because a reader of the promoted spec should
+know this scenario was once false in the ordinary way** — a person opens a message, closes it, opens
+it again — and not only in the shape the unit tier happened to cover.
+
 #### Scenario: The page does not confirm
 
 - **WHEN** a code was sent to a page and no page confirmed it
