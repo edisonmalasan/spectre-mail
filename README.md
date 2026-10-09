@@ -25,7 +25,7 @@ on. See [Current status](#current-status).
 | M6 — Website hardening            | complete in scope — 3 slices archived; a 4th was audited, not built         |
 | M7 — Spectral Swiss visual system | complete in scope — 4 slices archived                                       |
 | M8 — Extension foundation         | complete in scope — applied, verified, synced, archived                     |
-| M9 - In-page email integration    | slices 1 and 2 archived - slice 3 applied, awaiting sync/archive            |
+| M9 - In-page email integration    | slices 1 and 2 archived - slice 3 applied, verified and synced              |
 | M10–M15                           | not started                                                                 |
 
 | Capability spec          | Requirements | State                               |
@@ -38,15 +38,15 @@ on. See [Current status](#current-status).
 | `mail-parsing`           |            9 | live                                |
 | `mailbox-session`        |           23 | live                                |
 | `website-client`         |           21 | live                                |
-| `spectre-storage`        |           12 | live — **consumed by both clients** |
+| `spectre-storage`        |           15 | live — **consumed by both clients** |
 | `visual-system`          |            9 | live                                |
 | `page-composition`       |            6 | live                                |
 | `browser-verification`   |            5 | live                                |
 | `extension-client`       |            6 | live                                |
-| `in-page-integration`    |           10 | live                                |
+| `in-page-integration`    |           12 | live                                |
 
 `mailbox-session` and `website-client` were promoted at M5's sync stages, and
-`spectre-storage` at M6 slice 1's. **Fourteen capabilities, 146 requirements and 422
+`spectre-storage` at M6 slice 1's. **Fourteen capabilities, 151 requirements and 446
 scenarios**, counted by `### Requirement:` and `#### Scenario:` across `openspec/specs/`
 rather than carried over from a previous claim — this repository has published a wrong
 total five times, and the last one was caught only because the count was re-derived
