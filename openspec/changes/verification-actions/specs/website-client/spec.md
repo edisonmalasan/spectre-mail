@@ -60,11 +60,35 @@ state the same facts, and SHALL NOT drop a limit to make room for a section.
 
 **Note, recorded during proposal (2026-10-06).** The limits list is **not** being removed or
 shortened, and this requirement says so in terms that can be checked rather than in terms that
-can be admired. Its four bullets are each a measurement or a promoted requirement: the provider
-is the measured CORS one from `provider-config.ts`, the code-and-link sentence is `website-
-client`'s own *"This slice shows what it found and does not act on it"*, and the no-server
+can be admired. Its bullets are each a measurement or a promoted requirement: the provider
+is the measured CORS one from `provider-config.ts`, the code-and-link sentence was `website-
+client`'s own *"This slice shows what it found and does not act on it"* — a requirement this
+slice **removes**, so this note names it as it stood on 2026-10-06 — and the no-server
 sentence is the architecture rule that SpectreMail never proxies a provider. Moving them to a
 footer is a placement change; the claims travel with them intact.
+
+The reason the placement changes at all is that the list reads as an apology in the middle of
+a page. As a footer it reads as a specification, which is what it is.
+
+**Amendment, recorded at this slice's proposal (2026-10-09).** Two corrections to the note
+above, both because a promoted spec must not carry a claim its own text contradicts. Its
+**count** read *four* bullets while `apps/web/src/sections.ts`'s `LIMITS` holds **five** and
+the note then enumerated **three** of them — the storage sentence is deliberately absent, and
+`LIMITS`' own documentation says why — so the count is replaced by no count at all, and the
+code-and-link cross-reference is stated in the past tense because the requirement it names is
+removed by this same change. **A cross-reference that reads as live and points at a
+requirement this change deleted is the same defect as a sentence in the footer that stopped
+being true**, and this repository has now found that defect in three separate documents
+about one bullet. The count was wrong before this change and was carried forward silently
+through four syncs, which is the whole argument for checking arithmetic at promotion rather
+than only when a number is being published.
+
+The paragraph the delta dropped from this requirement is **restored** rather than lost. It
+is not superseded — the placement rationale stands unchanged by two actions being permitted —
+and the rule that a `MODIFIED` block must preserve what the delta does not mention applies to
+prose as much as to scenarios, because `openspec validate` enforces only the scenarios and
+would not have reported the loss. **A validator that cannot see the defect is not a reason to
+ship it.**
 
 **Amendment, recorded at this slice's proposal (2026-10-09).** The code-and-link sentence
 changes and the rest of this requirement does not. The third bullet used to read that the
