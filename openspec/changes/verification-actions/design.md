@@ -173,6 +173,29 @@ element the slice adds. The fixture is marked `SYNTHETIC` and uses a reserved
 new element that can navigate a user away from the page verified only by the platform this
 repository has the most recorded reasons not to trust for navigation claims.
 
+**Amendment, recorded at apply, 2026-10-09: the fixture did not work as first written, and
+the cause is a fact about `mail-parser`.**
+
+The first version put the destination in the message body as **plain text** inside the
+`<pre>`, the way the recorded corpus's body is plain text. The browser case rendered
+*"No verification link was found in this message"* on a page whose readable text plainly
+contained the URL, and the accessibility snapshot Playwright wrote into `test-results/` is
+what named it.
+
+**Anchors are recovered from `<a href>` elements only.** `packages/mail-parser`'s extractor
+is a small parser rather than a regular expression for a stated reason - a regex over the raw
+string cannot pair an `href` with the text a reader sees beside it - and a URL nobody wrote
+as a link is not an anchor. **This is the plan measuring false against the code, and it was
+found by running the thing rather than by reading either side of it.**
+
+The fixture now carries a real `<a href>`, which is what the mail it imitates would carry.
+**The limit is real, is not fixed here, and is named rather than left for someone to discover
+through the page:** a provider that delivered its verification destination as bare text would
+produce a message this product shows the URL for and reports no link for. That is
+`mail-parsing`'s behaviour and out of this change's scope. **This repository has never
+received verification mail from any service**, so there is no measurement of which shape real
+mail arrives in, and no fixture may stand in for one.
+
 ### D7 — The clipboard is verified in the unit tier, and the browser tier's limit is stated
 
 `navigator.clipboard.writeText` in headless Chromium needs a permission the tier does not
@@ -205,6 +228,67 @@ the new control.
 **Nothing animates.** The codes and links are already on screen when the message opens; a
 copy result appearing is a text change inside an existing region, not an entrance, and the
 `visual-system` motion requirement names three selectors.
+
+**Correction recorded at apply: the selector is `.link__anchor`, not `.link`.** `.link` is
+the `<li>`, and a `<li>` is not focusable, so naming it would have added a rule that cannot
+match and would have left the anchor with no ring — a decision that reads right and changes
+nothing. The stylesheet's list is now `.control`, `.inbox-row`, `.link__anchor`, and the third
+entry is this slice's. **The class hook is not a rename for tidiness**: `link__anchor` is what
+the anchor carries so a view could render one link in one row without the row itself reading
+as activatable.
+
+## Verification record
+
+Measured at this change's apply stage, 2026-10-09. **Every number here came from a run in this
+session**, and the instrument lived outside the repository tree — a measuring script left in
+the root is something every future `pnpm lint` has an opinion about, which is what
+`extension-preview`'s pass failed on.
+
+**Nine deliberate violations, nine caught by the intended assertion.** `wrongcatch`, `green`,
+`nocompile`, `noop` and `harness-error` are all **zero**, restoration was SHA-256 verified per
+mutated file, and `dist/` was rebuilt from the restored source — no SHA covers a build
+artefact, and `dist/` outlives the run.
+
+| # | Violation | Caught by |
+| --- | --- | --- |
+| M01 | the copy control's label drops the code it copies | `MessageView` — *gives every detected code its own copy control* |
+| M02 | the clipboard is given a value other than the detected one | same |
+| M03 | the confirmation is shown on a **refused** write | *reports a refused clipboard and leaves the code on screen* |
+| M04 | the write happens on **open** rather than on activation | *copies nothing when a message carrying codes is opened* |
+| M05 | the `rel` attribute is dropped | *renders a detected link as a real anchor and follows nothing on its own* |
+| M06 | `target` is changed to `_self` | same |
+| M07 | the host is removed from the anchor's text | same |
+| M08 | the copy control is removed from one code but not the others | *gives every detected code its own copy control* |
+| M09 | `.link__anchor` is removed from the `:focus-visible` list | `verification-actions.spec.ts` — *the anchor draws a focus indicator this product declared* |
+
+**M09 is not in `tasks.md` 6.1's list of eight, and it is the only one that reaches the browser
+tier's new case.** It was added because the slice ships a new file in the browser tier, and a
+green browser suite that no mutation can turn red is the recorded shape of coverage that
+verifies nothing. The eight the task names are all present and all caught.
+
+**Two mutations were also caught by a second assertion, and both are the same property rather
+than a rival one.** M04 also fails *forgets a copy result when the message is shown again*,
+because the effect fires again on the reopen and the clipboard receives a second write. M08
+also fails *copies nothing when a message carrying codes is opened*, whose positive control
+requires two controls to be on screen before it presses one. **A catcher that names another
+assertion about the same property is an attribution to record; one naming an unrelated
+assertion is the real defect**, and neither of these is the latter.
+
+**One mutation needed a line-anchored edit, and the reason is worth recording.** `target="_blank"`
+appears twice in `MessageView.tsx` — once as the attribute and once in the comment explaining
+why it is there — so an unanchored replacement would have mutated the documentation alongside
+the code. A mutation that only partly applied has been filed as a survivor before, and a
+mutation that also edits prose is not evidence about an assertion.
+
+**Two assertions this slice wrote were caught being unfalsifiable before the mutation pass
+found them, and the first is the more interesting.** The browser focus case originally reached
+the anchor with `element.focus()` and read its resolved outline: `style: "none"`. Chromium
+applies `:focus-visible` only when focus arrived from a keyboard, so **every** focusable element
+reads as though this product drew no ring anywhere — and the case would have passed with
+`.link__anchor` deleted from the list, and with the whole focus rule deleted. It now tabs to
+the anchor, bounded, and reports what focus last rested on when it gives up. **A case that
+cannot fail on the defect it is named for is not coverage**, and this repository has now
+recorded that shape many times over.
 
 ## Risks / Trade-offs
 

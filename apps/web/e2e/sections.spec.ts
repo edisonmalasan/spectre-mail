@@ -711,10 +711,18 @@ test.describe("what the sections are allowed to say", () => {
     await openWithTree(page);
     const footer = page.locator(".footer");
 
-    // `website-client`'s delta requires the limits to travel with their content intact, so
-    // these are the sentences rather than a paraphrase of them.
+    // `website-client`'s delta requires the limits to travel with their content, and
+    // its amendment records that this one was **reworded** rather than dropped when
+    // this slice shipped the two actions. So it is asserted in both directions: the
+    // sentence the page now prints, and the sentence it must no longer print, since
+    // "it does not copy codes or follow links" beside a control that does exactly
+    // that is the stale claim this repository has paid for five times.
     await expect(footer).toContainText("Guerrilla Mail and nothing else");
-    await expect(footer).toContainText("does not copy codes or follow links");
+    await expect(footer).toContainText("copies a code and follows a link only when you ask");
+    await expect(footer).not.toContainText(/does not copy codes or follow links/i);
+    await expect(footer).not.toContainText(
+      /verification workflow, which this page does not do yet/i,
+    );
     await expect(footer).toContainText("no backend");
 
     // **And the storage subject is a pointer, not a restatement.** What this device keeps

@@ -319,9 +319,17 @@ li {
  * while a keyboard press always does. `:focus-visible` is honoured by every browser the
  * browser tier runs, and by the ones it does not, which fall back to `:focus` and show
  * the ring always. Both are acceptable; silently showing none is not.
+ *
+ * **This list is the enumeration, not a sample.** `visual-system` requires every
+ * interactive control on the page to draw a visible indicator, and a new control left
+ * off this list fails nothing until a person cannot see where they are. `.link__anchor`
+ * is here for the verification link; `focus.spec.ts` reads a *resolved* outline and
+ * requires it not to be the browser's own `auto`, so adding the selector is what makes
+ * that existing assertion mean something for this control.
  */
 .control:focus-visible,
-.inbox-row:focus-visible {
+.inbox-row:focus-visible,
+.link__anchor:focus-visible {
   outline: var(--width-focus) solid var(--focus);
   outline-offset: var(--offset-focus);
   /* An outline drawn inside the element's own edge is partly hidden by it, so the
@@ -529,6 +537,17 @@ li {
 .link__host {
   color: var(--ink-accent);
   font-weight: var(--weight-medium);
+}
+
+/* The anchor is the new navigable element, so its appearance is declared rather than
+   inherited: `color: inherit` makes it impossible for a user-agent link colour to
+   appear here, which matters because every other colour on this page is a token and a
+   `sections.spec.ts` sweep of the stylesheet cannot see a colour the browser supplies.
+   The underline is declared for the same reason — it is the affordance, and an
+   affordance should not depend on the browser's defaults being what they are today. */
+.link__anchor {
+  color: inherit;
+  text-decoration: underline;
 }
 
 .link__url {

@@ -771,11 +771,18 @@ describe("the website", () => {
       expect(text).toMatch(/no backend/i);
       expect(text).toMatch(/never (relays|proxies)/i);
 
-      // **And the limitation that replaced it is stated, unflattering as it is.** The
-      // page can read a message and still will not copy a code or follow a link, and a
-      // user told "it opens messages" with nothing said about that would reasonably
-      // expect a button to copy the code they came for.
-      expect(text).toMatch(/does not copy codes or follow links/i);
+      // **And the limitation is still stated, unflattering as it is — and the fifth
+      // time this sentence has been replaced.** The page can copy a code and open a link,
+      // and it will not do either until asked, so a visitor told "it opens messages"
+      // learns that the actions are theirs to start. The old wording — *"does not copy
+      // codes or follow links"* — became false the moment this slice shipped the controls
+      // and was **reworded rather than dropped**: `website-client`'s amendment says the
+      // limit was not dropped for space, it was dropped for being untrue, and the count
+      // stays five.
+      expect(text).toMatch(/copies a code and follows a link only when you ask/i);
+      // **Asserted in both directions, because a deleted sentence passes the first.**
+      expect(text).not.toMatch(/does not copy codes or follow links/i);
+      expect(text).not.toMatch(/verification workflow, which this page does not do yet/i);
 
       // **Slice 2's fourth retired claim, and the assertion that noticed it.** The
       // page used to say "A reload discards this address. SpectreMail stores nothing
@@ -956,7 +963,12 @@ describe("the website", () => {
       const honest = [
         "It reaches Guerrilla Mail and nothing else.",
         "No server is involved. SpectreMail operates no backend and never relays a provider request.",
-        "It does not copy codes or follow links for you. Those are the verification workflow, which this page does not do yet.",
+        // And the **current** wording of the code-and-link limit, which changed with
+        // this slice. A negative control holding a sentence the page no longer prints
+        // would still be honest text, so it would not report a defect here — but it
+        // would also stop the control from being the page's own words, which is the
+        // whole point of a control: it is what the rule must *not* fire on.
+        "It copies a code and follows a link only when you ask it to.",
       ];
 
       expect(providerChoiceClaims(honest.join(" "))).toEqual([]);

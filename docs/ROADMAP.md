@@ -18,21 +18,31 @@
 > source of truth — `openspec/specs/` and the active OpenSpec change artifacts are.
 > Reconcile this block against Git and OpenSpec before trusting it in a later session.
 >
-> `openspec/specs/` holds **thirteen** capabilities: `provider-abstraction` (promoted
+> `openspec/specs/` holds **fourteen** capabilities: `provider-abstraction` (promoted
 > from `provider-role-decision`), `monorepo-foundation` (M1), `shared-domain-model`
 > (M2), `provider-adapters` (M3), `mail-parsing` (M4), `build-and-verification`
 > (M1), `mailbox-session` (M5 slice 1), `website-client` (M5 slice 1),
 > `spectre-storage` (M6 slice 1), `browser-verification`, `visual-system` (M7 slice
-> 1), `page-composition` (M7 slice 3), and **`extension-client`** (new, promoted at the
-> `extension-foundation` sync stage - M8). Counted mechanically at each sync and again
-> after each archive, they hold **135 requirements and 381 scenarios** in total:
-> 124/351 before this promotion, plus `extension-client`'s **6 requirements and 17
-> scenarios** and the **+5 requirements / +30 scenarios** this change's deltas carried
-> into three existing capabilities.
+> 1), `page-composition` (M7 slice 3), `extension-client` (M8) and
+> `in-page-integration` (M9 slice 1). Counted mechanically at each sync and again
+> after each archive, they hold **151 requirements and 446 scenarios** in total.
 >
-> **The per-capability deltas at M8, each counted and not transcribed:**
-> `build-and-verification` 9/21 -> **10/28**, `provider-abstraction` 9/18 -> **9/20**,
-> `spectre-storage` 10/30 -> **12/36**, and `extension-client` new at **6/17**.
+> **The per-capability figures, counted on 2026-10-09 at `verification-actions`'s apply
+> stage and not transcribed:** `browser-verification` 5/12,
+> `build-and-verification` 10/28, `extension-client` 6/20,
+> `in-page-integration` 12/41, `mail-parsing` 9/31, `mailbox-session` 23/61,
+> `monorepo-foundation` 5/12, `page-composition` 6/20, `provider-abstraction` 9/20,
+> `provider-adapters` 12/30, `shared-domain-model` 9/23, `spectre-storage` 15/51,
+> `visual-system` 9/28, `website-client` 21/69.
+>
+> **And the sentence above those two paragraphs warned about this exact failure twice while
+> carrying a figure the same failure had already broken.** It read **thirteen** capabilities
+> and **135 requirements / 381 scenarios** — M8's numbers, so stale by three capabilities
+> and sixty-five scenarios, and it had been carried through all of M9 without being counted
+> once. **A number nobody re-ran is a number nobody checked**, and the count here is now
+> re-run mechanically at every apply as well as at every sync, because **the apply stage is
+> where a change's own requirements become visible** and it is the stage a reader trusts
+> most.
 >
 > **That total figure was stale twice before the first correction**, and the drift was the
 > same shape both times: a promotion landed and the count was not moved. It read 93
@@ -53,11 +63,44 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor: M9 - In-Page Email Integration, all three slices (`in-page-address`,
-`in-page-mailbox`, `site-associations`) applied, verified, SYNCED and ARCHIVED. M9 is complete in
-scope.** Slice 3 is at `openspec/changes/archive/2026-10-09-site-associations/` - proposal PR #92
-merged `7755131`, apply PR #93 merged `1ff7c24`, sync PR #94 merged `18bbe00`. **M0 through M8 are
-complete in scope, and so is M9.** The next milestone is M10, not yet started.
+**Roadmap cursor: M10 - Verification Workflow, slice 1 (`verification-actions`) is APPLIED and
+VERIFYING on `feat/verification-actions`. M9 is complete in scope** - all three of its slices
+(`in-page-address`, `in-page-mailbox`, `site-associations`) applied, verified, synced and
+archived, slice 3 at `openspec/changes/archive/2026-10-09-site-associations/` with proposal PR
+#92 merged `7755131`, apply PR #93 merged `1ff7c24`, sync PR #94 merged `18bbe00`, archive PR
+#95 merged `a886447`. **M0 through M9 are complete in scope.** The proposal PR for M10 slice 1
+is #96, merged `421d56f`; the artifacts commit is `e196b8d`.
+
+**M10 is four slices, and only the first is under way: copy a detected code and open a detected
+link on the website.** The roadmap's M10 lists four user actions - *copy code*, *open
+SpectreMail*, *fill code*, *open verification link* - plus an incoming-mail notification, and
+slice 1 takes the two that are website actions and **no** notification, **no** fill and **no**
+`chrome` permission of any kind. `design.md` D1 records why the old prohibition was **removed**
+rather than amended: `website-client`'s *"This slice shows what it found and does not act on
+it"* forbade exactly the two actions this product exists for.
+
+**What slice 1's apply stage actually measured, all of it re-measured rather than
+transcribed:** `pnpm test` is **895 tests across 52 files**, grouped from a JSON reporter -
+`packages/providers` **92** (from 89), `apps/web` **125** (from 120), the architecture
+boundaries **53** (from **57**, down because two rules were *deleted* rather than exempted and
+each one's property was given a named replacement instrument in the tombstone comment in
+`tests/architecture/boundaries.test.ts`), and **`packages/ui` still 38 for the seventh time**,
+which is the number that mattered most because `design.md` D8 commits the slice to no new token
+and no new motion. The browser tier is **96 cases across 12 spec files** - the website's **40**
+in five files (`verification-actions.spec.ts` adds three) and the extension's **56** unchanged,
+which is the check that this slice did not touch the extension client. **`pnpm verify` exited 0
+three times** with `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory, and
+**`pnpm test:browser` ran thirty consecutive times in three blocks of ten: 30 passed, 0 failed,
+40 website and 56 extension cases on every run.** Nine deliberate violations were all caught by
+the assertion each was aimed at, with `wrongcatch`, `green`, `nocompile`, `noop` and
+`harness-error` all zero and restoration SHA-256 verified per mutated file.
+
+**And three numbers in this file were found stale while that record was being written, which is
+why they are worth naming.** This block's own capability count above had not been re-run since
+M8; `AGENTS.md` claimed **9 of 9** workspace projects type check where the measured figure is
+**8 of 8**; and `README.md`'s command table still read 691 across 35 files with 51 boundary
+assertions. **All three had been carried for at least one milestone, and the warning about
+exactly this failure sat in two lines above a figure the failure had already broken.**
 **Slice 1's sync promoted the delta, so the promoted specs moved 13 → 14 capabilities, 136 → 143
 requirements and 390 → 408 scenarios** - the fourteenth is `in-page-integration` at 7 requirements /
 18 scenarios. Every promoted block was copied programmatically from the delta rather than retyped,

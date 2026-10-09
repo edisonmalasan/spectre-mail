@@ -22,6 +22,7 @@
 import { expect, type Page } from "@playwright/test";
 
 import { serveRecordedProvider, type ProviderTraffic } from "./recorded-provider";
+import type { RecordedStep } from "../../../packages/providers/src/recorder";
 
 /** How a spec joins "load the page and wait for a mailbox" without copying it. */
 export interface OpenMailboxOptions {
@@ -52,6 +53,17 @@ export interface OpenMailboxOptions {
    * it is a function of the call number.
    */
   readonly listingGate?: (call: number) => Promise<unknown> | undefined;
+
+  /**
+   * Answer `fetch_email` with this recorded step instead of the default one.
+   *
+   * **Plumbed rather than served by the caller, and for the reason this module exists.**
+   * The alternative was a spec calling `serveRecordedProvider` itself and then navigating,
+   * which is the "second copy of load-the-page" defect with a handler bolted on. Forwarded
+   * verbatim; see `RecordedProviderOptions.messageStep` for why the recorded corpus cannot
+   * supply a message carrying a link.
+   */
+  readonly messageStep?: RecordedStep;
 }
 
 /**
@@ -78,11 +90,12 @@ export async function openFreshMailbox(
   // **`exactOptionalPropertyTypes` is why this is conditional rather than
   // `{ listingGate: options.listingGate }`.** Passing an explicit `undefined` is not the
   // same as omitting the key under this compiler setting, and the error it produces reads
-  // like a type mismatch rather than a decision about spelling.
-  const traffic = serveRecordedProvider(
-    page,
-    options.listingGate === undefined ? {} : { listingGate: options.listingGate },
-  );
+  // like a type mismatch rather than a decision about spelling. Both options are forwarded
+  // the same way rather than one of them being spread in with a possibly-`undefined` value.
+  const traffic = serveRecordedProvider(page, {
+    ...(options.listingGate === undefined ? {} : { listingGate: options.listingGate }),
+    ...(options.messageStep === undefined ? {} : { messageStep: options.messageStep }),
+  });
   await page.goto("/");
   if (options.onDocumentLoaded !== undefined) await options.onDocumentLoaded(page);
   await expect(page.getByTestId("ready")).toBeVisible();

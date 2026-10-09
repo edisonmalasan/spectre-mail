@@ -50,7 +50,55 @@ import { MessageView } from "./MessageView";
 // eight-run record, at 117ms measured in isolation.
 applyJsdomSuiteBudget();
 
-afterEach(cleanup);
+afterEach(() => {
+  restoreClipboard();
+  cleanup();
+});
+
+/** The clipboard property a case replaced, so `afterEach` can put it back exactly. */
+let restoreClipboard: () => void = () => undefined;
+
+/**
+ * A clipboard that records what it was asked to copy, and can be made to refuse.
+ *
+ * **Installed per case and restored after it**, rather than once for the file. A stub
+ * left installed is a *precondition* the next case silently inherits, and this
+ * repository's record is that a check whose precondition is wrong does not fail — it
+ * measures the wrong thing and passes. Restoring is the cheap half; the expensive half
+ * is the positive control the "copies nothing" case carries, without which an
+ * unobservable stub would satisfy "nothing was written" forever.
+ *
+ * **The recorded array is the instrument**, and it is returned rather than wrapped in a
+ * mock so a case can assert *exactly* what was copied - a mock's `toHaveBeenCalledWith`
+ * passes for a call among many, and "this code and nothing else" is the claim.
+ */
+function recordingClipboard(options: { readonly refuses?: boolean } = {}): string[] {
+  const written: string[] = [];
+  const previous = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: {
+      writeText: (value: string) => {
+        written.push(value);
+        return options.refuses === true
+          ? Promise.reject(new Error("not allowed"))
+          : Promise.resolve();
+      },
+    },
+  });
+
+  restoreClipboard = () => {
+    if (previous === undefined) {
+      Reflect.deleteProperty(navigator, "clipboard");
+    } else {
+      Object.defineProperty(navigator, "clipboard", previous);
+    }
+    restoreClipboard = () => undefined;
+  };
+
+  return written;
+}
 
 /** A fixed instant, so a rendered time is a value a test can state. */
 const RECEIVED_AT = Date.UTC(2026, 9, 2, 12, 0, 0);
@@ -170,16 +218,32 @@ function textOf(testId: string): string | null {
   return document.querySelector(`[data-testid="${testId}"]`)?.textContent ?? null;
 }
 
-/** The text of every element carrying `testId`, in document order. */
-function textsOf(testId: string): string[] {
-  return [...document.querySelectorAll(`[data-testid="${testId}"]`)].map(
-    (node) => node.textContent ?? "",
-  );
-}
-
 /** Whether anything in the document carries `testId`. */
 function shows(testId: string): boolean {
   return document.querySelector(`[data-testid="${testId}"]`) !== null;
+}
+
+/**
+ * Each code's own value, read from the `<code>` element inside its row.
+ *
+ * **Not the row's text.** Each row now carries a control whose label repeats the value —
+ * "Copy 492187" beside "492187" — so reading the row would yield `"492187 Copy 492187"`
+ * and every assertion about *which* code is on screen would be satisfied by the button.
+ * That is this repository's recorded narrow-assertion class in its most ordinary form: the
+ * reading must come from the element the claim is about, or a control that duplicated
+ * the value would be enough to pass a case about the value.
+ */
+function codeValues(): string[] {
+  return [...document.querySelectorAll('[data-testid="message-code"] .code')].map((node) =>
+    (node.textContent ?? "").trim(),
+  );
+}
+
+/** Each code's rendered copy result, in the same order as the codes. */
+function codeStatuses(): string[] {
+  return [...document.querySelectorAll('[data-testid="message-code-status"]')].map((node) =>
+    (node.textContent ?? "").trim(),
+  );
 }
 
 /**
@@ -365,7 +429,10 @@ describe("the message view", () => {
       const { session } = await renderPage(provider);
       await openFirstRow();
 
-      const shown = textsOf("message-code").map((text) => text.trim());
+      // **Off the `<code>`, not off the row** — the row now carries a control whose label
+      // repeats the value, so reading the row would let the button satisfy a claim about
+      // which code is on screen. See `codeValues`.
+      const shown = codeValues();
 
       expect(shown).toHaveLength(2);
       expect(shown[0]).toBe("492187");
@@ -378,6 +445,162 @@ describe("the message view", () => {
       const ranked = openedMessage(session).codes.map((code) => code.value);
       expect(shown).toEqual(ranked);
       expect(ranked[0]).not.toBe("881204");
+    });
+
+    it("gives every detected code its own copy control, and copies the one it names", async () => {
+      const provider = providerReturning({
+        listings: [[summary("a")]],
+        bodies: { a: "Your verification code is 492187. Or use 881204 to sign in." },
+      });
+      await renderPage(provider);
+      await openFirstRow();
+
+      const written = recordingClipboard();
+
+      // **One control per code, and two is distinguishable from one.** `mail-parsing`
+      // never reports a detection as certain, so this page cannot know which candidate the
+      // user meant. A single control for the top-ranked code would be the page choosing
+      // on the user's behalf, which is the judgement the caveat beside the list already
+      // disclaims in words.
+      const controls = screen.getAllByTestId("message-code-copy");
+      expect(controls).toHaveLength(2);
+
+      // **A real `<button>` whose visible text names the code.** Not `aria-label` over a
+      // "Copy code" button: WCAG's *Label in Name* requires the accessible name to contain
+      // the visible text, and among two candidates "Copy code" also does not tell a
+      // screen-reader user which one they are choosing.
+      expect(controls.map((control) => control.tagName)).toEqual(["BUTTON", "BUTTON"]);
+      expect(controls.map((control) => control.textContent)).toEqual([
+        "Copy 492187",
+        "Copy 881204",
+      ]);
+      expect(controls.map((control) => control.getAttribute("aria-label"))).toEqual([null, null]);
+
+      // **Activating the second copies the second.** The control resolves nothing and the
+      // row is the identity, so this is the assertion that the *value* travels and not
+      // merely "a clipboard call happened" — a control that copied the top-ranked code
+      // regardless of which was pressed would pass a weaker reading of this.
+      await act(async () => {
+        (controls[1] as HTMLButtonElement).click();
+      });
+      expect(written).toEqual(["881204"]);
+    });
+
+    it("confirms a code was copied, and leaves the other codes saying nothing", async () => {
+      const provider = providerReturning({
+        listings: [[summary("a")]],
+        bodies: { a: "Your verification code is 492187. Or use 881204 to sign in." },
+      });
+      await renderPage(provider);
+      await openFirstRow();
+
+      const written = recordingClipboard();
+      await act(async () => {
+        (screen.getAllByTestId("message-code-copy")[0] as HTMLButtonElement).click();
+      });
+
+      // **The confirmation names the code**, because the claim is about one of two and a
+      // result that did not say which would be true of either.
+      expect(codeStatuses()[0]).toContain("492187 is on your clipboard");
+      // **And the untouched code says nothing at all.** A live region that renders
+      // something in its idle state reports its own emptiness as a gap, and would also
+      // leave two results on a page where only one action happened.
+      expect(codeStatuses()[1]).toBe("");
+      expect(codeStatuses()).toHaveLength(2);
+
+      // **It is announced rather than merely drawn** — a polite live region, so a
+      // confirmation does not interrupt what the user was doing.
+      expect(screen.getAllByTestId("message-code-status")[0]?.getAttribute("role")).toBe("status");
+      expect(written).toEqual(["492187"]);
+    });
+
+    it("reports a refused clipboard and leaves the code on screen", async () => {
+      const provider = providerReturning({
+        listings: [[summary("a")]],
+        bodies: { a: "Your verification code is 492187. Or use 881204 to sign in." },
+      });
+      await renderPage(provider);
+      await openFirstRow();
+
+      // **A rejection, not a throw.** The clipboard refuses for ordinary reasons: no
+      // permission, an insecure context, an unfocused document. An unhandled rejection
+      // here would leave a button that appears to have worked.
+      const written = recordingClipboard({ refuses: true });
+      await act(async () => {
+        (screen.getAllByTestId("message-code-copy")[0] as HTMLButtonElement).click();
+      });
+
+      // **Both halves of the claim.** Saying it failed, *and* not saying it succeeded —
+      // a status that merely contained the word "copied" would satisfy the first and lie
+      // on the second, which is why both are asserted.
+      expect(codeStatuses()[0]).toContain("was not copied");
+      expect(codeStatuses()[0]).not.toContain("is on your clipboard");
+
+      // **The code survives**, and it is read off the `<code>` element rather than the
+      // row: the row's text contains the button's label, which repeats the value, so a
+      // row-level reading would pass even with the `<code>` element removed.
+      expect(codeValues()[0]).toBe("492187");
+      // **And the value was offered to the clipboard unchanged** — a refused write is
+      // still a write attempt, and a page that reported a refusal while quietly sending
+      // a trimmed value would be worse than one that sent nothing.
+      expect(written).toEqual(["492187"]);
+    });
+
+    it("copies nothing when a message carrying codes is opened", async () => {
+      const provider = providerReturning({
+        listings: [[summary("a")]],
+        bodies: { a: "Your verification code is 492187. Or use 881204 to sign in." },
+      });
+
+      // **Installed before the message is opened**, because the claim is about what
+      // opening *does*, and a stub installed afterwards would observe only the test.
+      const written = recordingClipboard();
+      await renderPage(provider);
+      await openFirstRow();
+
+      expect(written).toEqual([]);
+
+      // **And the controls are on screen**, so this cannot be green because nothing
+      // rendered. A count of zero beside an empty list is not a measurement.
+      expect(screen.getAllByTestId("message-code-copy")).toHaveLength(2);
+
+      // **The positive control, and the reason the assertion above is worth anything.**
+      // Without it, a stub that silently did nothing would satisfy "nothing was written"
+      // for ever. The stub is proved observable by the very next thing the page does.
+      await act(async () => {
+        (screen.getAllByTestId("message-code-copy")[0] as HTMLButtonElement).click();
+      });
+      expect(written).toEqual(["492187"]);
+    });
+
+    it("forgets a copy result when the message is shown again", async () => {
+      const provider = providerReturning({
+        listings: [[summary("a")]],
+        bodies: { a: "Your verification code is 492187. Or use 881204 to sign in." },
+      });
+      await renderPage(provider);
+      await openFirstRow();
+
+      const written = recordingClipboard();
+      await act(async () => {
+        (screen.getAllByTestId("message-code-copy")[0] as HTMLButtonElement).click();
+      });
+      expect(codeStatuses()[0]).toContain("is on your clipboard");
+
+      // **Close it and open it again.** The message is retained by the session — clicking
+      // an already-read message costs no provider request — so this re-render is the
+      // *same* message reaching a *new* `MessageCodes`, and that is exactly the case the
+      // D3 consequence is about.
+      fireEvent.click(screen.getByTestId("message-close"));
+      await openFirstRow();
+
+      // **The stale confirmation is gone**, and the clipboard was not written a second
+      // time. "Copied" beside a code the user has not re-copied is a false claim about
+      // the clipboard, which is the failure `Address.tsx`'s comment exists to prevent —
+      // and the reason the result is component-local rather than session state is
+      // written on the hook itself.
+      expect(codeStatuses()[0]).toBe("");
+      expect(written).toEqual(["492187"]);
     });
 
     it("says the readings may be wrong, and shows no confidence number", async () => {
@@ -453,7 +676,22 @@ describe("the message view", () => {
       }
     });
 
-    it("shows a link as text with its destination host, and does not follow it", async () => {
+    it("renders a detected link as a real anchor and follows nothing on its own", async () => {
+      // **SUPERSESSION, recorded here because the case changed direction.** This case
+      // used to be called *"shows a link as text with its destination host, and does not
+      // follow it"*, and its body asserted `expect(hrefs).toHaveLength(0)` — **no anchor
+      // anywhere on the page**. `verification-actions` REMOVES the `website-client`
+      // requirement that case enforced (*"This slice shows what it found and does not act
+      // on it"*) and replaces it with *"A detected verification link is opened only by
+      // the user"*.
+      //
+      // **A case that flipped direction with nothing attached is the same defect as a
+      // requirement that quietly stopped applying**, so the old title's claim and the new
+      // one are both visible here. What did *not* change is the property the case was
+      // built to protect, and that is what it still asserts: **rendering navigates
+      // nowhere.** The prohibition was never against links existing; it was against them
+      // acting by themselves, and the surviving half is the stronger claim because a
+      // rendered anchor now *could* act.
       const provider = providerReturning({
         listings: [[summary("a")]],
         bodies: { a: LINK_BODY },
@@ -462,20 +700,42 @@ describe("the message view", () => {
       await openFirstRow();
 
       // **The host is what a user judges a link by**, and `VerificationLink` already
-      // carries it so a view need not parse the URL to get it.
+      // carries it so a view need not parse the URL to get it. It is *inside* the anchor,
+      // so clicking the host is clicking the link.
       expect(textOf("message-link-host")).toBe("verify.example");
       expect(textOf("message-link-url")).toContain("https://verify.example/");
 
-      // **No anchor anywhere points at it.** A link that navigates because a message was
-      // rendered is a side effect of reading someone's mail, and following a
-      // verification link is the workflow M10 owns.
-      const hrefs = [...document.querySelectorAll("a")].map(
-        (anchor) => anchor.getAttribute("href") ?? "",
-      );
-      expect(hrefs).toHaveLength(0);
-      // And nothing in the document carries the detected URL as an attribute at all, so
-      // there is nothing to activate even by keyboard.
-      expect(document.querySelector("[href*='confirm']")).toBeNull();
+      const anchors = [...document.querySelectorAll("a")];
+      const anchor = anchors[0]!;
+      expect(anchor.getAttribute("href")).toBe("https://verify.example/confirm?t=abc123");
+      expect(anchor.textContent).toContain("verify.example");
+
+      // **Exactly one anchor, and this is the sharper reading of that number.** The body
+      // `LINK_BODY` carries is *itself* markup containing an `<a href>` — delivered by a
+      // provider, which this repository has measured doing exactly that. So if the
+      // message body were being interpreted rather than shown, there would be **two**
+      // anchors here and a message would be able to ship its own activatable element. One
+      // is not only "the new one is there"; it is the new one *and nothing from the
+      // body*, which is `OpenedMessage.readable` existing for.
+      expect(anchors).toHaveLength(1);
+
+      // **A new tab, so the message stays readable** — and `rel` carrying *both* tokens
+      // is asserted by membership rather than by the whole string, because `noopener` is
+      // the security-relevant one and `noreferrer` is the privacy one on a page whose URL
+      // carries a mailbox address; an assertion of the exact attribute would fail on a
+      // correct build that added a third token and would pass on one that dropped one.
+      expect(anchor.getAttribute("target")).toBe("_blank");
+      expect(anchor.getAttribute("rel")?.split(" ")).toContain("noopener");
+      expect(anchor.getAttribute("rel")?.split(" ")).toContain("noreferrer");
+
+      // **And the property the case was written for: opening this message navigated
+      // nowhere.** jsdom records no navigation because nothing asks for one, so this
+      // half is a real assertion about the *render*, and it is the half that would fail
+      // if a `useEffect` were ever added here. Chromium corroborates it in
+      // `apps/web/e2e/sections.spec.ts`, which requires the page's recorded traffic to
+      // name no URL on the link's host.
+      expect(document.querySelector("[href*='confirm']")).toBe(anchor);
+      expect((window as { location?: { href: string } }).location?.href).not.toContain("confirm");
     });
   });
 

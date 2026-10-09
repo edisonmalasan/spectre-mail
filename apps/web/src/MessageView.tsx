@@ -15,13 +15,37 @@
  * spelling. What proves the behaviour is a test asserting the markup appears in the
  * document's **text** and that no element was created from it.
  *
- * ## It shows what it found and does not act on it
+ * ## It acts on a detection only when the user asks
  *
- * Codes and links are rendered as text. **No copy control and no anchor**, because both
- * are the verification workflow, which the roadmap schedules at M10 — and a link that
- * navigates because a message was rendered is a side effect of reading someone's mail.
- * `design.md` D4 records the conflict this resolves: the roadmap's M5 acceptance
- * criteria list "copy the OTP" while `AGENTS.md` assigns OTP copy to M10.
+ * Codes and links were rendered as text with **no copy control and no anchor**, and the
+ * reason was sound: a link that navigates because a message was *rendered* is a side
+ * effect of reading somebody's mail. That prohibition is `website-client`'s
+ * *"This slice shows what it found and does not act on it"*, and `design.md` D1 records
+ * the conflict it resolved — the roadmap's M5 acceptance criteria list "copy the OTP"
+ * while `AGENTS.md` assigns OTP copy to the verification workflow milestone.
+ *
+ * **That requirement is removed, and what replaces it is narrower than it looks.** Both
+ * actions now exist, and neither is reachable except by an explicit activation:
+ *
+ * - `MessageCodes` gives **every** code its own control, because `mail-parsing` never
+ *   reports a detection as certain, so the page cannot know which candidate the user
+ *   wants and must not choose for them.
+ * - `MessageLinks` renders a **real anchor**, not a click handler — `javascript:` URLs,
+ *   a synthetic click and `window.open` are three ways to make a link that reads as
+ *   inert do something else, and anchor markup is the form the platform, the browser
+ *   tier and a user's own middle-click all agree on. It opens in a **new tab** and
+ *   carries `rel="noopener noreferrer"`: `noopener` because a new tab opened without it
+ *   hands the destination a `window.opener` back to this page, and `noreferrer` because
+ *   **this page's URL carries a mailbox address**, so the default `Referer` would hand
+ *   the one piece of this product's data a user has an interest in keeping to an
+ *   unrelated site.
+ *
+ * Rendering still does nothing on its own. There is no `useEffect` here, no effect at
+ * all, and nothing in this file that runs before a user does something: the previous
+ * requirement's surviving half — *"opening a message copies nothing and follows
+ * nothing"* — is now carried by `website-client`'s `A detection is acted on only when
+ * the user asks`, and the case that asserts it opens a message carrying two codes and
+ * reads the clipboard stub.
  *
  * ## No confidence number, anywhere
  *
@@ -35,7 +59,21 @@
  * @module
  */
 
+import { useState } from "react";
+
 import type { OpenedMessage, OpenedMessageState } from "@spectre-mail/mailbox";
+
+// **The three states come from the address control, and that is deliberate.** It is the
+// only place in this product that has already answered the hard question a copy control
+// raises — what the page does when the clipboard refuses — and the answer is a rendered
+// state rather than a thrown error, because the clipboard rejects for ordinary reasons
+// (no permission, an insecure context, an unfocused document) and an unhandled rejection
+// would leave a button that appears to have worked. Declaring a second, identical union
+// here would give one platform behaviour two failure vocabularies on one page, and the
+// two would drift.
+//
+// A type-only import, so it costs no runtime dependency between two components.
+import type { CopyState } from "./Address";
 
 export interface MessageViewProps {
   /** What the session reports as open. Rendered as-is, never re-derived. */
@@ -145,6 +183,26 @@ interface MessageCodesProps {
 }
 
 function MessageCodes({ codes }: MessageCodesProps) {
+  /**
+   * Each code's copy result, keyed by the code's **position**.
+   *
+   * **Component-local, and not session state.** This is the position of a control on
+   * this page and nothing else: it is not the mailbox's state, it is not persisted, it
+   * does not survive closing the message, and no other context can read it. Putting it in
+   * `packages/mailbox` would mean a framework-free and DOM-free package carries a field
+   * whose only writer is one component in one client.
+   *
+   * **The consequence is asserted rather than worked around.** Re-opening the message
+   * resets every result to idle, and that is the intended behaviour: a stale "copied"
+   * beside a code the user has not re-copied would be a false claim about the clipboard,
+   * which is the exact failure `Address.tsx`'s comment exists to prevent.
+   *
+   * **Keyed by index for the same reason the `<li>` keys are.** Two candidates can carry
+   * the same value, so a key of the code's contents would collide and one row's result
+   * would overwrite another's.
+   */
+  const [results, setResults] = useState<Readonly<Record<number, CopyState>>>({});
+
   if (codes.length === 0) {
     // **Says so, rather than leaving an absence to be inferred.** A message that was read
     // and held no candidate is a *finding*, and it is the honest counterpart to
@@ -154,6 +212,27 @@ function MessageCodes({ codes }: MessageCodesProps) {
         <p>No one-time code was found in this message.</p>
       </div>
     );
+  }
+
+  /**
+   * Put one code on the clipboard, and record what happened.
+   *
+   * **The value is written unchanged.** A code is a sequence of digits a server is
+   * waiting for; trimming it, casing it or wrapping it produces a code that looks right
+   * on screen and is refused on arrival, and the page would be reporting a copy it did
+   * not perform.
+   *
+   * **A rejection is swallowed and reported as state**, for the reason `Address.tsx`
+   * states at length, and **the code stays on screen either way**: selecting it by hand is
+   * a complete answer to the same need.
+   */
+  async function copyCode(value: string, index: number): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(value);
+      setResults((previous) => ({ ...previous, [index]: "copied" }));
+    } catch {
+      setResults((previous) => ({ ...previous, [index]: "failed" }));
+    }
   }
 
   return (
@@ -173,7 +252,42 @@ function MessageCodes({ codes }: MessageCodesProps) {
           // The list is ranked and short, so its position is a better identity here
           // than its contents.
           <li key={`${index}-${code.value}`} data-testid="message-code">
-            <code className="code">{code.value}</code>
+            <code className="code">{code.value}</code>{" "}
+            {/*
+              **The visible label is the accessible name, and it names the code.**
+
+              Not `aria-label` over a "Copy code" button: WCAG's *Label in Name* requires
+              the accessible name to contain the visible text, and "Copy 493291" does not
+              contain "Copy code". Putting the value in the visible text satisfies both
+              halves with no attribute at all — and among two candidates it is also the
+              only label that tells a screen-reader user *which* one they are choosing,
+              which is the whole reason there is a control per code rather than one.
+            */}
+            <button
+              type="button"
+              className="control"
+              data-testid="message-code-copy"
+              onClick={() => void copyCode(code.value, index)}
+            >
+              {`Copy ${code.value}`}
+            </button>
+            {/*
+              `role="status"` is a polite live region, so the outcome is announced without
+              interrupting. **One per code rather than one for the list**, because the
+              claim is about a particular code: a single region would have to name which
+              one was copied, and a result that has to name its subject is a result that
+              can be ambiguous about it.
+
+              **And it occupies no line when there is nothing to say**, for the reason
+              `Address.tsx` gives — a live region that reserves space reports its own
+              emptiness as a gap on a page whose argument is that it says only what it
+              knows. The outcome never depends on colour, because none is applied.
+            */}
+            <span role="status" className="status" data-testid="message-code-status">
+              {results[index] === "copied" && `${code.value} is on your clipboard.`}
+              {results[index] === "failed" &&
+                `The clipboard refused, so ${code.value} was not copied. Select it to copy it by hand.`}
+            </span>
           </li>
         ))}
       </ol>
@@ -197,21 +311,66 @@ function MessageLinks({ links }: MessageLinksProps) {
   return (
     <div className="finding" data-testid="message-links">
       <h4>Verification links found</h4>
+      {/*
+        The caveat sat here and said the links were *not* followable. That sentence became
+        false the moment the anchor landed, and a caveat that contradicts the control
+        beside it is worse than no caveat — so it is reworded, not dropped: the reading is
+        still only a reading, which is the half of it that has not changed and the half
+        `mail-parsing` actually guarantees.
+
+        **The condition is stated rather than implied**, because it is the property the
+        removed requirement used to hold in its entirety: following one is still something
+        a person does, not something a rendered message does.
+      */}
       <p className="finding__caveat" data-testid="message-links-caveat">
-        These are readings of the message and may be wrong. They are shown as text, not as links you
-        can follow: following one is the verification workflow, which this page does not perform
-        yet.
+        These are readings of the message and may be wrong. Each one is opened only if you ask it
+        to, in a new tab.
       </p>
       <ul className="links">
         {links.map((link, index) => (
           <li key={`${index}-${link.url}`} className="link" data-testid="message-link">
-            {/* The host first, because it is the part a user judges a link by, and
-                `VerificationLink` already carries it so a view does not have to parse
-                the URL to get it. */}
-            <span className="link__host" data-testid="message-link-host">
-              {link.hostname}
-            </span>{" "}
-            {/* Plain text and deliberately not an `href`. See the module note. */}
+            {/*
+              **A real anchor, and that is the whole decision.** Not a click handler, not
+              `window.open`, not a synthetic click on a `<span>`: three ways to make a link
+              that reads as inert do something else, none of which a middle-click, a
+              screen reader, or the browser tier's own DOM reader would agree with. Anchor
+              markup is the form the platform already defines.
+
+              **`target="_blank"`** so the message stays on screen to be read again, which
+              is the reason a user wanted a second tab at all.
+
+              **`rel="noopener noreferrer"`** — see the module note. `noopener` because a
+              new tab opened without it hands the destination a `window.opener` reference
+              back to a cross-origin page the user never chose to be related to;
+              `noreferrer` because this page's URL carries a **mailbox address**, so the
+              default `Referer` would hand the one piece of this product's data a user has
+              an interest in keeping to a host they have no reason to trust with it.
+
+              **`className="link__anchor"` with `color: inherit`** so no user-agent link
+              colour can appear on a page whose every other colour is a declared token,
+              and so the affordance is declared rather than inherited from the browser.
+            */}
+            <a
+              className="link__anchor"
+              href={link.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="message-link-anchor"
+            >
+              {/* The host first, because it is the part a user judges a link by, and
+                  `VerificationLink` already carries it so a view does not have to parse
+                  the URL to get it. **Inside the anchor**, so clicking the host is
+                  clicking the link — and so what is clickable and what is being clicked
+                  are the same thing, which is the defect a host rendered beside an
+                  anchor is. */}
+              <span className="link__host" data-testid="message-link-host">
+                {link.hostname}
+              </span>
+            </a>{" "}
+            {/* The full URL is **kept**, not replaced by the host. A shortened link is a
+                link whose destination cannot be read before being acted on, and reading
+                the destination before acting on it is the entire reason this product
+                declines to guess which code you meant. */}
             <span className="link__url" data-testid="message-link-url">
               {link.url}
             </span>
