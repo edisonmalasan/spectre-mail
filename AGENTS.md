@@ -15,11 +15,20 @@
 > **#86**, archive **#87**. **`in-page-mailbox` (M9 slice 2) is APPLIED, VERIFIED, SYNCED and
 > ARCHIVED** at `openspec/changes/archive/2026-10-08-in-page-mailbox/` - proposal **#88** merged
 > (`c59bf79`), apply **#89**, sync **#90**, archive **#91**. **`site-associations` (M9 slice 3) is
-> APPLIED and VERIFIED on `feat/site-associations`**, proposal **#92** merged (`7755131`), **with its
-> Sync and Archive stages to follow** - so `openspec validate --specs --strict` is still **14 passed,
-> 0 failed, 146 requirements and 422 scenarios**, because an applied change has not yet promoted its
-> delta. **The promoted counts move at the sync stage and not before, and the distinction is recorded
+> APPLIED, VERIFIED and SYNCED**, proposal **#92** merged (`7755131`), apply **#93** merged
+> (`1ff7c24`), **with its Archive stage to follow** - so `openspec validate --specs --strict` is now
+> **14 passed, 0 failed, 151 requirements and 446 scenarios**, because the sync promoted the delta.
+> **The promoted counts move at the sync stage and not before, and the distinction is recorded
 > here because "applied and verified" and "synced" are not the same claim.**
+>
+> **This change's sync promoted eight blocks - two `MODIFIED` and three `ADDED` in `spectre-storage`,
+> one `MODIFIED` and two `ADDED` in `in-page-integration` - and the counts moved by five requirements
+> and twenty-four scenarios: `spectre-storage` 12 → 15 and 36 → 51, `in-page-integration` 10 → 12 and
+> 32 → 41.** That is **146 → 151 requirements and 422 → 446 scenarios**, counted by heading across
+> `openspec/specs/` and not transcribed, and it is less than eight new requirements because three of
+> the eight blocks **replaced** a requirement rather than adding one. **The promotion was rehearsed in
+> full on a throwaway copy of `openspec/` before it touched the real tree**, which is how the sync
+> tool's own defect was caught rather than shipped - see below.
 > **Slice 2's sync promoted the delta, so the promoted specs then held what it asked for:** `openspec validate --specs --strict` is **14 passed, 0 failed**, across
 > **14 capabilities holding 146 requirements and 422 scenarios** - measured by counting
 > `### Requirement:` and `#### Scenario:` across `openspec/specs/`, not transcribed. That is

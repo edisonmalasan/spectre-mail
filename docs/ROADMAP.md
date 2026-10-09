@@ -55,8 +55,8 @@
 
 **Roadmap cursor: M9 - In-Page Email Integration, slices 1 (`in-page-address`) and 2
 (`in-page-mailbox`) applied, verified, SYNCED and ARCHIVED; slice 3 (`site-associations`) is
-APPLIED and VERIFIED on `feat/site-associations`, with its Sync and Archive stages to follow.**
-**M0 through M8 are complete in scope; M9 has three slices and two are closed.**
+APPLIED, VERIFIED and SYNCED (apply PR #93 merged `1ff7c24`), with its Archive stage to follow.**
+**M0 through M8 are complete in scope; M9 has three slices, two closed and one awaiting archive.**
 **Slice 1's sync promoted the delta, so the promoted specs moved 13 → 14 capabilities, 136 → 143
 requirements and 390 → 408 scenarios** - the fourteenth is `in-page-integration` at 7 requirements /
 18 scenarios. Every promoted block was copied programmatically from the delta rather than retyped,
@@ -78,6 +78,31 @@ archive moved six files, every one SHA-256 identical to a digest taken before th
 re-checked all five blocks against the promoted spec after the move** - and unlike slice 1's, **it
 kept `.openspec.yaml`**, so the archive defect recorded below was a proposal-stage omission rather
 than something the archive command does.
+
+**Slice 3's sync promoted 8 blocks across two capabilities - three `MODIFIED`, five `ADDED` - moving
+`spectre-storage` 12 -> 15 requirements / 36 -> 51 scenarios and `in-page-integration` 10 -> 12 and
+32 -> 41, and nothing else: 14 capabilities, 151 requirements, 446 scenarios, counted rather than
+transcribed.** The requirement count rose by **five and not eight**, because **three of the eight
+blocks are `MODIFIED`** - a modified block replaces what is there, so it adds no requirement. This is
+the third milestone to produce that arithmetic, and it is why the sync figure is stated as a movement
+rather than as a count of blocks.
+
+**And slice 3's sync found the same defect slice 2's did, in the other tool, and the fix slice 2
+recorded had never worked.** `promote.mjs` ended a block at the next `### Requirement:` rather than at
+the next `## `, so promoting on a throwaway copy wrote a literal `## ADDED Requirements` into a promoted
+requirement block - at `spectre-storage` line 518 and `in-page-integration` line 165 - in files that
+have `## Purpose` and `## Requirements` and no sections to add to. Slice 2 fixed this in the
+*verifier*; slice 3 found the same shape in the *promoter*, whose header comment already claimed the
+fix was in, because "only open a block inside a section" was believed to close the previous one for
+free. **It does not: refusing to *open* a block outside a section says nothing about *closing* one that
+is already open.** After the real fix, **8 blocks checked, 8 byte-identical**, no delta-only marker
+anywhere under `openspec/specs/`, and `openspec validate --specs --strict` at **14 passed, 0 failed**.
+
+**What caught it was that the two scripts were written with deliberately different readers**, so the
+broken one could not mark its own homework - `verify.mjs` reads section-first, `promote.mjs` did not,
+neither imports the other, and all four reader functions are separately defined. **A promotion step
+that also verifies itself cannot report its own defect**, and this is the second time this repository
+has had to make that argument rather than assume it.
 
 **One archive defect worth naming, and it is a proposal-stage omission rather than an archive one.**
 `openspec/changes/archive/2026-10-08-in-page-address/` has **no `.openspec.yaml`**, and **every
@@ -141,8 +166,7 @@ site - and the UX rules add a three-way choice on top. One change cannot carry t
   narrow: eight browser cases over recorded provider responses, plus a worker that retains nothing
   between requests. `tasks.md` **"look at the affordance on a real site" is deliberately unticked**,
   as at slice 1.
-- **Slice 3, `site-associations` (APPLIED and VERIFIED on `feat/site-associations`; Sync and
-  Archive to follow).** `hostname -> mailbox`. A **second stored record kind**, and `spectre-storage`'s contract says in its own opening
+- **Slice 3, `site-associations` (APPLIED, VERIFIED and SYNCED; Archive to follow).** `hostname -> mailbox`. A **second stored record kind**, and `spectre-storage`'s contract says in its own opening
   that it has room for one - so this slice has to answer a contract question, not only a client one.
   **And the answer is larger than the roadmap's own sentence, which is worth stating because the
   measurement forced it.** This product stores **exactly one mailbox per device**: both adapters
