@@ -1272,105 +1272,64 @@ function clientStorageApiViolations(): string[] {
 const MARKUP_ESCAPE_PATTERN =
   /dangerouslySetInnerHTML|\.(?:inner|outer)HTML\s*=|insertAdjacentHTML|document\.write\s*\(/g;
 
-/**
- * Every spelling of "acting on" something a message carried.
+/*
+ * RETIRED, and the replacement is named here rather than left to be inferred.
  *
- * ## Why this rule exists at all
+ * This block held two rules:
  *
- * `website-client` says the page **shows what it found and does not act on it**: no
- * copy control for a one-time code, and no detected link rendered in a form that
- * follows it. Copying a code and opening a verification link are the verification
- * workflow, which `docs/ROADMAP.md` schedules at M10, and `design.md` D4 records the
- * conflict this resolves — the roadmap's M5 acceptance criteria list "copy the OTP"
- * while `AGENTS.md` assigns OTP copy to M10.
+ * - `CODE_WORD_PATTERN` + `CODE_COPY_WINDOW` + `findCodeClipboardWrites`, which failed
+ *   the build on any client whose clipboard write sat within 160 characters of a word
+ *   naming a one-time code.
+ * - `DETECTED_LINK_HREF_PATTERN`, which failed the build on `href={…url…}`.
  *
- * Before this rule the requirement had **one behavioural test in one component**. That
- * is not nothing, and it is not enough: nothing stopped the *next* view from adding a
- * copy button, and a copy button appearing three weeks later would make the
- * implementation and the roadmap disagree in the one way a user notices — they would
- * press it, and it would work, and no requirement would have said it should not.
+ * **Both enforced `website-client`'s *"This slice shows what it found and does not act on
+ * it"*, and that requirement is REMOVED by the `verification-actions` change.** The two
+ * actions are what this product exists for, and the rules forbade them outright.
  *
- * ## What it does and does not catch
+ * **A rule retired with its requirement is not the same event as a property dropped, and
+ * a diff cannot tell them apart.** So the property each rule held, and the named
+ * instrument that holds it now:
  *
- * **The clipboard half is deliberately narrower than "no clipboard".** The first version
- * of this rule forbade any clipboard write under `apps/`, and it immediately failed on
- * `apps/web/src/Address.tsx`, which copies the **mailbox address** — slice 1 behaviour
- * the roadmap's own M5 acceptance criteria require ("receive a working address … use it
- * externally" is not possible without it). So the rule forbids copying *a code*, which
- * is what the requirement forbids, and copying an address stays legal.
+ * - `findCodeClipboardWrites` held *rendering a message writes no code to the clipboard*.
+ *   `apps/web/src/MessageView.test.tsx` holds it: one case opens a message carrying two
+ *   codes and asserts the clipboard stub was never called, and another asserts a code
+ *   reaches the clipboard **only** when its own control is activated.
+ * - `DETECTED_LINK_HREF_PATTERN` held *rendering a message navigates nowhere*.
+ *   `MessageView.test.tsx` holds it in jsdom — the anchor case asserts the link is
+ *   rendered **and** that nothing navigated — and `apps/web/e2e/verification-actions.spec.ts`
+ *   holds it in Chromium: it opens a message carrying a link, requires the page's own URL to
+ *   be unchanged, and requires the page's recorded request log to name no URL on the link's
+ *   host. **The browser case carries a negative control on its own reader**, because a
+ *   sweep matching nothing satisfies the claim above it for ever.
  *
- * That is this repository's recurring failure in miniature: an assertion **broader** than
- * the rule it documents, which is as much a capability failure as a narrower one. It
- * was caught only because the rule was run against real files rather than written and
- * left green.
+ * **What the rules could do that these cases cannot**, stated as a limit rather than
+ * answered with a narrower rule: the clipboard rule scanned every client, so it caught a
+ * *third* view growing its own copy button. `website-client`'s new requirements are the
+ * only instrument for that, and this file's own record is that a rule narrower than its
+ * documentation is a capability failure in either direction — `extension-preview`'s pass
+ * deleted three unused class hooks rather than writing a rule for them.
  *
- * Matching a *code* rather than a whole clipboard API needs a window rather than a
- * single pattern, because `execCommand("copy")` copies whatever is selected and takes
- * no argument at all. The window is `CODE_COPY_WINDOW` characters either side of the
- * call, and the rule states the limit it has rather than implying more reach than it
- * has: a page that copied a code from a variable named something else could slip past.
+ * **A third case went with them, and its property did not go with it.** *"Leaves copying
+ * the mailbox address alone"* asserted that the rule's allowance list let the address copy
+ * through, which was a statement about the rule rather than about the product. The product
+ * half of it is held by `apps/web/src/App.test.tsx`, which copies the address through a
+ * recording clipboard and asserts the confirmation, and reports a **refused** write rather
+ * than swallowing it. **With no rule there is nothing for a "is still allowed" assertion to
+ * read**, and writing one against the absence of a rule would be a test that cannot fail.
  *
- * For links it catches `href={…url…}` — **the only way a detected URL becomes
- * followable in JSX**. It does not and cannot catch a hand-written anchor whose `href`
- * is a literal, because a literal in a client is a developer's own constant rather than
- * something a message carried.
+ * **Nothing was exempted.** No allowlist entry, no narrowed pattern, no prefix exception.
+ *
+ * **The `MESSAGE_VIEW` control fixture went with them, and that is deletion rather than a
+ * carve-out.** It was the control for both retired rules and for nothing else — `pnpm lint`
+ * reported it as assigned and never used, which is the shape a retired rule leaves behind —
+ * and the cases named above replaced it with controls over the real component's rendered
+ * output rather than over a string written out here. **A control that no rule reads is not a
+ * control, and keeping it would be a fixture asserting nothing.** The two readers went for
+ * the same reason: the requirement they read is gone.
  */
-const DETECTED_LINK_HREF_PATTERN = /href\s*=\s*\{[^}]*\.(?:url|href)\b/g;
 
 const occurrencesOf = (pattern: RegExp) => (contents: string) =>
   findPatternOccurrences(contents, pattern);
-
-/** How far either side of a clipboard call this file looks for the word "code". */
-const CODE_COPY_WINDOW = 160;
-
-/**
- * What counts as naming a one-time code, within CODE_COPY_WINDOW of a copy.
- *
- * **A suffix-tolerant alternation, not a word-bounded `code`.** A word boundary needs
- * a non-word character on its left, so it cannot match `otpCode`, `foundCode`, or
- * `verificationCode` - every identifier a developer would plausibly reach for. The
- * previous pattern answered false on exactly the names most likely to be used.
- *
- * **The false-positive trade is accepted, as it is elsewhere in this file.** A local
- * named `pinboard` or `decodeStep` beside a copy would be reported. Renaming the local
- * is the fix, and a rule that missed the real thing would be worse.
- *
- * **The limits this does not reach, stated rather than implied.** An identifier that
- * spells the value with none of these words - `secret`, `digits` - is not caught.
- * Neither is a copy control that reaches no clipboard API at all: a `select()` followed
- * by the user pressing Ctrl+C. The first needs a name; the second is indistinguishable
- * from ordinary text selection, and a rule that banned text selection would fail on
- * selecting the mailbox address, which the roadmap requires.
- */
-const CODE_WORD_PATTERN = /\bcode\b|(?:otp|verification|oneTime|found|detected)[A-Za-z]*Code\b/iu;
-
-/**
- * Clipboard writes whose subject is a one-time code.
- *
- * Returns the matched call sites, so a failure names the line rather than only saying
- * that something was found.
- */
-function findCodeClipboardWrites(contents: string): string[] {
-  const calls = [
-    ...contents.matchAll(/\.\s*writeText\s*\(/g),
-    ...contents.matchAll(/execCommand\s*\(\s*["'`]copy["'`]/g),
-    // **The rich-value form**, matched on both halves so either spelling is caught:
-    // navigator.clipboard.write([...]) and a ClipboardItem built for another sink.
-    ...contents.matchAll(/\bclipboard\s*\.\s*write\s*\(/g),
-    ...contents.matchAll(/\bnew\s+ClipboardItem\b/g),
-  ];
-
-  return calls
-    .filter((match) => {
-      const index = match.index;
-      const around = contents.slice(
-        Math.max(0, index - CODE_COPY_WINDOW),
-        index + CODE_COPY_WINDOW,
-      );
-      return CODE_WORD_PATTERN.test(around);
-    })
-    .map((match) => match[0].trim());
-}
 
 /**
  * Run a client rule against a module written into `apps/web/src` for the duration of
@@ -1415,25 +1374,6 @@ const MARKUP_PROBE_DOCUMENTATION = `/**
  */
 export function note(): string {
   return "document.write is not used either";
-}
-`;
-
-/**
- * What a message view looks like when it obeys the rule.
- *
- * Written out here rather than read from the real file so the assertion cannot be
- * satisfied by the file being empty, deleted, or moved — a control that reads its own
- * subject under test is not a control.
- */
-const MESSAGE_VIEW = `export function View({ readable, link, code }: Props) {
-  return (
-    <section>
-      <pre>{readable}</pre>
-      <span>{link.hostname}</span>
-      <span>{link.url}</span>
-      <code>{code.value}</code>
-    </section>
-  );
 }
 `;
 
@@ -3267,78 +3207,6 @@ describe("architecture boundaries", () => {
     ).toEqual([]);
   });
 
-  it("keeps acting on a message's findings out of every client", () => {
-    // `website-client`'s fourth requirement for this slice: the page displays what it
-    // found and acts on neither. Copying a one-time code and following a verification
-    // link are the verification workflow, which `docs/ROADMAP.md` schedules at M10.
-    //
-    // **Both patterns in one assertion, deliberately.** Two rules with two controls
-    // could each drift while staying green; one assertion over the pair says what the
-    // milestone actually promises, which is that neither is reachable.
-    const violations = [
-      ...clientViolationsWithIntroducedModule(MESSAGE_VIEW, findCodeClipboardWrites),
-      ...clientViolationsWithIntroducedModule(
-        MESSAGE_VIEW,
-        occurrencesOf(DETECTED_LINK_HREF_PATTERN),
-      ),
-    ];
-
-    expect(violations).toEqual([]);
-  });
-
-  it("catches a client copying a one-time code, in every form", () => {
-    const uncaught: string[] = [];
-    for (const [name, source] of [
-      ["a navigator.clipboard write", "await navigator.clipboard.writeText(code.value);"],
-      ["a bare writeText", "await clipboard.writeText(code);"],
-      [
-        "a rich clipboard write",
-        "const otpCode = found.value;\nawait navigator.clipboard.write([new ClipboardItem({ plain: otpCode })]);",
-      ],
-      [
-        "a ClipboardItem built for another sink",
-        "const verificationCode = found.value;\nkeep.push(new ClipboardItem({ plain: verificationCode }));",
-      ],
-      [
-        "a suffix spelling of code",
-        "const oneTimeCode = found.value;\nawait clipboard.writeText(oneTimeCode);",
-      ],
-      [
-        "execCommand over a selected code",
-        'node.focus();\nconst code = found.value;\ndocument.execCommand("copy");',
-      ],
-    ]) {
-      // **Every missed form is reported, not just the first.** A loop of
-      // `expect(...).not.toEqual([])` per form stops at the first failure, so a rule
-      // broken in three ways produces one name and proves nothing about the other two.
-      // That is the same defect this file has recorded twice - a control that cannot
-      // report its own failure - and it is why the missed forms are gathered and
-      // asserted empty as a set. Running the rule with its last two call families and
-      // its widened word pattern reverted turns all three new forms red here at once,
-      // which is the observation recorded alongside this test.
-      const missed = clientViolationsWithIntroducedModule(source, findCodeClipboardWrites);
-      if (missed.length === 0) uncaught.push(name);
-    }
-
-    expect(uncaught).toEqual([]);
-  });
-
-  it("leaves copying the mailbox address alone, because the roadmap requires it", () => {
-    // **The negative control, and the reason the rule is scoped the way it is.**
-    // `apps/web/src/Address.tsx` copies the address, and "receive a working address …
-    // use it externally" is not possible without it. The first version of the rule
-    // forbade every clipboard write and failed here; narrowing it to codes is the fix,
-    // and this control is what stops a later reader from re-widening it.
-    expect(
-      clientViolationsWithIntroducedModule(
-        "await navigator.clipboard.writeText(mailbox.address);",
-        findCodeClipboardWrites,
-      ),
-    ).toEqual([]);
-    // And the real file, not only a probe shaped like it.
-    expect(clientViolationsWithIntroducedModule(MESSAGE_VIEW, findCodeClipboardWrites)).toEqual([]);
-  });
-
   it("keeps a remote origin and a removed focus indicator out of a shipped stylesheet", () => {
     /**
      * One assertion, one scan, four forms planted per rule.
@@ -3581,26 +3449,6 @@ describe("architecture boundaries", () => {
     }
 
     expect(stylesheetViolations()).toEqual([]);
-  });
-
-  it("catches a detected link rendered as an anchor, in every form", () => {
-    const uncaught: string[] = [];
-    for (const [name, source] of [
-      ["a VerificationLink url", "<a href={link.url}>Verify</a>"],
-      ["a summary href", "<a href={message.href}>Open</a>"],
-      ["an expression reaching a url", "<a href={base + link.url}>Verify</a>"],
-    ]) {
-      // Gathered rather than asserted inside the loop, for the reason the clipboard
-      // controls above give: a per-form assertion stops at the first failure, so it
-      // cannot report that a second form is also uncaught.
-      const missed = clientViolationsWithIntroducedModule(
-        source,
-        occurrencesOf(DETECTED_LINK_HREF_PATTERN),
-      );
-      if (missed.length === 0) uncaught.push(name);
-    }
-
-    expect(uncaught).toEqual([]);
   });
 
   it("collects every test this repository ships, rather than skipping them", () => {

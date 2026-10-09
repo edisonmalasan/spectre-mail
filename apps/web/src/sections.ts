@@ -239,15 +239,33 @@ export const EXTENSION_PREVIEW: {
 /**
  * What the page can and cannot do.
  *
- * **These four sentences are not new copy.** They are the existing limits list, moved from
+ * **These five sentences are not new copy.** They are the existing limits list, moved from
  * the middle of the page to the footer unchanged — `website-client`'s delta requires them to
  * travel with their content intact, because each is a measurement or a promoted requirement
  * rather than a summary:
  *
  * - the provider sentence is the measured CORS fact in `provider-config.ts`;
- * - the code-and-link sentence is `website-client`'s *"This slice shows what it found and does
- *   not act on it"*;
+ * - the two message sentences are what the inbox and `MessageView` do;
+ * - the code-and-link sentence names `website-client`'s *`A detection is acted on only when
+ *   the user asks`*, which is what replaced *"This slice shows what it found and does not act
+ *   on it"*;
  * - the no-server sentence is the architecture rule against proxying a provider.
+ *
+ * **The count in the paragraph above was four until this slice's verification pass read it
+ * against the array**, which has five entries and has had since `website-sections`. A
+ * comment that says four beside a list of five is a comment nobody reads, and it was here
+ * because the list was last edited by a change that counted its own additions elsewhere and
+ * not here. **It is corrected in place rather than deleted**, because the list is the thing
+ * the requirement constrains and a reader comparing the two deserves them to agree.
+ *
+ * **The code-and-link sentence was reworded, and this is the recorded instance of a limit
+ * changing rather than travelling.** `verification-actions` delivered the two actions that
+ * sentence used to forbid, so the sentence became untrue; `website-client`'s amendment says
+ * so in terms, and the requirement's own *"no limit SHALL be dropped to make room for a
+ * section"* clause does not cover it - the bullet was not dropped for space, it was dropped
+ * because it stopped being true. **The replacement still states a limit rather than a
+ * capability**, which is the point: the page says what it will not do on its own, and a
+ * visitor reading only the footer is told the boundary rather than the feature list.
  *
  * **The storage sentence is deliberately not here.** What this device keeps is owned by
  * `LocalData`, which states it beside the control that removes it. A limit list that restates
@@ -259,7 +277,7 @@ export const LIMITS: readonly string[] = [
   "It reaches Guerrilla Mail and nothing else.",
   "It lists what is in the address, and marks mail that carries a code or a link.",
   "It can open a message and show its text, the codes it found, and the links it found.",
-  "It does not copy codes or follow links for you. Those are the verification workflow, which this page does not do yet.",
+  "It copies a code and follows a link only when you ask it to.",
   "No server is involved. SpectreMail operates no backend and never relays a provider request.",
 ];
 

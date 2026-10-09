@@ -242,6 +242,74 @@ export const guerrillaLiveList: RecordedStep = {
 };
 
 /**
+ * SYNTHETIC. `f=fetch_email` — `200`, a message whose body carries a **verification
+ * link** and no code.
+ *
+ * **Why this exists, and why it is not a recording.** The M0 spike's real delivered
+ * message carried a one-time code and no link, so `guerrillaMessageFetched` below
+ * cannot put a link in front of a browser: this repository has **never received
+ * verification mail from any service**, and a fixture claiming otherwise would be a
+ * fabricated measurement wearing a recorded fixture's clothes. It is labelled
+ * `SYNTHETIC` here for the reason this file labels every synthetic response — the
+ * point is to exercise *our* mapping of a condition, not to assert the provider
+ * produces it.
+ *
+ * **What it is for, narrowly.** `website-client` requires a detected link to render as
+ * a link a user can activate, with the host visible, opening in a new tab and
+ * carrying `rel="noopener noreferrer"`. `jsdom` renders an `<a>` happily and cannot
+ * report what a browser does with one, so without this fixture the page's only
+ * navigable element would be verified on the substrate this repository has the most
+ * recorded reasons not to trust for navigation claims.
+ *
+ * **The domain is reserved and cannot resolve**, for the same reason the corpus in
+ * `packages/mail-parser` uses `.example` and `.test`: activating this link in a real
+ * browser must fail to resolve rather than reach anything.
+ *
+ * The shape is otherwise the measured one — same `content_type: "text"` disagreeing
+ * with an HTML body, same declared session — and it carries the **same `mail_id`**, so it
+ * is a drop-in for the same row in `guerrillaLiveList` rather than a second message the
+ * listing never mentions. The adapter does not cross-check the two (`guerrilla.ts` takes
+ * the id from the listing row and from the fetch body independently), so this is hygiene
+ * rather than necessity: a corpus where the fetched id differs from the listed one reads
+ * as two messages and is one more thing a reader has to reconcile.
+ *
+ * ## Measured, and the reason this body carries an `<a href>` and not a bare URL
+ *
+ * **The first version of this fixture put the destination in the body as plain text**, and
+ * the browser case that exists to use it rendered *"No verification link was found in this
+ * message"* on a page whose readable text plainly contained the URL. The cause is
+ * `packages/mail-parser`'s extractor, and it is a fact about that package rather than about
+ * this fixture: **anchors are recovered from `<a href>` elements only.** A regex over the raw
+ * string cannot pair an `href` with its text, which is the stated reason the extractor is a
+ * small parser and not a pattern, and a URL nobody wrote as a link is not an anchor.
+ *
+ * **So the fixture was changed, and this is the second recorded instance in this change of a
+ * plan measuring false against the code.** The first was the count of assertions the retired
+ * boundary rules carried. Both were found by running the thing rather than by reading it.
+ *
+ * **And the limit is real and is not fixed here.** A provider that delivered its
+ * verification destination as bare text would produce a message this product shows the URL
+ * for and reports no link for. That is `mail-parsing`'s behaviour and out of this change's
+ * scope; it is named rather than left for someone to discover through the page, and no claim
+ * in this repository says otherwise. **This repository has never received verification mail
+ * from any service**, so there is no measurement of which shape real mail arrives in.
+ */
+export const guerrillaMessageWithVerificationLink: RecordedStep = {
+  response: jsonResponse({
+    mail_id: 1_000_000,
+    mail_from: "sender@example.invalid",
+    mail_recipient: GUERRILLA_ADDRESS,
+    mail_subject: "Confirm your address",
+    mail_date: "2026-10-01",
+    mail_time: "18:09:02",
+    content_type: "text",
+    mail_size: 1180,
+    mail_body:
+      '<pre>Dear Random User, Thank you for using Guerrilla Mail\n\nConfirm your address: <a href="https://verify.example.invalid/confirm?t=example-token">Verify email address</a>\n</pre>',
+  }),
+};
+
+/**
  * MEASURED. `f=fetch_email` — `200`, with `content_type: "text"` and an **HTML**
  * body.
  *

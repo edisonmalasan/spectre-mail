@@ -135,7 +135,31 @@ export interface RecordedProviderOptions {
    * Return `undefined` to answer that listing immediately.
    */
   readonly listingGate?: (call: number) => Promise<unknown> | undefined;
+
+  /**
+   * Answer `fetch_email` with this step instead of the recorded one.
+   *
+   * **Why a spec chooses its own message rather than a second fixture key.** The recorded
+   * corpus has exactly one message and it carries a one-time code and **no link** — the
+   * M0 spike's real delivery, `docs/PROVIDERS.md` records it. So `website-client`'s
+   * requirement that a detected link render as an activatable anchor is unreachable from
+   * the corpus as it stands, and the response has to come from somewhere.
+   *
+   * **The spec names the fixture; this file does not.** Importing
+   * `guerrillaMessageWithVerificationLink` here would make the default handler aware of a
+   * fixture only one spec wants, and every future fixture would follow it in. Passing the
+   * step keeps the choice with the claim, which is the direction the whole file is built
+   * in: it answers operations and knows nothing about which message a spec is about.
+   *
+   * **The listing is not changed by this.** The spec still gets `guerrillaLiveList`, so
+   * the row it clicks and the body it fetches are the same message slot. That is why the
+   * synthetic fixture carries the measured fixture's `mail_id`: see its own comment.
+   */
+  readonly messageStep?: RecordedStep;
 }
+
+/** The operation whose answer is a message body rather than a mailbox or a listing. */
+const MESSAGE_OPERATION = "fetch_email";
 
 /**
  * Serve `page` from recorded responses and deny everything else.
@@ -221,6 +245,16 @@ export function serveRecordedProvider(
 
   /** The recorded response for this request, or `undefined` if nothing records it. */
   function stepFor(url: URL): RecordedStep | undefined {
-    return RECORDED.get(url.searchParams.get("f") ?? "");
+    const operation = url.searchParams.get("f") ?? "";
+
+    // **A spec's own message wins over the recorded one, and only for the message
+    // operation.** Read after the operation is known rather than by replacing the map
+    // entry, so a spec cannot accidentally repoint `check_email` — the listing is the one
+    // operation every claim about which row is on screen depends on.
+    if (operation === MESSAGE_OPERATION && options.messageStep !== undefined) {
+      return options.messageStep;
+    }
+
+    return RECORDED.get(operation);
   }
 }

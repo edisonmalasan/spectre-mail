@@ -454,24 +454,37 @@ from mistakes the falsification pass caught:
 The rule covers **every** app root, not `apps/web`, because `apps/extension` has no
 `src/` yet — a rule scoped to the only client that exists today is invisible until M8.
 
-**Opening a message displays what was found and acts on none of it.** Two boundary
-rules hold that rather than a code review. One fails the build if a client copies a
-**code**, because copying an OTP is M10's verification workflow; copying the **mailbox
-address** stays legal, because the roadmap's own acceptance criteria require it and a
-rule broad enough to forbid it was the mistake that scoped the narrower one. The other
-fails the build if a detected URL becomes an `href` — the only way a detected URL
-becomes followable in JSX — so links render as text with their host visible.
+**Opening a message displays what it found and acts on it only when the user asks.** Two
+boundary rules held the opposite through M9, and **they were deleted with the requirement
+they enforced rather than exempted** — `website-client`'s _"This slice shows what it found
+and does not act on it"_ forbade exactly the two actions the product exists for. One of
+them failed the build if a client copied a **code**, because copying an OTP was then M10's
+verification workflow; the other failed it if a detected URL became an `href`. `M10 slice 1`
+adds a `Copy <value>` control per detected code and a real
+`<a href target="_blank" rel="noopener noreferrer">`, and the surviving half of the rule is
+the one that matters: **neither is reachable except by an explicit activation**, because a
+link that navigates because a message was _rendered_ is a side effect of reading somebody's
+mail. Copying the **mailbox address** stayed legal throughout, because the roadmap's own
+acceptance criteria require it and a rule broad enough to forbid it was the mistake that
+scoped the narrower one.
 
-**Both rules were found to be narrower than what they document.** `clipboard.write([new
-ClipboardItem(...)])` matched neither pattern the rule held, so a whole family of the
-standard API was invisible; and a word-bounded `code` cannot match `otpCode` or
-`foundCode`, so it answered `false` on exactly the names a developer would most
-plausibly use. Each now has a control per form, and the limits that remain are stated
-in the rule's own source rather than implied: an identifier spelled `secret` is still
-not caught, and neither is a `select()` followed by the user pressing Ctrl+C, which
-reaches no clipboard API and is indistinguishable from selecting the mailbox address. There is also **no mailbox expiry countdown**,
-because no provider returns a lifetime in any API response and none was measured live
-— an elapsed guess is not an expiry signal.
+**Each retired rule's property was given a named replacement instrument inside the tombstone
+comment in `tests/architecture/boundaries.test.ts`, and a rule retired with its requirement
+is not the same event as a property dropped — a diff cannot tell them apart.** The clipboard
+property is now held by `MessageView.test.tsx` (a message carrying two codes writes nothing
+until its own control is activated) and the navigation property by both tiers (an anchor
+whose `target`/`rel` are asserted, and a browser case requiring that opening such a message
+changes neither the page's URL nor its request log). **`packages/storage`'s rules were not
+touched**, and `apps/web`'s client-storage rule keeps exactly the one carve-out it had.
+
+**The history of the retired rules is kept, because the defects they carried are the reason
+they are checked at all.** Both were found to be narrower than what they document.
+`clipboard.write([new ClipboardItem(...)])` matched neither pattern the rule held, so a
+whole family of the standard API was invisible; and a word-bounded `code` cannot match
+`otpCode` or `foundCode`, so it answered `false` on exactly the names a developer would most
+plausibly use. Each had a control per form by the time it was retired. There is also **no
+mailbox expiry countdown**, because no provider returns a lifetime in any API response and
+none was measured live — an elapsed guess is not an expiry signal.
 
 ### `apps/extension`
 

@@ -38,13 +38,17 @@
  *   is what `docs/PROVIDERS.md` §3's measured trap makes necessary: an unrecognised
  *   Guerrilla Mail session answers `HTTP 200` with an empty inbox and no error, so
  *   "nothing has arrived" and "this address is gone" are the same response.
- * - **Opening a message shows it; it does not act on it.** A message's readable text,
- *   its one-time code candidates, and its verification links are displayed. There is no
- *   copy control and no link that follows itself: copying a code and opening a link are
- *   the verification workflow, scheduled at M10, and following a link because a message
- *   was rendered would be a side effect of reading someone's mail. `design.md` D4
- *   records why, including the conflict between this roadmap's M5 acceptance criteria
- *   and `AGENTS.md`'s assignment of OTP copy to M10.
+ * - **Opening a message shows it, and acts on it only when asked.** A message's readable
+ *   text, its one-time code candidates, and its verification links are displayed, and each
+ *   code and each link now carries a control. **Rendering still does nothing by itself**:
+ *   copying a code and opening a link happen because somebody activated something, and a
+ *   link that navigated because a message had been rendered would be a side effect of
+ *   reading someone's mail. `website-client`'s *`A detection is acted on only when the user
+ *   asks`* states that, and it replaced the older requirement this bullet used to name —
+ *   *"This slice shows what it found and does not act on it"* — which this slice REMOVES,
+ *   because two of the three things it prohibited are what this page is for. `design.md` D1
+ *   records why, including the conflict between this roadmap's M5 acceptance criteria and
+ *   `AGENTS.md`'s assignment of OTP copy to the verification workflow milestone.
  * - **No confidence number is shown for a detection.** The parser produces a judgement
  *   traceable to a published rule, not a probability, and a bare `0.85` would be read
  *   as an 85% chance of being right.

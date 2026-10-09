@@ -1,9 +1,9 @@
 # AGENTS.md
 
-> **Current milestone state (reconciled against Git and OpenSpec 2026-10-08): M0-M8 are complete in
-> scope, M9 slice 1 is applied, verified, synced and ARCHIVED, M9 slice 2 (`in-page-mailbox`) is
-> APPLIED, verified, synced and ARCHIVED, and M9 slice 3 (`site-associations`) is **APPLIED and
-> VERIFIED on `feat/site-associations`**, with its Sync and Archive stages to follow.** M7's four
+> **Current milestone state (reconciled against Git and OpenSpec 2026-10-09): M0-M9 are complete
+> in scope, and M10 slice 1 (`verification-actions`) is **APPLIED and VERIFIED on
+> `feat/verification-actions`**, with its Sync and Archive stages to follow.** M9's three slices are
+> all applied, verified, synced and archived, and M7's four
 > slices are archived and M8
 > (`extension-foundation`) is applied, verified, synced, and archived at
 > `openspec/changes/archive/2026-10-07-extension-foundation/` - proposal **#75**, apply **#76**,
@@ -23,7 +23,31 @@
 > **The promoted counts move at the sync stage and not before, and the distinction is recorded
 > here because "applied and verified" and "synced" are not the same claim.**
 >
-> **This change's sync promoted eight blocks - two `MODIFIED` and three `ADDED` in `spectre-storage`,
+> **M10 slice 1 has moved none of them, and `openspec validate --specs --strict` is still
+> 14 passed, 0 failed, 151 requirements and 446 scenarios** — measured, not transcribed, and it
+> is the same figure the `site-associations` archive left because **no sync has run on this
+> change yet.** Its delta is four blocks in one capability: `website-client` loses
+> *"This slice shows what it found and does not act on it"* outright, has *"The page's limits are
+> stated in its footer"* **modified**, and gains three requirements — *"A detection is acted on
+> only when the user asks"*, *"A detected one-time code can be put on the clipboard"* and
+> *"A detected verification link is opened only by the user"*. **`website-client`'s requirement
+> count stays at 21**, because a `REMOVED` block and a `MODIFIED` one each replace rather than
+> add, so the arithmetic to expect at this change's sync is **21 − 1 + 3 = 23** and the scenario
+> count is what the sync stage must measure rather than what this file predicts. **The
+> requirement is REMOVED rather than amended, and that is `design.md` D1:** an amended heading
+> would have contradicted its own body, because the requirement's entire content was a
+> prohibition of the two actions this slice adds.
+>
+> **The change is applied and verified on `feat/verification-actions`** — proposal PR **#96**
+> merged `421d56f`, artifacts commit `e196b8d`. Nine deliberate violations were all caught by
+> the assertion each was aimed at; `pnpm verify` exited 0 three times with no browser
+> installed; `pnpm test:browser` ran thirty consecutive times in three blocks of ten, all green
+> at **40 website and 56 extension cases**; and `pnpm test` is **895 tests across 52 files**.
+> **Tasks 7.1 and 7.2 are deliberately unticked** — a human looking at the page, and a real
+> clipboard in a real browser — and the reasons are the recorded ones: an agent opening a page is
+> not the judgement the task asks for, and one substrate corroborated is not a general licence.
+>
+> **`site-associations`' sync promoted eight blocks - two `MODIFIED` and three `ADDED` in `spectre-storage`,
 > one `MODIFIED` and two `ADDED` in `in-page-integration` - and the counts moved by five requirements
 > and twenty-four scenarios: `spectre-storage` 12 → 15 and 36 → 51, `in-page-integration` 10 → 12 and
 > 32 → 41.** That is **146 → 151 requirements and 422 → 446 scenarios**, counted by heading across
@@ -478,12 +502,21 @@ Pin versions when exact versions matter.
   any kind, no provider named, and no capability the extension has declared absent (no content
   script, no side panel, no notification, no code copy or fill) and no polling interval, since the
   popup's count comes from a check somebody asked for.
-  **Opening a message displays what was found and acts on none of it.** `MessageView`
-  renders the sender, subject, arrival time, readable text, the codes in the parser's
-  rank order, and each link as text with its host visible. There is no copy control
-  for a code and no `href` on a detected URL — **copying an OTP is M10**, and
-  `AGENTS.md` is the authority for that, not the roadmap's acceptance list. Copying
-  the **mailbox address** stays legal and a boundary rule says so. Confidence is
+  **Opening a message displays what it found and acts on it only when the user asks.**
+  `MessageView` renders the sender, subject, arrival time, readable text, the codes in
+  the parser's rank order, and each link with its host visible. **Since M10 slice 1 every
+  detected code carries its own `Copy <value>` control and a detected link is a real
+  `<a href target="_blank" rel="noopener noreferrer">`** — and neither is reachable except
+  by an explicit activation. **The sentence this replaces said there is no copy control
+  for a code and no `href` on a detected URL, and that copying an OTP is M10; it was true
+  through M9 and is deleted rather than reworded**, because the boundary rule that enforced
+  it (`findCodeClipboardWrites`, `DETECTED_LINK_HREF_PATTERN`) is **deleted with its
+  requirement** rather than exempted, and a retired rule left in place would forbid the two
+  actions this product exists for. **One control per code rather than one for the top-ranked
+  code**, because the parser never reports a detection as certain; `noreferrer` because the
+  page's own URL carries a mailbox address; a per-code result in component-local state; and
+  the page's failure vocabulary **imported from `Address`** rather than invented a second
+  time. **Copying the mailbox address stays legal and a boundary rule says so.** Confidence is
   never rendered as a number, and an unreadable message says so and offers a retry
   rather than reporting that it holds no code.
 
@@ -651,12 +684,12 @@ Pin versions when exact versions matter.
   no extension build step — that is M8" became false at M8 and is deleted rather than
   reworded.**
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running **891 tests across
-  51 files** via `pnpm test` (2026-10-09, at `site-associations`' apply stage, with
+- Testing: Vitest `3.2.7` at the workspace root, verified running **895 tests across
+  52 files** via `pnpm test` (2026-10-09, at `verification-actions`' apply stage, with
   `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory), counted from a
   JSON reporter **grouped by project** rather than read off a summary line:
-  54 in `packages/core`, 89 in `packages/providers`, **149 in `packages/mail-parser`**,
-  **155 in `packages/mailbox`**, **120 in `apps/web`**,
+  54 in `packages/core`, 92 in `packages/providers`, **149 in `packages/mail-parser`**,
+  **155 in `packages/mailbox`**, **125 in `apps/web`**,
   **78 in `packages/storage`** (7 stored record, **11 mailbox collection**, 30 IndexedDB adapter,
   **11 site associations**, 7 browser entry point, **12 `chrome.storage` adapter**),
   **151 in `apps/extension`** (**25** in `content-script.test.ts`, **28** in `protocol.test.ts`,
@@ -665,7 +698,33 @@ Pin versions when exact versions matter.
   `create-mailbox.test.ts`, **9** in `storage.test.ts`, **9** in `provider-config.test.ts`,
   **8** in `Popup.test.tsx`,
   **5** in `popup-copy.test.ts`, **5** in `service-worker.test.ts`, **4** in `scheduler.test.ts`),
-  **38 in `packages/ui`**, and **57 architecture boundary assertions**.
+  **38 in `packages/ui`**, and **53 architecture boundary assertions**.
+  **`verification-actions` moved `packages/providers` 89 → 92, `apps/web` 120 → 125, the
+  boundary count 57 → 53, and moved nothing else - and the two directions are both
+  deliberate and both load-bearing.**
+  **The boundary count went *down* because two rules were deleted rather than exempted**, and
+  each one's property was given a named replacement instrument inside the tombstone comment in
+  `tests/architecture/boundaries.test.ts`: `findCodeClipboardWrites` and
+  `DETECTED_LINK_HREF_PATTERN` both enforced the `website-client` requirement
+  *"This slice shows what it found and does not act on it"*, which this change REMOVES because
+  the two actions it forbade are what the product is for. **A rule retired with its
+  requirement is not the same event as a property dropped, and a diff cannot tell them
+  apart**, so the comment names what each rule held and what holds it now. **The `MESSAGE_VIEW`
+  control fixture went with them**, because a control no rule reads is not a control - and
+  `pnpm lint` reported it as assigned and never used, which is the shape a retired rule leaves
+  behind.
+  **`apps/web` rose by exactly the five new `MessageView` cases (17 → 22), and that is how the
+  change shows it added a control and an anchor to the message view and changed nothing else**;
+  **`packages/providers` rose by exactly the three `fixtures.test.ts` cases** recording where
+  the new `SYNTHETIC` step came from and why it is not a recording.
+  **`packages/ui` is still 38 for the seventh time**, because `design.md` D8 commits this slice
+  to **no new token and no new motion**; a rise would have meant visual surface no capability
+  describes.
+  **The baseline was measured rather than read**, on this branch, from this merge-base: **891
+  across 51 files**, with `providers` 89, `apps/web` 120, `MessageView.test.tsx` 17 and the
+  boundary count 57. 891 + 3 + 5 - 4 = 895, and one of the two new files is a browser spec,
+  which the Vitest globs do not collect at all - so 51 → 52 files is the arithmetic and not a
+  deleted test.
   **`site-associations` moved `packages/storage` 54 → 78, `apps/extension` 130 → 151 and the
   boundary count 56 → 57, and moved nothing else.** **The two unmoved numbers are the
   measurement this slice's plan turned on**: `apps/web` is still **120**, which is also how the
@@ -774,13 +833,14 @@ Pin versions when exact versions matter.
   than adding up.
   **Those counts cover one tier only.** There are now **three runners**: Playwright
   `1.63.0` in **two configurations**.
-  **The website's tier: 37 test cases in 4 spec files** in `apps/web/e2e/` - `storage.spec.ts` (**6**,
+  **The website's tier: 40 test cases in 5 spec files** in `apps/web/e2e/` - `storage.spec.ts` (**6**,
   count **unchanged by M7 slice 1**), `focus.spec.ts` (**6**, added by slice 1),
-  `motion.spec.ts` (**9**, added by slice 2) and `sections.spec.ts` (**16**, added by slice 3
+  `motion.spec.ts` (**9**, added by slice 2), `sections.spec.ts` (**16**, added by slice 3
   and **13 → 16 at slice 4**, whose three new cases are the non-operable depiction read from
   Chromium's own accessibility tree at the region's own node, the labels-are-the-popup's-own
   case, and the declared-absent-capability case - **and whose only two edited cases are the two
-  whole-page sweeps slice 4 rescoped per region**, each now carrying a negative control).
+  whole-page sweeps slice 4 rescoped per region**, each now carrying a negative control) and
+  **`verification-actions.spec.ts` (3, added by M10 slice 1)**.
   That the storage six kept their count is
   the evidence styling changed no behaviour that tier already covered: had a `className`
   altered a control's role or accessible name, one of those six would have stopped finding
@@ -1414,15 +1474,15 @@ pnpm test:browser
 
 ```
 
-Playwright `1.63.0`, **two configurations, 11 spec files and 93 test cases** - **Chromium
+Playwright `1.63.0`, **two configurations, 12 spec files and 96 test cases** - **Chromium
 only**. The command builds **both** clients, then the in-page fixture, and then runs the two
-suites in order: the website's **37** in `apps/web/e2e/`, and the extension's **56** in
+suites in order: the website's **40** in `apps/web/e2e/`, and the extension's **56** in
 `apps/extension/e2e/`.
 
-**The website's 4 spec files and 37 cases** - `storage.spec.ts`
+**The website's 5 spec files and 40 cases** - `storage.spec.ts`
 (**6**), `focus.spec.ts` (**6**, added by M7 slice 1), `motion.spec.ts` (**9**, added by
-M7 slice 2) and `sections.spec.ts` (**16**; **13** added by M7 slice 3 and **three** added by
-M7 slice 4). The
+M7 slice 2), `sections.spec.ts` (**16**; **13** added by M7 slice 3 and **three** added by
+M7 slice 4) and **`verification-actions.spec.ts` (3**, added by M10 slice 1**)**. The
 command serves `apps/web/dist` with `vite preview` on
 `http://127.0.0.1:4173` with `--strictPort`, because the page under test is the **built**
 `<App />` with no props - the page a user receives, not a composition mounted by a test.
@@ -1441,6 +1501,34 @@ forbidden word into the running page - without which a sweep matching nothing wo
 assertion above it, and the exemption would be indistinguishable from a pattern that had silently
 stopped firing. **The extension's 16 did not move**, which is the check that this change did not
 touch the extension client.
+
+**`verification-actions.spec.ts`'s three, and why the file is new rather than folded into
+`sections.spec.ts`.** The cases are: the anchor is a **real link in Chromium's own
+accessibility tree**, read at the anchor's own DOM node over `Accessibility.queryAXTree`
+rather than by a role query, because a role query answers *"is there a link on this page"*
+and the page has several buttons whether or not the anchor is one; the anchor **draws a focus
+indicator this product declared** - present, non-zero, not `auto`, and **different from its
+own unfocused reading**, because a permanent ring and a ring the browser invented both satisfy
+every other line; and **opening a message carrying a link navigates nowhere and asks its host
+for nothing**, read from the page's own URL and from its recorded request log, **with a
+negative control on the reader itself** - the forbidden URL planted into a copy of the record
+the page actually produced - because a sweep matching nothing satisfies the claim above it for
+ever, and **a second control in the other direction** so a reader that returned every URL
+cannot pass the first one for the wrong reason. **The file is its own because these three need
+one way to open a message carrying a link**, and `open-mailbox.ts` exists for exactly that
+reason: two copies of "load the page and wait for a mailbox" is a defect this repository has
+recorded twice, one of them two boundary rules sharing an allowance constant so that widening
+it silently silenced the other.
+
+**Two things in that file measured false before it was correct, and both are shapes already
+recorded here.** Its first focus case reached the anchor with `element.focus()` and read
+`outline-style: "none"`, because Chromium applies `:focus-visible` only when focus arrived
+from a keyboard - so the case would have passed with `.link__anchor` **deleted from the
+stylesheet's focus list**, and with the whole focus rule deleted. It now tabs to the anchor,
+bounded, and reports what focus last rested on when it gives up. And the synthetic fixture it
+depends on **did not work as first written**: with the destination as plain text in the body,
+the page said *"No verification link was found in this message"* on a message whose readable
+text plainly contained the URL.
 
 **The extension's 7 spec files and 56 cases** - `manifest.spec.ts` (**9**; **6** added by M8 and
 **three** by `in-page-address`), `popup.spec.ts` (**8**), `in-page.spec.ts` (**17**, added by
@@ -1727,6 +1815,25 @@ it or inherit the previous one's mailbox.
 
 **What it does not establish, and this list is the point:**
 
+- **Nothing about the real clipboard.** `navigator.clipboard.writeText` in headless Chromium
+  needs a permission this tier does not grant, so the clipboard outcome is verified on **jsdom
+  with a stub**: that the page asks for the detected value unchanged, that it confirms exactly
+  as the address control does, and that a refusal is reported rather than swallowed. A stub
+  proves the page asked and reported; it proves **nothing about a real clipboard**, and
+  `verification-actions` task **7.2** - *"copy a code with the real clipboard in a real
+  browser"* - is **deliberately left unticked** for the reason 11.2 and 12.1 were. This is the
+  same shape as the recorded `blocked-deleteDatabase` limit: one substrate corroborated, not a
+  general licence.
+- **Nothing about a verification link that arrived as bare text.** `packages/mail-parser`
+  recovers anchors from **`<a href>` elements only** - measured this session, when a synthetic
+  body carrying the destination as plain text rendered *"No verification link was found in this
+  message"* on a message whose readable text plainly contained the URL. **A provider that
+  delivered its verification destination as plain text would produce a message this product
+  shows the URL for and reports no link for**, which is `mail-parsing`'s behaviour and out of
+  M10 slice 1's scope; it is named in `fixtures.ts` and in the change's `design.md` D6 rather
+  than left for someone to discover through the page. **This repository has never received
+  verification mail from any service**, so there is no measurement of which shape real mail
+  arrives in and the synthetic fixture must not be read as one.
 - **Nothing about how the page looks.** The focus specs read a **computed style**, the
   contrast specs read **WCAG arithmetic**, and since slice 3 the composition specs read the
   **DOM**, a **computed style**, and **Chromium's accessibility tree**. None of those is a
@@ -2054,7 +2161,7 @@ the M7 slice 1 apply stage and its verification-pass repair, again at M9 slice 1
 apply stage, and again at M9 slice 2's apply stage on **2026-10-08**:
 
 ```text
-pnpm typecheck     9 of 9 workspace projects run tsc --noEmit
+pnpm typecheck     8 of 8 workspace projects run tsc --noEmit
 pnpm lint          exit 0
 pnpm format:check  All matched files use Prettier code style
 pnpm test          47 files, 845 tests passed
@@ -2083,6 +2190,48 @@ exports *because nothing imports it*, and the rule's premise — that a module i
 library — is not true of it. **The fix was a config block scoped to `e2e/fixtures/` by shape,
 not a file-level suppression**, so a second entry-point fixture is covered by existing rather
 than by remembering.
+
+**`verification-actions` ran 9 deliberate violations and **all 9 were caught by the intended
+assertion**, with `wrongcatch`, `green`, `nocompile`, `noop` and `harness-error` **all zero**,
+restoration SHA-256 verified per mutated file, `dist/` rebuilt from the restored source, and the
+instrument living outside the repository. **Eight of the nine are the eight `tasks.md` 6.1
+names; the ninth was added, and the reason it was added is the finding.** The eight are the
+copy control's name losing the code it copies, the clipboard being given a value other than
+the detected one, the confirmation being shown on a **refused** write, a write happening on
+**open** rather than on activation, `rel` dropped, `target` changed to `_self`, the host
+removed from the anchor's text, and the control removed from one code but not the others.
+**The ninth is `.link__anchor` removed from the `:focus-visible` list, and it is the only
+mutation that reaches the browser tier's new file** - a green browser suite that no mutation
+can turn red is the recorded shape of coverage that verifies nothing, and this slice ships a
+new file in that tier.
+
+**Two of the nine were also caught by a second assertion, and both are the same property
+rather than a rival one**, which is the distinction this repository keeps drawing: the
+open-not-on-activation mutation also fails *"forgets a copy result when the message is shown
+again"*, because the effect fires again on the reopen and the clipboard takes a second write;
+the one-control-not-two mutation also fails *"copies nothing when a message carrying codes is
+opened"*, whose **positive control** requires two controls to be on screen before it presses
+one. **A catcher naming another assertion about the same property is an attribution to
+record; one naming an unrelated assertion is the real defect.**
+
+**One mutation needed a line-anchored edit, because `target="_blank"` appears twice in
+`MessageView.tsx`** - once as the attribute and once in the comment explaining why it is there
+- and an unanchored replacement would have mutated the documentation alongside the code. **A
+mutation that only partly applied has been filed as a survivor here before**, and a mutation
+that also edits prose is not evidence about an assertion.
+
+**`pnpm verify` was run three times at this stage and all three exited `0`** with
+`PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory. **The two reds this repository has
+recorded at this stage both appeared first, on different gates, and both were fixed rather
+than counted**: `format:check` rejected **six** files - *"the count of files Prettier rejects
+is not a fixed property of the change, it is a count of edits made since Prettier last ran"* -
+and `lint` reported `MESSAGE_VIEW` **assigned but never used**, which is the shape a retired
+boundary rule leaves behind and which is the reason that fixture is deleted rather than kept.
+**`pnpm test:browser` was then run thirty consecutive times in three blocks of ten: 30 passed,
+0 failed, 40 website and 56 extension cases on every run**, and the block script's tally and
+its exit code come from the same variables, because the instrument before it printed its tally
+and then fell off the end - so a **completed** block reported `exit 1` and an **aborted** one
+reported the same.
 
 **`in-page-mailbox` ran 15 deliberate violations: 14 counted and caught by the assertion each was
 aimed at, one recorded as evidence and not counted**, with restoration SHA-256 verified for every
@@ -2201,10 +2350,23 @@ measuring instrument is not a shipped file and a measuring instrument left in th
 something every future `pnpm lint` has an opinion about.
 
 **`pnpm build` emitting two lines is M8's, and it is the first time that block's property
-has changed since it was written.** The project count went **8 → 9** for `apps/extension`,
-and the build now emits `apps/web/dist` **and** `apps/extension/dist`. **A maintainer
+has changed since it was written.** The build now emits `apps/web/dist` **and**
+`apps/extension/dist`, because `apps/extension` joined the workspace. **A maintainer
 reading the old figure would conclude the extension is not built**, so the line is corrected
 here rather than left to look like a typo.
+
+**And this file carried the *wrong* workspace-project count beside that correction, which is
+only worth recording because it was measured rather than argued about.** Two paragraphs
+claimed **9 of 9 workspace projects** and **8 → 9**. Measured 2026-10-09 by counting the
+`typecheck$ tsc --noEmit` lines `pnpm -r --no-bail typecheck` prints: **8 of 8**, and the
+eight are `packages/ui`, `packages/core`, `packages/storage`, `packages/providers`,
+`packages/mail-parser`, `packages/mailbox`, `apps/web`, `apps/extension` — cross-checked
+against the directories actually on disk. **Both counts were wrong in the same direction and
+neither had ever been counted**, and the repository's own warning is the one that applies:
+*the count of files Prettier rejects is a count of edits, and a count nobody re-ran is a
+count nobody checked.* **`tests/architecture` is not one of the eight** — it has no
+`tsconfig.json` and is therefore not a workspace member that type checks, which is the reason
+a reader counting nine would find a tenth-eligible directory and no ninth project.
 
 **And `pnpm verify` was run three times on this change, not once — twice green and once
 `exit 1`, and the red one found something no test could.** The first run failed
