@@ -95,10 +95,14 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor: M10 - Verification Workflow, slice 1 (`verification-actions`) is APPLIED,
-VERIFIED, SYNCED and ARCHIVED at `openspec/changes/archive/2026-10-10-verification-actions/`,
-and **slice 2 (`in-page-fill`) is APPLIED and VERIFIED on `feat/in-page-fill`** (proposal PR
-#100 merged `11c28fa`), awaiting its apply merge, sync and archive. **M9 is complete in scope** -
+**Roadmap cursor: M10 - Verification Workflow, slices 1 (`verification-actions`) and 2
+(`in-page-fill`) are both APPLIED, VERIFIED, SYNCED and ARCHIVED** at
+`openspec/changes/archive/2026-10-10-verification-actions/` and
+`openspec/changes/archive/2026-10-10-in-page-fill/`. Slice 2's four stages were proposal PR #100
+merged `11c28fa`, apply PR #101 merged `99bc35c`, sync PR #102, archive PR #103 — **and its
+archive moved 6 files, every one SHA-256 identical to the digest taken before the command ran, with
+`.openspec.yaml` kept and all 8 promoted blocks byte-identical again afterwards, checked against
+the archived copies rather than trusted.** **M9 is complete in scope** -
 all three of its slices
 (`in-page-address`, `in-page-mailbox`, `site-associations`) applied, verified, synced and
 archived, slice 3 at `openspec/changes/archive/2026-10-09-site-associations/` with proposal PR
@@ -107,7 +111,7 @@ archived, slice 3 at `openspec/changes/archive/2026-10-09-site-associations/` wi
 lifecycle: proposal PR #96 merged `421d56f` (artifacts commit `e196b8d`), apply PR #97 merged
 `bdd13b6`, sync PR #98 merged `550741f`, archive PR #99.
 
-**M10 is four slices, and two of them are now applied.** The roadmap's M10 lists four user actions -
+**M10 is four slices, and two of them are now complete through their full lifecycle.** The roadmap's M10 lists four user actions -
 *copy code*, *open SpectreMail*, *fill code*, *open verification link* - plus an incoming-mail
 notification, and slice 1 takes the two that are website actions and **no** notification, **no** fill
 and **no** `chrome` permission of any kind. `design.md` D1 records why the old prohibition was
