@@ -49,6 +49,19 @@ affordance SHALL remain, and SHALL be removed once that answer arrives. **This d
 control persistent**: the exception lasts exactly as long as one outstanding request and no longer,
 and nothing here permits a control to survive a settled request.
 
+**Amendment, recorded at proposal (2026-10-10), by `in-page-fill`.** **This requirement governs the
+*email* affordance, and a code delivered into a one-time-code field is not one.** The whole
+requirement is scoped to a field that identifies itself as an email field, and a one-time-code field
+does not; the focus rule, the one-affordance rule, and the removal rule are all about a control
+drawn next to a field a person is typing an address into.
+
+The amendment is recorded because the alternative reading is the dangerous one. *"At most one
+affordance SHALL exist, and none SHALL exist while no email field holds focus"* read across the
+whole page would forbid the thing this change adds, and a reader applying it that way would have to
+choose between two requirements of this same capability. It does not read that way: the delivery
+specified below happens on an explicit activation of a control in this extension's own popup, into
+a field the page marks as a one-time-code field, and it leaves no control on the page at all.
+
 #### Scenario: An email field takes focus
 
 - **WHEN** an empty email field on an ordinary page takes focus
@@ -110,6 +123,12 @@ requirement's own last sentence requires and what the scenario above already cov
 - **WHEN** an element that is not an input identifying itself as an email field takes focus
 - **THEN** the extension SHALL offer no affordance for it
 
+#### Scenario: A page holds a one-time-code field and nothing is asked for
+
+- **WHEN** a page holds a field identifying itself as a one-time-code field
+- **AND** the user has not activated anything in this extension
+- **THEN** the extension SHALL offer no affordance for that field
+- **AND** it SHALL place nothing in that field
 ### Requirement: The affordance inserts the address this device already holds
 
 When the affordance is activated on an email field, the extension SHALL insert the address of a
@@ -162,11 +181,11 @@ is one the person is about to submit rather than one that would overwrite their 
 - **THEN** the extension SHALL NOT have submitted the form the field belongs to
 - **AND** the extension SHALL NOT have pressed a control belonging to it
 
-### Requirement: The inserted address becomes the value the page's own state holds
+### Requirement: An inserted value becomes the value the page's own state holds
 
-The inserted address SHALL become the value the page's own code holds for that field, not only the
+An inserted value SHALL become the value the page's own code holds for that field, not only the
 value the field paints. An input whose value is assigned without reaching its framework's state
-renders as filled and submits as empty, so the address SHALL be inserted in a way a controlled
+renders as filled and submits as empty, so the value SHALL be inserted in a way a controlled
 component observes, and the events the page's own input handling listens for SHALL be dispatched.
 
 Which events are dispatched SHALL be stated rather than assumed, and both an `input` and a `change`
@@ -176,6 +195,25 @@ that observe a plain one do not read the same event.
 The requirement states this as the property it is — what the page's own code reads back — and
 `design.md` D4 holds the mechanism, because a requirement naming one setter would fail any correct
 implementation that used a different one.
+
+**The address and the code are one property with two callers, and this requirement is where that is
+said.** It was written for the address and its title named the address; this change inserts a second
+kind of value through the same mechanism, so the property is restated over *any value this extension
+inserts* rather than a second requirement restating it for codes. Two requirements claiming one
+mechanism is how the two drift apart.
+
+**The two address scenarios keep their original titles, and the reason is a validator behaviour worth
+recording rather than a preference.** `openspec validate --strict` refuses a `MODIFIED` block that
+**omits a scenario the current spec still has, matched by title** — so renaming *"A controlled input
+receives the address"* to *"…receives an inserted value"* is reported as dropping it, even though
+the requirement it sits in was itself renamed in this same delta and the rename is declared
+directly above. The first draft generalised those two titles and `validate` exited `1` on it.
+
+So the address keeps its scenarios and the code gets **its own two**, rather than one generic pair.
+That is the better outcome anyway and not only the permitted one: the property is one property, and
+the cases that hold it down are the ones that reach it through each caller's own path — a case
+asserting the address path says nothing about whether the code path was wired to it at all, which is
+the way a shared mechanism becomes two mechanisms without anybody noticing.
 
 #### Scenario: A controlled input receives the address
 
@@ -189,10 +227,19 @@ implementation that used a different one.
 
 #### Scenario: The page observes the insertion
 
-- **WHEN** the affordance inserts an address
+- **WHEN** this extension inserts a value
 - **THEN** an `input` event SHALL reach the page
 - **AND** a `change` event SHALL reach the page
 
+#### Scenario: A controlled input receives a code
+
+- **WHEN** this extension puts a one-time code into an input whose value is held by its framework
+- **THEN** the page's own code SHALL read back that code as the field's value
+
+#### Scenario: A plain input receives a code
+
+- **WHEN** this extension puts a one-time code into an input with no framework holding its value
+- **THEN** the field's own value SHALL be that code
 ### Requirement: The affordance is separate from the page it is injected into
 
 The affordance SHALL be rendered so that the page's own styles do not determine how it appears, and
@@ -561,3 +608,232 @@ this device does not hold — and the record stays.
 - **WHEN** the association record cannot be read
 - **THEN** the affordance SHALL offer the newest mailbox this device holds
 - **AND** the failure SHALL NOT be reported as "this site's mailbox"
+### Requirement: A one-time-code field is recognised only from signals this capability names
+
+A field SHALL be recognised as a one-time-code field only from signals this requirement names, and
+no other element SHALL be treated as one. The signals SHALL be: an `input` whose `autocomplete`
+declares a one-time code; an `input` whose `name` or `id` identifies one as a code, verification,
+or one-time-password field; and an `input` whose `inputmode` declares a numeric entry **together
+with** such a name or id.
+
+**The numeric `inputmode` alone SHALL NOT be sufficient**, and that restriction is the load-bearing
+half. A numeric keypad is what a page asks for on a quantity, a price, a card number, a telephone
+number and a postcode, so a field carrying only that signal is a field this extension must leave
+alone: filling a discount code into a quantity box is a data-entry error with a visible result and
+no way for the person to notice before submitting.
+
+Where more than one signal applies to a field, the field that **declares** a one-time code through
+`autocomplete` SHALL be preferred over one that is only inferred from its name, because a page that
+states the purpose of a field is telling the truth about it in the one way a machine can read.
+
+**Preferring a field is not a licence to fill it, and this is stated here because the scenario at the
+end of this requirement is titled `Two fields qualify and one declares itself` and reads as if it
+were.** Preference decides the order the options are offered in and which one is marked; the asking
+requirement below decides whether anything is written, and it says that several qualifying fields are
+put to the person even when one of them is preferred. Two requirements touching one decision is the
+arrangement that needs saying out loud, because the wrong reading of the first one fills somebody's
+checkout form.
+
+**A declaration SHALL outrank a disqualifying name, and this is recorded because the two rules were
+written by different measurements and they point opposite ways on one shape of field.** A page that
+writes `autocomplete="one-time-code"` on a field named `couponCode` has said what the field is, in the
+strongest way available to it, and this extension's own note in `code-field.ts` says so. A
+disqualifying name on a field that declares nothing is different: the name is the only evidence there
+is, and it is evidence of something else.
+
+**A name or id that identifies the field as something other than a one-time code SHALL NOT be
+recognised, however well it matches the code words.** This narrows the second signal, and the
+narrowing was measured rather than preferred. `discountCode`, `countryCode`, `securityCode`,
+`postalCode` and `couponCode` all contain the whole word `code`, so a whole-word test on the name
+recognises every one of them — and each is a field where a verification code is wrong in a way the
+person submits without noticing. **A whole-word match is necessary and not sufficient**, and the
+recogniser keeps a list of the classes that disqualify an identity: a price, a discount or promotion,
+a country, a product, a postal or tax identifier, a security answer, a reference or tracking number,
+and a gift or voucher.
+
+**An input that cannot be typed into SHALL NOT be recognised**, whatever else it says about itself.
+`hidden`, `submit`, `reset`, `button`, `checkbox`, `radio`, `file`, `image`, `range` and `color` all
+take `name` and `autocomplete` attributes and all reject everything this extension could write, so
+recognising one would produce a fill whose result cannot be read by the person or by the page.
+
+**Amendment, recorded during apply (2026-10-10), by in-page-fill.** Two things in the paragraph above
+were written after the implementation, and both are changes to what this requirement *permits* rather
+than to what it asks for — recorded here because a requirement narrowed by code and left standing in
+the delta would ship a promoted spec saying the code does something it forbids.
+
+The **numeric `inputmode`** signal is **subsumed** rather than unimplemented, and the requirement's
+text is left standing because it is still true: a field whose `name` or `id` identifies a code is
+recognised whether or not it also declares numeric entry, which is a superset of "numeric entry
+together with such a name or id". The consequence worth stating is the one the requirement does not
+say — **`inputmode` contributes nothing at all**, so it is read but never load-bearing, and deleting
+every reference to it from the module would change no outcome. Only the refusal is load-bearing: a
+numeric field named as nothing is not recognised, which is the scenario below.
+
+#### Scenario: A field declares a one-time code
+
+- **WHEN** a page holds an empty input whose `autocomplete` declares a one-time code
+- **THEN** the extension SHALL recognise that input as a one-time-code field
+
+#### Scenario: A field is named as a code
+
+- **WHEN** a page holds an empty input whose `name` or `id` identifies it as a code, verification,
+      or one-time-password field
+- **THEN** the extension SHALL recognise that input as a one-time-code field
+
+#### Scenario: A numeric field is named as nothing
+
+- **WHEN** a page holds an input that requests numeric entry and whose `name` and `id` identify it
+      as no kind of code
+- **THEN** the extension SHALL NOT recognise that input as a one-time-code field
+
+#### Scenario: A field is named as something else that ends in "code"
+
+- **WHEN** a page holds an empty input whose `name` or `id` identifies it as a discount, a country, a
+      product, a postal or tax identifier, a security answer or a tracking number, and which carries
+      the word `code` among others
+- **THEN** the extension SHALL NOT recognise that input as a one-time-code field
+
+#### Scenario: A field is not an input
+
+- **WHEN** an element that is not an input identifies itself as a one-time-code field
+- **THEN** the extension SHALL NOT treat it as one
+
+#### Scenario: A field cannot be typed into
+
+- **WHEN** an input that cannot receive typed text declares or is named as a one-time-code field
+- **THEN** the extension SHALL NOT recognise it as one
+
+#### Scenario: Two fields qualify and one declares itself
+
+- **WHEN** two inputs qualify as one-time-code fields
+- **AND** one of them declares a one-time code through `autocomplete`
+- **THEN** the declared one SHALL be preferred over the one identified only by name or id
+### Requirement: A code reaches a page only on the user's activation, and never the form
+
+A one-time code SHALL be put into a page's field **only** when the user activates a control naming
+that code, and no field SHALL be filled at any other time — not when the page loads, not when the
+field takes focus, not when a message arrives, and not when this extension notices anything. A
+field that acquires a value nobody asked for is a form submitted with a code the person never read.
+
+The extension SHALL NOT submit the form the field belongs to, SHALL NOT press a control belonging to
+it, and SHALL NOT activate it by any other means. **Filling a field and submitting it are different
+acts with different consequences**, and the second one commits the person to a stranger's account
+with a value this extension chose.
+
+**Nothing SHALL be filled into a field that already holds text**, for the reason this capability
+already gives for the address: a control that replaces what a user has typed is a data-loss gesture,
+and refusing is the answer that contains no ambiguity about what was asked for.
+
+#### Scenario: Nothing has been activated
+
+- **WHEN** a page holds a one-time-code field and the user activates nothing in this extension
+- **THEN** the field SHALL be left as the page delivered it
+
+#### Scenario: A message arrives while the page is open
+
+- **WHEN** a page is open and this extension learns of a message carrying a code
+- **THEN** no one-time-code field on that page SHALL be filled
+
+#### Scenario: The user activates a code
+
+- **WHEN** the user activates the control for a code the popup named
+- **THEN** the one-time-code field on the page SHALL hold that code
+
+#### Scenario: The form is not activated
+
+- **WHEN** this extension has put a code into a field
+- **THEN** it SHALL NOT have submitted the form the field belongs to
+- **AND** it SHALL NOT have pressed a control belonging to it
+
+#### Scenario: The field already holds text
+
+- **WHEN** a code is sent to a page and the field it would fill already holds text
+- **THEN** the extension SHALL insert nothing into that field
+### Requirement: Several qualifying fields are put to the user rather than chosen
+
+Where more than one field on a page qualifies as a one-time-code field and the extension cannot
+prefer one by the signals this capability names, the extension SHALL ask the person which field to
+fill and SHALL NOT choose one. **A page with several qualifying fields is a page whose author
+expected more than one**, and a page that splits a code across two boxes is a page where the wrong
+one is a wrong answer rather than a near miss.
+
+Asking SHALL be done in this extension's own surface on the page, and the options put to the person
+SHALL be the fields themselves rather than a count or a guess at an index. **No field SHALL be
+filled until the person has chosen**, because the asking is not a confirmation step after a decision
+has already been taken.
+
+**A field that already holds text SHALL NOT be counted as one of the fields to choose between, and
+this narrows the requirement above — recorded during apply (2026-10-10) because the implementation
+filled where the proposal's words said it should have asked.** The other requirement in this change
+already forbids writing into a field holding text, which makes such a field a field this extension
+cannot use; counting it as a choice would put a question to the person whose every answer is a refusal
+except one — the only field they could have meant anyway.
+
+So a page holding one empty qualifying field and one already-filled qualifying field is a page with
+**exactly one field to fill**, and it is filled without asking. Asking there would be a question with
+one answer, and the cost of asking for its own sake is that a person on a signup page has to dismiss a
+control before anything happens.
+
+**The count is taken after the emptiness filter and not before, and the order is the requirement.** A
+field that holds text is not a candidate this extension can act on, so counting it and then refusing
+it would produce the refusal as the answer rather than as an accident of ordering.
+
+#### Scenario: Exactly one field qualifies
+
+- **WHEN** a page holds exactly one empty field recognised as a one-time-code field
+- **THEN** the extension SHALL put the code into that field without asking which field to use
+
+#### Scenario: One field qualifies and another already holds text
+
+- **WHEN** a page holds two fields recognised as one-time-code fields
+- **AND** exactly one of them is empty
+- **THEN** the extension SHALL put the code into the empty one without asking which field to use
+- **AND** it SHALL leave the field holding text unchanged
+
+#### Scenario: Several fields qualify
+
+- **WHEN** a page holds more than one field recognised as a one-time-code field
+- **AND** no one of them is preferred by the signals this capability names
+- **THEN** the extension SHALL put those fields to the person
+- **AND** it SHALL fill no field until the person has chosen one
+
+#### Scenario: Several fields qualify and one is preferred
+
+- **WHEN** a page holds more than one field recognised as a one-time-code field
+- **AND** one of them is preferred by the signals this capability names
+- **THEN** the extension SHALL put the preferred field to the person for confirmation rather than
+      fill it unasked
+### Requirement: A code reaches the page without a permission this extension does not already hold
+
+Putting a code into a page SHALL NOT require this extension to hold a permission it does not already
+hold, and SHALL NOT require anything from the page. The extension's manifest SHALL NOT gain a
+permission in order to deliver a code, and the page SHALL NOT be asked for access, consent, or a
+response of any kind.
+
+This is a behavioural requirement rather than an implementation note because the failure it rules
+out is invisible in a diff. A delivery that worked by asking the page for something would be a
+delivery that works on some pages and fails on others for reasons the person cannot act on — which
+is the same failure this capability already records for creation, and for the same underlying cause:
+a request made in the page's own context obeys the **page's** policy rather than this extension's.
+
+The extension's declared host reach SHALL remain the reach its shipped surfaces use. Reaching a page
+this extension holds no host permission for is not a reach declaration, and a permission added to
+make it one would be a permission this extension cannot name a user-facing feature for.
+
+#### Scenario: The manifest is read after this change
+
+- **WHEN** the extension's manifest is read
+- **THEN** it SHALL request no permission this extension did not already request
+- **AND** every permission it does request SHALL be one a shipped surface uses
+
+#### Scenario: The page refuses cross-origin requests
+
+- **WHEN** a page is served under a policy that refuses cross-origin requests
+- **THEN** activating a code's control SHALL still put that code into the page's field
+
+#### Scenario: The page is asked for nothing
+
+- **WHEN** this extension puts a code into a page
+- **THEN** it SHALL ask that page for nothing
+- **AND** a page that would refuse any such request SHALL NOT prevent the fill
+

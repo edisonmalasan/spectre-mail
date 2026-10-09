@@ -4,8 +4,9 @@
 > in scope, M10 slice 1 (`verification-actions`) is **APPLIED, VERIFIED, SYNCED and ARCHIVED**
 > at `openspec/changes/archive/2026-10-10-verification-actions/`** — proposal PR **#96** merged
 > `421d56f`, apply PR **#97** merged `bdd13b6`, sync PR **#98** merged `550741f`, archive PR
-> **#99** — and **M10 slice 2 (`in-page-fill`) is APPLIED and VERIFIED on `feat/in-page-fill`**
-> (proposal PR **#100** merged `11c28fa`), awaiting its apply merge and then its sync and archive.
+> **#99** — and **M10 slice 2 (`in-page-fill`) is APPLIED, VERIFIED and SYNCED**: proposal PR
+> **#100** merged `11c28fa`, apply PR **#101** merged `99bc35c`, and its sync has run on
+> `docs/in-page-fill-spec-sync`, awaiting its archive.
 > (An archive's own merge SHA is not written here because a commit cannot contain its own merge
 > commit; `git log --merges --oneline -1 main` is the record.)
 > M9's three slices are
@@ -30,7 +31,7 @@
 >
 > **`verification-actions`' sync has now run and its archive has too, and
 > `openspec validate --specs --strict` is
-> **14 passed, 0 failed, 153 requirements and 452 scenarios** across 14 capabilities** — measured
+> **14 passed, 0 failed, 157 requirements and 478 scenarios** across 14 capabilities** — measured
 > by counting `### Requirement:` and `#### Scenario:` across `openspec/specs/` after the
 > promotion, not transcribed, and **re-counted after the archive** because archiving is a move and
 > a move is the operation most likely to drop a file. `website-client` went **21 → 23 requirements

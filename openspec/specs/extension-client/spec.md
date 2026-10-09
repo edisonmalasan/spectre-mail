@@ -129,10 +129,10 @@ about either provider.
 
 ### Requirement: The extension declares its non-goals as requirements rather than leaving them absent
 
-The extension SHALL NOT declare a side panel, a notification, a one-time-code copy or fill control,
-or a verification-link control in this milestone, and each absence SHALL be asserted. A declared
-surface that renders nothing or acts on nothing is fake UI, which this product does not ship: the
-side panel belongs to the side-panel milestone and the verification workflow to the workflow
+The extension SHALL NOT declare a side panel, a notification, a one-time-code copy control, or a
+verification-link control in this milestone, and each absence SHALL be asserted. A declared surface
+that renders nothing or acts on nothing is fake UI, which this product does not ship: the side
+panel belongs to the side-panel milestone and the verification workflow to the workflow
 milestone.
 
 An absence that is merely an omission reads as an oversight and is eventually filled in by
@@ -151,6 +151,21 @@ in-page milestone adds a content script"*, which described one event that has no
 therefore guards nothing afterwards. It now names the class of event, so the rule keeps applying to
 the surfaces still on the list.
 
+**Amendment, recorded at proposal (2026-10-10), by `in-page-fill`.** **The one-time-code fill
+control comes off this list, and the one-time-code *copy* control stays on it.** That split is
+deliberate and is the reason this amendment is not simply "the verification controls come off":
+this change fills a code into a field and nothing else, so removing the whole phrase would leave
+the extension declaring an absence that is no longer true — a control this product does not ship
+described as forbidden, which is the same stale claim in the opposite direction. The remaining
+three absences are still milestones that have not run, and each is still declared and still
+asserted.
+
+**The manifest clause of the first scenario becomes load-bearing rather than incidental.** It
+already read *"it SHALL request no permission that no shipped surface uses"*, and this change ships
+a surface that reaches a page it holds no permission for. That is only consistent because the
+delivery needs no permission at all: `design.md` D1 records the measurement, and the scenario fails
+if a later change answers the reach question by adding a permission instead.
+
 #### Scenario: The manifest is read
 
 - **WHEN** the extension's manifest is read
@@ -162,7 +177,6 @@ the surfaces still on the list.
 
 - **WHEN** a milestone adds a surface this requirement forbids
 - **THEN** it SHALL amend this requirement in its own change rather than deleting the assertion
-
 ### Requirement: The background service worker carries no polling until its lifetime is measured
 
 The extension's background service worker SHALL be declared and SHALL contain no polling loop in
@@ -198,9 +212,27 @@ is taken about which context owns the session.
 ### Requirement: The extension's popup performs its first milestone's actions over the shared session
 
 The extension's popup SHALL create a mailbox, copy the mailbox address, name the provider it used,
-report the provider's status, and show an inbox count — and each SHALL be performed through the
-shared mailbox session rather than by the popup's own logic. The inbox count SHALL come from an
-explicit check the user asked for, because no background polling exists in this milestone.
+report the provider's status, show the messages in the mailbox rather than only how many there are,
+and show the one-time codes detected in a message the user opened — and each SHALL be performed
+through the shared mailbox session rather than by the popup's own logic. The listing SHALL come from
+an explicit check the user asked for, because no background polling exists in this milestone.
+
+**The popup SHALL NOT indicate that a message carries a verification until it has opened that
+message.** A listing carries no detection, by construction rather than by omission:
+`packages/core` states that codes and links are absent from a message summary *"on purpose: listing
+a mailbox must not require fetching bodies"*. So the count the popup showed before is the whole of
+what a listing can support, and a marker the listing cannot carry would be a guess about a message
+nobody has read.
+
+**Opening a message SHALL be the only way a code becomes available, and it SHALL cost a provider
+request only while this session has not already analysed that message.** The shared session retains
+the analysis of a message it has opened, which is what makes a second visit to the same message
+free; a popup that opened every message in a listing to discover which one carried a code would
+spend a provider request per message to learn something the listing structurally cannot say.
+
+**The popup SHALL report what the page answered, and SHALL NOT report a code as filled when no page
+confirmed it.** The page the code was sent to is somebody else's document, and a delivery this
+extension could not confirm is not a delivery.
 
 The popup SHALL NOT offer a provider selector. The extension reaches two providers, so a selector
 becomes meaningful here in a way it is not on the website — but at this milestone choosing is not a
@@ -227,6 +259,41 @@ one it fell back from.
 - **THEN** it SHALL render what the session reports
 - **AND** it SHALL NOT render a status it computed itself
 
+#### Scenario: A check has listed messages
+
+- **WHEN** a check the user asked for returned messages
+- **THEN** the popup SHALL render those messages
+- **AND** it SHALL NOT indicate that any of them carries a verification
+
+#### Scenario: A message is opened
+
+- **WHEN** the user opens a listed message and it carries a one-time code
+- **THEN** the popup SHALL render that code
+- **AND** it SHALL offer a control that puts that code into the open page's one-time-code field
+
+#### Scenario: A message is opened a second time
+
+- **WHEN** the user opens a message this session has already opened
+- **THEN** the popup SHALL render its codes
+- **AND** no provider request SHALL be made to obtain them
+
+**Amendment, recorded during apply (2026-10-10), by `in-page-fill`. This scenario was measured
+false against a closed-and-reopened message, and the requirement was right while the code was
+wrong.** The paragraph above says *"only while this session has not already analysed that message"*,
+and `packages/mailbox` bounded its retention by the current listing and by mailbox replacement — but
+`closeMessage()` reached the method that forgets both, so closing a message in the popup and opening
+it again cost a second `/messages/{id}` request. `design.md` D9 records the repair; two unit cases
+and one browser case hold it.
+
+**It is recorded here rather than only in `design.md` because a reader of the promoted spec should
+know this scenario was once false in the ordinary way** — a person opens a message, closes it, opens
+it again — and not only in the shape the unit tier happened to cover.
+
+#### Scenario: The page does not confirm
+
+- **WHEN** a code was sent to a page and no page confirmed it
+- **THEN** the popup SHALL report that it could not confirm the code was filled
+- **AND** it SHALL NOT report the code as filled
 ### Requirement: The extension ships its own browser-verification tier
 
 The extension's browser tests SHALL run in a suite that loads the built extension into a real
