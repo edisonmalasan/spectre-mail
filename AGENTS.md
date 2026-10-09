@@ -17,8 +17,9 @@
 > (`c59bf79`), apply **#89**, sync **#90**, archive **#91**. **`site-associations` (M9 slice 3) is
 > APPLIED, VERIFIED, SYNCED and ARCHIVED** at
 > `openspec/changes/archive/2026-10-09-site-associations/` - proposal **#92** merged (`7755131`),
-> apply **#93** merged (`1ff7c24`), sync **#94** merged (`18bbe00`) - so `openspec validate --specs
-> --strict` is **14 passed, 0 failed, 151 requirements and 446 scenarios**.
+> apply **#93** merged (`1ff7c24`), sync **#94** merged (`18bbe00`), archive **#95** merged
+> (`a886447`) - so `openspec validate --specs --strict` is **14 passed, 0 failed, 151 requirements
+> and 446 scenarios**.
 > **The promoted counts move at the sync stage and not before, and the distinction is recorded
 > here because "applied and verified" and "synced" are not the same claim.**
 >
