@@ -54,7 +54,8 @@
 > landing it would create permanent spec debt for disposable scaffolding.
 
 **Roadmap cursor: M9 - In-Page Email Integration, slices 1 (`in-page-address`) and 2
-(`in-page-mailbox`) applied, verified, SYNCED and ARCHIVED; slice 3 (`site-associations`) is next.**
+(`in-page-mailbox`) applied, verified, SYNCED and ARCHIVED; slice 3 (`site-associations`) is
+PROPOSED on `docs/site-associations-proposal` and awaiting Apply.**
 **M0 through M8 are complete in scope; M9 has three slices and two are closed.**
 **Slice 1's sync promoted the delta, so the promoted specs moved 13 → 14 capabilities, 136 → 143
 requirements and 390 → 408 scenarios** - the fourteenth is `in-page-integration` at 7 requirements /
@@ -140,9 +141,27 @@ site - and the UX rules add a three-way choice on top. One change cannot carry t
   narrow: eight browser cases over recorded provider responses, plus a worker that retains nothing
   between requests. `tasks.md` **"look at the affordance on a real site" is deliberately unticked**,
   as at slice 1.
-- **Slice 3, `site-associations`.** `hostname -> mailbox`. A **second stored record kind**, and
-  `spectre-storage`'s contract says in its own opening that it has room for one - so this slice has
-  to answer a contract question, not only a client one.
+- **Slice 3, `site-associations` (PROPOSED on `docs/site-associations-proposal`).** `hostname ->
+  mailbox`. A **second stored record kind**, and `spectre-storage`'s contract says in its own opening
+  that it has room for one - so this slice has to answer a contract question, not only a client one.
+  **And the answer is larger than the roadmap's own sentence, which is worth stating because the
+  measurement forced it.** This product stores **exactly one mailbox per device**: both adapters
+  write it under a single key (`EXTENSION_MAILBOX_KEY` and `CURRENT_MAILBOX_KEY`, both `"current"`),
+  `saveMailbox` overwrites, and `create-mailbox.test.ts` already asserts it is called **twice** across
+  two creations. **A `hostname -> mailbox ID` map written against one mailbox is a map with one
+  entry**, so slice 3 also stores **a collection of mailboxes**, newest first, and the site's
+  association chooses among them. The three-way UX choice is delivered as **which** mailbox a host
+  resolves to - the site's own, or the newest - and the in-page control's accessible name carries the
+  address, because **a control that says only "Use SpectreMail" no longer says which address it is
+  about to write into somebody else's page**. **No menu is added inside a stranger's page**, and the
+  limit that accepts is recorded in the delta rather than left for M10 to discover: on a host that
+  has an association, a different existing mailbox cannot be chosen - a new one is created instead.
+  **This slice needs no delegation to the service worker, and that is measured rather than assumed:**
+  `chrome.storage.onChanged` **does** reach a content script's isolated world when the worker writes
+  `chrome.storage.local`, while the DOM `storage` event does not, so the write needs no `sendMessage`
+  seam where slice 2 needed one for the provider request. The site key is the top frame's
+  `location.hostname`, measured from inside the content script: the port is excluded and the value is
+  **already lower-cased**, so neither case-folding nor port-stripping is this layer's work.
 
 The order is the project's own stated rule applied to a milestone: **build a layer only once the one
 below it exists and is verified.** Detection and insertion are below creation and below the site

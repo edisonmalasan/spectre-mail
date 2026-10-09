@@ -1491,6 +1491,28 @@ must finish it**, and closing the page does not fix it - the worker outlives the
 fifth recorded instance of a **precondition** defect in this repository, and the second found by
 this change.
 
+**And one more, found by a machine that had never run these cases, and it is the seventh.** The
+`browser` job of run **`37876513503`** - on a **documentation-only** pull request, which is the part
+that makes it a finding rather than an annoyance - failed `in-page-create.spec.ts`'s *"inserts
+nothing into a field that acquired text, and records the address anyway"*, on
+`expect(record).not.toBeNull()` with **`Received: null`**. Three separate promises were being read
+as one: the field carries the typed text, the control reports nothing further, and **the device
+holds the mailbox** - and only the first two had been waited for. **A single
+`readStoredMailboxRecord(...)` is not a wait for the worker's `chrome.storage` write**, which is a
+separate round trip from the insertion the assertion above it waits for, and this repository had
+already recorded exactly that fact once - *"waiting for the address to appear on the popup does not
+wait for the `saveMailbox` write, so specs poll the stored record instead"*. **The sibling case two
+cases earlier already polled**; this one and two others in the same file did not. All three now
+poll, which is why the repair is three sites rather than the one CI named - **a defect that shows up
+at one site is evidence about the sites, not about the one.**
+
+**The lesson is the same shape as every other precondition defect recorded here, and it is worth
+stating plainly: the defect was latent in a merged tree, and thirty consecutive local runs did not
+find it.** What found it was a slower machine, on a pull request that changed no code the case
+reads. **And its number is the seventh against two different totals already in this file** - a
+"fifth" and a "sixth" - so this entry follows the higher one and records the disagreement rather
+than silently reconciling a history it did not write.
+
 **And, since M8, the extension's tier.** That the built `dist` loads as an unpacked
 extension in a real Chromium; that **Chromium parses its manifest to the same host permissions
 the file declares** — accepted, which is **not** the same as *granted*, and the difference is
