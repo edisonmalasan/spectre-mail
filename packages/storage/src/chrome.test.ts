@@ -22,55 +22,15 @@ import { describe, expect, it } from "vitest";
 import { createMailbox } from "@spectre-mail/core";
 import type { Mailbox } from "@spectre-mail/core";
 
-import { createChromeStorage, EXTENSION_MAILBOX_KEY } from "./chrome";
+import {
+  createChromeMailboxes,
+  createChromeSiteAssociations,
+  createChromeStorage,
+  EXTENSION_MAILBOX_KEY,
+} from "./chrome";
+import { fakeChromeArea as fakeArea } from "./testing/chrome-area";
 import type { ChromeStorageArea } from "./chrome-api";
 import { SPECTRE_RECORD_VERSION } from "./record";
-
-/**
- * A `chrome.storage.local` fake.
- *
- * Records every call so a test can assert on what the adapter **asked the platform
- * to do**, which is a different claim from what the platform then did. Both matter
- * here: the adapter clearing the whole area rather than one key is visible only in
- * the call it made.
- */
-function fakeArea(seed: Record<string, unknown> = {}) {
-  const data: Record<string, unknown> = { ...seed };
-  const calls: string[] = [];
-
-  const area: ChromeStorageArea = {
-    async get(keys) {
-      calls.push(`get(${keys === undefined ? "" : String(keys)})`);
-      if (keys === undefined || keys === null) {
-        return { ...data };
-      }
-      const wanted =
-        typeof keys === "string" ? [keys] : Array.isArray(keys) ? keys : Object.keys(keys);
-      const out: Record<string, unknown> = {};
-      // **A key that was never written is ABSENT, not present-and-undefined.**
-      // That is the platform's documented shape and the reason the adapter reads
-      // defensively; a fake that stored `undefined` would hide a real bug.
-      for (const key of wanted) {
-        if (Object.hasOwn(data, key)) {
-          out[key] = data[key];
-        }
-      }
-      return out;
-    },
-    async set(items) {
-      calls.push(`set(${Object.keys(items).join(",")})`);
-      Object.assign(data, items);
-    },
-    async clear() {
-      calls.push("clear()");
-      for (const key of Object.keys(data)) {
-        delete data[key];
-      }
-    },
-  };
-
-  return { area, data, calls };
-}
 
 /**
  * The mailbox this file round-trips.
@@ -270,5 +230,35 @@ describe("createChromeStorage", () => {
     };
 
     await expect(createChromeStorage({ area }).clearAll()).rejects.toThrow(/unavailable/);
+  });
+
+  it("removes a record written through a contract the caller never named", async () => {
+    const { area, data, calls } = fakeArea();
+    const storage = createChromeStorage({ area });
+
+    // **Three record kinds, written through three contracts, and one removal.** This is the case
+    // the single-record build could not write: at the time the requirement said removal means
+    // *everything*, there was nothing else to mean it over. A caller holding only
+    // `SpectreStorage` has no operation that could remove either of the others — so if this
+    // adapter ever narrowed `clearAll` to `EXTENSION_MAILBOX_KEY`, the test would still find the
+    // mailbox gone and would fail on the two records it never had a name for.
+    await createChromeMailboxes({ area }).addMailbox(mailbox);
+    await createChromeSiteAssociations({ area }).saveSiteMailboxId("mail.example", "session-token");
+
+    await storage.clearAll();
+
+    expect(data).toEqual({});
+    // **The call, not the result.** An empty area is what both a whole-area clear and a
+    // delete-every-known-key produce, so the result alone cannot tell the two apart — which is the
+    // whole reason this assertion exists.
+    expect(calls).toContain("clear()");
+  });
+
+  it("removes a record kind this build does not recognise", async () => {
+    const { area, data } = fakeArea({ "a-record-from-another-build": { anything: true } });
+
+    await createChromeStorage({ area }).clearAll();
+
+    expect(Object.hasOwn(data, "a-record-from-another-build")).toBe(false);
   });
 });

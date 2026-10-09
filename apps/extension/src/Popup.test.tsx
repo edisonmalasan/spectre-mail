@@ -104,15 +104,15 @@ function stubSession(initial: SessionState) {
 
 /** A storage that either reads a mailbox, reads nothing, or refuses. */
 function storageReading(outcome: Mailbox | null | Error): PopupStorage & {
-  readonly saveMailbox: ReturnType<typeof vi.fn>;
+  readonly addMailbox: ReturnType<typeof vi.fn>;
 } {
   return {
     loadMailbox: vi.fn(async () => {
       if (outcome instanceof Error) throw outcome;
       return outcome;
     }),
-    saveMailbox: vi.fn(async () => undefined),
-  } as PopupStorage & { readonly saveMailbox: ReturnType<typeof vi.fn> };
+    addMailbox: vi.fn(async () => undefined),
+  };
 }
 
 describe("the popup", () => {
@@ -188,7 +188,7 @@ describe("the popup", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Create an address" })).toBeDefined(),
     );
-    expect(storage.saveMailbox).not.toHaveBeenCalled();
+    expect(storage.addMailbox).not.toHaveBeenCalled();
 
     screen.getByRole("button", { name: "Create an address" }).click();
 
@@ -196,7 +196,7 @@ describe("the popup", () => {
     // unrecognised Guerrilla session answering `HTTP 200` with an empty inbox, so a
     // mailbox stored before the provider confirmed it would be offered back as though it
     // worked — and this is the assertion that the order is the safe one.
-    await waitFor(() => expect(storage.saveMailbox).toHaveBeenCalledWith(MAILBOX));
+    await waitFor(() => expect(storage.addMailbox).toHaveBeenCalledWith(MAILBOX));
   });
 
   it("reports a refused clipboard and leaves the address on screen", async () => {

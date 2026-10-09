@@ -1,8 +1,9 @@
 # AGENTS.md
 
 > **Current milestone state (reconciled against Git and OpenSpec 2026-10-08): M0-M8 are complete in
-> scope, M9 slice 1 is applied, verified, synced and ARCHIVED, and M9 slice 2 (`in-page-mailbox`) is
-> APPLIED and verified with its Sync and Archive stages to follow.** M7's four
+> scope, M9 slice 1 is applied, verified, synced and ARCHIVED, M9 slice 2 (`in-page-mailbox`) is
+> APPLIED, verified, synced and ARCHIVED, and M9 slice 3 (`site-associations`) is **APPLIED and
+> VERIFIED on `feat/site-associations`**, with its Sync and Archive stages to follow.** M7's four
 > slices are archived and M8
 > (`extension-foundation`) is applied, verified, synced, and archived at
 > `openspec/changes/archive/2026-10-07-extension-foundation/` - proposal **#75**, apply **#76**,
@@ -13,9 +14,13 @@
 > `openspec/changes/archive/2026-10-08-in-page-address/` - proposal **#84**, apply **#85**, sync
 > **#86**, archive **#87**. **`in-page-mailbox` (M9 slice 2) is APPLIED, VERIFIED, SYNCED and
 > ARCHIVED** at `openspec/changes/archive/2026-10-08-in-page-mailbox/` - proposal **#88** merged
-> (`c59bf79`), apply **#89**, sync **#90** - **and M9's slice 3 (`site-associations`) has not begun.**
-> **The sync promoted the delta, so the promoted specs now
-> hold what it asked for:** `openspec validate --specs --strict` is **14 passed, 0 failed**, across
+> (`c59bf79`), apply **#89**, sync **#90**, archive **#91**. **`site-associations` (M9 slice 3) is
+> APPLIED and VERIFIED on `feat/site-associations`**, proposal **#92** merged (`7755131`), **with its
+> Sync and Archive stages to follow** - so `openspec validate --specs --strict` is still **14 passed,
+> 0 failed, 146 requirements and 422 scenarios**, because an applied change has not yet promoted its
+> delta. **The promoted counts move at the sync stage and not before, and the distinction is recorded
+> here because "applied and verified" and "synced" are not the same claim.**
+> **Slice 2's sync promoted the delta, so the promoted specs then held what it asked for:** `openspec validate --specs --strict` is **14 passed, 0 failed**, across
 > **14 capabilities holding 146 requirements and 422 scenarios** - measured by counting
 > `### Requirement:` and `#### Scenario:` across `openspec/specs/`, not transcribed. That is
 > **143 → 146 requirements and 408 → 422 scenarios**, all of it in `in-page-integration`, which went
@@ -33,6 +38,27 @@
 > after the move** - because archiving is a move and a move is the operation most likely to quietly
 > drop a file. **This change's archive is the first one that kept `.openspec.yaml`**, where slice
 > 1's did not and `docs/ROADMAP.md` records that defect.
+>
+> **And the fix named above did not work, which is the reason it is worth reading twice.** "End blocks
+> at both headings" was implemented as **"only open a block inside a section"**, on the reasoning that
+> this closes the previous block at the next section for free. **It does not**: refusing to *open* a
+> block outside a section says nothing about *closing* a block that is already open, because the open
+> block simply runs on to the next `### Requirement:` - which now sits inside the new section - and
+> absorbs the heading whole. **Opening is not closing, and the same mistake was made twice in this
+> repository.** Measured on 2026-10-09 while preparing `site-associations`' sync: promoting on a
+> throwaway copy produced a promoted `spectre-storage/spec.md` of **676 lines** with a literal
+> `## ADDED Requirements` at **line 518** and `in-page-integration/spec.md` with one at **line 165** -
+> **delta-only markers inside promoted specs, sitting between two requirements**, in files that have
+> `## Purpose` and `## Requirements` and no sections to add to. After the fix, **8 blocks checked, 8
+> byte-identical**, and no `## (MODIFIED|ADDED|REMOVED) Requirements` anywhere under
+> `openspec/specs/`.
+>
+> **What caught it was the second script and only the second script**, and that is the transferable
+> part: the promoter and the verifier were written with deliberately different readers precisely so
+> one could not inherit the other's blind spot. The independence is structural, not a promise -
+> neither file imports the other and all four reader functions are separately defined. **A tool that
+> also checks its own work cannot report its own defect**, so a sync whose copy step and comparison
+> step share a reader has one reader and one opinion, and the comparison is decoration.
 >
 > **Read the milestone sections below as history rather than as current state.** They are kept
 > in the order the milestones happened and each records the measured counts as they stood at
@@ -134,6 +160,11 @@ The current state, in dependency order:
   an IndexedDB adapter, a browser entry point and a `chrome.storage` adapter — **which the
   website uses for its address and the extension uses for its own**, and **the extension uses
   from two different contexts**, which is the claim M9 slice 1 added a boundary rule for.
+  **Since M9 slice 3 it holds two more contracts beside the first** —
+  `SpectreMailboxes` for a **newest-first collection of mailboxes** and
+  `SpectreSiteAssociations` for a **`hostname -> mailbox id` map** — **with `chrome.storage`
+  adapters only and no IndexedDB adapter for either**, which is why `apps/web` gained no member:
+  a contract the website cannot use is not one the website should be made to hold.
 - A website client (`apps/web`) that renders all of it, with **persistence** and, since
   M7 slice 1, **the first styling in the product's history**.
 - **An in-page client (`apps/extension/src/content-script/`), new at M9 slice 1**: it watches
@@ -149,9 +180,22 @@ The current state, in dependency order:
   offers creation, and the request is delegated to the service worker** — measured, not preferred:
   a content script's `fetch` obeys the **page's** CORS policy while the extension's
   `host_permissions` do not reach it (`docs/PROVIDERS.md` §4.4, measured 2026-10-08), so the
-  provider is contacted from **exactly one context**. **Still no polling in-page, no copy, no side
-  panel and no site association**, because M9's slice 3 owns the last of those and nothing after
-  this one owns the others.
+  provider is contacted from **exactly one context**. **Since M9 slice 3 the address it offers
+  depends on the page's own host**: after a real insertion it writes
+  `location.hostname -> mailbox id` into `chrome.storage.local`, and a later visit to that host
+  is offered the mailbox it was last used with while any other host is offered the newest one
+  this device holds. **The key is the exact `hostname` with no registrable-domain folding**, so
+  `a.example.com` and `b.example.com` stay apart, and it is written **only** after an insertion
+  lands — never because a control was offered. **This slice needed no delegation to the service
+  worker, and that is measured rather than assumed**: `chrome.storage.onChanged` reaches a
+  content script's isolated world when the worker writes the area, while the DOM `storage` event
+  does not, so `protocol.ts` gained **no** message type and `service-worker.test.ts` is still 5.
+  **The three limits are stated rather than left for M10 to discover**: no menu inside a
+  stranger's page, so a host with an association cannot have a *different existing* mailbox
+  chosen for it; a **stale** association is ignored and **left in place**, replaced only by an
+  insertion with a different mailbox; and a document with **no host** reads and writes no
+  association at all. **Still no polling in-page, no copy and no side panel**, and nothing after
+  this slice owns any of the three.
 - A design-token layer (`packages/ui`) that both clients will consume, holding colour for
   **two declared schemes**, type, spacing, radius, two **measures**, and motion, and **no**
   layout and no component styles. **"No layout" is qualified, and the qualification was
@@ -596,19 +640,40 @@ Pin versions when exact versions matter.
   no extension build step — that is M8" became false at M8 and is deleted rather than
   reworded.**
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running **845 tests across
-  47 files** via `pnpm test` (2026-10-08, at `in-page-mailbox`'s apply stage, with
+- Testing: Vitest `3.2.7` at the workspace root, verified running **891 tests across
+  51 files** via `pnpm test` (2026-10-09, at `site-associations`' apply stage, with
   `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory), counted from a
   JSON reporter **grouped by project** rather than read off a summary line:
   54 in `packages/core`, 89 in `packages/providers`, **149 in `packages/mail-parser`**,
   **155 in `packages/mailbox`**, **120 in `apps/web`**,
-  **54 in `packages/storage`** (7 stored record, 30 IndexedDB adapter, 7 browser entry
-  point, **10 `chrome.storage` adapter**),
-  **130 in `apps/extension`** (**25** in `content-script.test.ts`, **25** in `protocol.test.ts`,
-  **21** in `extension-platform.test.ts`, **17** in `content-script-create.test.ts`, **11** in
-  `create-mailbox.test.ts`, **9** in `provider-config.test.ts`, **8** in `Popup.test.tsx`,
+  **78 in `packages/storage`** (7 stored record, **11 mailbox collection**, 30 IndexedDB adapter,
+  **11 site associations**, 7 browser entry point, **12 `chrome.storage` adapter**),
+  **151 in `apps/extension`** (**25** in `content-script.test.ts`, **28** in `protocol.test.ts`,
+  **21** in `extension-platform.test.ts`, **17** in `content-script-create.test.ts`, **9** in
+  `content-script-associations.test.ts`, **11** in
+  `create-mailbox.test.ts`, **9** in `storage.test.ts`, **9** in `provider-config.test.ts`,
+  **8** in `Popup.test.tsx`,
   **5** in `popup-copy.test.ts`, **5** in `service-worker.test.ts`, **4** in `scheduler.test.ts`),
-  **38 in `packages/ui`**, and **56 architecture boundary assertions**.
+  **38 in `packages/ui`**, and **57 architecture boundary assertions**.
+  **`site-associations` moved `packages/storage` 54 → 78, `apps/extension` 130 → 151 and the
+  boundary count 56 → 57, and moved nothing else.** **The two unmoved numbers are the
+  measurement this slice's plan turned on**: `apps/web` is still **120**, which is also how the
+  change proves it added nothing to the website - `SpectreStorage` keeps its three members and
+  the IndexedDB adapter gained none - and `packages/ui` is still **38** for the **sixth** time,
+  because `design.md` D7 commits this slice to **no new token and no new motion**; a rise would
+  have meant visual surface no capability describes. **All four new files are new**, so nothing
+  was edited: `mailboxes.test.ts`, `site-associations.test.ts`, `storage.test.ts` and
+  `content-script-associations.test.ts` did not exist at the baseline, and `protocol.test.ts` is
+  25 → 28 for the `mailboxId` amendment. **`service-worker.test.ts` is still 5**, which is the
+  measurement that carries design.md D7 - this slice reached no message seam at all.
+  **`content-script-associations.test.ts` is 9 rather than the 8 the falsification run measured,
+  and the ninth case was added after that run** - so a count that moves once a suite has been
+  falsified is a count that was measuring a tree before its last repair, and it is recorded here
+  rather than left for the next reader to reconcile.
+  **And the baseline was measured rather than read**: a `git worktree` at the merge-base
+  (`7755131`) was installed **offline** and measured with the same reporter, giving **845 across
+  47 files** - which is the figure this paragraph already carried, and which is now a
+  measurement rather than a number transcribed from an earlier session's summary.
   **`in-page-mailbox` moved `apps/extension` 50 → 130 and moved nothing else - including the
   boundary count, which stayed at 56, and that is a finding rather than an omission**: the rule
   slice 1 added was **rewritten rather than added to**, because the absence check it was born as
@@ -1338,9 +1403,9 @@ pnpm test:browser
 
 ```
 
-Playwright `1.63.0`, **two configurations, 10 spec files and 81 test cases** - **Chromium
+Playwright `1.63.0`, **two configurations, 11 spec files and 93 test cases** - **Chromium
 only**. The command builds **both** clients, then the in-page fixture, and then runs the two
-suites in order: the website's **37** in `apps/web/e2e/`, and the extension's **44** in
+suites in order: the website's **37** in `apps/web/e2e/`, and the extension's **56** in
 `apps/extension/e2e/`.
 
 **The website's 4 spec files and 37 cases** - `storage.spec.ts`
@@ -1366,10 +1431,11 @@ assertion above it, and the exemption would be indistinguishable from a pattern 
 stopped firing. **The extension's 16 did not move**, which is the check that this change did not
 touch the extension client.
 
-**The extension's 6 spec files and 44 cases** - `manifest.spec.ts` (**9**; **6** added by M8 and
+**The extension's 7 spec files and 56 cases** - `manifest.spec.ts` (**9**; **6** added by M8 and
 **three** by `in-page-address`), `popup.spec.ts` (**8**), `in-page.spec.ts` (**17**, added by
-`in-page-address`), **`in-page-create.spec.ts` (**8**, added by `in-page-mailbox`)**,
-`measurement.spec.ts` (**1**) and `alarm-floor.spec.ts` (**1**) - **44 in 6 files, against the
+`in-page-address`), `in-page-create.spec.ts` (**8**, added by `in-page-mailbox`),
+**`in-page-associations.spec.ts` (**12**, added by `site-associations`)**,
+`measurement.spec.ts` (**1**) and `alarm-floor.spec.ts` (**1**) - **56 in 7 files, against the
 extension's 36 in 5 at slice 1, and the 16 in 4 that `extension-preview` recorded**.
 **It has no `webServer` at all**, which is not an omission: it loads `apps/extension/dist`
 as an unpacked extension through `chromium.launchPersistentContext`. **Two flags and an
@@ -1512,6 +1578,119 @@ find it.** What found it was a slower machine, on a pull request that changed no
 reads. **And its number is the seventh against two different totals already in this file** - a
 "fifth" and a "sixth" - so this entry follows the higher one and records the disagreement rather
 than silently reconciling a history it did not write.
+
+**`site-associations` added a twelfth and a thirteenth, and the first of the two is the same
+defect wearing a different hat.** Its `records the mailbox it inserted, under this host`
+**seeded** the association it then asserted: the seed made the controller offer that mailbox,
+the press inserted it, and the assertion read back the value the seed had already written - so
+mutation `B01`, which removes the write outright, left the case **green**. **It asserted that
+the device *holds* an id while naming the claim that the device *records* an insertion, and
+those are the same claim only when nothing put that id there first.** The repair seeds a
+*neighbouring* host and asserts the key is **absent before the press**, because a poll that
+starts satisfied passes immediately on a controller that never wrote anything.
+
+**And the same change found that no unit case covered the write at all**, by the identical
+mechanism: two cases read `held.saves`, and both were about *which* mailbox was chosen or
+about a stale record being left alone, so their save assertion rode along on cases that would
+pass without it. **A defect caught in the browser tier and nowhere else is a fact about the
+tier, not about the suite** - which is the eighth *precondition* entry and, because this file
+already carries a "fifth" and a "sixth", the number here follows the higher total.
+
+**One limit case read the wrong document, and the platform rule that explains it was written
+into its own comment first.** A mutation mirroring the insertion into `localStorage` left the
+case green, because a `storage` event is delivered to *other* same-origin documents and never
+to the one that made the write - so the listener sat on the page doing the inserting. The
+case now installs listeners on **both** documents and reads the neighbour's. **A correct note
+and an incorrect assertion are produced by the same mistake**, and only the mutation
+separated them.
+
+**And a second limit case asserted something the platform had already contradicted.** It
+claimed `"chrome" in globalThis === false` for the page's world; **Chromium answered `true`**,
+because an ordinary web page does get a `chrome` object carrying the long-deprecated
+`loadTimes`, `csi` and `app` properties. **A platform global's presence is not its content.**
+The case now requires the page to reach none of the three namespaces this product actually
+uses - `storage`, `runtime` and `alarms` - which is the claim the isolation property really
+makes. Three named namespaces rather than a wildcard, because a wildcard would be satisfied by
+a *new* extension API appearing without anyone deciding the page should get it.
+
+**And the change found a divergence no run could have — a suite green about a claim nothing
+asserted**, which is a shape this file has recorded many times and for which it carries **no
+running total**, so none is invented here. The delta's scenario *"The association cannot be read at
+all"* was written before a line of the code was, and the code did not do it: both reads shared one
+`Promise.all`, so **a failed *lookup* rejected the whole boot read**, which means "this device
+cannot say what it holds", which means **offer nothing**. A device holding three mailboxes and one
+broken preference offered a person no address.
+
+**The requirement was right and the code was wrong, and the reason is that the two reads are not
+the same kind of question.** The collection read decides *whether this device holds anything* — its
+failure is what `readFailed` is for, because offering to create on a device whose contents are
+unknown would offer a **second** mailbox. The lookup decides only *which* of the mailboxes it holds
+this host was last used with, and a device that can say "here they are, newest first" and cannot
+say "this host used one of them" is not in doubt about anything. The fix is one `.catch(() => null)`
+at the call — **the only rejection in that file that is absorbed rather than remembered**, which is
+why it says so — and a mutation widening it to the *collection* read is caught by the two cases
+carrying the blocked-read arm, so the repair does not delete the rule it sits beside.
+
+**And no unit case could have found it, because no unit case failed.** The scenario needed a case
+whose *only* failure is the lookup, and the fake had one flag that failed **both** reads. A case
+written against that flag would have asserted "offers nothing" and passed — against the buggy code
+*and* against a correct one, because a correct implementation for the wrong reason looks identical
+from here. `fakeRecords` gained `loadSiteRejects` for exactly that, and the reason is written on the
+option: **one flag for both arms makes the second arm unreachable.**
+
+**It was found by reading the delta against the code** — after twenty-one mutations and a green
+`pnpm verify` had both passed against the tree. **Not** after the browser blocks: the first of those
+was **aborted after three green runs**, because the divergence was found while it was still going
+and a block measuring a tree that is about to change is not evidence about the tree that gets
+committed. That is worth stating plainly, because **the instrument that finds this class of defect
+is not a gate**; it is a reader comparing what was asked for with what was built, and no gate in
+this repository substitutes for it.
+
+**And reading the other delta found a second one — so the instrument is two for two here.** The
+`spectre-storage` scenario said the collection's first entry **"SHALL be the mailbox the
+single-mailbox contract reports as current"**. **Measured over the real `chrome.storage` adapters**
+on a device that recorded two mailboxes through this build: `collection=["newest","older"]`,
+`first="newest"`, **`single=null`** — the clause is false in the strongest way available, because
+the singular key is never written now that every write moved onto `addMailbox`. It also names a
+pairing **no adapter has**: the website's only adapter serves the singular record and has **no
+collection adapter at all**. **So the pairing is amended away rather than implemented**, and the
+reason it is not implemented is **one write and not two** — the same requirement forbids exactly
+that two paragraphs above, and `chrome.storage` has no transaction that would make two writes
+atomic. The newest *is* unambiguously the mailbox an insertion would use, which is the property the
+clause was reaching for.
+
+**And this change's own boundary rule falsified the reason the code gave for not merging.** The new
+`extensionSingularWriteViolations` forbids every module in `apps/extension/src` from naming
+`saveMailbox`, which means the singular record can only have been written by a build predating the
+collection — it is **strictly older** than every member, by construction. `loadInsertableMailboxes`
+said a merge would "call a newest-first order a fact about a list the two records were written in no
+common order", and that is false: the order is known, and a merge would have been
+`[...collection, singular]` deduplicated by id. **The decision stands on an honest reason instead —
+nothing in this milestone can show a second entry** — and the note and the test comment carrying the
+false one are corrected. **The cost is recorded rather than solved**, because solving it needs a
+surface this milestone does not have: **a mailbox recorded before this build stops being insertable
+once this device records another one.** That is now a scenario in the delta, so a promoted spec
+carries it, and the existing case in `storage.test.ts` already covers it exactly — so **no new case
+was written**, because a second case for an arm that already has one is how a suite grows a number
+that reads as coverage.
+
+**A rule's own reason can be wrong while its rule is right, and the two are repaired differently.**
+The `chrome.ts` reader for one raw key also carried **its documentation block twice, verbatim** —
+found by reading the file rather than by any check, and removed.
+
+**And, in the same change, a rule had to be widened and the widening itself had to be falsified.**
+`clientStorageApiViolations()` fired on `apps/extension/e2e/helpers/in-page-fixture.ts`, which
+installs a `storage` listener *inside the fixture page* — the positive control for a claim about
+the product being invisible to a page. **The fix is not a carve-out on `localStorage`,** because
+that would permit the exact thing the requirement forbids, in shipped code, everywhere. It is an
+exemption for **the browser tier's own directory**, read out of each suite's `testDir` by the
+existing `browserSuites()` helper — so **an unparseable configuration yields a path no file is
+under, and the rule reports**, the direction the sibling collection rule fails in. Two mutations
+hold it: widened to "skip every file in a client", caught by the planted per-client probe; and its
+prefix shortened by one segment so it covers the **parent** of every `testDir`, caught **only** by
+the new control. **An exemption asserted from one side is a hole until it is asserted from the
+other**, and the first assertion here — a probe inside `testDir` goes unreported — is satisfied by
+exactly the mutation the second one catches.
 
 **And, since M8, the extension's tier.** That the built `dist` loads as an unpacked
 extension in a real Chromium; that **Chromium parses its manifest to the same host permissions
@@ -1952,7 +2131,41 @@ mutation had nothing to do with. **A recorded observation about the wrong test i
 
 **`pnpm verify` was run three times at this stage, all green, and `pnpm test:browser` thirty
 consecutive times in three blocks of ten: 30 passed, 0 failed, 37 website and 44 extension cases on
-every run.**
+every run.** **The 44 is `in-page-mailbox`'s figure and is kept because the 56 below is only readable
+against it** - the extension's tier grew by twelve, all in `in-page-associations.spec.ts`.
+
+**`pnpm test:browser` was run thirty consecutive times at `site-associations`'s stage, in three
+blocks of ten: 30 passed, 0 failed, 37 website and 56 extension cases on every run** - and block 1 was
+then run a **fourth** time, so **40 completed runs, all green**.
+
+**And two blocks were abandoned, and the figure this paragraph used to carry for that was wrong.** It
+said six discarded runs; the captured output of the two killed blocks shows **two and zero**. One was
+stopped after 2 completed green runs, when reading the change's delta against its own code found a
+requirement the implementation did not meet - **the browser tier cannot find that class of defect**,
+because nothing about the product was broken, only what was asked for, so a green suite said nothing
+either way. The other was stopped before its first run finished, when the README's limit list and a
+stranded documentation block still needed changing. **Two, not six** - and a number written down
+before the output was re-read is the reason it is corrected rather than quietly kept.
+
+**Why a fourth block ran, which is the part that is easy to state wrongly.** Between the third block
+and the fourth, **three documentation files changed and nothing else**: `AGENTS.md`, `design.md`,
+`tasks.md`. That was established by a SHA-256 fingerprint over every tracked and untracked source
+file rather than asserted, and it reports exactly those three paths and no source, test or
+configuration file. **So 10 of the 40 runs are on the exact tree being committed, and 30 are on a tree
+differing from it in three documentation files** - which is stated here rather than rounded to "all
+40 on the shipped tree". The three are inert to both tiers and that was checked rather than assumed:
+**no Vitest file and no browser spec reads `openspec/` or `AGENTS.md`**, every match in the tree is a
+prose reference inside a comment, and neither build lists `AGENTS.md` as an input.
+
+**The instrument was wrong first, and it is recorded because a tally and an exit code disagreed.**
+The block script printed its tally and fell off the end, so a **completed** block reported
+`exit 1` with no explanation - and so did an **aborted** one. Two different outcomes carrying one
+number is the shape this file has recorded many times, in the other direction: a check that did not
+run is not a check that passed. It now prints each run's `status` and `error` beside its case counts
+and **exits on the tally it reported**, and **block 1 was then re-run under the corrected instrument
+rather than credited from the run whose exit code nobody could read** - which is why all three blocks
+are measured the same way, and why the re-run happened at all rather than the first block being
+declared good enough.
 
 **`pnpm test:browser` was run thirty consecutive times at `M9 slice 1`'s stage, in three blocks of
 ten, counting failures: 30 passed, 0 failed, 36 cases on every run.** The precedent in this file is

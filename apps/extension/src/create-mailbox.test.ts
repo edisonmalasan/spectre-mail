@@ -85,20 +85,25 @@ function creationTransport(requests: TransportRequest[]): Transport {
   );
 }
 
-/** A store that reports what it was asked to save, and can be told to fail. */
+/**
+ * A store that reports what it was asked to record, and can be told to fail.
+ *
+ * **`addMailbox`, and only `addMailbox`.** The worker no longer writes the singular record at all, so
+ * a stand-in offering `saveMailbox` would let a regression back to it compile — and the boundary rule
+ * in `tests/architecture/boundaries.test.ts` is what holds the client down; this shape is the first
+ * half of that, since a port that cannot express the old write is a port nobody can use wrongly.
+ */
 function store(options: { readonly saveRejects?: boolean } = {}) {
   const saved: Mailbox[] = [];
 
   return {
     saved,
-    saveMailbox: vi.fn(async (mailbox: Mailbox) => {
+    addMailbox: vi.fn(async (mailbox: Mailbox) => {
       if (options.saveRejects === true) {
         throw new Error("the write was not committed");
       }
       saved.push(mailbox);
     }),
-    loadMailbox: vi.fn(async (): Promise<Mailbox | null> => saved[0] ?? null),
-    clearAll: vi.fn(async () => {}),
   };
 }
 
@@ -113,13 +118,20 @@ describe("answering a creation request", () => {
     // "the address matches" assertion. What makes this case fail is that the store has been asked
     // to save exactly the mailbox whose address is answered.
     const answer = await handleCreateMailbox(CREATE_MAILBOX_REQUEST, {
-      storage,
+      mailboxes: storage,
       openMailbox: createExtensionMailboxOpener(creationTransport(requests)),
     });
 
-    expect(storage.saveMailbox).toHaveBeenCalledTimes(1);
+    expect(storage.addMailbox).toHaveBeenCalledTimes(1);
     expect(storage.saved).toHaveLength(1);
-    expect(answer).toEqual({ kind: "created", address: storage.saved[0]?.address });
+    // **Both halves, and the id is asserted against the record that was written** rather than against
+    // a literal. A page records a host's association under that id, so an answer carrying an id from
+    // anywhere other than the mailbox just stored would record an association to nothing.
+    expect(answer).toEqual({
+      kind: "created",
+      address: storage.saved[0]?.address,
+      mailboxId: storage.saved[0]?.id,
+    });
   });
 
   it("answers with the address the adapter asked the provider to create", async () => {
@@ -127,7 +139,7 @@ describe("answering a creation request", () => {
     const storage = store();
 
     const answer = await handleCreateMailbox(CREATE_MAILBOX_REQUEST, {
-      storage,
+      mailboxes: storage,
       openMailbox: createExtensionMailboxOpener(creationTransport(requests)),
     });
 
@@ -156,7 +168,11 @@ describe("answering a creation request", () => {
     // **The answer is that same address**, which is the whole claim: the handler did not build one
     // of its own and did not carry back the recorded body's — it passed on what the shared layer
     // produced.
-    expect(answer).toEqual({ kind: "created", address: asked.address });
+    expect(answer).toEqual({
+      kind: "created",
+      address: asked.address,
+      mailboxId: storage.saved[0]?.id,
+    });
     expect(storage.saved[0]?.address).toBe(asked.address);
   });
 
@@ -174,7 +190,7 @@ describe("answering a creation request", () => {
       { kind: "another-extension:anything" },
       {},
     ]) {
-      const answer = await handleCreateMailbox(message, { storage, openMailbox });
+      const answer = await handleCreateMailbox(message, { mailboxes: storage, openMailbox });
 
       expect(answer).toEqual({ kind: "notActedOn" });
     }
@@ -183,7 +199,7 @@ describe("answering a creation request", () => {
     // names both: no mailbox created and nothing persisted. A handler that returned `notActedOn`
     // *after* creating and storing would satisfy the answer and violate both.
     expect(openMailbox).not.toHaveBeenCalled();
-    expect(storage.saveMailbox).not.toHaveBeenCalled();
+    expect(storage.addMailbox).not.toHaveBeenCalled();
     expect(requests).toEqual([]);
   });
 });
@@ -218,7 +234,7 @@ describe("the paths a provider can take", () => {
     const state = await createExtensionMailboxOpener(throttled)();
 
     const answer = await handleCreateMailbox(CREATE_MAILBOX_REQUEST, {
-      storage,
+      mailboxes: storage,
       openMailbox: () => Promise.resolve(state),
     });
 
@@ -247,14 +263,14 @@ describe("the paths a provider can take", () => {
 
     // **And nothing was stored**, which is the requirement's third clause and the one a summary
     // would have made easy to forget.
-    expect(storage.saveMailbox).not.toHaveBeenCalled();
+    expect(storage.addMailbox).not.toHaveBeenCalled();
   });
 
   it("answers `notStored` and no address when the write is refused", async () => {
     const requests: TransportRequest[] = [];
 
     const answer = await handleCreateMailbox(CREATE_MAILBOX_REQUEST, {
-      storage: store({ saveRejects: true }),
+      mailboxes: store({ saveRejects: true }),
       openMailbox: createExtensionMailboxOpener(creationTransport(requests)),
     });
 
@@ -283,12 +299,12 @@ describe("the paths a provider can take", () => {
     // page renders as "could not confirm" — losing the difference between a refused request and a
     // broken one.
     const answer = await handleCreateMailbox(CREATE_MAILBOX_REQUEST, {
-      storage,
+      mailboxes: storage,
       openMailbox: () => Promise.reject(new Error("net::ERR_NAME_NOT_RESOLVED")),
     });
 
     expect(answer).toEqual({ kind: "refused", description: "net::ERR_NAME_NOT_RESOLVED" });
-    expect(storage.saveMailbox).not.toHaveBeenCalled();
+    expect(storage.addMailbox).not.toHaveBeenCalled();
   });
 
   it("answers `refused` when nothing was thrown and nothing was said either", async () => {
@@ -306,13 +322,13 @@ describe("the paths a provider can take", () => {
     // the real one means the case cannot be satisfied by a narrowing that admits less than it does
     // today. `opened: { kind: "none" }` is what a session that has never looked at a message holds.
     const answer = await handleCreateMailbox(CREATE_MAILBOX_REQUEST, {
-      storage,
+      mailboxes: storage,
       openMailbox: () => Promise.resolve({ kind: "idle", opened: { kind: "none" } } as const),
     });
 
     expect(answer.kind).toBe("refused");
     expect(answer.kind === "refused" && answer.description).toContain("nothing to show");
-    expect(storage.saveMailbox).not.toHaveBeenCalled();
+    expect(storage.addMailbox).not.toHaveBeenCalled();
   });
 });
 
@@ -322,9 +338,15 @@ describe("two requests are two mailboxes", () => {
     const storage = store();
     const openMailbox = createExtensionMailboxOpener(creationTransport(requests));
 
-    const first = await handleCreateMailbox(CREATE_MAILBOX_REQUEST, { storage, openMailbox });
+    const first = await handleCreateMailbox(CREATE_MAILBOX_REQUEST, {
+      mailboxes: storage,
+      openMailbox,
+    });
     const accountCalls = requests.filter((request) => request.url.includes("/accounts")).length;
-    const second = await handleCreateMailbox(CREATE_MAILBOX_REQUEST, { storage, openMailbox });
+    const second = await handleCreateMailbox(CREATE_MAILBOX_REQUEST, {
+      mailboxes: storage,
+      openMailbox,
+    });
 
     // **The account-creation count is the assertion that matters, and it is why the transport above
     // is unbounded.** A worker holding one session between events could answer twice while asking a
@@ -333,7 +355,7 @@ describe("two requests are two mailboxes", () => {
     // observable has to be a second round trip.
     expect(accountCalls).toBe(1);
     expect(requests.filter((request) => request.url.includes("/accounts"))).toHaveLength(2);
-    expect(storage.saveMailbox).toHaveBeenCalledTimes(2);
+    expect(storage.addMailbox).toHaveBeenCalledTimes(2);
 
     // **And the two answers are different addresses, which is the second half of independence and
     // is only available because the Mail.tm adapter generates its local part.** A worker that
@@ -375,7 +397,7 @@ describe("two requests are two mailboxes", () => {
     // stopped consulting the exported id list is the defect `WEBSITE_PROVIDER_IDS`'s "read as a
     // value" rule exists to prevent.
     const answer = await handleCreateMailbox(CREATE_MAILBOX_REQUEST, {
-      storage: store(),
+      mailboxes: store(),
       openMailbox: createExtensionMailboxOpener(
         recordedTransport(
           [

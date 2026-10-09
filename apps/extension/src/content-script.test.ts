@@ -29,6 +29,7 @@ import {
 } from "./content-script/affordance";
 import { startInPageIntegration } from "./content-script/controller";
 import { isEmailField } from "./content-script/email-field";
+import { fakeRecords, settledBoot } from "./content-script/testing/fake-records";
 import type { CreateMailboxAnswer } from "./protocol";
 
 const ADDRESS = "kept@address.test";
@@ -63,11 +64,16 @@ function harness(
   // **`replaceChildren()`, not `innerHTML = ""`** - see {@link field} for why no client file
   // in this repository builds or clears its DOM by markup.
   document.body.replaceChildren();
-  const loadMailbox = options.loadRejects
-    ? vi.fn(() => Promise.reject(new Error("the read failed")))
-    : vi.fn(() =>
-        Promise.resolve(options.stored === undefined ? mailbox(ADDRESS) : options.stored),
-      );
+
+  const held = fakeRecords({
+    mailboxes:
+      options.stored === undefined
+        ? [mailbox(ADDRESS)]
+        : options.stored === null
+          ? []
+          : [options.stored],
+    ...(options.loadRejects === undefined ? {} : { loadRejects: options.loadRejects }),
+  });
 
   // **A default that answers `notActedOn` rather than nothing, so this file's own insertion cases
   // would fail if they ever dispatched a creation.** Every test below stores a mailbox, so the
@@ -83,13 +89,18 @@ function harness(
   // a conditional spread is the difference between "absent" and "explicitly nothing".
   const stop = startInPageIntegration({
     document,
-    storage: { loadMailbox },
+    records: held.records,
     createMailbox,
     ...(options.onBlocked === undefined ? {} : { onBlocked: options.onBlocked }),
   });
   started.push(stop);
 
-  return { stop, loadMailbox, createMailbox, host };
+  // **`loadMailbox` is the collection's reader under its old name.** Several cases below assert on
+  // *which host was consulted*, which is only reachable through the records; the alias keeps those
+  // assertions readable instead of renaming them all for no gain.
+  const loadMailbox = held.records.loadMailboxes;
+
+  return { stop, loadMailbox, createMailbox, host, held };
 }
 
 /**
@@ -231,27 +242,27 @@ describe("recognising an email field", () => {
 describe("the affordance appears on focus, and only then", () => {
   it("offers nothing while no field holds focus", async () => {
     const { host } = harness();
-    await Promise.resolve();
+    await settledBoot();
     expect(host()).toBeNull();
   });
 
   it("offers the affordance when an empty email field takes focus", async () => {
     const { host } = harness();
-    await Promise.resolve();
+    await settledBoot();
     focusField(field(EMAIL));
     expect(host()).not.toBeNull();
   });
 
   it("offers nothing for a field that is not an email field", async () => {
     const { host } = harness();
-    await Promise.resolve();
+    await settledBoot();
     focusField(field({ type: "text", name: "username" }));
     expect(host()).toBeNull();
   });
 
   it("removes the affordance when the field loses focus", async () => {
     const { host } = harness();
-    await Promise.resolve();
+    await settledBoot();
     const target = field(EMAIL);
     focusField(target);
     blurField(target);
@@ -261,7 +272,7 @@ describe("the affordance appears on focus, and only then", () => {
 
   it("shows exactly one affordance when focus moves between two fields", async () => {
     harness();
-    await Promise.resolve();
+    await settledBoot();
     focusField(field(EMAIL));
     focusField(field({ type: "email", name: "email" }));
     // **A settled task, not a bare `await`.** The teardown is deferred by one `setTimeout`,
@@ -283,8 +294,8 @@ describe("the two refusals", () => {
   // differ only by name.
   it("offers to create an address, and says so, when this device holds no stored mailbox", async () => {
     const { host } = harness({ stored: null });
-    await Promise.resolve();
-    await Promise.resolve();
+    await settledBoot();
+    await settledBoot();
     focusField(field(EMAIL));
     expect(host()).not.toBeNull();
     expect(host()?.shadowRoot?.textContent).toContain(AFFORDANCE_CREATE_LABEL);
@@ -296,7 +307,7 @@ describe("the two refusals", () => {
 
   it("offers nothing on a field that already holds text", async () => {
     const { host } = harness();
-    await Promise.resolve();
+    await settledBoot();
     focusField(field({ type: "email", name: "email", value: "someone@example.com" }));
     expect(host()).toBeNull();
   });
@@ -329,14 +340,14 @@ describe("the two refusals", () => {
     // mutation it missed. A `type="text"` field recognised through `name="email"` keeps all three
     // spaces — measured, and reported by the throwaway probe recorded in `design.md`.
     const { host } = harness();
-    await Promise.resolve();
+    await settledBoot();
     focusField(field({ type: "text", name: "email", value: "   " }));
     expect(host()).not.toBeNull();
   });
 
   it("does not insert over text typed between focus and press", async () => {
     const { host } = harness();
-    await Promise.resolve();
+    await settledBoot();
     const target = field(EMAIL) as HTMLInputElement;
     focusField(target);
 
@@ -354,8 +365,8 @@ describe("a blocked read is not an absent address", () => {
   it("reports the rejection rather than treating it as nothing stored", async () => {
     const onBlocked = vi.fn();
     harness({ loadRejects: true, onBlocked });
-    await Promise.resolve();
-    await Promise.resolve();
+    await settledBoot();
+    await settledBoot();
     expect(onBlocked).toHaveBeenCalledWith("the read failed");
   });
 
@@ -368,8 +379,8 @@ describe("a blocked read is not an absent address", () => {
   // "empty" that a test can observe — `readFailed` is private, and this is its whole observable.
   it("still offers nothing, because it neither holds nor can confirm an address", async () => {
     const { host } = harness({ loadRejects: true });
-    await Promise.resolve();
-    await Promise.resolve();
+    await settledBoot();
+    await settledBoot();
     focusField(field(EMAIL));
     expect(host()).toBeNull();
   });
@@ -378,7 +389,7 @@ describe("a blocked read is not an absent address", () => {
 describe("activating the affordance", () => {
   it("fills the field, dispatches both events, and does not submit the form", async () => {
     const { host } = harness();
-    await Promise.resolve();
+    await settledBoot();
 
     const submitted = vi.fn();
     const form = document.createElement("form");
@@ -411,7 +422,7 @@ describe("activating the affordance", () => {
 
   it("removes the affordance once it has acted", async () => {
     const { host } = harness();
-    await Promise.resolve();
+    await settledBoot();
     const target = field(EMAIL) as HTMLInputElement;
     focusField(target);
     const button = host()?.shadowRoot?.querySelector(`[${AFFORDANCE_BUTTON_ATTRIBUTE}]`);
@@ -421,7 +432,7 @@ describe("activating the affordance", () => {
 
   it("survives the focus that pressing it moves, and still inserts", async () => {
     const { host } = harness();
-    await Promise.resolve();
+    await settledBoot();
     const target = field(EMAIL) as HTMLInputElement;
     focusField(target);
 
@@ -458,7 +469,7 @@ describe("activating the affordance", () => {
 
   it("sees the affordance's focus retargeted to its host, not its button", async () => {
     const { host } = harness();
-    await Promise.resolve();
+    await settledBoot();
     focusField(field(EMAIL));
 
     const button = host()?.shadowRoot?.querySelector(`[${AFFORDANCE_BUTTON_ATTRIBUTE}]`);
@@ -484,7 +495,7 @@ describe("activating the affordance", () => {
 
   it("does not confuse its own control for another field's", async () => {
     const { host } = harness();
-    await Promise.resolve();
+    await settledBoot();
     focusField(field(EMAIL));
 
     // **Identity, not selector.** The guard compares the focus target with the live
@@ -502,7 +513,7 @@ describe("activating the affordance", () => {
 
   it("labels the control, and keeps the label out of the page's own text", async () => {
     const { host } = harness();
-    await Promise.resolve();
+    await settledBoot();
     focusField(field(EMAIL));
     expect(host()?.shadowRoot?.textContent).toContain(AFFORDANCE_LABEL);
     expect(document.body.textContent).not.toContain(AFFORDANCE_LABEL);
@@ -512,7 +523,7 @@ describe("activating the affordance", () => {
 describe("stopping the integration", () => {
   it("removes the affordance and stops listening", async () => {
     const { stop, host } = harness();
-    await Promise.resolve();
+    await settledBoot();
     focusField(field(EMAIL));
     expect(host()).not.toBeNull();
 

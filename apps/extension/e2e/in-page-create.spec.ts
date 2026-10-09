@@ -55,13 +55,17 @@ import {
   AFFORDANCE_LABEL,
   AFFORDANCE_UNCONFIRMED_LABEL,
   AFFORDANCE_WAITING_LABEL,
+  affordanceInsertLabel,
 } from "../src/content-script/affordance";
 import { IN_PAGE_CREATE_CEILING_MS } from "../src/content-script/create-wait";
 import { EXTENSION_PROVIDER_IDS } from "../src/provider-config";
 import {
   clearStoredMailbox,
+  readHeldAddresses,
+  readMailboxCollectionRecord,
   readStoredMailboxAddress,
   readStoredMailboxRecord,
+  STORED_ADDRESS,
 } from "./helpers/stored-mailbox";
 
 let extension: LaunchedExtension;
@@ -495,7 +499,7 @@ test.describe("creating a mailbox from inside a page", () => {
     const later = await openFixturePage(extension.context);
     opened.push(later);
     await focusField(later, "react-input");
-    await expect(affordanceButton(later)).toHaveText(AFFORDANCE_LABEL);
+    await expect(affordanceButton(later)).toHaveText(affordanceInsertLabel(address as string));
 
     await affordanceButton(later).click();
     await expect(later.locator("#react-input")).toHaveValue(address as string);
@@ -558,6 +562,8 @@ test.describe("creating a mailbox from inside a page", () => {
     await expect
       .poll(async () => readStoredMailboxAddress(extension), { timeout: 15_000 })
       .not.toBeNull();
+    const made = await readStoredMailboxAddress(extension);
+    expect(made).not.toBe(STORED_ADDRESS);
 
     // **The next focus on an *empty* field offers that address for insertion, not a further creation**
     // — which is the observable that distinguishes the two, and the one the duplicate-creation cost
@@ -568,10 +574,16 @@ test.describe("creating a mailbox from inside a page", () => {
     // of this case asserted the insertion label here and found no control at all — which was the
     // product being right. `in-page.spec.ts` covers the prefilled field; what this case needs is a
     // field a person could still use.
+    //
+    // **The label is built from the address this device made, not from the seeded one.** This case
+    // starts at a first visit — nothing is seeded — so a label naming `STORED_ADDRESS` would be a
+    // label for a mailbox this device does not hold. The first version of this change's repair
+    // asserted it and the suite reported a mismatch on a control that was exactly right: the
+    // device holds the address it just created, and the label names it.
     await blurField(page);
     await expect(page.locator("[data-spectre-affordance]")).toHaveCount(0);
     await focusField(page, "in-form");
-    await expect(affordanceButton(page)).toHaveText(AFFORDANCE_LABEL);
+    await expect(affordanceButton(page)).toHaveText(affordanceInsertLabel(made as string));
     expect(creationsRequested()).toBe(1);
   });
 
@@ -617,9 +629,15 @@ test.describe("creating a mailbox from inside a page", () => {
     // fail: the field could hold an address the control merely stopped naming, the button could
     // return to its resting label, and the device could hold a mailbox.
     expect(await page.locator("#react-input").inputValue()).toBe("");
-    await expect(affordanceButton(page)).not.toHaveText(AFFORDANCE_LABEL);
+    await expect(affordanceButton(page)).not.toContainText(AFFORDANCE_LABEL);
     await expect(affordanceButton(page)).not.toHaveText(AFFORDANCE_CREATE_LABEL);
+    // **Both records, and the second reading is this change's.** The refusal arm was reading only
+    // the singular record, which nothing in this client writes any more - so it was satisfied by a
+    // client that had created a mailbox through the fallback, which is the behaviour
+    // `provider-abstraction` requires and which this case exists to rule out. A single-record read
+    // cannot see the defect a second record introduces.
     expect(await readStoredMailboxRecord(extension)).toBeNull();
+    expect(await readMailboxCollectionRecord(extension)).toBeNull();
 
     // **Both providers were asked, and both refused.** The extension's manager prefers Mail.tm and
     // falls back, so a case that throttled only Mail.tm would be asserting a refusal the product
@@ -701,6 +719,10 @@ test.describe("creating a mailbox from inside a page", () => {
     await expect
       .poll(async () => readStoredMailboxAddress(extension), { timeout: 15_000 })
       .toBe(secondAddress);
-    expect(await readStoredMailboxAddress(extension)).not.toBe(first);
+    //
+    // **The whole list, not just the newest.** "The newest is not the first" is satisfied by a
+    // device holding *both*, and "only" is the claim this case actually makes — a mailbox a person
+    // never asked for is exactly what a retained first creation leaves behind.
+    expect(await readHeldAddresses(extension)).toEqual([secondAddress]);
   });
 });

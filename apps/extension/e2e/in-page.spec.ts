@@ -36,7 +36,6 @@ import { AFFORDANCE_CREATE_LABEL } from "../src/content-script/affordance";
 import {
   FIXTURE_HTTP_ORIGIN,
   FIXTURE_ORIGIN,
-  LABEL,
   affordanceButton,
   affordanceComputed,
   affordanceCount,
@@ -51,7 +50,12 @@ import {
   plainEvents,
   reactState,
 } from "./helpers/in-page-fixture";
-import { clearStoredMailbox, resetStoredMailbox, STORED_ADDRESS } from "./helpers/stored-mailbox";
+import {
+  clearStoredMailbox,
+  INSERT_LABEL,
+  resetStoredMailbox,
+  STORED_ADDRESS,
+} from "./helpers/stored-mailbox";
 
 let extension: LaunchedExtension;
 
@@ -97,7 +101,7 @@ test.describe("the affordance appears, and only when it can act", () => {
 
     await focusField(page, "react-input");
 
-    await expect(affordanceButton(page)).toHaveText(LABEL);
+    await expect(affordanceButton(page)).toHaveText(INSERT_LABEL);
     expect(await affordanceCount(page)).toBe(1);
   });
 
@@ -304,17 +308,17 @@ test.describe("the page can neither style nor reach the control", () => {
     // a page that never contained it — and the fixture's own `<h1>` and `<label>`s give it
     // plenty of text to be absent from.
     const before = await page.evaluate(() => document.body.textContent ?? "");
-    expect(before).not.toContain(LABEL);
+    expect(before).not.toContain(INSERT_LABEL);
 
     await focusField(page, "react-input");
     expect(await affordanceCount(page)).toBe(1);
 
     const after = await page.evaluate(() => document.body.textContent ?? "");
-    expect(after).not.toContain(LABEL);
+    expect(after).not.toContain(INSERT_LABEL);
 
     // And the control genuinely carries it, so the two assertions above are not both
     // satisfied by a control with no label at all.
-    await expect(affordanceButton(page)).toHaveText(LABEL);
+    await expect(affordanceButton(page)).toHaveText(INSERT_LABEL);
   });
 
   test("runs on the origin the suite serves, which the manifest declares", async () => {

@@ -133,6 +133,27 @@ the device holding an address its own collection does not know. One record remov
 the requirement says so because the cost of finding out otherwise is a client that offers an address
 nothing can account for.
 
+**Amendment, recorded during apply (2026-10-09).** Two things are added here, and both were found by
+reading this delta against the code after twenty-one mutations and a green `pnpm verify` had already
+passed against it.
+
+**The single-mailbox record is read but not written, and the collection is not merged with it.**
+Every write in the extension moved onto `addMailbox`, so a device that recorded its mailboxes
+through this build has them in the collection and **nowhere else**. Two consequences are now stated
+rather than left for a reader to derive: the single-mailbox contract is the **only** place a mailbox
+recorded by an earlier build can be found, and it is therefore consulted **only** while the
+collection is empty; and **a mailbox recorded before this build stops being offered once this device
+records another one** — still stored, still readable, and no longer insertable, because no surface
+in this milestone can present a second address to choose from. Merging the two records is refused
+because a merged second entry would sit in a list with no surface to put it on, while costing every
+read a second lookup; it becomes right the day a surface lists them.
+
+**The newest is unambiguously the current one, and it is stated without naming a second contract
+because the two contracts cannot be compared.** The requirement text above already carries that
+phrase; what is removed is the pairing. **The reason is one write and not two**: writing both
+records is what the paragraph above refuses, and `chrome.storage` has no transaction that would make
+two writes atomic.
+
 #### Scenario: A mailbox this device was handed
 
 - **WHEN** a client records a mailbox on this device
@@ -143,7 +164,13 @@ nothing can account for.
 
 - **WHEN** this device holds more than one mailbox
 - **THEN** the contract SHALL report them newest first
-- **AND** the first SHALL be the mailbox the single-mailbox contract reports as current
+- **AND** the first SHALL be the mailbox an insertion on a page would use
+
+#### Scenario: This device also holds a mailbox from an earlier build
+
+- **WHEN** the collection holds at least one mailbox and the single-mailbox record holds another
+- **THEN** the collection's answer SHALL be the whole answer
+- **AND** the earlier mailbox SHALL NOT be reported as insertable
 
 #### Scenario: Nothing is held
 

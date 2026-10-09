@@ -25,7 +25,7 @@ on. See [Current status](#current-status).
 | M6 — Website hardening            | complete in scope — 3 slices archived; a 4th was audited, not built         |
 | M7 — Spectral Swiss visual system | complete in scope — 4 slices archived                                       |
 | M8 — Extension foundation         | complete in scope — applied, verified, synced, archived                     |
-| M9 - In-page email integration    | slices 1 and 2 archived - slice 3 remains                                   |
+| M9 - In-page email integration    | slices 1 and 2 archived - slice 3 applied, awaiting sync/archive            |
 | M10–M15                           | not started                                                                 |
 
 | Capability spec          | Requirements | State                               |
@@ -84,7 +84,35 @@ page's stylesheet cannot reach, and inserts the address **this device already ho
 When the device holds none, it offers to **make** one and **delegates the request to the
 service worker** — measured, not preferred: a content script's `fetch` obeys the **page's**
 CORS policy while the extension's `host_permissions` do not reach it, so the provider is
-contacted from exactly one context. **What none of that establishes is how it looks inside a
+contacted from exactly one context.
+
+**Which address it offers now depends on the page, and that is this device's own record
+rather than anything the page says.** After a real insertion the extension writes
+`location.hostname -> mailbox id` into `chrome.storage.local`; a later visit to that host
+is offered the mailbox it was last used with, and any other host is offered the newest one
+this device holds. **The key is the exact `hostname`** — no registrable-domain folding, so
+`a.example.com` and `b.example.com` stay apart — and the association is written **only**
+after an insertion actually lands, never merely because a control was offered.
+
+**Four limits are stated here rather than discovered later.** A host that already has an
+association cannot have a _different existing_ mailbox chosen for it: there is **no menu**
+inside a stranger's page, and a control over one reachable option cannot act. A **stale**
+association naming a mailbox this device no longer holds is ignored and left in place,
+replaced only by an insertion with a different one. And **the popup still shows one address
+and offers no way to change which** — the collection exists so the in-page control can
+choose; no chooser has been put in front of a person yet.
+
+The fourth is the cost of that second mailbox record during the transition below: **an address
+this device recorded before this build stays stored and stays readable, but it stops being
+offered once this device records a new one.** The two records are deliberately never merged,
+because nothing in this release can show a second address to choose from.
+
+**The extension holds two mailbox records during this transition, and only one is written.**
+`spectre-storage`'s singular contract stays for the website and is read-only for the
+extension; the extension's create path writes the new collection and nothing else, and a
+boundary assertion fails the build if any module in `apps/extension/src` names `saveMailbox`.
+
+**What none of that establishes is how it looks inside a
 real third party's page**, which is a human judgement and the task that asks for it is left
 unticked rather than answered by an agent opening a page.
 

@@ -19,6 +19,24 @@
   <body>
     <div id="root"></div>
     <!--
+      A SAME-ORIGIN IFRAME with an email field of its own, and it is here because of what it
+      proves rather than what it exercises.
+
+      `all_frames` is deliberately unset in the manifest - design.md D6 - so the content script
+      is injected into the TOP frame only. A field inside a same-origin frame is therefore
+      reached by nothing, and the spec's case has to establish that as a fact about the shipped
+      manifest rather than as an accident: a frame that never loaded would satisfy the same
+      assertion for the wrong reason.
+
+      So the frame carries a MARKER the top document does not have, the case waits for that
+      marker from INSIDE the frame, plants the affordance hook there to prove the frame's reader
+      can see one, and only then reads the absence.
+
+      `/frame.html` is served by the same route handler, so it cannot 404 quietly - the handler
+      throws by name on any unscripted pathname.
+    -->
+    <iframe id="framed" src="/frame.html" title="a same-origin frame"></iframe>
+    <!--
       `type="module"`, and the attribute is load-bearing.
 
       The first version of this file carried `<script src="/fixture.js">` with no type, and

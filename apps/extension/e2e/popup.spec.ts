@@ -34,6 +34,11 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { expect, test } from "@playwright/test";
+import {
+  EXTENSION_MAILBOXES_KEY,
+  readStoredMailboxCollection,
+  SPECTRE_ENVELOPE_VERSION,
+} from "@spectre-mail/storage";
 import type { Page } from "@playwright/test";
 
 import { launchExtension } from "./launch-extension";
@@ -41,7 +46,7 @@ import type { LaunchedExtension } from "./launch-extension";
 import { recordProviderTraffic, FIXTURE_IDS } from "./recorded-provider";
 import type { ProviderTraffic } from "./recorded-provider";
 import { servedStylesheet, stripGeneratedTokenBlocks } from "./served-stylesheet";
-import { clearStoredMailbox } from "./helpers/stored-mailbox";
+import { clearStoredMailbox, readSingularRecord } from "./helpers/stored-mailbox";
 
 let extension: LaunchedExtension;
 let traffic: ProviderTraffic;
@@ -132,18 +137,25 @@ test.describe("the popup as an extension page", () => {
     await page.getByRole("button", { name: "Create an address" }).click();
     await expect(page.locator(".popup__address")).toHaveText(/@uberip\.com$/);
     const shown = (await page.locator(".popup__address").textContent()) ?? "";
-
     // **Polled, not read once.** The first version of this test waited for the address to
-    // appear and then read storage — and got `{}`. **The address renders from the
-    // session's state, which is published before `saveMailbox` has resolved**, so waiting
+    // appear and then read storage - and got `{}`. **The address renders from the
+    // session's state, which is published before the write has resolved**, so waiting
     // for the address is not waiting for the write. It is the fifth recorded instance of
     // a precondition weaker than the property it measures, and in the direction this
     // repository cares about: it does not fail, it measures too early.
     //
     // Polling for the record itself is the wait that matches the claim.
+    //
+    // **The key is the shared constant and no longer a literal.** `site-associations` moved this
+    // client's creations out of the singular record and into the collection, and the first
+    // version of the repair here still spelled `"current"` - so the case reported that nothing
+    // had been written while the popup had written exactly what it always had, somewhere else.
+    // **A spec that names a record's key holds a second copy of the product's own choice, and
+    // this is the second time this suite paid for one** - the first was a provider address this
+    // repository invented rather than the one its recorded provider answered.
     await expect
       .poll(async () =>
-        extension.worker.evaluate(async () => {
+        extension.worker.evaluate(async (key) => {
           const area = (
             globalThis as unknown as {
               chrome: {
@@ -151,37 +163,44 @@ test.describe("the popup as an extension page", () => {
               };
             }
           ).chrome.storage.local;
-          const found = await area.get("current");
-          const record = found.current as { version?: number } | undefined;
+          const found = await area.get(key);
+          const record = found[key] as { version?: number } | undefined;
           return record?.version;
-        }),
+        }, EXTENSION_MAILBOXES_KEY),
       )
-      .toBe(1);
-
+      .toBe(SPECTRE_ENVELOPE_VERSION);
     // **Read through the platform's own API, not through the adapter.** Reading it
-    // through `createChromeStorage` would only prove the adapter round-tripped, and this
-    // is the claim that the *platform* kept it — which is the claim the website's browser
+    // through `createChromeMailboxes` would only prove the adapter round-tripped, and this
+    // is the claim that the *platform* kept it - which is the claim the website's browser
     // tier makes about IndexedDB and the reason this suite exists at all.
-    const stored = await extension.worker.evaluate(async () => {
+    const stored = await extension.worker.evaluate(async (key) => {
       const area = (
         globalThis as unknown as {
           chrome: { storage: { local: { get(key: string): Promise<Record<string, unknown>> } } };
         }
       ).chrome.storage.local;
-      return area.get("current");
-    });
+      return area.get(key);
+    }, EXTENSION_MAILBOXES_KEY);
 
-    const record = stored.current as {
-      version: number;
-      mailbox: { address: string; provider: string };
-    };
-    // **The versioned record, through the shared narrowing.** `record.ts` is shared
-    // between both adapters precisely so a record one platform wrote is readable by
-    // either, and this is where that is observable.
-    expect(record.version).toBe(1);
+    // **Narrowed by the shared reader, and that is the point of the narrowing being shared.**
+    // `record.ts` is shared between both adapters precisely so a record one platform wrote is
+    // readable by either, and this is where that is observable. Hand-reading the envelope here
+    // would assert this build's own idea of its own shape; narrowing it asserts the address is
+    // there in the sense every reader in this workspace means - and it is the reader that knows
+    // which member of the envelope holds the mailboxes, which the first version of this case
+    // guessed and got wrong.
+    const held = readStoredMailboxCollection(stored[EXTENSION_MAILBOXES_KEY]);
+    expect(held).not.toBeNull();
+
     // **The stored address is the one on screen**, which is the round-trip claim.
-    expect(record.mailbox.address).toBe(shown);
-    expect(record.mailbox.provider).toBe("mailtm");
+    expect(held).toHaveLength(1);
+    expect(held?.[0]?.address).toBe(shown);
+    expect(held?.[0]?.provider).toBe("mailtm");
+
+    // **And the singular record was not written at all**, which is the other half of this change
+    // and the claim the boundary rule cannot make. A client that wrote both would pass every
+    // assertion above while leaving a device with two answers to "what does this browser hold".
+    expect(await readSingularRecord(extension)).toBeNull();
   });
 
   test("falls back to Guerrilla Mail and names it, not the provider it preferred", async () => {

@@ -43,8 +43,21 @@
 
 import { createMailbox } from "@spectre-mail/core";
 import type { Mailbox } from "@spectre-mail/core";
-import { EXTENSION_MAILBOX_KEY, toStoredMailboxRecord } from "@spectre-mail/storage";
+import {
+  EXTENSION_MAILBOX_KEY,
+  EXTENSION_MAILBOXES_KEY,
+  EXTENSION_SITE_MAILBOXES_KEY,
+  readStoredMailboxCollection,
+  readStoredMailboxRecord as narrowStoredMailboxRecord,
+  readStoredSiteAssociations,
+  toStoredMailboxCollection,
+  toStoredMailboxRecord,
+  toStoredSiteAssociations,
+} from "@spectre-mail/storage";
+import { affordanceInsertLabel } from "../../src/content-script/affordance";
 import type { StoredMailboxRecord } from "@spectre-mail/storage";
+
+import { FIXTURE_ORIGIN } from "./in-page-fixture";
 
 import type { LaunchedExtension } from "../launch-extension";
 
@@ -80,6 +93,20 @@ export const STORED_MAILBOX: Mailbox = createMailbox({
 
 /** The address the seeded mailbox carries, named so a spec reads as a claim not a value. */
 export const STORED_ADDRESS = STORED_MAILBOX.address;
+
+/**
+ * The control's resting label on a device holding {@link STORED_MAILBOX}.
+ *
+ * **Built by the product's own function rather than spelled out here.** The insert control's name
+ * carries the address it inserts, so a spec asserting it has to build the same string the control
+ * builds - and a literal in a spec would be a second spelling of the product's own wording, which
+ * is the shape that lets a rename pass a suite that was never updated and fail one that was.
+ *
+ * **It is tied to the seeded mailbox deliberately.** `STORED_ADDRESS` is that mailbox's address, so
+ * this constant and the seeding it describes cannot drift apart: a spec that seeds a different
+ * mailbox asserts a different label, which is the point.
+ */
+export const INSERT_LABEL = affordanceInsertLabel(STORED_ADDRESS);
 
 /**
  * Empty the extension's storage area.
@@ -173,8 +200,60 @@ export async function resetStoredMailbox(
 export async function readStoredMailboxAddress(
   extension: LaunchedExtension,
 ): Promise<string | null> {
-  const record = (await readStoredMailboxRecord(extension)) as StoredMailboxRecord | null;
-  return record === null ? null : record.mailbox.address;
+  const held = await readHeldAddresses(extension);
+  return held[0] ?? null;
+}
+
+/**
+ * Every address this device holds, newest first, through the product's own resolution order.
+ *
+ * ## Why this had to be written when it was
+ *
+ * `site-associations` gave this client a **collection** and left the singular record in place for
+ * a device that predates the change, and `loadInsertableMailboxes` in `apps/extension/src/storage.ts`
+ * now decides which of them answers "what can this device insert". **Every spec in this suite that
+ * asked the storage the same question had to be pointed at the same answer**, so it is computed
+ * here once rather than re-spelled per spec - and the first version of the repair left the helper
+ * reading the singular record only, so four creation cases in `in-page-create.spec.ts` reported
+ * "this device holds nothing" while the device held a mailbox the popup had just made. That is the
+ * recorded direction: an assertion that reports absence for a value that is present.
+ *
+ * ## And it narrows, but refuses to collapse
+ *
+ * `readStoredMailboxCollection` answers `null` for both "the record is absent" and "the record is
+ * unreadable", and collapsing those two is what {@link readSiteMap}'s note describes. So a record
+ * that is present and unreadable **throws** here, and a spec can fail without a spec passing
+ * against a record this build cannot read.
+ *
+ * @throws If either record is present and unreadable.
+ */
+export async function readHeldAddresses(extension: LaunchedExtension): Promise<readonly string[]> {
+  const collectionRaw = await readRaw(extension, EXTENSION_MAILBOXES_KEY);
+  if (collectionRaw !== null) {
+    const collection = readStoredMailboxCollection(collectionRaw);
+    if (collection === null) {
+      throw new Error(
+        "this device holds a mailbox collection this build cannot read, so a spec asserting the " +
+          "held addresses would otherwise read it as an empty collection",
+      );
+    }
+    if (collection.length > 0) {
+      return collection.map((held) => held.address);
+    }
+  }
+
+  const singularRaw = await readRaw(extension, EXTENSION_MAILBOX_KEY);
+  if (singularRaw === null) {
+    return [];
+  }
+  const singular = narrowStoredMailboxRecord(singularRaw);
+  if (singular === null) {
+    throw new Error(
+      "this device holds a singular mailbox record this build cannot read, so a spec asserting the " +
+        "held addresses would otherwise read it as no mailbox at all",
+    );
+  }
+  return [singular.address];
 }
 
 /**
@@ -222,4 +301,189 @@ export async function readStoredMailboxRecord(
     },
     [[...AREA_PATH], EXTENSION_MAILBOX_KEY] as const,
   );
+}
+
+/**
+ * A second mailbox, for a case whose subject is a device holding more than one.
+ *
+ * **`createMailbox` again, and with a distinct id**, because both properties are load-bearing:
+ * an address alone cannot key a site association - a spec asserting "the right mailbox was
+ * remembered" would be satisfied by a record keyed on the address, which is the very thing this
+ * change had to correct - and two mailboxes sharing an id would make the association lookup
+ * ambiguous.
+ */
+export const SECOND_MAILBOX: Mailbox = createMailbox({
+  id: "in-page-spec-second",
+  address: "spectre-in-page-second@guerrillamail.info",
+  createdAt: 0,
+  credentials: { provider: "guerrilla", sessionId: "in-page-spec-second-session" },
+});
+
+/** The address {@link SECOND_MAILBOX} carries, named so a spec reads as a claim not a value. */
+export const SECOND_ADDRESS = SECOND_MAILBOX.address;
+
+/** The insert control's resting label for {@link SECOND_MAILBOX}. */
+export const SECOND_INSERT_LABEL = affordanceInsertLabel(SECOND_ADDRESS);
+
+/** The host the fixture is served from, read from the origin the helper exports. */
+export const FIXTURE_HOST = new URL(FIXTURE_ORIGIN).hostname;
+
+/**
+ * Write the mailbox **collection** this device holds, newest first.
+ *
+ * **Both halves, always: write and read back.** Same reason, and the same defect, as
+ * {@link seedStoredMailbox} - the read-back makes the write a precondition rather than a hope.
+ *
+ * @throws If the record is not readable through the platform's own API afterwards.
+ */
+export async function seedMailboxCollection(
+  extension: LaunchedExtension,
+  mailboxes: readonly Mailbox[],
+): Promise<void> {
+  await writeAndConfirm(extension, EXTENSION_MAILBOXES_KEY, toStoredMailboxCollection(mailboxes));
+}
+
+/**
+ * Record which mailbox this host was last used with.
+ *
+ * **Written as the product's own envelope rather than as a bare object**, so a spec that seeds an
+ * association and then reads it back is exercising the same widening `saveSiteMailboxId` does -
+ * `toStoredSiteAssociations` accepts the *raw* record for exactly that reason. A literal map here
+ * would let a spec pass against a shape this build cannot read, which is the trap this file's
+ * module note names from the other direction.
+ */
+export async function seedSiteAssociation(
+  extension: LaunchedExtension,
+  associations: Readonly<Record<string, string>>,
+): Promise<void> {
+  await writeAndConfirm(
+    extension,
+    EXTENSION_SITE_MAILBOXES_KEY,
+    toStoredSiteAssociations(associations),
+  );
+}
+
+/**
+ * The raw site-association record on this device, or `null` when the device holds none.
+ *
+ * **Raw, and for the reason {@link readStoredMailboxRecord} is raw**: the claim the cases that use
+ * this make is about what is *on the device*, not about what this build can narrow it to.
+ */
+export async function readSiteAssociations(extension: LaunchedExtension): Promise<unknown | null> {
+  return readRaw(extension, EXTENSION_SITE_MAILBOXES_KEY);
+}
+
+/**
+ * The site-to-mailbox map this device holds, read through the product's own reader.
+ *
+ * ## Why this does not simply return what the reader returns
+ *
+ * `readStoredSiteAssociations` answers `null` for **two** states - "this device remembers
+ * nothing" and "this device holds a record this build cannot read" - and collapsing them is the
+ * exact defect {@link readStoredMailboxRecord}'s note exists to avoid. So this reads the raw
+ * record, narrows it with the product's reader, and **throws when the record is present and
+ * unreadable**: a spec can then fail, but it cannot pass by reading `{}` for a record holding
+ * entries.
+ *
+ * ## And why it narrows rather than reading the envelope member directly
+ *
+ * The first version of the association spec asserted against a hand-written member name and was
+ * wrong: the envelope calls it `sites`, not `associations`, and the suite reported a mismatch on
+ * a record holding exactly what it had been seeded with. **A spec that spells a record's internal
+ * shape has a second copy of it**, and the copy is wrong the first time the record is renamed. So
+ * the product's reader names the member and this helper is the only place the two are joined.
+ *
+ * @throws If the device holds a site-association record this build cannot read.
+ */
+export async function readSiteMap(
+  extension: LaunchedExtension,
+): Promise<Readonly<Record<string, string>>> {
+  const raw = await readSiteAssociations(extension);
+  if (raw === null) {
+    return {};
+  }
+
+  const narrowed = readStoredSiteAssociations(raw);
+  if (narrowed === null) {
+    throw new Error(
+      "this device holds a site-association record this build cannot read, so a spec asserting " +
+        "the map would otherwise read it as an empty one",
+    );
+  }
+  return narrowed;
+}
+
+/**
+ * Write one key and refuse to return until the platform reports it present.
+ *
+ * **One round trip, and the confirmation is a read of the same key.** Two would be two chances
+ * for another spec in this profile to write in between - and this profile is shared, which is the
+ * recorded reason {@link resetStoredMailbox} clears before it seeds.
+ */
+async function writeAndConfirm(
+  extension: LaunchedExtension,
+  key: string,
+  value: unknown,
+): Promise<void> {
+  const stored = await extension.worker.evaluate(
+    async ([path, name, written]) => {
+      const area = (path as readonly string[]).reduce<object>(
+        (node, step) => Reflect.get(node, step),
+        globalThis,
+      ) as StorageArea;
+      await area.set({ [name as string]: written });
+      return area.get(name as string);
+    },
+    [[...AREA_PATH], key, value] as const,
+  );
+
+  if (stored[key] === undefined) {
+    throw new Error(
+      `seeding the extension's storage did not take: ${key} is still absent after a write, ` +
+        `read back inside the extension's own service worker.`,
+    );
+  }
+}
+
+/** Read one key's raw value through the platform's own API, inside the worker's own context. */
+async function readRaw(extension: LaunchedExtension, key: string): Promise<unknown | null> {
+  return extension.worker.evaluate(
+    async ([path, name]) => {
+      const area = (path as readonly string[]).reduce<object>(
+        (node, step) => Reflect.get(node, step),
+        globalThis,
+      ) as StorageArea;
+      const found = await area.get(name as string);
+      return found[name as string] ?? null;
+    },
+    [[...AREA_PATH], key] as const,
+  );
+}
+
+/**
+ * The raw **singular** mailbox record on this device, or `null`.
+ *
+ * **Present so a spec can assert this client does not write it.** `site-associations` moved every
+ * write in this client onto the collection; a case that only read the collection back could not
+ * tell "the collection holds it" from "the collection holds it *and* the singular record also
+ * holds it", and a device with two answers to one question is exactly the defect the change
+ * prevents.
+ */
+export async function readSingularRecord(extension: LaunchedExtension): Promise<unknown | null> {
+  return readRaw(extension, EXTENSION_MAILBOX_KEY);
+}
+
+/**
+ * The raw mailbox **collection** record on this device, or `null` when the device holds none.
+ *
+ * **Raw, for the reason {@link readStoredMailboxRecord} is raw**, and it exists because a spec
+ * asserting "this device holds nothing" has to be able to look at the record this client actually
+ * writes. Before this change every creation case in `in-page-create.spec.ts` read the singular
+ * record alone, so the refusal arm was satisfied by a client that had created a mailbox through the
+ * provider fallback.
+ */
+export async function readMailboxCollectionRecord(
+  extension: LaunchedExtension,
+): Promise<unknown | null> {
+  return readRaw(extension, EXTENSION_MAILBOXES_KEY);
 }

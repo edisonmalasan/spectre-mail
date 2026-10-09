@@ -1136,6 +1136,60 @@ function chromeGlobalViolations(): string[] {
 }
 
 /**
+ * The one write this client must not make, in any spelling.
+ *
+ * ## What the rule is about, and it is narrower than it looks
+ *
+ * `site-associations` gave this client a **collection** of mailboxes and left the singular record
+ * in place for a device that installed the extension before this change. Two records and one client
+ * is where a write quietly goes to the wrong one: a `saveMailbox` after a creation leaves the
+ * collection - the record every reader in this client consults - without the address that was just
+ * made, so the popup shows the first mailbox while the in-page control offers the second.
+ *
+ * **So this is not "prefer the newer record"; it is "this client writes the collection, full stop".**
+ * The singular record is still *read* by `loadInsertableMailboxes`, and that read is load-bearing
+ * for a real person - it is the reason somebody who installed this extension before this change
+ * still sees their address. A read and a write are different acts and this rule watches the write.
+ *
+ * ## Why the whole identifier rather than a member expression
+ *
+ * The pattern is the bare name, so a type reference (`Pick<SpectreStorage, "saveMailbox">`) is
+ * reported too. That is deliberate: every module in `apps/extension` that needed the singular
+ * record after this change needed it as a *value to read*, and the only one that holds the value is
+ * `storage.ts`, which holds it inside `ExtensionRecords` and exposes `loadInsertableMailboxes`
+ * instead. **A port that cannot express the old write is a port nobody can use wrongly**, and
+ * `create-mailbox.test.ts`'s stand-in is built the same way for the same reason.
+ *
+ * ## Comments are stripped, for the sixth time in this file
+ *
+ * Four modules in this tree explain *why* `saveMailbox` is not used, in prose, at length - and one
+ * of them is the rule's own subject. Every other scan here strips comments because a rule that
+ * cannot tell a declaration from a comment about that declaration is measuring the wrong thing;
+ * this one would be the sixth instance rather than a new kind of problem.
+ */
+const EXTENSION_SINGULAR_WRITE_PATTERN = /\bsaveMailbox\b/g;
+
+function extensionSingularWriteViolationsIn(root: string): string[] {
+  const violations: string[] = [];
+
+  for (const file of collectSourceFiles(root)) {
+    if (isTestFile(file)) continue;
+    const withinTree = relative(root, file).split(sep).join("/");
+    const contents = stripComments(readFileSync(file, "utf8"));
+    for (const hit of findPatternOccurrences(contents, EXTENSION_SINGULAR_WRITE_PATTERN)) {
+      violations.push(`${withinTree} ${hit} (writes the record this client only reads)`);
+    }
+  }
+
+  return violations;
+}
+
+/** The rule: the extension's own source, and no argument to narrow it. */
+function extensionSingularWriteViolations(): string[] {
+  return extensionSingularWriteViolationsIn(join(APPS_DIR, "extension", "src"));
+}
+
+/**
  * A disposable copy of the extension's source, for a control to plant probes into.
  *
  * **`cpSync` of the whole tree, probes written into the copy, and the copy removed.** The
@@ -1174,12 +1228,31 @@ function withDisposableExtensionSource(): { root: string; done: () => void } {
 function clientStorageApiViolations(): string[] {
   const violations: string[] = [];
 
+  // **The browser tier's own directory is exempt, and the exemption is read out of the
+  // suite's configuration rather than written down here.**
+  //
+  // `apps/extension/e2e/helpers/in-page-fixture.ts` installs a `storage` listener *inside the
+  // fixture page* and reads `event.storageArea`, which is the positive control for a claim
+  // about the product's mechanism being invisible to a page. That is the page's store, not
+  // the client's: the rule's subject is a **client**, and a harness that stands in for a
+  // client is not one. The alternative — a carve-out keyed on `localStorage` — would have
+  // permitted the exact thing the requirement forbids, in shipped code, everywhere.
+  //
+  // **Parsed, not transcribed, for the reason the browser-collection rule parses.** A rule
+  // exempting a hard-coded `apps/*/e2e` would keep permitting it after someone moved the
+  // suite, and would permit a *new* directory nobody decided to exempt. Reading `testDir`
+  // means the exemption is exactly the suite that exists, and **an unparseable
+  // configuration yields a path no file is under, so the rule reports** — the same
+  // direction the collection rule fails in.
+  const harnessDirs = browserSuites().map((suite) => suite.testDir);
+
   for (const file of collectSourceFiles(APPS_DIR)) {
     // **Exempt because it is a test, not because of how it is named.** See `isTestFile`
     // for why the previous `.test.tsx?` was the twenty-first instance of a check
     // narrower than its rule, and for what that widening costs.
     if (isTestFile(file)) continue;
     const repoPath = toRepoPath(file).split("\\").join("/");
+    if (harnessDirs.some((dir) => repoPath === dir || repoPath.startsWith(`${dir}/`))) continue;
     const contents = stripComments(readFileSync(file, "utf8"));
     for (const hit of findPatternOccurrences(contents, CLIENT_STORAGE_API_PATTERN)) {
       violations.push(`${repoPath} ${hit} (a client reached a global store)`);
@@ -2629,12 +2702,65 @@ describe("architecture boundaries", () => {
         exemptions,
         "a test may reach a store in order to verify it, and the shipped browser specs do",
       ).toEqual([]);
+
+      // **And the harness exemption is asserted from both sides, because an exemption
+      // nobody has watched fire is a hole rather than an allowance.**
+      //
+      // A probe inside each suite's own `testDir` must go unreported - that is the shipped
+      // `in-page-fixture.ts` case this exemption was written for, and it is load-bearing on
+      // real code rather than only on this fixture. A probe in the **parent** of that
+      // directory, carrying the same forbidden identifier, must still be reported: an
+      // exemption widened to "skip anything near a browser suite", or to "skip anything",
+      // satisfies the first assertion and fails this one.
+      //
+      // **Tracked by repo-relative path rather than by client name**, because a cleanup that
+      // joined these against `APPS_DIR` would have looked for `apps/apps/extension/...` and
+      // reported success while leaving both probes on disk for the next reader.
+      const harness = browserSuites().map((suite) => suite.testDir);
+      expect(harness.length, "at least one browser suite is configured").toBeGreaterThan(0);
+      const parents = harness.map((dir) => dir.replace(/\/[^/]+$/, ""));
+
+      for (const [dir, parent] of harness.map((d, i) => [d, parents[i] ?? d] as const)) {
+        const inside = `${dir}/__harness-probe.ts`;
+        const outside = `${parent}/__outside-harness-probe.ts`;
+        planted.push(inside, outside);
+        writeFileSync(join(REPO_ROOT, inside), CLIENT_STORAGE_PROBE, "utf8");
+        writeFileSync(join(REPO_ROOT, outside), CLIENT_STORAGE_PROBE, "utf8");
+      }
+
+      const harnessReported = clientStorageApiViolations();
+      expect(
+        // **Slash-anchored on purpose.** `__outside-harness-probe.ts` *contains*
+        // `__harness-probe.ts`, so the obvious filter reads the reported parent-directory
+        // probe as an unreported inside-directory one and passes the first assertion for
+        // the wrong reason - the shape of a green that is not.
+        harnessReported.filter((hit) => hit.includes("/__harness-probe.ts")),
+        "the browser tier's own directory is where a fixture proves a claim about a page",
+      ).toEqual([]);
+      expect(
+        harnessReported
+          .filter((hit) => hit.includes("__outside-harness-probe.ts"))
+          // **Both trimmed and de-slashed, because a violation is spelled
+          // `<repoPath> <hit> (<reason>)`** - the separator is a space, and the repo path
+          // keeps its trailing separator. Comparing the raw prefix would couple this
+          // assertion to the message's punctuation in both directions: a reworded reason
+          // would read as a rule change, and a rule change could hide behind a reworded
+          // reason. The claim is *which directory*, so both are stripped.
+          .map((hit) => (hit.split("__outside-harness-probe")[0] ?? "").trim().replace(/\/$/, ""))
+          .sort(),
+        "one directory above a suite's testDir is shipped client code, not its harness",
+      ).toEqual([...parents].sort());
     } finally {
       for (const app of planted) {
+        // **Two different roots, and the reason is that the two lists are two different
+        // kinds of thing.** `mustScan` names a *client*, so its files live under
+        // `APPS_DIR`; the harness probes are named by repo-relative path because their
+        // whole subject is a path relative to the repository root. Joining both against one
+        // root works for exactly one of them.
         rmSync(join(APPS_DIR, app, "__client-storage-probe.ts"), { force: true });
-        for (const kind of ["spec", "test"]) {
-          rmSync(join(APPS_DIR, app, `__exempt.${kind}.ts`), { force: true });
-        }
+        rmSync(join(APPS_DIR, app, `__exempt.spec.ts`), { force: true });
+        rmSync(join(APPS_DIR, app, `__exempt.test.ts`), { force: true });
+        rmSync(join(REPO_ROOT, app), { force: true });
       }
     }
 
@@ -2733,6 +2859,79 @@ describe("architecture boundaries", () => {
     // `apps/extension/src/content-script/entry.ts` reaches the platform through
     // `extension-platform.ts` and `packages/storage`, and no other module names the global.
     expect(chromeGlobalViolations()).toEqual([]);
+  });
+
+  it("stops the extension writing the record it only reads", () => {
+    // **The shipped half, read through the rule's own call site** - so a silence here cannot come
+    // from the function refusing to report.
+    expect(extensionSingularWriteViolations()).toEqual([]);
+
+    // **Every spelling the identifier can arrive in, each required to be reported *by name*.**
+    // The rule matches the bare identifier, so the first of these is the form and the rest are the
+    // ways a future edit could reach it - and a rule that fired on only one of them would leave the
+    // others unguarded while reading as the same rule.
+    const forms: ReadonlyArray<readonly [string, string]> = [
+      ["a bare call", "export const save = async (m: unknown) => saveMailbox(m);\n"],
+      ["a member call", "export const x = records.stored.saveMailbox;\n"],
+      ["a spaced member", "export const y = records . stored . saveMailbox ;\n"],
+      // **A type reference, and it is reported too.** This is the one a reader is most likely to
+      // call a false positive: nothing here writes anything. It is listed because the reason the
+      // rule can afford it is that no module in this client needs the singular contract as a type
+      // any more - the one that holds the value exposes `loadInsertableMailboxes` instead - so
+      // naming it at all is the thing worth reporting.
+      ["a type reference", 'export type P = Pick<SpectreStorage, "saveMailbox">;\n'],
+    ];
+
+    const disposable = withDisposableExtensionSource();
+    try {
+      for (const [label, source] of forms) {
+        const probe = join(disposable.root, `__write-probe-${label.replace(/\W+/g, "-")}.ts`);
+        writeFileSync(probe, source, "utf8");
+        expect(
+          extensionSingularWriteViolationsIn(disposable.root).filter((hit) =>
+            hit.includes("__write-probe"),
+          ),
+          `the rule must report ${label}`,
+        ).not.toEqual([]);
+        rmSync(probe, { force: true });
+      }
+
+      // **And the negative control: prose about the forbidden write is not a write.** Four modules
+      // in this tree explain at length why the client does not call it, and one of them is this
+      // rule's own subject. A rule that fired on its own documentation would be silenced by
+      // rewording the prose, which deletes the reasoning instead of the defect.
+      const prose = join(disposable.root, "__write-prose.ts");
+      writeFileSync(
+        prose,
+        "/** `saveMailbox` writes the singular record, which this client only reads. */\nexport const x = 1;\n",
+        "utf8",
+      );
+      expect(
+        extensionSingularWriteViolationsIn(disposable.root).filter((hit) =>
+          hit.includes("__write-prose"),
+        ),
+        "a comment about saveMailbox is documentation, not a write",
+      ).toEqual([]);
+      rmSync(prose, { force: true });
+
+      // **And the test exemption, both spellings**, because a client test has to be able to build a
+      // stand-in offering the old write in order to prove the handler does not use it.
+      for (const exempt of ["__exempt.test.ts", "__exempt.spec.ts"]) {
+        writeFileSync(join(disposable.root, exempt), forms[0]![1], "utf8");
+      }
+      expect(
+        extensionSingularWriteViolationsIn(disposable.root).filter((hit) =>
+          hit.includes("__exempt"),
+        ),
+        "a test may offer the write it asserts is never made",
+      ).toEqual([]);
+    } finally {
+      disposable.done();
+    }
+
+    // **The negative half through the same call site, on the real tree** - the probes are gone, so
+    // silence here means the shipped source is clean rather than that the scan stopped.
+    expect(extensionSingularWriteViolations()).toEqual([]);
   });
 
   it("exempts the one reader and the tests, and proves both exemptions are load-bearing", () => {

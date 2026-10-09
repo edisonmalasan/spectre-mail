@@ -69,14 +69,38 @@ was actually scanned, which is the repair `browser.ts`'s module note rejects in 
 
 export type { SpectreStorage } from "./contract";
 
+export type { SpectreMailboxes } from "./mailboxes";
+export type { SpectreSiteAssociations } from "./site-associations";
+
 export { createBrowserStorage } from "./browser";
 
-export { createChromeStorage, EXTENSION_MAILBOX_KEY } from "./chrome";
+export {
+  createChromeStorage,
+  createChromeMailboxes,
+  createChromeSiteAssociations,
+  EXTENSION_MAILBOX_KEY,
+  EXTENSION_MAILBOXES_KEY,
+  EXTENSION_SITE_MAILBOXES_KEY,
+} from "./chrome";
 export type { ChromeStorageOptions } from "./chrome";
 export type { ChromeStorageArea } from "./chrome-api";
 
-export { SPECTRE_RECORD_VERSION, readStoredMailboxRecord, toStoredMailboxRecord } from "./record";
-export type { StoredMailboxRecord } from "./record";
+export {
+  SPECTRE_RECORD_VERSION,
+  SPECTRE_ENVELOPE_VERSION,
+  readStoredMailboxRecord,
+  toStoredMailboxRecord,
+  prependStoredMailbox,
+  readStoredMailboxCollection,
+  toStoredMailboxCollection,
+  readStoredSiteAssociations,
+  toStoredSiteAssociations,
+} from "./record";
+export type {
+  StoredMailboxRecord,
+  StoredMailboxCollection,
+  StoredSiteAssociations,
+} from "./record";
 
 export { createIndexedDbStorage, CURRENT_MAILBOX_KEY, SPECTRE_DATABASE_VERSION } from "./indexeddb";
 export type { IndexedDbStorageOptions } from "./indexeddb";

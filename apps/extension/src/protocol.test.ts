@@ -67,9 +67,16 @@ describe("the request both contexts agree on", () => {
 
 describe("narrowing an answer", () => {
   it("admits every variant this product writes", () => {
-    expect(readCreateMailboxAnswer({ kind: "created", address: "made@address.test" })).toEqual({
+    expect(
+      readCreateMailboxAnswer({
+        kind: "created",
+        address: "made@address.test",
+        mailboxId: "made-at-provider",
+      }),
+    ).toEqual({
       kind: "created",
       address: "made@address.test",
+      mailboxId: "made-at-provider",
     });
     expect(readCreateMailboxAnswer({ kind: "refused", description: "429" })).toEqual({
       kind: "refused",
@@ -81,11 +88,21 @@ describe("narrowing an answer", () => {
 
   it.each([
     ["a created answer with no address", { kind: "created" }],
-    ["a created answer whose address is not a string", { kind: "created", address: 7 }],
+    [
+      "a created answer whose address is not a string",
+      { kind: "created", address: 7, mailboxId: "m" },
+    ],
     // **An empty address, and the reason it is refused rather than admitted.** A `""` would satisfy
     // every other check on the variant, be typed as a `string`, and be written into somebody's form
     // as an empty value that looked filled. There is no provider that answers creation with one.
-    ["a created answer with an empty address", { kind: "created", address: "" }],
+    ["a created answer with an empty address", { kind: "created", address: "", mailboxId: "m" }],
+    // **An address and no id, and it is refused rather than admitted with a blank id.** The page
+    // records which mailbox a host was last used with, and an answer it cannot key that record by is
+    // an address it can insert but never remember — the one shape the caller has no honest report
+    // for, so it becomes "no answer" and the page says it could not confirm.
+    ["a created answer with no mailbox id", { kind: "created", address: "made@address.test" }],
+    ["a created answer whose id is not a string", { kind: "created", address: "m", mailboxId: 7 }],
+    ["a created answer with an empty id", { kind: "created", address: "m", mailboxId: "" }],
     ["a refusal with no description", { kind: "refused" }],
     ["a refusal whose description is not a string", { kind: "refused", description: {} }],
     ["a refusal with an empty description", { kind: "refused", description: "" }],
@@ -117,11 +134,13 @@ describe("narrowing an answer", () => {
     const inherited = Object.create({
       kind: "created",
       address: "inherited@address.test",
+      mailboxId: "inherited-id",
     }) as object;
 
     expect(readCreateMailboxAnswer(inherited)).toEqual({
       kind: "created",
       address: "inherited@address.test",
+      mailboxId: "inherited-id",
     });
   });
 
@@ -134,9 +153,14 @@ describe("narrowing an answer", () => {
     const admitted = readCreateMailboxAnswer({
       kind: "created",
       address: "made@address.test",
+      mailboxId: "made-at-provider",
       extra: "a field the union does not declare",
     });
 
-    expect(admitted).toEqual({ kind: "created", address: "made@address.test" });
+    expect(admitted).toEqual({
+      kind: "created",
+      address: "made@address.test",
+      mailboxId: "made-at-provider",
+    });
   });
 });
