@@ -47,6 +47,7 @@ import {
 } from "./content-script/affordance";
 import { IN_PAGE_CREATE_CEILING_MS } from "./content-script/create-wait";
 import { startInPageIntegration } from "./content-script/controller";
+import { fakeRecords, settledBoot } from "./content-script/testing/fake-records";
 import type { CreateMailboxAnswer } from "./protocol";
 
 const ADDRESS = "created@address.test";
@@ -75,17 +76,18 @@ function harness(options: { readonly stored?: Mailbox | null } = {}) {
   document.body.replaceChildren();
 
   const stored = options.stored === undefined ? null : options.stored;
-  const loadMailbox = vi.fn(async (): Promise<Mailbox | null> => stored);
+  const held = fakeRecords({ mailboxes: stored === null ? [] : [stored] });
+  const loadMailbox = held.loadMailboxes;
   const createMailbox = vi.fn(async (): Promise<CreateMailboxAnswer> => ({ kind: "notActedOn" }));
 
   const stop = startInPageIntegration({
     document,
-    storage: { loadMailbox },
+    records: held.records,
     createMailbox,
   });
   started.push(stop);
 
-  return { stop, loadMailbox, createMailbox, host, button, field, focus };
+  return { stop, loadMailbox, createMailbox, host, button, field, focus, held };
 }
 
 /** The affordance's host element, read from the document every time. */
@@ -138,8 +140,8 @@ afterEach(() => {
 describe("offering to create an address", () => {
   it("offers creation when this device holds nothing, and names it as creation", async () => {
     const { createMailbox } = harness();
-    await Promise.resolve();
-    await Promise.resolve();
+    await settledBoot();
+    await settledBoot();
 
     const target = field();
 
@@ -152,19 +154,23 @@ describe("offering to create an address", () => {
 
   it("asks the background context when it is activated, and inserts what comes back", async () => {
     const { createMailbox } = harness();
-    await Promise.resolve();
-    await Promise.resolve();
+    await settledBoot();
+    await settledBoot();
 
     const target = field();
     const seen: string[] = [];
     target.addEventListener("input", () => seen.push("input"));
     target.addEventListener("change", () => seen.push("change"));
 
-    createMailbox.mockResolvedValue({ kind: "created", address: ADDRESS });
+    createMailbox.mockResolvedValue({
+      kind: "created",
+      address: ADDRESS,
+      mailboxId: "created-by-worker",
+    });
     button()?.click();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
+    await settledBoot();
+    await settledBoot();
+    await settledBoot();
 
     expect(createMailbox).toHaveBeenCalledTimes(1);
     // **The page's own code reads the value back, and both events are dispatched** — the same
@@ -181,13 +187,13 @@ describe("while a request is outstanding", () => {
   it("reports that it is waiting, and disables itself against a second activation", async () => {
     const answer = deferred<CreateMailboxAnswer>();
     const { createMailbox } = harness();
-    await Promise.resolve();
-    await Promise.resolve();
+    await settledBoot();
+    await settledBoot();
 
     field();
     createMailbox.mockReturnValue(answer.promise);
     button()?.click();
-    await Promise.resolve();
+    await settledBoot();
 
     expect(button()?.textContent).toBe(AFFORDANCE_WAITING_LABEL);
     expect(button()?.disabled).toBe(true);
@@ -201,13 +207,13 @@ describe("while a request is outstanding", () => {
     // requirement is that a person cannot start a second request, and a person presses twice.
     button()?.click();
     button()?.click();
-    await Promise.resolve();
+    await settledBoot();
     expect(createMailbox).toHaveBeenCalledTimes(1);
 
-    answer.resolve({ kind: "created", address: ADDRESS });
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
+    answer.resolve({ kind: "created", address: ADDRESS, mailboxId: "created-by-worker" });
+    await settledBoot();
+    await settledBoot();
+    await settledBoot();
   });
 
   it("asks once even when an activation bypasses the disabled control", async () => {
@@ -228,13 +234,13 @@ describe("while a request is outstanding", () => {
     // terms, so that neither mechanism is the sole witness to the claim.
     const answer = deferred<CreateMailboxAnswer>();
     const { createMailbox } = harness();
-    await Promise.resolve();
-    await Promise.resolve();
+    await settledBoot();
+    await settledBoot();
 
     field();
     createMailbox.mockReturnValue(answer.promise);
     button()?.click();
-    await Promise.resolve();
+    await settledBoot();
 
     expect(button()?.disabled).toBe(true);
 
@@ -242,31 +248,31 @@ describe("while a request is outstanding", () => {
     // satisfied by a button that never became disabled - which is what would happen if
     // `setPending(true)` were the only thing under test here.
     button()?.click();
-    await Promise.resolve();
+    await settledBoot();
     expect(createMailbox).toHaveBeenCalledTimes(1);
 
     button()?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     button()?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    await Promise.resolve();
+    await settledBoot();
 
     expect(createMailbox).toHaveBeenCalledTimes(1);
 
-    answer.resolve({ kind: "created", address: ADDRESS });
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
+    answer.resolve({ kind: "created", address: ADDRESS, mailboxId: "created-by-worker" });
+    await settledBoot();
+    await settledBoot();
+    await settledBoot();
   });
 
   it("keeps the control when focus leaves, and removes it once the answer arrives", async () => {
     const answer = deferred<CreateMailboxAnswer>();
     const { createMailbox } = harness();
-    await Promise.resolve();
-    await Promise.resolve();
+    await settledBoot();
+    await settledBoot();
 
     const target = field();
     createMailbox.mockReturnValue(answer.promise);
     button()?.click();
-    await Promise.resolve();
+    await settledBoot();
 
     blur(target);
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -276,10 +282,10 @@ describe("while a request is outstanding", () => {
     // gone the moment the answer lands, or the exception would have become persistence.
     expect(host()).not.toBeNull();
 
-    answer.resolve({ kind: "created", address: ADDRESS });
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
+    answer.resolve({ kind: "created", address: ADDRESS, mailboxId: "created-by-worker" });
+    await settledBoot();
+    await settledBoot();
+    await settledBoot();
     expect(target.value).toBe(ADDRESS);
     expect(host()).toBeNull();
   });
@@ -287,21 +293,21 @@ describe("while a request is outstanding", () => {
   it("inserts nothing into a field that acquired text, and still records the address", async () => {
     const answer = deferred<CreateMailboxAnswer>();
     const { createMailbox } = harness();
-    await Promise.resolve();
-    await Promise.resolve();
+    await settledBoot();
+    await settledBoot();
 
     const target = field();
     createMailbox.mockReturnValue(answer.promise);
     button()?.click();
-    await Promise.resolve();
+    await settledBoot();
 
     // **The page writes while the request is out** — an autofill, a password manager, the person.
     target.value = "typed-by-the-user@example.com";
 
-    answer.resolve({ kind: "created", address: ADDRESS });
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
+    answer.resolve({ kind: "created", address: ADDRESS, mailboxId: "created-by-worker" });
+    await settledBoot();
+    await settledBoot();
+    await settledBoot();
 
     expect(target.value).toBe("typed-by-the-user@example.com");
 
@@ -326,15 +332,15 @@ describe("an answer that carries no address", () => {
     "reports that it could not confirm on %s, and lets a person ask again",
     async (_label, answer) => {
       const { createMailbox } = harness();
-      await Promise.resolve();
-      await Promise.resolve();
+      await settledBoot();
+      await settledBoot();
 
       field();
       createMailbox.mockResolvedValue(answer);
       button()?.click();
-      await Promise.resolve();
-      await Promise.resolve();
-      await Promise.resolve();
+      await settledBoot();
+      await settledBoot();
+      await settledBoot();
 
       expect(button()?.textContent).toBe(AFFORDANCE_UNCONFIRMED_LABEL);
       expect(button()?.disabled).toBe(false);
@@ -343,19 +349,23 @@ describe("an answer that carries no address", () => {
       // **A second request, and the requirement states the cost of permitting it.** Two requests
       // could create two mailboxes at a provider; the alternative leaves somebody who has been told
       // nothing with no way forward. So the control is offered again and the fact is not hidden.
-      createMailbox.mockResolvedValue({ kind: "created", address: ADDRESS });
+      createMailbox.mockResolvedValue({
+        kind: "created",
+        address: ADDRESS,
+        mailboxId: "created-by-worker",
+      });
       button()?.click();
-      await Promise.resolve();
-      await Promise.resolve();
-      await Promise.resolve();
+      await settledBoot();
+      await settledBoot();
+      await settledBoot();
       expect(createMailbox).toHaveBeenCalledTimes(2);
     },
   );
 
   it("reports the provider's own words on a refusal", async () => {
     const { createMailbox } = harness();
-    await Promise.resolve();
-    await Promise.resolve();
+    await settledBoot();
+    await settledBoot();
 
     field();
     createMailbox.mockResolvedValue({
@@ -363,9 +373,9 @@ describe("an answer that carries no address", () => {
       description: "Mail.tm is throttling this request while creating a mailbox.",
     });
     button()?.click();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
+    await settledBoot();
+    await settledBoot();
+    await settledBoot();
 
     // **Verbatim, and as the control's accessible name.** There is no error region on somebody
     // else's page and no toast, so the button's name is the only surface a person has — and a
@@ -383,19 +393,19 @@ describe("an answer that carries no address", () => {
     const createMailbox = vi.fn(() => Promise.reject(new Error("the message channel is gone")));
     const stop = startInPageIntegration({
       document,
-      storage: { loadMailbox: async () => null },
+      records: fakeRecords().records,
       createMailbox,
       onBlocked,
     });
     started.push(stop);
-    await Promise.resolve();
-    await Promise.resolve();
+    await settledBoot();
+    await settledBoot();
 
     field();
     button()?.click();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
+    await settledBoot();
+    await settledBoot();
+    await settledBoot();
 
     // **`notActedOn` rather than a refusal, and the two are kept apart end to end.** A rejected
     // seam means no answer arrived, which is a different fact from a provider refusing, and the
@@ -418,22 +428,22 @@ describe("when the wait passes", () => {
   it("reads what this device holds, and inserts it when a mailbox is there", async () => {
     vi.useFakeTimers();
 
-    const { answer, createMailbox, loadMailbox } = holdOpen();
-    await Promise.resolve();
-    await Promise.resolve();
+    const { answer, createMailbox, held } = holdOpen();
+    await settledBoot();
+    await settledBoot();
 
     const target = field();
     createMailbox.mockReturnValue(answer.promise);
     button()?.click();
-    await Promise.resolve();
+    await settledBoot();
 
     // **The mailbox appears only in storage, after the wait has passed** — which is exactly the
     // situation the requirement describes: the worker stored it and its answer never came back.
-    loadMailbox.mockResolvedValue(mailbox(ADDRESS));
+    held.mailboxes.unshift(mailbox(ADDRESS));
 
     await vi.advanceTimersByTimeAsync(IN_PAGE_CREATE_CEILING_MS);
-    await Promise.resolve();
-    await Promise.resolve();
+    await settledBoot();
+    await settledBoot();
 
     expect(target.value).toBe(ADDRESS);
     expect(host()).toBeNull();
@@ -444,17 +454,17 @@ describe("when the wait passes", () => {
     vi.useFakeTimers();
 
     const { answer, createMailbox } = holdOpen();
-    await Promise.resolve();
-    await Promise.resolve();
+    await settledBoot();
+    await settledBoot();
 
     const target = field();
     createMailbox.mockReturnValue(answer.promise);
     button()?.click();
-    await Promise.resolve();
+    await settledBoot();
 
     await vi.advanceTimersByTimeAsync(IN_PAGE_CREATE_CEILING_MS);
-    await Promise.resolve();
-    await Promise.resolve();
+    await settledBoot();
+    await settledBoot();
 
     // **The sentence says what was observed and nothing else.** Not "failed" — nothing failed that
     // was observed. Not "no mailbox was created" — a mailbox may well exist, and this page cannot
@@ -465,11 +475,15 @@ describe("when the wait passes", () => {
     expect(host()).not.toBeNull();
     expect(target.value).toBe("");
 
-    createMailbox.mockResolvedValue({ kind: "created", address: ADDRESS });
+    createMailbox.mockResolvedValue({
+      kind: "created",
+      address: ADDRESS,
+      mailboxId: "created-by-worker",
+    });
     button()?.click();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
+    await settledBoot();
+    await settledBoot();
+    await settledBoot();
     expect(createMailbox).toHaveBeenCalledTimes(2);
     expect(target.value).toBe(ADDRESS);
   });
@@ -478,29 +492,29 @@ describe("when the wait passes", () => {
     vi.useFakeTimers();
 
     const { answer, createMailbox, loadMailbox } = holdOpen();
-    await Promise.resolve();
-    await Promise.resolve();
+    await settledBoot();
+    await settledBoot();
 
     field();
     createMailbox.mockReturnValue(answer.promise);
     button()?.click();
-    await Promise.resolve();
+    await settledBoot();
 
     // **The read is held open, so the control is observed mid-read.** This is the window in which
     // "could not confirm" appearing would leave a person one press away from a second request while
     // the first may still succeed — the requirement's own scenario permits the offer to remain, and
     // what is not permitted is a *startable* second request while the first is unresolved.
-    const read = deferred<Mailbox | null>();
+    const read = deferred<readonly Mailbox[]>();
     loadMailbox.mockReturnValue(read.promise);
 
     await vi.advanceTimersByTimeAsync(IN_PAGE_CREATE_CEILING_MS);
-    await Promise.resolve();
+    await settledBoot();
 
     expect(button()?.disabled).toBe(true);
 
-    read.resolve(null);
-    await Promise.resolve();
-    await Promise.resolve();
+    read.resolve([]);
+    await settledBoot();
+    await settledBoot();
     expect(button()?.disabled).toBe(false);
   });
 
@@ -517,32 +531,32 @@ describe("when the wait passes", () => {
     const onBlocked = vi.fn();
     document.body.replaceChildren();
     const createMailbox = vi.fn(() => Promise.resolve<CreateMailboxAnswer>({ kind: "notActedOn" }));
-    const loadMailbox = vi.fn(async (): Promise<Mailbox | null> => null);
+    const held = fakeRecords();
     const stop = startInPageIntegration({
       document,
-      storage: { loadMailbox },
+      records: held.records,
       createMailbox,
       onBlocked,
     });
     started.push(stop);
-    await Promise.resolve();
-    await Promise.resolve();
+    await settledBoot();
+    await settledBoot();
 
     const answer = deferred<CreateMailboxAnswer>();
     const target = field();
     createMailbox.mockReturnValue(answer.promise);
     button()?.click();
-    await Promise.resolve();
+    await settledBoot();
 
     // **The read rejects, where the previous case's returned `null`.** Same control, same outcome -
     // and that is the point being recorded rather than papered over: the copy is the same *sentence*,
     // because "could not confirm" is true of both, and the difference between them is not something a
     // person inside a stranger's page can act on differently.
-    loadMailbox.mockRejectedValue(new Error("the read failed"));
+    held.loadMailboxes.mockRejectedValue(new Error("the read failed"));
 
     await vi.advanceTimersByTimeAsync(IN_PAGE_CREATE_CEILING_MS);
-    await Promise.resolve();
-    await Promise.resolve();
+    await settledBoot();
+    await settledBoot();
 
     expect(target.value).toBe("");
     expect(button()?.textContent).toBe(AFFORDANCE_UNCONFIRMED_LABEL);
@@ -565,13 +579,13 @@ describe("when the wait passes", () => {
     vi.useFakeTimers();
 
     const { answer, createMailbox } = holdOpen();
-    await Promise.resolve();
-    await Promise.resolve();
+    await settledBoot();
+    await settledBoot();
 
     const target = field();
     createMailbox.mockReturnValue(answer.promise);
     button()?.click();
-    await Promise.resolve();
+    await settledBoot();
     expect(button()?.textContent).toBe(AFFORDANCE_WAITING_LABEL);
 
     // **Focus arrives somewhere else entirely, and the two arms of the arrival are both reached.**
@@ -595,7 +609,7 @@ describe("when the wait passes", () => {
     username.setAttribute("name", "username");
     document.body.append(username);
     username.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
-    await Promise.resolve();
+    await settledBoot();
 
     expect(button()?.textContent).toBe(AFFORDANCE_WAITING_LABEL);
     expect(button()?.disabled).toBe(true);
@@ -609,7 +623,7 @@ describe("when the wait passes", () => {
     other.setAttribute("name", "email");
     document.body.append(other);
     other.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
-    await Promise.resolve();
+    await settledBoot();
 
     expect(document.querySelectorAll(`[${AFFORDANCE_HOST_ATTRIBUTE}]`)).toHaveLength(1);
     expect(button()?.textContent).toBe(AFFORDANCE_WAITING_LABEL);
@@ -617,12 +631,12 @@ describe("when the wait passes", () => {
     // **And pressing whatever is on screen does not produce a second request**, which is what
     // distinguishes "the control cannot act" from "the control is gone".
     button()?.click();
-    await Promise.resolve();
+    await settledBoot();
     expect(createMailbox).toHaveBeenCalledTimes(1);
 
-    answer.resolve({ kind: "created", address: ADDRESS });
-    await Promise.resolve();
-    await Promise.resolve();
+    answer.resolve({ kind: "created", address: ADDRESS, mailboxId: "created-by-worker" });
+    await settledBoot();
+    await settledBoot();
     await vi.advanceTimersByTimeAsync(0);
   });
 
@@ -630,28 +644,28 @@ describe("when the wait passes", () => {
     vi.useFakeTimers();
 
     const { answer, createMailbox, loadMailbox } = holdOpen();
-    await Promise.resolve();
-    await Promise.resolve();
+    await settledBoot();
+    await settledBoot();
 
     const target = field();
     createMailbox.mockReturnValue(answer.promise);
     button()?.click();
-    await Promise.resolve();
+    await settledBoot();
 
-    loadMailbox.mockResolvedValue(null);
+    loadMailbox.mockResolvedValue([]);
     await vi.advanceTimersByTimeAsync(IN_PAGE_CREATE_CEILING_MS);
-    await Promise.resolve();
-    await Promise.resolve();
+    await settledBoot();
+    await settledBoot();
     expect(button()?.textContent).toBe(AFFORDANCE_UNCONFIRMED_LABEL);
 
     // **The answer lands last, and by then the page has withdrawn its offer.** The mailbox is real
     // and stored — the worker persisted it before answering — so the address is recorded; what must
     // not happen is writing it into the field afterwards. This is the case the requirement did not
     // name when the change was proposed and the delta now does.
-    answer.resolve({ kind: "created", address: ADDRESS });
+    answer.resolve({ kind: "created", address: ADDRESS, mailboxId: "created-by-worker" });
     await vi.advanceTimersByTimeAsync(0);
-    await Promise.resolve();
-    await Promise.resolve();
+    await settledBoot();
+    await settledBoot();
 
     expect(target.value).toBe("");
 
@@ -671,9 +685,9 @@ describe("when the wait passes", () => {
     expect(button()?.textContent).not.toBe(AFFORDANCE_CREATE_LABEL);
 
     button()?.click();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
+    await settledBoot();
+    await settledBoot();
+    await settledBoot();
     expect(second.value).toBe(ADDRESS);
     // **One request for the whole sequence** — the late answer was recorded rather than replayed.
     expect(createMailbox).toHaveBeenCalledTimes(1);
@@ -686,19 +700,19 @@ describe("stopping the integration while a request is out", () => {
 
     const answer = deferred<CreateMailboxAnswer>();
     const opened = harness();
-    await Promise.resolve();
-    await Promise.resolve();
+    await settledBoot();
+    await settledBoot();
 
     field();
     opened.createMailbox.mockReturnValue(answer.promise);
     button()?.click();
-    await Promise.resolve();
+    await settledBoot();
 
     const readsBefore = opened.loadMailbox.mock.calls.length;
     opened.stop();
 
     await vi.advanceTimersByTimeAsync(IN_PAGE_CREATE_CEILING_MS * 2);
-    await Promise.resolve();
+    await settledBoot();
 
     // **A timer that outlived its controller would read this device's storage after teardown.**
     // That is harmless in production and not in a page that navigates away, and it is invisible to

@@ -26,7 +26,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { BrowserContext, Page, Route } from "@playwright/test";
+import type { BrowserContext, FrameLocator, Page, Route } from "@playwright/test";
 
 import {
   AFFORDANCE_BUTTON_ATTRIBUTE,
@@ -97,8 +97,16 @@ export const AFFORDANCE_HOST_SELECTOR = `[${AFFORDANCE_HOST_ATTRIBUTE}]`;
 /** The control's own hook, as a selector. */
 export const AFFORDANCE_BUTTON_SELECTOR = `[${AFFORDANCE_BUTTON_ATTRIBUTE}]`;
 
-/** The label the affordance carries. */
-export const LABEL = AFFORDANCE_LABEL;
+/**
+ * The extension namespaces this product uses, and the ones a web page must not reach.
+ *
+ * **Three names, and every one of them is named by a module in `apps/extension/src`.** `storage`
+ * is the whole of this slice's mechanism, `runtime` is slice 2's delegation seam, and `alarms` is
+ * M8's scheduler. Listing them rather than testing a wildcard is deliberate: a wildcard would be
+ * satisfied by a *new* extension API appearing without anyone deciding the page should get it,
+ * and this case is about the three that exist.
+ */
+const EXTENSION_NAMESPACES = ["storage", "runtime", "alarms"] as const;
 
 /**
  * Fail loudly if the fixture was not built.
@@ -158,6 +166,7 @@ export async function openFixturePage(
 ): Promise<Page> {
   const script = requireBuiltFixture();
   const html = fs.readFileSync(path.join(FIXTURE_DIR, "index.html"), "utf8");
+  const frame = fs.readFileSync(path.join(FIXTURE_DIR, "frame.html"), "utf8");
 
   // **A string is accepted as the origin, because five existing callers pass one.** Changing the
   // signature to options-only would have meant editing every one of them to learn a shape that
@@ -199,6 +208,14 @@ export async function openFixturePage(
       await fulfil(route, script, "text/javascript; charset=utf-8");
       return;
     }
+    if (pathname === "/frame.html") {
+      // **The frame's document, served by name like any other response.** It is a separate
+      // pathname rather than a `srcdoc` attribute precisely so the handler above has to
+      // account for it: an unscripted pathname throws by name, so a frame that 404s is a
+      // loud failure and not a green absence assertion.
+      await fulfil(route, frame, "text/html; charset=utf-8");
+      return;
+    }
     if (pathname === "/hostile.css") {
       await fulfil(route, HOSTILE_CSS, "text/css; charset=utf-8");
       return;
@@ -221,6 +238,140 @@ export async function openFixturePage(
   });
 
   return page;
+}
+
+/**
+ * The fixture's same-origin iframe, as a frame locator.
+ *
+ * **Returned rather than awaited-ready on purpose.** Nothing this suite ships is injected into
+ * the frame (`all_frames` is unset in the manifest), so a readiness wait here would have to be
+ * a wait for the *absence* of the product's own work — and a wait that can be satisfied by a
+ * failure is not a precondition. `waitForFramedFixture` below waits for the frame's **own**
+ * marker instead, which is the one thing the frame does whether or not this extension is in it.
+ */
+export function framedFixture(page: Page): FrameLocator {
+  return page.frameLocator("#framed");
+}
+
+/**
+ * Wait until the iframe has loaded its own document.
+ *
+ * **The frame's marker, read from inside the frame.** An absence assertion over a frame that
+ * never loaded is satisfied by the frame being broken, and the recorded lesson is that the
+ * cheapest way to be sure is to have the frame prove itself first.
+ */
+export async function waitForFramedFixture(page: Page): Promise<void> {
+  await framedFixture(page).locator("[data-frame-ready]").waitFor({ state: "attached" });
+}
+
+/**
+ * How many affordances the **iframe's own** document holds.
+ *
+ * **A count through the frame's document, not through Playwright's frame locator.** `frameLocator`
+ * locates across frames; a `count()` on it answers for the frame, which is what the requirement
+ * needs. The plant below is what makes the count mean something: it is the control that proves
+ * this reader would report one.
+ */
+export function framedAffordanceCount(page: Page): Promise<number> {
+  return framedFixture(page).locator(AFFORDANCE_HOST_SELECTOR).count();
+}
+
+/**
+ * Plant the affordance's own hook inside the frame, then remove it, and report what the reader
+ * saw both times.
+ *
+ * **The control for the absence claim, and it is the reason the absence is worth reading.** A
+ * reader that cannot see the frame's light DOM would report `0` with or without the extension
+ * doing anything, and the case would pass for a reason that had nothing to do with `all_frames`.
+ * The numbers are returned as a pair rather than asserted here so the case can state them.
+ */
+export async function plantAndRemoveFramedAffordance(page: Page): Promise<{
+  readonly planted: number;
+  readonly removed: number;
+}> {
+  const frame = page.frames().find((candidate) => candidate !== page.mainFrame());
+
+  if (frame === undefined) {
+    throw new Error("the fixture's iframe is not among the page's frames, so nothing was planted");
+  }
+
+  const planted = await frame.evaluate((attribute) => {
+    const host = document.createElement("div");
+    host.setAttribute(attribute, "");
+    document.body.append(host);
+    return document.querySelectorAll(`[${attribute}]`).length;
+  }, AFFORDANCE_HOST_ATTRIBUTE);
+
+  await frame.evaluate((attribute) => {
+    for (const host of Array.from(document.querySelectorAll(`[${attribute}]`))) {
+      host.remove();
+    }
+  }, AFFORDANCE_HOST_ATTRIBUTE);
+
+  const removed = await frame.evaluate(
+    (selector) => document.querySelectorAll(selector).length,
+    AFFORDANCE_HOST_SELECTOR,
+  );
+
+  return { planted, removed };
+}
+
+/**
+ * Whether the **page's own world** can reach any of this extension's namespaces.
+ *
+ * **A list of names, not a boolean about the global's existence.** A content script runs in an
+ * isolated world, so the extension's own APIs are absent for the page - and Chromium does hand a
+ * web page a `chrome` object carrying the long-deprecated `loadTimes`, `csi` and `app` properties,
+ * which is why `"chrome" in globalThis` is `true` there and was the wrong question. What has to be
+ * unreachable is `storage`, `runtime` and `alarms`: those are the three this product uses, and the
+ * absence of exactly those is the claim.
+ */
+export function pageWorldReachesExtensionApis(page: Page): Promise<string[]> {
+  const wanted: readonly string[] = EXTENSION_NAMESPACES;
+  return pageWorldChromeKeys(page).then((keys) => keys.filter((key) => wanted.includes(key)));
+}
+
+/**
+ * Install a `storage` listener in the page and report how many events it has seen.
+ *
+ * **`window` listener, in the page's world, exactly as a page would write one.** This is the
+ * instrument for the cross-document control: `localStorage` writes do *not* fire `storage` in the
+ * document that made them, so the positive control has to write from a second page on the same
+ * origin for the event to be a real one.
+ */
+export function installStorageListener(page: Page): Promise<void> {
+  return page.evaluate(() => {
+    const events: string[] = [];
+    (globalThis as unknown as { __spectreStorageEvents: string[] }).__spectreStorageEvents = events;
+    window.addEventListener("storage", (event) => {
+      events.push(`${String(event.key)}:${String(event.storageArea === localStorage)}`);
+    });
+  });
+}
+
+/** How many `storage` events the page's own listener has reported. */
+export function storageEventsSeen(page: Page): Promise<string[]> {
+  return page.evaluate(
+    () =>
+      (globalThis as unknown as { __spectreStorageEvents?: string[] }).__spectreStorageEvents ?? [],
+  );
+}
+
+/**
+ * The **names** the page's own world finds on `globalThis.chrome`.
+ *
+ * **Measured, not assumed, and the measurement corrected the requirement's wording.** The first
+ * version of this case asserted that `"chrome" in globalThis` is `false` in the page, and Chromium
+ * answered `true`: a web page does get a `chrome` object, carrying the long-deprecated `loadTimes`,
+ * `csi` and `app` properties. **A platform global's *presence* is not its *content*, and a claim
+ * about isolation has to be about what the page can actually reach.** So the reader names the keys,
+ * and the case requires that none of this extension's namespaces is among them.
+ */
+export function pageWorldChromeKeys(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const platform = (globalThis as unknown as { chrome?: Record<string, unknown> }).chrome;
+    return platform === undefined ? [] : Object.keys(platform).sort();
+  });
 }
 
 /** How many affordances the page is showing. */
@@ -321,7 +472,7 @@ export async function plantEscapedAffordanceButton(page: Page): Promise<number> 
       document.body.append(button);
       return document.querySelectorAll("button").length;
     },
-    [AFFORDANCE_BUTTON_ATTRIBUTE, LABEL] as const,
+    [AFFORDANCE_BUTTON_ATTRIBUTE, AFFORDANCE_LABEL] as const,
   );
 }
 

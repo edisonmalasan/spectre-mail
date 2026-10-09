@@ -9,20 +9,31 @@ import type { Mailbox } from "@spectre-mail/core";
 /**
  * Where a client keeps what SpectreMail knows about its own mailbox.
  *
- * ## Why it is three operations and not a key–value bag
+ * ## This is one of three contracts, and that is now said rather than implied
  *
  * `M6`'s Storage block names five record kinds — mailboxes, provider credentials,
- * preferences, a message-metadata cache, and provider health — and this contract
- * has room for one of them. The other four have no consumer, and a record with no
- * consumer is a schema to migrate rather than a feature.
+ * preferences, a message-metadata cache, and provider health — and this contract has
+ * room for **one** of them: the single current mailbox. `site-associations` added two
+ * more record kinds this layer now serves, `SpectreMailboxes` and
+ * `SpectreSiteAssociations`, and **a site association was not one of the five**, which
+ * is why the scope statement above had to be answered rather than stretched.
  *
- * A generic `get(key)` / `set(key, value)` would have been the smaller interface,
- * and it was rejected. It moves every naming, versioning, and narrowing decision to
- * the caller, which means the extension at M8 reimplements all three against
- * `chrome.storage` — a platform with no transactions, so the durability guarantee
- * below would have to be restated per platform rather than implemented once. The
- * contract is where "what is a usable stored record" lives; a key–value bag has
- * nowhere to put it.
+ * They are separate interfaces rather than members here because they have different
+ * consumers and different platforms: this one has two adapters, each new one has one,
+ * and widening this contract would have made the website's IndexedDB adapter implement
+ * operations no page calls — "a record with no consumer is a schema to migrate rather
+ * than a feature", which is the sentence this paragraph was written to keep true.
+ * Removal stays here and stays singular, because `clearAll` is the layer's, not a
+ * record kind's.
+ *
+ * ## Why it is three operations and not a key–value bag
+ *
+ * A generic `get(key)` / `set(key, value)` would have been the smaller interface, and it
+ * was rejected. It moves every naming, versioning, and narrowing decision to the caller,
+ * which means the extension at M8 reimplements all three against `chrome.storage` — a
+ * platform with no transactions, so the durability guarantee below would have to be
+ * restated per platform rather than implemented once. The contract is where "what is a
+ * usable stored record" lives; a key–value bag has nowhere to put it.
  *
  * ## `null` means exactly one thing
  *

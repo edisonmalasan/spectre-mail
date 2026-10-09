@@ -44,6 +44,28 @@
  * prevent, arriving through the door that looks most careful. So the answer updates `address` whether
  * or not it is inserted.
  *
+ * ## Which mailbox a page is offered, and why the answer is not a menu
+ *
+ * **A menu of every mailbox would be a menu inside somebody else's page** — a list of addresses
+ * belonging to a product the page has never heard of, opened by a control the page cannot see and
+ * cannot close. So the choice is delivered as *which* mailbox a host resolves to, and the cost of
+ * that is recorded rather than hidden: on a host that already has an association, a different
+ * mailbox this device holds cannot be chosen for that one page.
+ *
+ * ## The key is this document's host, exactly as the platform spells it
+ *
+ * `location.hostname` was measured in Chromium to exclude the port and to be already lower-cased
+ * (2026-10-08), so it needs neither folding nor a public-suffix list. **No registrable-domain
+ * folding is applied, and the cost is stated rather than assumed**: a page at
+ * `https://accounts.example.invalid` and a page at `https://mail.example.invalid` are two
+ * different sites to this product, and each keeps its own mailbox. Folding them would put a list of
+ * somebody's mail addresses behind one key; keeping them apart means a device can hold one association
+ * per site, which is a growth this contract is written for rather than against.
+ *
+ * **A document with no host records nothing.** `about:blank` and a data URL both report an empty
+ * string, and an empty string is not a site — so the association read is skipped and the write is not
+ * made, rather than a key that would answer for every document that has one.
+ *
  * ## Why a failed boot read is remembered and not folded into "no address"
  *
  * **`SpectreStorage` reports "nothing stored" as `null` and "could not read" as a rejection, and
@@ -65,14 +87,14 @@
  * @module
  */
 
-import type { SpectreStorage } from "@spectre-mail/storage";
+import type { Mailbox } from "@spectre-mail/core";
 
 import type { CreateMailboxAnswer } from "../protocol";
 import {
   AFFORDANCE_CREATE_LABEL,
-  AFFORDANCE_LABEL,
   AFFORDANCE_UNCONFIRMED_LABEL,
   AFFORDANCE_WAITING_LABEL,
+  affordanceInsertLabel,
   createAffordance,
 } from "./affordance";
 import type { Affordance } from "./affordance";
@@ -80,12 +102,53 @@ import { IN_PAGE_CREATE_CEILING_MS } from "./create-wait";
 import { holdsText, isEmailField } from "./email-field";
 import { insertAddress } from "./insert";
 
+/**
+ * The three records this page is allowed to ask about, and the one thing it may write.
+ *
+ * ## Named rather than handed a `SpectreStorage`
+ *
+ * **Because the extension now has three records over one area, and this is a control inside somebody
+ * else's page.** A content script is the least privileged context this product runs in, so what it
+ * can reach is written out rather than inherited: it may read the mailboxes, read what a host was
+ * last used with, and record a host after an insertion — and it may not write the mailbox
+ * collection, replace the singular record, or clear anything. A boundary rule enforces the last half,
+ * because "deliberately not offered" is a comment until something fails to compile.
+ *
+ * ## One write, and it is not `saveMailbox`
+ *
+ * **The association is the only thing this page may record**, because it is the only thing only this
+ * page knows. Everything else about a mailbox was decided by a person who pressed something in the
+ * popup or in another page.
+ */
+export interface InPageRecords {
+  /** Every mailbox this device holds, newest first. */
+  readonly loadMailboxes: () => Promise<readonly Mailbox[]>;
+  /** The mailbox this host was last used with, or `null` when it has never been recorded. */
+  readonly loadSiteMailboxId: (host: string) => Promise<string | null>;
+  /** Record that this host was used with this mailbox. */
+  readonly saveSiteMailboxId: (host: string, mailboxId: string) => Promise<void>;
+}
+
+/**
+ * The one thing a press can do: put this address in the field, and remember it under this host.
+ *
+ * **Both halves travel together, and the id is the reason.** An address is not an id — the same
+ * address can be reached through two providers' records — and a site association keyed on an address
+ * would not survive a second build that stored the same address twice. So the address the person
+ * sees and the id the device remembers are carried as one value, and there is no code path that has
+ * one without the other.
+ */
+interface Insertable {
+  readonly address: string;
+  readonly mailboxId: string;
+}
+
 /** What this controller needs, and nothing more. */
 export interface InPageOptions {
   /** The document to watch. Passed in so the unit tier can hand it a jsdom document. */
   readonly document: Document;
-  /** The stored mailbox's reader. `saveMailbox` and `clearAll` are deliberately not offered. */
-  readonly storage: Pick<SpectreStorage, "loadMailbox">;
+  /** The three records this page may ask about, and the one it may write. */
+  readonly records: InPageRecords;
   /**
    * Asks this extension's background context for a mailbox on this device.
    *
@@ -130,15 +193,21 @@ interface OutstandingRequest {
 export function startInPageIntegration(options: InPageOptions): () => void {
   const watched = options.document;
 
-  let address: string | null = null;
+  // **Read once, at boot, and never again for this page.** The controller re-reads only where a
+  // request has just finished, because the records it needs cannot change under a page that is
+  // already showing an answer — and a re-read on every focus would make the choice below depend on
+  // when a person looked rather than on what the device holds.
+  const host = watched.location?.hostname ?? "";
+
+  let insertable: Insertable | null = null;
   let readFailed = false;
   let current: Affordance | null = null;
   let pendingRemoval: ReturnType<typeof setTimeout> | undefined;
   let outstanding: OutstandingRequest | null = null;
 
-  void options.storage.loadMailbox().then(
-    (mailbox) => {
-      address = mailbox?.address ?? null;
+  void resolveForThisHost().then(
+    (resolved) => {
+      insertable = resolved;
     },
     (error: unknown) => {
       // **Remembered, not merely reported** — see the module note. With creation offered, a read
@@ -186,7 +255,104 @@ export function startInPageIntegration(options: InPageOptions): () => void {
 
   /** Whether this device could be said to hold an address, rather than merely not be known to. */
   function canOfferCreation(): boolean {
-    return !readFailed && address === null;
+    return !readFailed && insertable === null;
+  }
+
+  /**
+   * The mailbox to insert on this page: the one this host was last used with, else the newest.
+   *
+   * ## Why the newest, and not a menu
+   *
+   * A menu of every mailbox would be a menu **inside somebody else's page** — a list of addresses
+   * belonging to a product the page has never heard of, opened by a control the page cannot see and
+   * cannot close. The choice is delivered as *which* mailbox a host resolves to instead, and the
+   * cost of that is recorded rather than hidden: on a host that already has an association, a
+   * different mailbox this device holds cannot be chosen for that one page.
+   *
+   * ## A recorded id this device no longer holds is ignored, and left where it is
+   *
+   * A mailbox can be removed from the collection while its association remains, because this product
+   * has no deletion of its own — a device can be the one that lost it. **Silently rewriting the
+   * association at that moment would be a write nobody asked for**, so the stale entry is left in
+   * place, the newest mailbox is offered instead, and the entry is replaced only when an insertion
+   * actually happens with a different mailbox.
+   *
+   * ## An unreadable association is the same answer, and that is measured rather than assumed
+   *
+   * A lookup that cannot be read and a lookup that reads nothing both end at the newest mailbox,
+   * because both are the answer this host would have received had no association been recorded. The
+   * difference between them is invisible to the person looking at the page — which is the reason
+   * they share an arm rather than each having one. What the requirement forbids, and what the second
+   * half of this function holds down, is reporting a failure *as* "this site's mailbox": a device
+   * that could not read its own preference has no site mailbox to report, and saying so would be
+   * inventing one.
+   */
+  async function resolveForThisHost(): Promise<Insertable | null> {
+    // **Both reads at once, because neither depends on the other.** They were sequential first, and
+    // the cost was a whole extra turn of the microtask queue before the control could know what it
+    // inserts — which the unit tier's timing already depended on. Asking together is not only the
+    // faster shape; it is the one that keeps "how many turns does boot take" a single `await` rather
+    // than a number every caller has to keep in step with.
+    const [held, recorded] = await Promise.all([
+      options.records.loadMailboxes(),
+      host.length === 0
+        ? Promise.resolve(null)
+        : // **The lookup's own failure is absorbed here, and this is the one place in the file where
+          // a rejection is caught rather than remembered.** The two reads are not the same kind of
+          // question. The collection read decides *whether this device holds anything*, and its
+          // failure is the one `readFailed` exists for: offering to create on a device whose
+          // contents are unknown would offer a second mailbox. The lookup decides only *which* of
+          // the mailboxes it holds this host was last used with, and a device that can say
+          // "here are my mailboxes, newest first" and cannot say "this host used one of them" is not
+          // in doubt about anything — so the newest is the answer, and it is the answer this host
+          // would have received had no association ever been recorded. Letting the lookup's
+          // rejection reach the boot handler would have refused the whole insertion offer over a
+          // preference, which is the opposite of what the requirement asks for and a worse product
+          // than the one the requirement describes.
+          options.records.loadSiteMailboxId(host).catch(() => null),
+    ]);
+
+    const newest = held[0] ?? null;
+
+    if (newest === null) {
+      return null;
+    }
+
+    // **No host, no association, and the newest is the answer.** A document with no host is not a
+    // site, so there is nothing to prefer and nothing to record; see `host`'s own note.
+    if (recorded === null) {
+      return { address: newest.address, mailboxId: newest.id };
+    }
+
+    const associated = held.find((mailbox) => mailbox.id === recorded);
+    return associated === undefined
+      ? { address: newest.address, mailboxId: newest.id }
+      : { address: associated.address, mailboxId: associated.id };
+  }
+
+  /**
+   * Insert the address in `insertable` into `field`, and record what this host was used with.
+   *
+   * **The association is written after the insertion and never before it.** An association is a claim
+   * that this site was used with that address; writing it first would record a claim about a
+   * keyboard event that has not happened yet, and a page can take focus away between the two lines.
+   *
+   * **A failed write is not reported to the page.** It changes nothing the person is looking at — the
+   * address is in the field either way — and this product's one line into somebody else's DOM should
+   * not carry an error about this device's private storage on a page that has no business knowing
+   * storage exists. The failure is real and it is visible to whoever debugs this client; saying so in
+   * the page would be a worse product.
+   */
+  function insertAndRemember(field: HTMLInputElement, insertable: Insertable): void {
+    insertAddress(field, insertable.address);
+
+    if (host.length === 0) {
+      return;
+    }
+
+    void options.records.saveSiteMailboxId(host, insertable.mailboxId).catch(() => {
+      // Reported in this comment rather than in the page, for the reason above.
+    });
   }
 
   function onFocusIn(event: Event): void {
@@ -245,7 +411,7 @@ export function startInPageIntegration(options: InPageOptions): () => void {
 
     // **Nothing to offer.** A field that already holds text is refused whichever case this device is
     // in, and a device whose read failed is refused for both.
-    if (holdsText(target) || (!canOfferCreation() && address === null)) {
+    if (holdsText(target) || (!canOfferCreation() && insertable === null)) {
       removeCurrent();
       return;
     }
@@ -253,18 +419,29 @@ export function startInPageIntegration(options: InPageOptions): () => void {
     removeCurrent();
 
     const field = target;
-    const offering = address === null ? "create" : "insert";
 
     const created = createAffordance({
-      label: offering === "create" ? AFFORDANCE_CREATE_LABEL : AFFORDANCE_LABEL,
+      // **The insert label names the address it will insert**, because the whole feature is that a
+      // page may be offered one of several mailboxes and "Use SpectreMail" does not say which. The
+      // create label has nothing to name: there is no address yet.
+      //
+      // **The narrowing is on `insertable` itself and not on a separate `offering` flag.** A flag
+      // would read better and would not typecheck — `offering === "insert"` says nothing to the
+      // compiler about the value behind it — so the two answers are one expression.
+      label:
+        insertable === null ? AFFORDANCE_CREATE_LABEL : affordanceInsertLabel(insertable.address),
       onPress: () => {
-        if (offering === "insert") {
-          // **Re-checked at press time.** Between showing and pressing, the page can fill the field —
-          // an autofill, a password manager — and writing then would destroy what it put there.
-          if (address === null || holdsText(field)) {
+        if (insertable !== null) {
+          // **Re-read at press time, and for two separate reasons.** Between showing and pressing,
+          // the page can fill the field - an autofill, a password manager - and writing then would
+          // destroy what it put there. And the value is re-read rather than captured so that this
+          // handler can only ever insert what the control currently *says*; a captured value would
+          // let the label and the insertion disagree, which is the worst outcome this feature has.
+          const chosen = insertable;
+          if (chosen === null || holdsText(field)) {
             return;
           }
-          insertAddress(field, address);
+          insertAndRemember(field, chosen);
           removeCurrent();
           return;
         }
@@ -326,7 +503,7 @@ export function startInPageIntegration(options: InPageOptions): () => void {
     // succeeded while the page stopped watching still produced an address, and the next field focus
     // must offer it rather than ask for a second one.
     if (answer !== null && answer.kind === "created") {
-      address = answer.address;
+      insertable = { address: answer.address, mailboxId: answer.mailboxId };
     }
 
     if (outstanding !== request) {
@@ -359,7 +536,11 @@ export function startInPageIntegration(options: InPageOptions): () => void {
     // password manager, or the person typing. The address is recorded above either way; what is not
     // done is writing over what is there.
     if (!holdsText(request.field)) {
-      insertAddress(request.field, answer.address);
+      // **A fresh value, and not the field just assigned above.** `insertable` was recorded before
+      // the currency check and is `Insertable | null` from the compiler's point of view, while
+      // `answer` is narrowed here to the variant that carries both halves — so this builds the pair
+      // it is about to insert from the answer, and the two can never disagree.
+      insertAndRemember(request.field, { address: answer.address, mailboxId: answer.mailboxId });
     }
 
     removeCurrent();
@@ -381,10 +562,10 @@ export function startInPageIntegration(options: InPageOptions): () => void {
     affordance: Affordance,
     request: OutstandingRequest,
   ): Promise<void> {
-    let mailbox = null;
+    let newest: Mailbox | null = null;
 
     try {
-      mailbox = await options.storage.loadMailbox();
+      newest = (await options.records.loadMailboxes())[0] ?? null;
     } catch (cause) {
       // **A read that failed is not a read that found nothing**, and it is not turned into one:
       // `address` is left alone, so a stored address this device already had is not forgotten because
@@ -399,11 +580,11 @@ export function startInPageIntegration(options: InPageOptions): () => void {
     cancelCeiling(request);
     outstanding = null;
 
-    if (mailbox !== null) {
-      address = mailbox.address;
+    if (newest !== null) {
+      insertable = { address: newest.address, mailboxId: newest.id };
 
       if (!holdsText(request.field)) {
-        insertAddress(request.field, mailbox.address);
+        insertAndRemember(request.field, insertable);
       }
 
       removeCurrent();

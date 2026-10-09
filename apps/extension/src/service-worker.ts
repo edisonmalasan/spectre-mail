@@ -93,7 +93,7 @@ onBackgroundMessage((request) => {
   }
 
   return handleCreateMailbox(request, {
-    storage: extensionStorage.storage,
+    mailboxes: extensionStorage.records.mailboxes,
     openMailbox: createExtensionMailboxOpener(extensionTransport),
   });
 });

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>SpectreMail in-page fixture, framed</title>
+  </head>
+  <body>
+    <!--
+      The frame's own email field, and its readiness marker.
+
+      **The marker is the point of this document.** `all_frames` is unset in the manifest, so
+      nothing this extension ships is injected here, and a frame that failed to load would
+      satisfy "no affordance inside the frame" for a reason that has nothing to do with the
+      manifest. The case therefore waits for `data-frame-ready` from inside the frame before it
+      reads any absence, and plants the affordance hook in the frame's own document to show the
+      frame's reader can see one when there is one.
+
+      **No script and no stylesheet, deliberately.** Anything else in here would be a second
+      fixture to keep in step with the first, and the case is about which document the content
+      script is injected into.
+    -->
+    <input id="frame-input" type="email" name="email" aria-label="email" />
+    <span data-frame-ready>framed</span>
+  </body>
+</html>

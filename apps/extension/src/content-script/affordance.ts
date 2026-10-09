@@ -77,12 +77,34 @@ export const AFFORDANCE_BUTTON_ATTRIBUTE = "data-spectre-affordance-button";
 export const AFFORDANCE_LABEL = "Use SpectreMail";
 
 /**
+ * The label this control carries, naming the address it will insert.
+ *
+ * **The address is in the name because the control now chooses it.** Before `site-associations` a
+ * device held one address, so "Use SpectreMail" was as specific as the offer could be. A device
+ * holding several resolves a host to one of them, and a control whose name says only "Use" would be
+ * asking somebody to press a button whose effect they cannot see — on a page that is not ours, where
+ * an unexpected address is the difference between a form that fills in and one that fills in wrongly.
+ *
+ * **A colon, so a screen reader pauses.** The separator is the one character here that reaches a
+ * person who cannot see the button; an em dash is frequently read as nothing at all, which would
+ * leave "Use SpectreMailuser@example.com" read aloud as one word.
+ *
+ * @param address - The address this press would insert, verbatim as the provider wrote it. It is not
+ *   shortened: a name that truncated the domain would stop being the thing the person is checking.
+ */
+export function affordanceInsertLabel(address: string): string {
+  return `${AFFORDANCE_LABEL}: ${address}`;
+}
+
+/**
  * The label when this device holds no address, and the word that distinguishes the two offers.
  *
- * **"Create", not "Use".** `AFFORDANCE_LABEL` begins with "Use", and a label of "Use SpectreMail"
- * for both cases would be true of neither — inserting something already held and asking a provider
- * for something that does not exist are different acts with different consequences at the provider,
- * and the person pressing the button is the only one who can tell them apart.
+ * **"Create", not "Use".** {@link AFFORDANCE_LABEL} begins with "Use", and a label of
+ * "Use SpectreMail" for both cases would be true of neither — inserting something already held and
+ * asking a provider for something that does not exist are different acts with different
+ * consequences at the provider, and the person pressing the button is the only one who can tell them
+ * apart. **The insert control's name also carries the address it will insert** (see
+ * {@link affordanceInsertLabel}), so "which address" is answerable from the control alone.
  */
 export const AFFORDANCE_CREATE_LABEL = "Create a SpectreMail address";
 

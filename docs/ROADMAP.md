@@ -55,7 +55,7 @@
 
 **Roadmap cursor: M9 - In-Page Email Integration, slices 1 (`in-page-address`) and 2
 (`in-page-mailbox`) applied, verified, SYNCED and ARCHIVED; slice 3 (`site-associations`) is
-PROPOSED on `docs/site-associations-proposal` and awaiting Apply.**
+APPLIED and VERIFIED on `feat/site-associations`, with its Sync and Archive stages to follow.**
 **M0 through M8 are complete in scope; M9 has three slices and two are closed.**
 **Slice 1's sync promoted the delta, so the promoted specs moved 13 → 14 capabilities, 136 → 143
 requirements and 390 → 408 scenarios** - the fourteenth is `in-page-integration` at 7 requirements /
@@ -141,8 +141,8 @@ site - and the UX rules add a three-way choice on top. One change cannot carry t
   narrow: eight browser cases over recorded provider responses, plus a worker that retains nothing
   between requests. `tasks.md` **"look at the affordance on a real site" is deliberately unticked**,
   as at slice 1.
-- **Slice 3, `site-associations` (PROPOSED on `docs/site-associations-proposal`).** `hostname ->
-  mailbox`. A **second stored record kind**, and `spectre-storage`'s contract says in its own opening
+- **Slice 3, `site-associations` (APPLIED and VERIFIED on `feat/site-associations`; Sync and
+  Archive to follow).** `hostname -> mailbox`. A **second stored record kind**, and `spectre-storage`'s contract says in its own opening
   that it has room for one - so this slice has to answer a contract question, not only a client one.
   **And the answer is larger than the roadmap's own sentence, which is worth stating because the
   measurement forced it.** This product stores **exactly one mailbox per device**: both adapters
@@ -162,6 +162,42 @@ site - and the UX rules add a three-way choice on top. One change cannot carry t
   seam where slice 2 needed one for the provider request. The site key is the top frame's
   `location.hostname`, measured from inside the content script: the port is excluded and the value is
   **already lower-cased**, so neither case-folding nor port-stripping is this layer's work.
+
+  **And the collection forced a decision the roadmap's sentence does not mention: the extension now
+  holds two mailbox records.** `SpectreStorage` stays for the website and is **read-only for the
+  extension** — the extension's create path writes the collection and nothing else, and a boundary
+  rule (`extensionSingularWriteViolations`) fails the build if any module in `apps/extension/src`
+  names `saveMailbox`. Writing both records was rejected: `chrome.storage` has no transaction, so
+  "write both" can leave a device holding an address its own collection does not know. **The honest
+  order is *write the collection, keep reading the old record until M10 retires it*,** and
+  `loadInsertableMailboxes` states the rule exactly: the collection answers when it holds anything,
+  the singular record answers only when the collection is empty, and the two are **never merged**.
+
+  **The reason for not merging was measured false during apply and is corrected here rather than
+  left standing in three places at once.** It was written as *merging would let the older record
+  shadow the collection's order* — and the change's own new boundary rule is what disproved it:
+  `extensionSingularWriteViolations` forbids this client from naming `saveMailbox`, so the singular
+  record can only predate the collection, it is **strictly older** by construction, and a merge would
+  have been `[...collection, singular]` deduplicated by id. **The decision stands on an honest reason
+  instead — nothing in this milestone can show a second entry** — and **the cost it accepts is now a
+  scenario in the delta rather than only a note in a source file: a mailbox recorded before this
+  build stops being insertable once this device records another one.** It is still stored and still
+  readable; it is simply no longer offered. The existing case in `storage.test.ts` already covers
+  that arm exactly, so no new case was written for it.
+
+  **The popup's limit, recorded rather than left for M10 to find:** "your address" is
+  `loadMailboxes()[0]`, so the popup shows **one** address and offers no way to change which. The
+  collection exists so the **in-page** control can choose; nothing has yet put a chooser in front of a
+  person, and claiming otherwise would be a control over an option nobody can see.
+
+  **Four rules the apply stage had to decide rather than inherit**, all recorded in the change's
+  `design.md` as D9 and in the delta as amendments: the association is written **only after a real
+  insertion** (a failed write is not reported to the page); a document with **no host** reads and
+  writes no association; a **stale** association is **ignored and left in place**, replaced only by an
+  insertion with a different mailbox; and **a write that cannot read what it would replace refuses
+  rather than overwriting**, because overwriting is how a member this build cannot narrow is lost.
+  That last one was found by the mutation list rather than by a test — the first `addMailbox` passed
+  every case written for it and silently deleted an unreadable member on the next write.
 
 The order is the project's own stated rule applied to a milestone: **build a layer only once the one
 below it exists and is verified.** Detection and insertion are below creation and below the site

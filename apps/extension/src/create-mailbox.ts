@@ -54,7 +54,7 @@ import {
 } from "@spectre-mail/mailbox";
 import type { SessionState } from "@spectre-mail/mailbox";
 import type { Transport } from "@spectre-mail/providers";
-import type { SpectreStorage } from "@spectre-mail/storage";
+import type { SpectreMailboxes } from "@spectre-mail/storage";
 
 import { isCreateMailboxRequest } from "./protocol";
 import type { CreateMailboxAnswer } from "./protocol";
@@ -69,8 +69,16 @@ import { extensionScheduler } from "./scheduler";
  * retained session could arrive.
  */
 export interface CreateMailboxDependencies {
-  /** Where the created mailbox is stored, through the shared contract rather than the platform. */
-  readonly storage: SpectreStorage;
+  /**
+   * Where the created mailbox is stored, through the shared contract rather than the platform.
+   *
+   * **`addMailbox`, and not `saveMailbox`, and the reason is that this client now holds several
+   * mailboxes.** A second save to the singular record would leave the collection — the record every
+   * reader in this client consults — without the address that was just created, and the in-page
+   * control would go on offering the first one while the answer said a new one had been made. A
+   * boundary assertion holds that down rather than leaving it to this note.
+   */
+  readonly mailboxes: Pick<SpectreMailboxes, "addMailbox">;
   /** Creates a mailbox and reports the resulting state. Called once per request. */
   readonly openMailbox: () => Promise<SessionState>;
 }
@@ -145,7 +153,7 @@ export async function handleCreateMailbox(
     // the popup's rule (`Popup.tsx`'s `create`), and both are load-bearing: a mailbox stored
     // before confirmation is offered back as though it worked, and answering before the write
     // would hand a page an address this device cannot produce again.
-    await dependencies.storage.saveMailbox(state.mailbox);
+    await dependencies.mailboxes.addMailbox(state.mailbox);
   } catch {
     // **No address in the answer, deliberately.** There is a mailbox at the provider and no note
     // of it here; a variant carrying the address would be one a caller could insert on the
@@ -153,7 +161,10 @@ export async function handleCreateMailbox(
     return { kind: "notStored" };
   }
 
-  return { kind: "created", address: state.mailbox.address };
+  // **Both facts the caller needs, and both come from the record just written.** The id is the
+  // half that identifies the stored mailbox, and it is answered here because this context has it —
+  // see `CreateMailboxAnswer`'s note for why the page cannot recover it any other way.
+  return { kind: "created", address: state.mailbox.address, mailboxId: state.mailbox.id };
 }
 
 /**

@@ -47,10 +47,17 @@ import { POPUP_COPY } from "./popup-copy";
 /** What the popup's copy control has done so far. */
 export type CopyState = "idle" | "copied" | "failed";
 
-/** The slice of `SpectreStorage` this component uses. */
+/**
+ * The slice of this client's storage this component uses.
+ *
+ * **`addMailbox` rather than `saveMailbox`,** because this device holds several mailboxes and every
+ * reader in this client now consults the collection. A write to the singular record would leave the
+ * popup showing one address while the in-page control offered another.
+ */
 export interface PopupStorage {
+  /** The mailbox this device would insert today, or `null` when it holds none. */
   loadMailbox(): Promise<Mailbox | null>;
-  saveMailbox(mailbox: Mailbox): Promise<void>;
+  addMailbox(mailbox: Mailbox): Promise<void>;
 }
 
 export interface PopupProps {
@@ -130,7 +137,7 @@ export function Popup({ session, storage, primaryProviderName, onBooted }: Popup
       // "nothing has arrived" and "this address is gone" are the same response — a
       // mailbox stored before the provider confirmed it would be offered back as though
       // it worked.
-      await storage.saveMailbox(next.mailbox);
+      await storage.addMailbox(next.mailbox);
     }
   }, [session, storage]);
 

@@ -72,8 +72,18 @@ export const CREATE_MAILBOX_REQUEST: CreateMailboxRequest = { kind: CREATE_MAILB
  * provider at all.
  */
 export type CreateMailboxAnswer =
-  /** A mailbox was created, the provider confirmed it, and it is stored. `address` is usable. */
-  | { readonly kind: "created"; readonly address: string }
+  /**
+   * A mailbox was created, the provider confirmed it, and it is stored. `address` is usable.
+   *
+   * **`mailboxId` is carried with it, and that is an amendment recorded during apply.** The answering
+   * context already has the whole mailbox — `addMailbox` was awaited before this answer was built — so
+   * the id is in hand and costs nothing to send. It is needed because the page records which mailbox a
+   * host was last used with, and an address is not an id: the same address reached through two
+   * providers' spellings is still one record, and a lookup keyed on the address would find neither.
+   * The alternative was a second read of the collection in the content script after every creation,
+   * which is a round trip on a stranger's page to recover a value the reply was already built beside.
+   */
+  | { readonly kind: "created"; readonly address: string; readonly mailboxId: string }
   /** A provider refused. `description` is its own words, not a summary written here. */
   | { readonly kind: "refused"; readonly description: string }
   /** Created or refused, but this device could not be told, so there is no address to offer. */
@@ -111,7 +121,13 @@ export function readCreateMailboxAnswer(value: unknown): CreateMailboxAnswer | n
   switch (kind) {
     case "created": {
       const address = readText(value, "address");
-      return address === null ? null : { kind: "created", address };
+      const mailboxId = readText(value, "mailboxId");
+      // **Both payloads are required, and the id is required rather than defaulted.** An answer with
+      // an address and no id would be an address this page could insert but not remember, which is the
+      // one state the caller has no honest report for — so it is refused and becomes "no answer".
+      return address === null || mailboxId === null
+        ? null
+        : { kind: "created", address, mailboxId };
     }
     case "refused": {
       const description = readText(value, "description");

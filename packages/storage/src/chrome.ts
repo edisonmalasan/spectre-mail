@@ -64,8 +64,18 @@ import { isMailbox } from "@spectre-mail/core";
 import type { Mailbox } from "@spectre-mail/core";
 
 import type { SpectreStorage } from "./contract";
-import { readStoredMailboxRecord, toStoredMailboxRecord } from "./record";
+import {
+  prependStoredMailbox,
+  readStoredMailboxCollection,
+  readStoredMailboxRecord,
+  readStoredSiteAssociations,
+  toStoredMailboxCollection,
+  toStoredMailboxRecord,
+  toStoredSiteAssociations,
+} from "./record";
 import type { StoredMailboxRecord } from "./record";
+import type { SpectreMailboxes } from "./mailboxes";
+import type { SpectreSiteAssociations } from "./site-associations";
 
 import type { ChromeStorageArea } from "./chrome-api";
 
@@ -79,6 +89,23 @@ import type { ChromeStorageArea } from "./chrome-api";
  * spellings of one concept would be two things to keep in agreement.
  */
 export const EXTENSION_MAILBOX_KEY = "current";
+
+/**
+ * The key the collection of mailboxes this device holds is written under.
+ *
+ * **A concept, like {@link EXTENSION_MAILBOX_KEY}, and not a location.** "the current mailbox" and
+ * "the mailboxes" are two different records about one thing, so they take two keys: one that
+ * remembers and one that lists.
+ */
+export const EXTENSION_MAILBOXES_KEY = "mailboxes";
+
+/**
+ * The key the site associations are written under.
+ *
+ * "site-mailboxes" rather than "sites" because the record is not a list of sites — it is which
+ * mailbox each site was last used with, and a key that named only the sites would read as one.
+ */
+export const EXTENSION_SITE_MAILBOXES_KEY = "site-mailboxes";
 
 /** Everything the adapter needs, and nothing it could invent for itself. */
 export interface ChromeStorageOptions {
@@ -177,6 +204,161 @@ export function createChromeStorage(options: ChromeStorageOptions): SpectreStora
      */
     async clearAll() {
       await area.clear();
+    },
+  };
+}
+
+/**
+ * Read one key's raw value out of the area, or `undefined` when it was never written.
+ *
+ * **`undefined` and `null` are different answers and both are needed.** `chrome.storage.get`
+ * resolves with an object keyed by the requested keys, and a key that was never written is
+ * **absent** rather than present-and-`undefined`. So an absent key is the only case where a new
+ * record may be written from scratch; a key that is *present* and unreadable is a record this build
+ * must not replace.
+ */
+async function readRaw(area: ChromeStorageArea, key: string): Promise<unknown> {
+  const stored = await area.get(key);
+  if (typeof stored !== "object" || stored === null) {
+    throw new Error("Reading from the extension's storage returned no object.");
+  }
+  return (stored as Record<string, unknown>)[key];
+}
+
+/**
+ * A {@link SpectreMailboxes} over one `chrome.storage` area.
+ *
+ * ## One key, one read, one write
+ *
+ * A mailbox this device was handed is recorded by rewriting the whole collection — which is the
+ * point, not a limitation. `chrome.storage` has no transactions, so "read the collection, add to it,
+ * write it back" is the only way the platform offers, and the alternative (a second record saying
+ * the same thing) could disagree with this one. A lost update needs two writers racing, and this
+ * client has one.
+ */
+export function createChromeMailboxes(options: ChromeStorageOptions): SpectreMailboxes {
+  const { area } = options;
+
+  return {
+    async loadMailboxes() {
+      const raw = await readRaw(area, EXTENSION_MAILBOXES_KEY);
+      if (raw === undefined) {
+        return [];
+      }
+      return readStoredMailboxCollection(raw) ?? [];
+    },
+
+    async addMailbox(mailbox: Mailbox) {
+      if (!isMailbox(mailbox)) {
+        throw new TypeError(
+          "addMailbox was given a value that is not a mailbox of the shared model, so nothing " +
+            "was stored. Build it with createMailbox.",
+        );
+      }
+
+      const raw = await readRaw(area, EXTENSION_MAILBOXES_KEY);
+
+      /**
+       * **The write is built from the record as stored, not from the list the reader returned.**
+       *
+       * `readStoredMailboxCollection` skips a member it cannot narrow, so rebuilding from its output
+       * would delete exactly what the skipping preserved - one new mailbox silently costing a person
+       * an older one. `prependStoredMailbox` takes the stored record instead and keeps every member
+       * it cannot read verbatim; see its own note for why this is not a `filter` at the call site.
+       */
+      const next =
+        raw === undefined
+          ? toStoredMailboxCollection([mailbox])
+          : prependStoredMailbox(raw, mailbox);
+
+      /**
+       * **A record this build cannot read is refused rather than replaced.**
+       *
+       * `prependStoredMailbox` returns `null` for an envelope it cannot narrow, and the only way to
+       * "recover" from that here would be to overwrite it — which is the deletion
+       * `readStoredMailboxRecord` refuses to perform. So this is a refusal, with a message that says
+       * what happened rather than what to do about it: the alternative would be a `create` that
+       * reports success and loses a record from a build this one does not understand.
+       */
+      if (next === null) {
+        throw new Error(
+          `The mailboxes stored at "${EXTENSION_MAILBOXES_KEY}" could not be read, so this mailbox ` +
+            "was not recorded: writing it would replace a record this build does not understand. " +
+            "Removing everything this device holds would clear it.",
+        );
+      }
+
+      await area.set({ [EXTENSION_MAILBOXES_KEY]: next });
+    },
+  };
+}
+
+/** A {@link SpectreSiteAssociations} over one `chrome.storage` area. */
+export function createChromeSiteAssociations(
+  options: ChromeStorageOptions,
+): SpectreSiteAssociations {
+  const { area } = options;
+
+  return {
+    async loadSiteMailboxId(host: string) {
+      const raw = await readRaw(area, EXTENSION_SITE_MAILBOXES_KEY);
+      if (raw === undefined) {
+        return null;
+      }
+      const sites = readStoredSiteAssociations(raw);
+      if (sites === null) {
+        throw new Error(
+          `The site associations stored at "${EXTENSION_SITE_MAILBOXES_KEY}" could not be read, so ` +
+            "this host cannot be answered: a record this build does not understand is never treated " +
+            "as though it were absent, and it is never replaced.",
+        );
+      }
+      return sites[host] ?? null;
+    },
+
+    async saveSiteMailboxId(host: string, mailboxId: string) {
+      if (host.length === 0) {
+        throw new TypeError("saveSiteMailboxId was given an empty host, so nothing was stored.");
+      }
+      if (mailboxId.length === 0) {
+        throw new TypeError(
+          "saveSiteMailboxId was given an empty mailbox id, so nothing was stored.",
+        );
+      }
+
+      const raw = await readRaw(area, EXTENSION_SITE_MAILBOXES_KEY);
+
+      if (raw !== undefined && readStoredSiteAssociations(raw) === null) {
+        throw new Error(
+          `The site associations stored at "${EXTENSION_SITE_MAILBOXES_KEY}" could not be read, so ` +
+            `nothing was recorded for "${host}": writing it would replace a record this build does ` +
+            "not understand.",
+        );
+      }
+
+      /**
+       * **The write is built from the record as stored, not from the narrowed map.**
+       *
+       * Narrowing has already dropped every entry this build could not read, so spreading *that* would
+       * delete exactly what the narrowing went to the trouble of preserving — one write to record one
+       * host would quietly discard another. Spreading the stored object instead keeps the unreadable
+       * entries in place, and `toStoredSiteAssociations` copies it, so the object written shares no
+       * reference with the one that was read.
+       *
+       * **A key that was never written is the empty map**, which is the one case where "as stored"
+       * is also "as narrowed".
+       */
+      const stored =
+        raw === undefined
+          ? {}
+          : ((raw as { readonly sites?: Readonly<Record<string, unknown>> }).sites ?? {});
+
+      await area.set({
+        [EXTENSION_SITE_MAILBOXES_KEY]: toStoredSiteAssociations({
+          ...stored,
+          [host]: mailboxId,
+        }),
+      });
     },
   };
 }

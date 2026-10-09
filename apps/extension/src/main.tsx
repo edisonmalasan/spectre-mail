@@ -44,7 +44,7 @@ import "./styles.css";
 
 import { App } from "./App";
 import { readChromeLocalArea } from "./extension-platform";
-import { createExtensionStorage } from "./storage";
+import { createExtensionStorage, loadInsertableMailboxes } from "./storage";
 
 const container = document.getElementById("root");
 
@@ -54,7 +54,16 @@ if (container) {
   createRoot(container).render(
     <StrictMode>
       {storage.kind === "ready" ? (
-        <App storage={storage.storage} />
+        <App
+          storage={{
+            // **One answer, computed in one place.** `loadInsertableMailboxes` is the only
+            // function in this client that decides which stored mailbox the popup shows, so
+            // the popup cannot disagree with the in-page control about which address this
+            // device holds.
+            loadMailbox: async () => (await loadInsertableMailboxes(storage.records))[0] ?? null,
+            addMailbox: storage.records.mailboxes.addMailbox,
+          }}
+        />
       ) : (
         <main className="popup">
           <h1 className="popup__heading">SpectreMail</h1>

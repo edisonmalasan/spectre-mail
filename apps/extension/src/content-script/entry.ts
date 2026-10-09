@@ -40,7 +40,7 @@
 
 import { CREATE_MAILBOX_REQUEST, readCreateMailboxAnswer } from "../protocol";
 import type { CreateMailboxAnswer } from "../protocol";
-import { createExtensionStorage } from "../storage";
+import { createExtensionStorage, loadInsertableMailboxes } from "../storage";
 import { readChromeLocalArea, sendToBackground } from "../extension-platform";
 import { startInPageIntegration } from "./controller";
 
@@ -76,7 +76,15 @@ whenDomReady(() => {
 
   startInPageIntegration({
     document,
-    storage: storage.storage,
+    records: {
+      // **Which mailboxes this device holds is answered once, in one function**, and both the popup
+      // and this control call it. Two callers each deciding "the newest, unless it was the one
+      // written before this change" is how a device ends up showing one address in its popup and
+      // offering another on a page.
+      loadMailboxes: () => loadInsertableMailboxes(storage.records),
+      loadSiteMailboxId: storage.records.associations.loadSiteMailboxId,
+      saveSiteMailboxId: storage.records.associations.saveSiteMailboxId,
+    },
     createMailbox: () => askTheBackgroundToCreate(),
   });
 });

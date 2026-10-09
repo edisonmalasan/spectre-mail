@@ -3,7 +3,8 @@
   "name": "@spectre-mail/storage",
   "description": "Shared SpectreStorage contract plus platform adapters: web IndexedDB and extension storage.",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./testing": "./src/testing/chrome-area.ts"
   },
   "type": "module",
   "scripts": {
