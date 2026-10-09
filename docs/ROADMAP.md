@@ -72,12 +72,14 @@
 > landing it would create permanent spec debt for disposable scaffolding.
 
 **Roadmap cursor: M10 - Verification Workflow, slice 1 (`verification-actions`) is APPLIED,
-VERIFIED and SYNCED, with its archive stage to follow. M9 is complete in scope** - all three of its slices
+VERIFIED, SYNCED and ARCHIVED at `openspec/changes/archive/2026-10-10-verification-actions/`.
+M9 is complete in scope** - all three of its slices
 (`in-page-address`, `in-page-mailbox`, `site-associations`) applied, verified, synced and
 archived, slice 3 at `openspec/changes/archive/2026-10-09-site-associations/` with proposal PR
 #92 merged `7755131`, apply PR #93 merged `1ff7c24`, sync PR #94 merged `18bbe00`, archive PR
-#95 merged `a886447`. **M0 through M9 are complete in scope.** The proposal PR for M10 slice 1
-is #96, merged `421d56f`; the artifacts commit is `e196b8d`.
+#95 merged `a886447`. **M0 through M9 are complete in scope.** Slice 1 of M10 ran its full
+lifecycle: proposal PR #96 merged `421d56f` (artifacts commit `e196b8d`), apply PR #97 merged
+`bdd13b6`, sync PR #98 merged `550741f`, archive PR #99.
 
 **M10 is four slices, and only the first is under way: copy a detected code and open a detected
 link on the website.** The roadmap's M10 lists four user actions - *copy code*, *open
@@ -136,6 +138,16 @@ its cross-reference named the requirement this same change retires, in the prese
 because the validator enforces scenarios and not prose. Both were fixed **in the delta**, so the
 archived delta and the promoted spec stay the same blocks — **an amendment recorded in the wrong
 artifact is what a gap between those two means.**
+
+**The archive then re-ran the check the sync could not run, because archiving is a move.** It ran
+with `--skip-specs` — mandatory whenever a sync has already promoted, or the requirements apply
+twice — and it reported `Task status: 23/25 tasks` with a warning about the two unticked tasks,
+which is the correct end state rather than a failure. **All five archived files are SHA-256
+identical to digests taken before the command ran**, including **`.openspec.yaml`**, which slice
+1's archive lost; `openspec list` reports **No active changes found**; the counts are **unchanged
+at 153 requirements and 452 scenarios**; and all **four** promoted blocks are byte-identical to the
+**archived** delta rather than to the copy that was live at sync time. **A promoted block verified
+against a delta that has since been moved is verified against something that may no longer exist.**
 
 **And three numbers in this file were found stale while that record was being written, which is
 why they are worth naming.** This block's own capability count above had not been re-run since

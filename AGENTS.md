@@ -1,8 +1,13 @@
 # AGENTS.md
 
-> **Current milestone state (reconciled against Git and OpenSpec 2026-10-09): M0-M9 are complete
-> in scope, and M10 slice 1 (`verification-actions`) is **APPLIED, VERIFIED and SYNCED**, with its
-> Archive stage to follow.** M9's three slices are
+> **Current milestone state (reconciled against Git and OpenSpec 2026-10-10): M0-M9 are complete
+> in scope, and M10 slice 1 (`verification-actions`) is **APPLIED, VERIFIED, SYNCED and ARCHIVED**
+> at `openspec/changes/archive/2026-10-10-verification-actions/`** — proposal PR **#96** merged
+> `421d56f`, apply PR **#97** merged `bdd13b6`, sync PR **#98** merged `550741f`, archive PR
+> **#99**. **`openspec list` reports no active changes.** (The archive's own merge SHA is not
+> written here because a commit cannot contain its own merge commit; `git log --merges --oneline
+> -1 main` is the record.)
+> M9's three slices are
 > all applied, verified, synced and archived, and M7's four
 > slices are archived and M8
 > (`extension-foundation`) is applied, verified, synced, and archived at
@@ -22,16 +27,22 @@
 > **The promoted counts move at the sync stage and not before, and the distinction is recorded
 > here because "applied and verified" and "synced" are not the same claim.**
 >
-> **`verification-actions`' sync has now run, and `openspec validate --specs --strict` is
+> **`verification-actions`' sync has now run and its archive has too, and
+> `openspec validate --specs --strict` is
 > **14 passed, 0 failed, 153 requirements and 452 scenarios** across 14 capabilities** — measured
 > by counting `### Requirement:` and `#### Scenario:` across `openspec/specs/` after the
-> promotion, not transcribed. `website-client` went **21 → 23 requirements and 69 → 75
+> promotion, not transcribed, and **re-counted after the archive** because archiving is a move and
+> a move is the operation most likely to drop a file. `website-client` went **21 → 23 requirements
+> and 69 → 75
 > scenarios**, and the requirement figure is exactly the **21 − 1 + 3 = 23** this file predicted
 > before the promotion ran. **It is 23 and not 24 because a `REMOVED` block and a `MODIFIED` one
 > each replace rather than add** — the third milestone to produce that arithmetic, which is why
 > it is now stated as a rule rather than left as a surprise. Four blocks were promoted: the
 > `REMOVED` requirement is **absent** from the promoted spec, and the `MODIFIED` and the three
-> `ADDED` blocks are each **byte-identical** to the delta they came from. **The scenario figure
+> `ADDED` blocks are each **byte-identical** to the delta they came from — **and byte-identical
+> again to the archived delta after the move**, with all **five** archived files SHA-256 identical
+> to digests taken before the archive command ran and `.openspec.yaml` kept, which is where
+> slice 1's archive lost it. **The scenario figure
 > was not predicted** — it is what the sync measured, and it is recorded as a measurement rather
 > than as a number worked out in advance.
 >
