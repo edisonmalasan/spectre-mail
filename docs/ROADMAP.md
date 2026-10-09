@@ -25,15 +25,39 @@
 > `spectre-storage` (M6 slice 1), `browser-verification`, `visual-system` (M7 slice
 > 1), `page-composition` (M7 slice 3), `extension-client` (M8) and
 > `in-page-integration` (M9 slice 1). Counted mechanically at each sync and again
-> after each archive, they hold **153 requirements and 452 scenarios** in total.
+> after each archive, they hold **157 requirements and 478 scenarios** in total.
 >
-> **The per-capability figures, counted on 2026-10-09 at `verification-actions`'s sync
+> **The per-capability figures, re-counted on 2026-10-10 at `in-page-fill`'s sync
 > stage and not transcribed:** `browser-verification` 5/12,
-> `build-and-verification` 10/28, `extension-client` 6/20,
-> `in-page-integration` 12/41, `mail-parsing` 9/31, `mailbox-session` 23/61,
+> `build-and-verification` 10/28, `extension-client` **6/24**,
+> `in-page-integration` **16/63**, `mail-parsing` 9/31, `mailbox-session` 23/61,
 > `monorepo-foundation` 5/12, `page-composition` 6/20, `provider-abstraction` 9/20,
 > `provider-adapters` 12/30, `shared-domain-model` 9/23, `spectre-storage` 15/51,
-> `visual-system` 9/28, `website-client` **23/75**.
+> `visual-system` 9/28, `website-client` 23/75.
+>
+> **This sync moved the total by four requirements and twenty-six scenarios, and only two
+> of the capabilities moved at all** — `extension-client` 6 → 6 requirements and 20 → 24
+> scenarios, `in-page-integration` 12 → 16 and 41 → 63. **The requirement figure is exactly
+> the `153 + 4 - 0 = 157` predicted before the promotion ran and measured after it**, and
+> **it is four rather than eight because four of the change's eight delta blocks replaced a
+> requirement rather than adding one** — two `MODIFIED` in each capability, plus a rename
+> that is not a block at all. The scenario figure was never predicted.
+>
+> **And the promoter was rehearsed on a throwaway copy of `openspec/` before it touched the
+> real tree, which is how it caught a defect that would have silently deleted two
+> requirements.** Its span end consumed the newline separating a replaced block from the
+> next one, so each replacement was spliced onto the next requirement's header:
+> `…rather than deleting the assertion### Requirement: The background service worker…`.
+> **No content was lost and the file still parsed, but that heading stopped being a heading**,
+> so `extension-client` fell from six requirements to four. **The promoter's own checks all
+> passed** — it logged every operation, re-read the file, and found every block it wrote —
+> because the defect lived in the separator *between* two blocks. **Only the verifier saw it,
+> and only because it reads the promoted file with a different reader than the promoter wrote
+> it with.** The verifier had a defect of its own, in the expensive direction: a substring
+> search for a delta header matched the backticked `- TO:` line of the rename section, so it
+> reported a byte-comparison failure **against a promotion that was correct**. Both instruments
+> were then falsified against the damaged tree, where the verifier reports 8 problems and a
+> total of 151 instead of 153.
 >
 > **`website-client` is the only figure that moved at this sync, and it moved by two rather
 > than by three: 21 → 23 requirements.** The delta removes one requirement and adds three, and

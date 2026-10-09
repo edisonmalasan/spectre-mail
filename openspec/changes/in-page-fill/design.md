@@ -407,6 +407,51 @@ same variables. **The recorded defect from `site-associations` — a completed b
 `exit 1` with no explanation and an aborted one reporting the same — is what this avoided**, and it
 is why the tally reads `passed=9 failed=0 harness-error=1` rather than a clean ten.
 
+### D14 — What the promotion destroyed, and the checker that could not tell
+
+**The sync's promoter was rehearsed in full on a throwaway copy of `openspec/` before it touched the
+real tree, and the rehearsal found a defect that would have silently deleted two requirements from
+two capabilities.** The span end was computed as `Math.min(candidates) + 1`, where each candidate
+index is the index *of the newline* preceding the next heading. Adding one consumed that newline, so
+a replacement was spliced directly onto the following requirement's header:
+
+```text
+...rather than deleting the assertion### Requirement: The background service worker carries no polling...
+```
+
+**No requirement content was lost, and the file still parsed.** But that heading stopped being a
+heading — `^### Requirement: ` no longer matched it — so `extension-client` fell from **six
+requirements to four** and `in-page-integration` never gained its four, in a promotion whose
+arithmetic was supposed to be `153 + 4 - 0 = 157`.
+
+**What makes it worth carrying is that the promoter's own checks all passed.** It logged every
+operation as performed, it re-read the file it had written, and it found every block it had written
+byte-for-byte where it put it. The defect lived in the **separator between** two blocks, which no
+check of a block's own bytes can see. **Only the verifier reported it, and only because it read the
+promoted file with a different reader than the promoter wrote it with** — the structural
+independence this milestone has relied on three times now, earning it a fourth.
+
+The repair is a guard that names the property directly: after every replacement, the character
+following the inserted block must be the newline that starts the next heading, or the run throws. A
+second guard rejects any file in which a line *contains* `### Requirement: ` without *starting* with
+it — the shape of this defect, read off the damaged output rather than off the requirement that
+produced it.
+
+**And the verifier had a defect of its own, in the expensive direction.** Its block reader located a
+delta header with `indexOf`, and a delta file carries the same header text twice: once as the
+requirement and once inside backticks in the `## RENAMED Requirements` section's `- TO:` line. The
+substring search found the `TO` line, sliced a seven-line "block" whose first line ended in a
+backtick, and reported **a byte-comparison failure against a promotion that was correct**. Repaired
+by locating headers as whole lines. **A checker that reports a difference for the wrong reason is
+worse than no checker**, because it looks exactly like a corrupt promotion and invites a repair to
+the thing that was right.
+
+**Both instruments were then falsified against the damaged tree rather than trusted.** Reinstating the
+`+ 1` with the new guard removed reproduces the rehearsal's damage exactly, and the verifier
+reports **8 problems, `extension-client` at 4 requirements, TOTAL 151 instead of 153** — naming the
+loss rather than inferring it. A green verifier on a green promoter is worth nothing until it has
+been seen to go red.
+
 ## Risks / Trade-offs
 
 - **A page marks its code field in a way this change does not recognise** → the fill reports that it
