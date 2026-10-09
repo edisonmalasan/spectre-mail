@@ -53,10 +53,11 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor: M9 - In-Page Email Integration, slices 1 (`in-page-address`) and 2
-(`in-page-mailbox`) applied, verified, SYNCED and ARCHIVED; slice 3 (`site-associations`) is
-APPLIED, VERIFIED and SYNCED (apply PR #93 merged `1ff7c24`), with its Archive stage to follow.**
-**M0 through M8 are complete in scope; M9 has three slices, two closed and one awaiting archive.**
+**Roadmap cursor: M9 - In-Page Email Integration, all three slices (`in-page-address`,
+`in-page-mailbox`, `site-associations`) applied, verified, SYNCED and ARCHIVED. M9 is complete in
+scope.** Slice 3 is at `openspec/changes/archive/2026-10-09-site-associations/` - proposal PR #92
+merged `7755131`, apply PR #93 merged `1ff7c24`, sync PR #94 merged `18bbe00`. **M0 through M8 are
+complete in scope, and so is M9.** The next milestone is M10, not yet started.
 **Slice 1's sync promoted the delta, so the promoted specs moved 13 → 14 capabilities, 136 → 143
 requirements and 390 → 408 scenarios** - the fourteenth is `in-page-integration` at 7 requirements /
 18 scenarios. Every promoted block was copied programmatically from the delta rather than retyped,
@@ -103,6 +104,14 @@ broken one could not mark its own homework - `verify.mjs` reads section-first, `
 neither imports the other, and all four reader functions are separately defined. **A promotion step
 that also verifies itself cannot report its own defect**, and this is the second time this repository
 has had to make that argument rather than assume it.
+
+**Its archive moved six files, every one SHA-256 identical to a digest taken before the command ran,
+with no file added and none lost - and all eight promoted blocks re-verified byte-identical against
+the ARCHIVED delta copies afterwards**, because archiving is a move and a move is the operation most
+likely to quietly drop a file. `.openspec.yaml` was kept, as at slice 2. The promoted counts did not
+move by the archive - **151 requirements and 446 scenarios before and after** - and
+`openspec validate --specs --strict` stayed at **14 passed, 0 failed**, which is the check that still
+means something once a change is archived.
 
 **One archive defect worth naming, and it is a proposal-stage omission rather than an archive one.**
 `openspec/changes/archive/2026-10-08-in-page-address/` has **no `.openspec.yaml`**, and **every
@@ -166,7 +175,8 @@ site - and the UX rules add a three-way choice on top. One change cannot carry t
   narrow: eight browser cases over recorded provider responses, plus a worker that retains nothing
   between requests. `tasks.md` **"look at the affordance on a real site" is deliberately unticked**,
   as at slice 1.
-- **Slice 3, `site-associations` (APPLIED, VERIFIED and SYNCED; Archive to follow).** `hostname -> mailbox`. A **second stored record kind**, and `spectre-storage`'s contract says in its own opening
+- **Slice 3, `site-associations` (APPLIED, VERIFIED, SYNCED and ARCHIVED at
+  `openspec/changes/archive/2026-10-09-site-associations/`).** `hostname -> mailbox`. A **second stored record kind**, and `spectre-storage`'s contract says in its own opening
   that it has room for one - so this slice has to answer a contract question, not only a client one.
   **And the answer is larger than the roadmap's own sentence, which is worth stating because the
   measurement forced it.** This product stores **exactly one mailbox per device**: both adapters

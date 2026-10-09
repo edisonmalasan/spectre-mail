@@ -25,7 +25,7 @@ on. See [Current status](#current-status).
 | M6 — Website hardening            | complete in scope — 3 slices archived; a 4th was audited, not built         |
 | M7 — Spectral Swiss visual system | complete in scope — 4 slices archived                                       |
 | M8 — Extension foundation         | complete in scope — applied, verified, synced, archived                     |
-| M9 - In-page email integration    | slices 1 and 2 archived - slice 3 applied, verified and synced              |
+| M9 - In-page email integration    | complete in scope - all 3 slices applied, verified, synced, archived        |
 | M10–M15                           | not started                                                                 |
 
 | Capability spec          | Requirements | State                               |
