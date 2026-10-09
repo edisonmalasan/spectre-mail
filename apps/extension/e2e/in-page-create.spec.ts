@@ -271,9 +271,17 @@ test.describe("creating a mailbox from inside a page", () => {
     // **The address on the device is the address in the field, read through the platform's own
     // API inside the worker's own context.** D3 has the worker persist and the page not write, so
     // this is the claim that the page's value is not a copy of something transient.
-    const record = await readStoredMailboxRecord(extension);
-    expect(record).not.toBeNull();
-    expect(JSON.stringify(record)).toContain(inserted);
+    //
+    // **`expect.poll` rather than one read, because a read is not a wait.** A field carrying the
+    // address is established by the assertion above; the `chrome.storage` write that carries it to
+    // the device is a *separate* round trip made by the worker, and one read taken the moment the
+    // field resolves can arrive before it has been written. The CI run `37876513503` is the
+    // observation: this same reading, in the case 270 lines below, returned `null` on a Linux
+    // runner and passed 30 consecutive local runs. So all three reads of a stored mailbox in this
+    // file poll, and a `null` means nothing is stored rather than that the write had not landed.
+    await expect
+      .poll(async () => readStoredMailboxAddress(extension), { timeout: 15_000 })
+      .toBe(inserted);
 
     // **And the harness answered exactly one creation.** This is the positive control that
     // interception reaches a service worker's own `fetch`, which is the assumption that keeps
@@ -539,8 +547,17 @@ test.describe("creating a mailbox from inside a page", () => {
     // **And the address was created and recorded anyway.** This is the half that is easy to leave
     // out and expensive to get wrong: the mailbox is real, so a controller that learned the
     // address only by inserting it would offer to create a *second* one on the next field focus.
-    const record = await readStoredMailboxRecord(extension);
-    expect(record).not.toBeNull();
+    //
+    // **This is the case CI run `37876513503` failed, and the reading below is the one that
+    // failed.** It was a single `await readStoredMailboxRecord(...)` taken once the typed text had
+    // been shown to survive — a moment established about the *field*, not about the write. The two
+    // assertions it makes are independent promises, and only one of them had been waited for.
+    // So it polls, like its sibling two cases above and the third reading in this file, and the
+    // six hundred milliseconds that distinguishes the two on a busy runner is exactly the margin a
+    // single read was spending.
+    await expect
+      .poll(async () => readStoredMailboxAddress(extension), { timeout: 15_000 })
+      .not.toBeNull();
 
     // **The next focus on an *empty* field offers that address for insertion, not a further creation**
     // — which is the observable that distinguishes the two, and the one the duplicate-creation cost
@@ -675,8 +692,15 @@ test.describe("creating a mailbox from inside a page", () => {
 
     // **And the device holds the second one only.** A worker that retained the first would leave
     // a mailbox this device cannot reach, created by a person who never asked for it.
-    const record = await readStoredMailboxRecord(extension);
-    expect(JSON.stringify(record)).toContain(secondAddress);
-    expect(JSON.stringify(record)).not.toContain(first);
+    //
+    // **The wait is on the record being the second one, and the second assertion is deliberately
+    // after it.** A single read cannot be told apart from a read taken before the worker's write,
+    // so it would pass for the wrong reason on a fast machine and fail on a slow one — which is the
+    // failure CI run `37876513503` recorded in this file. Waiting for the second address first
+    // makes the "and not the first" half a claim about a settled record.
+    await expect
+      .poll(async () => readStoredMailboxAddress(extension), { timeout: 15_000 })
+      .toBe(secondAddress);
+    expect(await readStoredMailboxAddress(extension)).not.toBe(first);
   });
 });
