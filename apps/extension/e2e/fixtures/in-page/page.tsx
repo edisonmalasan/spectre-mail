@@ -25,17 +25,40 @@ import { createRoot } from "react-dom/client";
  * has nothing to do with the product. It is deliberately absent.
  */
 
-/** Renders the value React's own state holds, so the extension's insertion can be observed. */
-function Controlled({ id, label }: { id: string; label: string }) {
+/**
+ * Renders the value React's own state holds, so the extension's insertion can be observed.
+ *
+ * **The `name` and `autocomplete` are parameters because the page needs to say three different
+ * things about its own fields, and a fixture that can only say one of them makes every
+ * recognition assertion vacuous.** The email field is what the address affordance has to find;
+ * the declared code field is what a fill has to find; and the discount field is the one that must
+ * *not* be found — a page carrying a `discountCode` next to the field under test is what makes
+ * "exactly one field qualified" a measurement rather than an accident of a page with nothing else
+ * on it.
+ */
+function Controlled({
+  id,
+  label,
+  name = "email",
+  type = "email",
+  autoComplete,
+}: {
+  id: string;
+  label: string;
+  readonly name?: string;
+  readonly type?: string;
+  readonly autoComplete?: string;
+}) {
   const [value, setValue] = useState("");
   return (
     <>
       <input
         id={id}
-        type="email"
-        name="email"
+        type={type}
+        name={name}
         value={value}
         onChange={(event) => setValue(event.target.value)}
+        {...(autoComplete === undefined ? {} : { autoComplete })}
       />
       <output data-readback={label}>{value}</output>
     </>
@@ -100,6 +123,35 @@ function App() {
       >
         <label htmlFor="in-form">inside a form</label>
         <input id="in-form" type="email" name="email" />
+
+        {/**
+         * **Inside the form, and that is what makes the refusal observable.**
+         *
+         * A fill writes a value and announces it. A fill that also submitted would set this
+         * form's own `onSubmit`, and a real signup form does not stop at the first field - so
+         * `in-page-fill.spec.ts` reads this attribute to prove nothing was submitted, on the same
+         * page the delivery was staged on.
+         */}
+        <label htmlFor="code-input">one-time code</label>
+        <Controlled
+          id="code-input"
+          label="code-input"
+          name="otp"
+          type="text"
+          autoComplete="one-time-code"
+        />
+
+        {/**
+         * **A field the recogniser must refuse, and it is here rather than in a separate page.**
+         *
+         * `discountCode` contains the word `code` as a whole word, so a recogniser that stopped at
+         * "the name contains a code word" would fill a verification code into a checkout field.
+         * Having it on the same page as the one under test is what makes "one field qualified" a
+         * claim about the recogniser instead of a claim about how many fields exist.
+         */}
+        <label htmlFor="discount-input">discount</label>
+        <Controlled id="discount-input" label="discount-input" name="discountCode" type="text" />
+
         <button id="form-submit" type="submit">
           send
         </button>

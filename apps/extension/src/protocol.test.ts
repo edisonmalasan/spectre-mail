@@ -34,8 +34,12 @@ import { describe, expect, it } from "vitest";
 import {
   CREATE_MAILBOX_REQUEST,
   CREATE_MAILBOX_REQUEST_KIND,
+  fillCodeRequest,
+  FILL_CODE_REQUEST_KIND,
   isCreateMailboxRequest,
+  isFillCodeRequest,
   readCreateMailboxAnswer,
+  readFillCodeAnswer,
 } from "./protocol";
 
 describe("the request both contexts agree on", () => {
@@ -162,5 +166,108 @@ describe("narrowing an answer", () => {
       address: "made@address.test",
       mailboxId: "made-at-provider",
     });
+  });
+});
+
+/**
+ * ## The fill pair, and why it is a separate pair rather than a second answer variant
+ *
+ * **It travels in the opposite direction and answers different questions.** Creation asks the
+ * worker for something and the answer carries a provider's words; a fill asks a page to do
+ * something and every answer is a fact about somebody else's document. Folding them into one union
+ * would produce a type every member of which a context could read but none of which it could mean.
+ */
+describe("the fill request the popup and a content script agree on", () => {
+  it("is built by a function, because this request carries a payload and a constant cannot", () => {
+    // **The contrast with `CREATE_MAILBOX_REQUEST` is the assertion.** That one is a constant
+    // because its payload is empty; a constant here would be a request with no code in it, and the
+    // reader below would refuse it — which is the correct behaviour for the wrong reason.
+    expect(fillCodeRequest("493028")).toEqual({
+      kind: "spectre:fill-code",
+      code: "493028",
+    });
+    expect(fillCodeRequest("493028").kind).toBe(FILL_CODE_REQUEST_KIND);
+  });
+
+  it("sends the code verbatim, so a shortened or trimmed code cannot be delivered", () => {
+    // **The provider issued this string**, and a code this product altered is not the code the
+    // provider issued. Trimming is the change a future "tidier" edit would most plausibly make,
+    // and it is the one that would be invisible.
+    expect(fillCodeRequest("  493028\n").code).toBe("  493028\n");
+  });
+
+  it.each([
+    ["the request this module builds", fillCodeRequest("493028"), true],
+    ["the same shape spelled by hand", { kind: "spectre:fill-code", code: "493028" }, true],
+    [
+      "a request carrying more than it needs",
+      { kind: "spectre:fill-code", code: "1", tab: 4 },
+      true,
+    ],
+    // **The three refusals that matter, and each is a shape a plausible edit produces.** Making
+    // `code` optional is the first; a page's own script reaching the message channel and sending
+    // the discriminant alone is the second; an empty string is the third, because it satisfies a
+    // length check nowhere and would be inserted as a value that looks filled and submits empty.
+    ["a request with no code", { kind: "spectre:fill-code" }, false],
+    ["a request whose code is not a string", { kind: "spectre:fill-code", code: 493028 }, false],
+    ["a request whose code is empty", { kind: "spectre:fill-code", code: "" }, false],
+    // **The creation request, unchanged.** Two kinds on one channel is exactly the arrangement
+    // `design.md` D4 chose, and the content script sees both; a reader that admitted either kind
+    // for the other would insert an address where a code was asked for.
+    ["the creation request", CREATE_MAILBOX_REQUEST, false],
+    ["another extension's request", { kind: "someone-else:something", code: "1" }, false],
+    ["a bare string", "spectre:fill-code", false],
+    ["nothing at all", undefined, false],
+    ["null", null, false],
+  ])("is recognised in %s: %s", (_label, value, expected) => {
+    expect(isFillCodeRequest(value)).toBe(expected);
+  });
+});
+
+describe("narrowing what a page answered about a code", () => {
+  it("admits every variant a content script writes, on their discriminants alone", () => {
+    for (const kind of [
+      "filled",
+      "asked",
+      "noField",
+      "fieldHoldsText",
+      "notTopFrame",
+      "notActedOn",
+    ] as const) {
+      expect(readFillCodeAnswer({ kind })).toEqual({ kind });
+    }
+  });
+
+  /**
+   * The control for the table above, in the **permissive** direction.
+   *
+   * A narrower that answered `null` for everything would pass every refusal row below and this
+   * file would be green — which is the recorded failure of a narrowing function, whose failure
+   * mode is silence. So an answer carrying a field the union does not declare is still admitted,
+   * and a refused shape has to be refused for its own reason.
+   */
+  it("admits a well-formed answer that carries more than the union declares", () => {
+    expect(readFillCodeAnswer({ kind: "filled", field: "code", tab: 9 })).toEqual({
+      kind: "filled",
+    });
+  });
+
+  it.each([
+    // **A variant nobody writes.** The union is closed on purpose, and a content script in a later
+    // milestone answering with a kind the popup has no copy for is the shape that would otherwise
+    // reach a person as a blank line.
+    ["a variant this product does not write", { kind: "filledTwice" }],
+    // **The creation answer, unchanged** — a content script that answered the creation question
+    // would be read as a delivery that did something.
+    ["a creation answer", { kind: "created", address: "a@b.test", mailboxId: "m" }],
+    ["an answer with no discriminant", { filled: true }],
+    ["a bare string", "filled"],
+    ["undefined", undefined],
+    ["null", null],
+    ["a number", 0],
+    ["a boolean", true],
+    ["an array carrying a discriminant", [{ kind: "filled" }]],
+  ])("reports no answer for %s", (_label, value) => {
+    expect(readFillCodeAnswer(value)).toBeNull();
   });
 });

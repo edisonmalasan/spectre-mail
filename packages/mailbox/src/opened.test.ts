@@ -513,6 +513,69 @@ describe("opening a message", () => {
       await opened.open(MAILBOX, "a");
       expect(provider.readCalls).toBe(2);
     });
+
+    /**
+     * **Closing is not forgetting, and this case exists because the browser tier found the
+     * difference by counting requests.**
+     *
+     * `in-page-fill` staged a delivery, opened a message, closed it and read it again, and read
+     * **two** `/messages/{id}` requests out of the recorded traffic where the requirement says one.
+     * The unit tier was green throughout: the case above asserted that `reset` sheds a reading, and
+     * `closeMessage` called `reset`, so the code and the test agreed with each other and neither
+     * agreed with the requirement — which bounds retention by the listing and by mailbox
+     * replacement, and names no third bound.
+     *
+     * **The positive control is the case above, quoted rather than repeated**: `reset` still sheds,
+     * on the same tracker, in the same listing. A test that made closing retain would pass just as
+     * happily if `reset` retained too, so the pair is only meaningful together.
+     */
+    it("keeps what it read when a message is merely closed", async () => {
+      const provider = stubProvider("guerrilla", { messages: { bodies: { a: CODE_BODY } } });
+      const { a } = twoMessages();
+      const seen: OpenedMessageState[] = [];
+      const opened = trackerOver(
+        provider,
+        () => [a],
+        (next) => seen.push(next),
+      );
+
+      await opened.open(MAILBOX, "a");
+      expect(provider.readCalls).toBe(1);
+
+      // **The record is cleared first, so the assertion below is about the close.** The first open
+      // published `opening` then `opened`, and leaving those in would make this case assert the
+      // history of the whole tracker rather than the transition under test.
+      seen.length = 0;
+      opened.close();
+
+      // **The reported state changed, and the transition was published.** A session still
+      // reporting a message as open after it was closed is the defect `reset` was written to fix,
+      // and splitting the two members must not bring it back.
+      expect(opened.state).toEqual({ kind: "none" });
+      expect(seen.map((state) => state.kind)).toEqual(["none"]);
+
+      // **And the reading is still there**, so the second open costs nothing.
+      await opened.open(MAILBOX, "a");
+      expect(provider.readCalls).toBe(1);
+    });
+
+    it("publishes nothing when something that was never open is closed", () => {
+      const provider = stubProvider("guerrilla", { messages: { bodies: { a: CODE_BODY } } });
+      const seen: OpenedMessageState[] = [];
+      const opened = trackerOver(
+        provider,
+        () => [],
+        (next) => seen.push(next),
+      );
+
+      opened.close();
+
+      // **A subscriber counting transitions must not be told about one that did not happen.** The
+      // same rule `reset` follows, and asserted separately because it is the published half of the
+      // member rather than the retention.
+      expect(seen).toEqual([]);
+      expect(opened.state).toEqual({ kind: "none" });
+    });
   });
 
   describe("after the session was discarded", () => {

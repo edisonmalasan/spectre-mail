@@ -64,6 +64,21 @@
  * all resolve to no answer at all, which is a value the receiving side already has a name for and
  * already refuses to act on.
  *
+ * ## The tab seam, and why it lives here rather than beside the popup
+ *
+ * **`chrome.tabs` is read through this module for the same reason `chrome.storage` is**, and the
+ * boundary rule that confines the platform global to one module is the whole argument: a delivery
+ * written beside the popup would name the global in a second file, and the rule that exists to stop
+ * that would then have to be widened — which is the cheaper-looking option and the wrong one.
+ *
+ * **No `tabs` permission is declared, and none is needed.** `design.md` D1 measures it in Chromium
+ * against the shipped manifest: `chrome.permissions.contains({permissions:["tabs"]})` answers
+ * `false` throughout while `chrome.tabs.query({active:true, currentWindow:true})` names the tab the
+ * popup is docked to and `chrome.tabs.sendMessage` reaches a content script there — on an origin
+ * this extension holds **no** host permission for. So the seam returns a tab id and nothing else;
+ * in particular it does not need `tab.url`, which is `undefined` without the permission and costs
+ * nothing here because the content script knows which page it is in.
+ *
  * @module
  */
 
@@ -145,7 +160,7 @@ interface MessagingSeams {
  * **`send` and `listen` are decided independently**, because the two consumers live in different
  * contexts and a single verdict would be wrong in one of them: the content script can only send, and
  * the worker can only listen. Returning `undefined` when *both* are missing is what lets
- * {@link sendToBackground} answer "no answer" and {@link onBackgroundMessage} register nothing, and
+ * {@link sendToBackground} answer "no answer" and {@link onExtensionMessage} register nothing, and
  * each reports the platform's absence for its own side rather than the other one's.
  */
 function readMessaging(): MessagingSeams | undefined {
@@ -228,11 +243,23 @@ export function sendToBackground(request: unknown): Promise<unknown> {
 /**
  * Answer requests from this extension's other contexts, and return the function that stops.
  *
+ * ## Renamed from `onBackgroundMessage`, and the name was the thing that had become false
+ *
+ * **It was written when the only listener was the background worker.** It is now also how the
+ * content script answers a request the **popup** sent it, which `design.md` D4 measures and
+ * `extension-client` requires — the worker is not in that path at all. A name saying *background*
+ * on the one function the content script calls to answer a popup would send the next reader
+ * looking for a worker that is not involved, and the module's own answer to "where does this run"
+ * would be wrong.
+ *
+ * **The name says what the module supplies, not which context happens to be listening**, which is
+ * the same rule `AFFORDANCE_LABEL` and `CREATE_MAILBOX_REQUEST` are named by.
+ *
  * **`true` is returned from the listener unconditionally**, which is what keeps the platform's reply
  * channel open past this listener's return. A listener answering synchronously would not need it, but
- * every answer here is asynchronous by construction — creation is a network round trip — and
- * returning `false` would close the channel before that round trip finished, turning every answer into
- * no answer at all.
+ * every answer here is asynchronous by construction — creation is a network round trip, and a fill
+ * may be a person choosing a field — and returning `false` would close the channel before that answer
+ * finished, turning every answer into no answer at all.
  *
  * **A handler that rejects answers `undefined`,** because a rejected handler is not a refusal and
  * must not be presented as one: the worker refused nothing, it failed to answer, and the page's copy
@@ -244,7 +271,7 @@ export function sendToBackground(request: unknown): Promise<unknown> {
  *   is where that is decided on the other side.
  * @returns A function that removes the listener. Idempotent, and safe where the platform offers none.
  */
-export function onBackgroundMessage(handle: (request: unknown) => Promise<unknown>): () => void {
+export function onExtensionMessage(handle: (request: unknown) => Promise<unknown>): () => void {
   const listen = readMessaging()?.listen;
 
   if (listen === undefined) {
@@ -265,4 +292,141 @@ export function onBackgroundMessage(handle: (request: unknown) => Promise<unknow
   return () => {
     listen.removeListener(listener);
   };
+}
+
+/**
+ * The tab seams, or `undefined` where the platform offers none.
+ *
+ * **`query` and `send` are one seam rather than two, and the reason is that a caller has both or
+ * neither.** A tab id is worth nothing without a way to send to it, and a send needs an id this
+ * seam found. Returning `undefined` when both are missing is what lets {@link findActiveTab} answer
+ * "no tab" and {@link sendToTab} answer "no answer", and each reports the platform's absence for
+ * its own half.
+ */
+function readTabs():
+  | {
+      /** The `chrome.tabs` object itself, because its methods are called reflectively. */
+      readonly receiver: unknown;
+      readonly query: PlatformFunction;
+      readonly send: PlatformFunction;
+    }
+  | undefined {
+  const receiver = readMember(readPlatform(), "tabs");
+  const rawQuery = readMember(receiver, "query");
+  const rawSend = readMember(receiver, "sendMessage");
+
+  if (typeof rawQuery !== "function" || typeof rawSend !== "function") {
+    return undefined;
+  }
+
+  return {
+    receiver,
+    query: rawQuery as PlatformFunction,
+    send: rawSend as PlatformFunction,
+  };
+}
+
+/**
+ * The id of the tab this extension's window is showing, or `null` where there is none.
+ *
+ * ## The query is the one `design.md` D1 measured, and the measurement is why it is written out
+ *
+ * **`{ active: true, currentWindow: true }` from an action popup names the tab the popup is docked
+ * to**, and it does so **with no `tabs` permission declared**: measured in Chromium, with the
+ * shipped manifest's `storage`-only permissions, `chrome.permissions.contains({permissions:["tabs"]})`
+ * answered `false` throughout while this query named the right tab. That is why this function exists
+ * at all rather than a permission being added, and `in-page-integration`'s *"A code reaches the
+ * page without a permission this extension does not already hold"* is a behavioural requirement
+ * precisely so that adding one would fail.
+ *
+ * **`currentWindow` rather than `active: true` alone**, because "the active tab" across all of a
+ * user's windows is a different tab most of the time, and a verification code delivered to the
+ * wrong one of them is a code in somebody else's form.
+ *
+ * ## `null` is the answer for three different absences, and they are not collapsed further
+ *
+ * **No `tabs`, a query that returned nothing, and a query that threw.** They are the same fact as
+ * far as anything that has to *act* on a tab id is concerned — there is nothing to deliver to — and
+ * the caller is required to refuse rather than fall back to some other tab. **A fallback is the one
+ * thing this function must not grow:** "no tab, so try them all" is a delivery to every page the
+ * user has open, and `design.md` D1 records the measurement that sending to every tab answered on
+ * exactly one while placing a code into every content script that had a qualifying field.
+ */
+export function findActiveTab(): Promise<number | null> {
+  return new Promise((resolve) => {
+    const tabs = readTabs();
+
+    if (tabs === undefined) {
+      resolve(null);
+      return;
+    }
+
+    try {
+      void tabs.query.call(
+        tabs.receiver,
+        { active: true, currentWindow: true },
+        (found: unknown) => {
+          resolve(firstTabId(found));
+        },
+      );
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+/** The first numeric id in a `tabs.query` answer, or `null` for anything else. */
+function firstTabId(found: unknown): number | null {
+  if (!Array.isArray(found)) {
+    return null;
+  }
+
+  for (const tab of found) {
+    const id: unknown = readMember(tab, "id");
+    if (typeof id === "number") {
+      return id;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Send a request to one named tab and resolve with whatever it answers.
+ *
+ * **`undefined` is the failure value, for the same reasons as {@link sendToBackground}.** A
+ * platform with no tab seams, a tab id that names nothing, and a page that refused to answer are
+ * three facts the caller must report identically: **no page confirmed anything**, which is the one
+ * report `extension-client` requires when a code cannot be confirmed as filled.
+ *
+ * **A tab id is passed through rather than discovered here**, because discovery is a separate
+ * question with its own measurement and its own refusal. A function that found a tab *and* sent to
+ * it would have one failure mode instead of two, and the caller would have no way to say "there was
+ * no tab" as distinct from "the page did not answer".
+ *
+ * @param tabId - The tab {@link findActiveTab} named. Never a list, and never "any".
+ * @param request - The request, sent verbatim. What it means belongs to `protocol.ts`.
+ */
+export function sendToTab(tabId: number, request: unknown): Promise<unknown> {
+  return new Promise((resolve) => {
+    const messaging = readMessaging();
+    const tabs = readTabs();
+
+    if (tabs === undefined) {
+      resolve(undefined);
+      return;
+    }
+
+    try {
+      tabs.send.call(tabs.receiver, tabId, request, (reply: unknown) => {
+        // **Read, then discard, for the reason {@link sendToBackground} records:** the error channel
+        // is read to suppress the console warning, and the refusal itself is surfaced as
+        // `undefined`.
+        messaging?.readLastError?.();
+        resolve(reply);
+      });
+    } catch {
+      resolve(undefined);
+    }
+  });
 }

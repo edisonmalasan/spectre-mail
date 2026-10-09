@@ -111,6 +111,30 @@ body {
   color: var(--ink-secondary);
 }
 
+/*
+ * The message row: who wrote it, what it is about, and a control that opens it.
+ *
+ * **The sender is monospace because it is an address**, which is the token layer's own rule and
+ * not a choice made here — it is the same reason `.popup__address` above is monospace, and the
+ * same reason the user might compare two of these character by character. **The subject carries
+ * the primary ink** because it is the thing being chosen from, and it is deliberately not
+ * emphasised further: this popup is not a mail client and a list it has to be legible in three
+ * seconds is not a place for hierarchy beyond which line is which.
+ *
+ * **No new token, per `design.md` D8** — every value below is one this file already used.
+ */
+.message__from {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: var(--type-xs);
+  color: var(--ink-muted);
+}
+
+.message__subject {
+  display: block;
+  color: var(--ink-primary);
+}
+
 .control {
   appearance: none;
   font: inherit;

@@ -57,6 +57,10 @@ describe("the popup copy", () => {
   });
 
   it("carries a substitution token in exactly the entries it declares", () => {
+    // **`fillCode` joined `reaching`, and the entry it replaced was a function.** The code is
+    // substituted rather than composed, so the count of function-valued entries is still two and a
+    // depiction can still not render either of them. A third function here would have made
+    // `nonStringEntries` the assertion that changed, and it is the weaker place to put the change.
     expect(templatedEntries()).toEqual([...POPUP_COPY_TEMPLATES]);
   });
 
@@ -67,13 +71,24 @@ describe("the popup copy", () => {
     expect(POPUP_COPY_TEMPLATES.filter((key) => !POPUP_COPY_KEYS.includes(key))).toEqual([]);
   });
 
-  it("resolves each template's declared token to a real provider name at render time", () => {
-    // `reaching` is the only template, and the popup substitutes before rendering. Asserting
-    // the substitution here is what keeps `Popup.tsx`'s `.replace("{provider}", …)` honest:
-    // a rename of the token would otherwise leave a page showing "Asking {provider} first".
-    const rendered = POPUP_COPY.reaching.replace("{provider}", "Mail.tm");
-    expect(rendered).toBe("Asking Mail.tm first");
-    expect(rendered).not.toContain("{");
+  it("resolves each template's declared token to a real value at render time", () => {
+    // `reaching` and `fillCode` are the templates, and the popup substitutes before rendering.
+    // Asserting the substitution here is what keeps `Popup.tsx`'s `.replace("{provider}", …)` and
+    // `.replace("{code}", …)` honest: a rename of a token would otherwise leave a popup showing
+    // "Asking {provider} first" or "Fill in code {code}".
+    const provider = POPUP_COPY.reaching.replace("{provider}", "Mail.tm");
+    expect(provider).toBe("Asking Mail.tm first");
+    expect(provider).not.toContain("{");
+
+    // **The code verbatim, and that is the property rather than the formatting.** A code is a
+    // detection this product did not invent, so trimming it, shortening it or rendering its
+    // confidence instead would each produce a control that names a value the page would not receive.
+    const filled = POPUP_COPY.fillCode.replace("{code}", "493028");
+    expect(filled).toBe("Fill in code 493028");
+    expect(filled).not.toContain("{");
+    // **A code with its own braces or spaces survives the substitution**, because `String.replace`
+    // is given the code as the replacement rather than as part of a pattern.
+    expect(POPUP_COPY.fillCode.replace("{code}", "a b {c}")).toBe("Fill in code a b {c}");
   });
 
   it("names no empty string, because a depiction cannot show one", () => {

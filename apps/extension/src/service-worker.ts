@@ -42,7 +42,7 @@
  */
 
 import { createExtensionMailboxOpener, handleCreateMailbox } from "./create-mailbox";
-import { onBackgroundMessage, readChromeLocalArea } from "./extension-platform";
+import { onExtensionMessage, readChromeLocalArea } from "./extension-platform";
 import { createExtensionStorage } from "./storage";
 import { extensionTransport } from "./transport";
 
@@ -81,7 +81,7 @@ self.addEventListener("activate", () => {
  * request arriving after an earlier one has been answered creates an independent mailbox rather
  * than reusing anything the earlier request left.
  */
-onBackgroundMessage((request) => {
+onExtensionMessage((request) => {
   const extensionStorage = createExtensionStorage(readChromeLocalArea());
 
   if (extensionStorage.kind === "blocked") {

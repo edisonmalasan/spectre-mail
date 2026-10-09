@@ -100,7 +100,37 @@ export interface OpenedMessages {
   open(mailbox: Mailbox | undefined, messageId: string): Promise<OpenedMessageState>;
 
   /**
+   * Report that nothing is open, and **retain everything**.
+   *
+   * ## Why closing is not forgetting, and why this member exists at all
+   *
+   * **A closed message is still a message this mailbox has.** `A message already read is not read
+   * again` bounds the retention to the current listing and to the mailbox being replaced, and names
+   * no third bound — so a person who reads a message, closes it, and reads it again must not spend
+   * a second provider request on a body this session is still holding.
+   *
+   * **This member was added by `in-page-fill`, after measurement, and it exists because `reset()`
+   * was doing two jobs.** One caller wanted the reported state cleared and the other wanted the
+   * retention gone, and the one implementation satisfied the first caller at the cost of the
+   * second: `closeMessage()` dropped every reading, and re-opening a message a moment ago cost a
+   * provider request. The tracker had a comment saying the retention "is not a change anyone can
+   * observe" — **which is false, and the way it is false is a request to a provider whose tolerance
+   * this repository has never measured.** Nothing observes the state change; something very much
+   * observes the request.
+   *
+   * **Publishing still happens here, and only when the reported state changes**, for the same reason
+   * `reset` publishes: the session must stop reporting a message as open. A close with nothing open
+   * emits nothing, so a subscriber counting transitions is not told about a transition that did not
+   * happen.
+   */
+  close(): void;
+
+  /**
    * Forget everything: the tracker becomes `none` and retains nothing.
+   *
+   * **This is the mailbox-replacement path, and it is the only one that discards a reading.** The
+   * retention belongs to the mailbox that was read; a reading of a message in the *previous*
+   * mailbox is not an answer about a message in this one.
    *
    * **Publishes, and that is not optional.** The first version set the internal `state`
    * without calling `onChange`, so a caller that had asked for a message to be closed
@@ -273,17 +303,18 @@ export function createOpenedMessages(options: OpenedMessagesOptions): OpenedMess
 
     open,
 
+    close() {
+      // **The published half of `reset`, without its other half.** See `OpenedMessages.close`:
+      // closing reports that nothing is open and keeps what was read.
+      if (!isNoMessageOpen(state)) publish({ kind: "none" });
+    },
+
     reset() {
       retained.clear();
-      // **Published only when the reported state actually changes.** Two things are
-      // true here and conflating them is what made the first version wrong in both
-      // directions. The *reported* state is what a client renders, and clearing it from
-      // `opened` to `none` is a change every holder must be told about — that was the
-      // bug: `closeMessage()` cleared the tracker and left the session still claiming a
-      // message was open. But clearing the *retention* is not a change anyone can
-      // observe, and publishing for it would make every mailbox replacement emit an
-      // extra notification with the same value it already had — which a subscriber
-      // counting transitions would see as a lie about how many there were.
+      // **Delegated rather than repeated, because the two were once one line of code and the
+      // reason they are now two is a reason that has to be written down once.** Publishing only
+      // when the reported state changes is what stops a mailbox replacement emitting a
+      // transition whose value is the one already on screen.
       if (!isNoMessageOpen(state)) publish({ kind: "none" });
     },
 

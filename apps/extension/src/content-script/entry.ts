@@ -35,14 +35,19 @@
  * have to report "could not confirm" for every creation on every page, which is a worse answer than
  * offering no control at all — and offering no control is the refusal this module already makes.
  *
+ * **And the fill listener is registered before any of that, because a fill needs none of it.** See
+ * the note at the registration itself; the property is that a device which cannot hold an address is
+ * still a device whose popup can hand a code to a page.
+ *
  * @module
  */
 
 import { CREATE_MAILBOX_REQUEST, readCreateMailboxAnswer } from "../protocol";
 import type { CreateMailboxAnswer } from "../protocol";
 import { createExtensionStorage, loadInsertableMailboxes } from "../storage";
-import { readChromeLocalArea, sendToBackground } from "../extension-platform";
+import { onExtensionMessage, readChromeLocalArea, sendToBackground } from "../extension-platform";
 import { startInPageIntegration } from "./controller";
+import { startInPageFill } from "./fill";
 
 /**
  * Run `run` once the document has a body to put a control into.
@@ -62,6 +67,14 @@ function whenDomReady(run: () => void): void {
 }
 
 whenDomReady(() => {
+  // **The fill listener is registered before anything this extension stores is read, and that order
+  // is the point.** Filling a code needs nothing from this device: the code arrives in the message
+  // and the field is on the page. So a device whose `storage` area is blocked — which is exactly
+  // the device that cannot hold an address — is still a device whose popup can hand a code to a
+  // signup form. **Refusing the fill because a store is blocked would tie one product feature to a
+  // failure of an unrelated one.**
+  onExtensionMessage(startInPageFill({ document, view: window }).handle);
+
   const area = readChromeLocalArea();
 
   if (area === undefined) {

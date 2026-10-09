@@ -30,7 +30,7 @@
  * unchecked, and the answer is the half that reaches a person's form.
  *
  * **The narrowing returns `null` rather than throwing, and every unrecognised shape becomes
- * `null`.** A reply that is not one of these four is not a *worse* answer, it is **no answer**,
+ * `null`.** A reply that is not one of these answers is not a *worse* answer, it is **no answer**,
  * and `no answer` is already a named state the page knows how to report honestly. Throwing here
  * would turn a malformed reply into an exception escaping into a document keypress handler on
  * somebody else's page.
@@ -45,8 +45,18 @@
  * @module
  */
 
-/** Discriminates the one request this extension's contexts exchange. */
+/** Discriminates a request for the background context to create a mailbox. */
 export const CREATE_MAILBOX_REQUEST_KIND = "spectre:create-mailbox";
+
+/**
+ * Discriminates a request for a one-time code to be put into a page's own field.
+ *
+ * **A second kind on the same channel rather than a second channel**, because `design.md` D4
+ * records that the one thing this needs is a tab id and a message, and both already exist. The
+ * worker is not in this path at all, so the seam this travels over is `chrome.tabs.sendMessage`
+ * from the popup to the content script, and the content script's own `runtime.onMessage`.
+ */
+export const FILL_CODE_REQUEST_KIND = "spectre:fill-code";
 
 /** A request for the background context to create a mailbox on this device's behalf. */
 export interface CreateMailboxRequest {
@@ -89,6 +99,73 @@ export type CreateMailboxAnswer =
   /** Created or refused, but this device could not be told, so there is no address to offer. */
   | { readonly kind: "notStored" }
   /** The message was not one this context acts on. Nothing was created and nothing persisted. */
+  | { readonly kind: "notActedOn" };
+
+/**
+ * A request for one particular one-time code to be put into a page's field.
+ *
+ * **`code` is carried rather than implied,** because a delivery that asked for *a* code and the
+ * page chose which would be a second decision made on somebody else's page. The popup named this
+ * code to the person, so this is the code.
+ */
+export interface FillCodeRequest {
+  readonly kind: typeof FILL_CODE_REQUEST_KIND;
+  readonly code: string;
+}
+
+/**
+ * The value sent for a fill, and **a function rather than a constant**.
+ *
+ * **A constant would be a request with no code in it**, and the constant's own reason for existing
+ * — one spelling both sides read — is already spent on `CREATE_MAILBOX_REQUEST`, whose request has
+ * no payload. This one does.
+ *
+ * @param code - The code the person activated a control for. It is sent verbatim: a code this
+ *   product altered is a code the provider did not issue.
+ */
+export function fillCodeRequest(code: string): FillCodeRequest {
+  return { kind: FILL_CODE_REQUEST_KIND, code };
+}
+
+/**
+ * Whether `value` is a fill request carrying a code this extension would put into a page.
+ *
+ * **A check on the payload as well as the discriminant, and the reason is which end this is read
+ * at.** This runs inside the content script, on whatever the message channel delivered — a page is
+ * arbitrary input to a content script, and the content script's own message channel is reachable
+ * from every extension page this extension has. **A request whose `code` is absent is refused
+ * rather than narrowed to a request with no code in it**, because the only thing this request does
+ * is carry that code, and a narrowing that admitted it would insert `undefined` into somebody's
+ * signup form.
+ */
+export function isFillCodeRequest(value: unknown): value is FillCodeRequest {
+  return readKind(value) === FILL_CODE_REQUEST_KIND && readText(value, "code") !== null;
+}
+
+/**
+ * Everything a page can answer about a code it was sent, and nothing it cannot.
+ *
+ * **Six variants, and the shape of the union is the claim.** Each is a *distinct fact about the
+ * page*, because the popup has one line to report it with and a person reading it has to be able
+ * to act on the difference. `filled` is the only one that says the code went somewhere.
+ *
+ * **`notActedOn` is the shape the creation union already has**, kept deliberately: a content
+ * script always receives this extension's own recognised requests, so the variant is unreachable
+ * from a browser case and is exercised by unit cases instead — and it is what an unrecognised
+ * message becomes, so a message nobody acts on can never be reported as something else.
+ */
+export type FillCodeAnswer =
+  /** The code is now the field's value, and the page's own code reads it back. */
+  | { readonly kind: "filled" }
+  /** More than one field qualified and the person has not chosen yet, so nothing was filled. */
+  | { readonly kind: "asked" }
+  /** No field on this page is a one-time-code field. Nothing was placed anywhere. */
+  | { readonly kind: "noField" }
+  /** The only qualifying field already holds text, so nothing was inserted into it. */
+  | { readonly kind: "fieldHoldsText" }
+  /** This document is not the page's top-level one, so nothing was filled from it. */
+  | { readonly kind: "notTopFrame" }
+  /** The message was not one this context acts on. Nothing was placed anywhere. */
   | { readonly kind: "notActedOn" };
 
 /**
@@ -142,6 +219,38 @@ export function readCreateMailboxAnswer(value: unknown): CreateMailboxAnswer | n
     default:
       // **Every other shape, including `undefined`, a thrown error, a string and a number.** An
       // instrument that answers confidently and wrongly is worse than one that declines.
+      return null;
+  }
+}
+
+/**
+ * Narrow an untrusted reply about a delivery to an answer, or `null` where there is none.
+ *
+ * **Payload-free variants admitted on their discriminant alone**, for the same reason the creation
+ * narrower's are: a payload-free variant cannot carry a wrong payload, and demanding one would
+ * reject the correct answer. The one variant carrying a payload is {@link FillCodeAnswer} `filled`,
+ * which carries none — so **every variant of this union is payload-free, and that is a claim about
+ * the union rather than an accident of this function.** A future variant that does carry a payload
+ * has to add its check here, and the union's shape is what makes that visible in review.
+ *
+ * @param value - Whatever the message channel delivered from the page. Untyped by construction.
+ * @returns The answer, or `null` when the value is not one this extension can act on.
+ */
+export function readFillCodeAnswer(value: unknown): FillCodeAnswer | null {
+  const kind = readKind(value);
+
+  switch (kind) {
+    case "filled":
+    case "asked":
+    case "noField":
+    case "fieldHoldsText":
+    case "notTopFrame":
+    case "notActedOn":
+      return { kind };
+    default:
+      // **Every other shape, including `undefined`, an exception, a string and a number.** A reply
+      // this extension does not recognise is **no answer**, and the popup already has a named
+      // report for no answer: it cannot confirm the code was filled.
       return null;
   }
 }

@@ -464,7 +464,11 @@ export function createMailboxSession(
     },
 
     closeMessage() {
-      opened.reset();
+      // **`close`, not `reset`** — and the difference is one provider request. `reset` is the
+      // mailbox-replacement path, which discards what was read because the reading belonged to a
+      // mailbox this session no longer holds; a person closing a message has not replaced the
+      // mailbox, so what the session read is still a reading it has.
+      opened.close();
     },
 
     destroy() {
