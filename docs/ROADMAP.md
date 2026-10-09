@@ -25,15 +25,23 @@
 > `spectre-storage` (M6 slice 1), `browser-verification`, `visual-system` (M7 slice
 > 1), `page-composition` (M7 slice 3), `extension-client` (M8) and
 > `in-page-integration` (M9 slice 1). Counted mechanically at each sync and again
-> after each archive, they hold **151 requirements and 446 scenarios** in total.
+> after each archive, they hold **153 requirements and 452 scenarios** in total.
 >
-> **The per-capability figures, counted on 2026-10-09 at `verification-actions`'s apply
+> **The per-capability figures, counted on 2026-10-09 at `verification-actions`'s sync
 > stage and not transcribed:** `browser-verification` 5/12,
 > `build-and-verification` 10/28, `extension-client` 6/20,
 > `in-page-integration` 12/41, `mail-parsing` 9/31, `mailbox-session` 23/61,
 > `monorepo-foundation` 5/12, `page-composition` 6/20, `provider-abstraction` 9/20,
 > `provider-adapters` 12/30, `shared-domain-model` 9/23, `spectre-storage` 15/51,
-> `visual-system` 9/28, `website-client` 21/69.
+> `visual-system` 9/28, `website-client` **23/75**.
+>
+> **`website-client` is the only figure that moved at this sync, and it moved by two rather
+> than by three: 21 → 23 requirements.** The delta removes one requirement and adds three, and
+> **a `REMOVED` block and a `MODIFIED` one each replace rather than add** — the third
+> milestone to produce that arithmetic. The `21 − 1 + 3 = 23` figure was predicted before the
+> promotion ran and **measured** after it; the scenario figure was never predicted and is
+> 75 because that is what the sync counted. **The count is re-run after the archive as well,
+> because a move is the operation most likely to drop a file.**
 >
 > **And the sentence above those two paragraphs warned about this exact failure twice while
 > carrying a figure the same failure had already broken.** It read **thirteen** capabilities
@@ -63,8 +71,8 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor: M10 - Verification Workflow, slice 1 (`verification-actions`) is APPLIED and
-VERIFYING on `feat/verification-actions`. M9 is complete in scope** - all three of its slices
+**Roadmap cursor: M10 - Verification Workflow, slice 1 (`verification-actions`) is APPLIED,
+VERIFIED and SYNCED, with its archive stage to follow. M9 is complete in scope** - all three of its slices
 (`in-page-address`, `in-page-mailbox`, `site-associations`) applied, verified, synced and
 archived, slice 3 at `openspec/changes/archive/2026-10-09-site-associations/` with proposal PR
 #92 merged `7755131`, apply PR #93 merged `1ff7c24`, sync PR #94 merged `18bbe00`, archive PR
@@ -94,6 +102,40 @@ three times** with `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory, and
 40 website and 56 extension cases on every run.** Nine deliberate violations were all caught by
 the assertion each was aimed at, with `wrongcatch`, `green`, `nocompile`, `noop` and
 `harness-error` all zero and restoration SHA-256 verified per mutated file.
+
+**What slice 1's sync stage measured, and it is a smaller set of facts than the apply
+stage's.** `openspec validate --specs --strict` is **14 passed, 0 failed**; `openspec validate
+verification-actions --type change --strict` reports the change **valid**, and prints one INFO
+saying archive *would refuse* the delta because a heading already exists — **which is the expected
+consequence of a sync having promoted it, and the reason archive must run with `--skip-specs`.**
+`pnpm verify` exited **0** once more with `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory,
+and that run covers the markdown this stage edited, because Prettier formats `.md`. **The unit
+tier's figures above are not re-published by this stage and were not re-measured by it**: the
+stage changed only files under `openspec/`, and no Vitest file and no browser spec reads
+`openspec/` — every match in the tree is a prose reference inside a comment, which was checked
+rather than assumed.
+
+**The promotion was rehearsed in full on a throwaway copy of `openspec/` before it touched the
+real tree, and that is how two instruments' defects were caught rather than shipped.** The
+promoter **logged a deletion of the removed requirement and never performed it**: it computed the
+span, inserted the three additions in its place, made the file *larger*, and printed
+`deleted lines 498..599`. **The instrument's arithmetic was right and its account of what it had
+done was not**, which is the same shape as a tally printed beside evidence against it. Four
+further defects surfaced the same way — a bound that left the removed requirement's own scenario
+bullets behind as orphans, a block extent that was wider than the requirement it replaced, a guard
+asserting the wrong invariant, and **one in the verifier**, which demanded the `REMOVED` block be
+present and byte-identical and would have passed a spec still carrying it. **Only the second,
+independently written block reader reported any of them**, so promoter and verifier share no code
+and no reader: the independence is structural, not a promise.
+
+**And the delta itself carried two defects, repaired in the change rather than in the promoted
+spec.** Its note claimed *"four bullets"* where `LIMITS` holds **five** and the note then
+enumerated three — a count wrong before this change and carried silently through four syncs — and
+its cross-reference named the requirement this same change retires, in the present tense. And the
+`MODIFIED` block dropped a surviving prose paragraph, which `openspec validate` **cannot report**,
+because the validator enforces scenarios and not prose. Both were fixed **in the delta**, so the
+archived delta and the promoted spec stay the same blocks — **an amendment recorded in the wrong
+artifact is what a gap between those two means.**
 
 **And three numbers in this file were found stale while that record was being written, which is
 why they are worth naming.** This block's own capability count above had not been re-run since

@@ -1,8 +1,8 @@
 # AGENTS.md
 
 > **Current milestone state (reconciled against Git and OpenSpec 2026-10-09): M0-M9 are complete
-> in scope, and M10 slice 1 (`verification-actions`) is **APPLIED and VERIFIED on
-> `feat/verification-actions`**, with its Sync and Archive stages to follow.** M9's three slices are
+> in scope, and M10 slice 1 (`verification-actions`) is **APPLIED, VERIFIED and SYNCED**, with its
+> Archive stage to follow.** M9's three slices are
 > all applied, verified, synced and archived, and M7's four
 > slices are archived and M8
 > (`extension-foundation`) is applied, verified, synced, and archived at
@@ -18,22 +18,41 @@
 > APPLIED, VERIFIED, SYNCED and ARCHIVED** at
 > `openspec/changes/archive/2026-10-09-site-associations/` - proposal **#92** merged (`7755131`),
 > apply **#93** merged (`1ff7c24`), sync **#94** merged (`18bbe00`), archive **#95** merged
-> (`a886447`) - so `openspec validate --specs --strict` is **14 passed, 0 failed, 151 requirements
-> and 446 scenarios**.
+> (`a886447`).
 > **The promoted counts move at the sync stage and not before, and the distinction is recorded
 > here because "applied and verified" and "synced" are not the same claim.**
 >
-> **M10 slice 1 has moved none of them, and `openspec validate --specs --strict` is still
-> 14 passed, 0 failed, 151 requirements and 446 scenarios** — measured, not transcribed, and it
-> is the same figure the `site-associations` archive left because **no sync has run on this
-> change yet.** Its delta is four blocks in one capability: `website-client` loses
+> **`verification-actions`' sync has now run, and `openspec validate --specs --strict` is
+> **14 passed, 0 failed, 153 requirements and 452 scenarios** across 14 capabilities** — measured
+> by counting `### Requirement:` and `#### Scenario:` across `openspec/specs/` after the
+> promotion, not transcribed. `website-client` went **21 → 23 requirements and 69 → 75
+> scenarios**, and the requirement figure is exactly the **21 − 1 + 3 = 23** this file predicted
+> before the promotion ran. **It is 23 and not 24 because a `REMOVED` block and a `MODIFIED` one
+> each replace rather than add** — the third milestone to produce that arithmetic, which is why
+> it is now stated as a rule rather than left as a surprise. Four blocks were promoted: the
+> `REMOVED` requirement is **absent** from the promoted spec, and the `MODIFIED` and the three
+> `ADDED` blocks are each **byte-identical** to the delta they came from. **The scenario figure
+> was not predicted** — it is what the sync measured, and it is recorded as a measurement rather
+> than as a number worked out in advance.
+>
+> **The promotion was rehearsed in full on a throwaway copy of `openspec/` before it touched the
+> real tree**, and that is how the promoter's own defect was caught rather than shipped. **It
+> logged a deletion of the removed requirement and never performed it** — the span was computed,
+> the three additions were inserted in its place, the file *grew*, and the log line still read
+> `deleted lines 498..599`. **The instrument was not wrong in its arithmetic; it was wrong about
+> what it had done, and its own output said otherwise.** Only the second, independently written
+> block reader reported it, by counting 24 requirements where the arithmetic said 23. Four further
+> defects were found the same way, including one in the **verifier**, which demanded the
+> `REMOVED` block be present and byte-identical and would therefore have passed a spec still
+> carrying a retired requirement. **A tool that also checks its own work cannot report its own
+> defect**, so the promoter and the verifier share no code and no reader — the independence is
+> structural rather than a promise.
+>
+> **M10 slice 1's delta is four blocks in one capability: `website-client` loses
 > *"This slice shows what it found and does not act on it"* outright, has *"The page's limits are
 > stated in its footer"* **modified**, and gains three requirements — *"A detection is acted on
 > only when the user asks"*, *"A detected one-time code can be put on the clipboard"* and
-> *"A detected verification link is opened only by the user"*. **`website-client`'s requirement
-> count stays at 21**, because a `REMOVED` block and a `MODIFIED` one each replace rather than
-> add, so the arithmetic to expect at this change's sync is **21 − 1 + 3 = 23** and the scenario
-> count is what the sync stage must measure rather than what this file predicts. **The
+> *"A detected verification link is opened only by the user"*. **The
 > requirement is REMOVED rather than amended, and that is `design.md` D1:** an amended heading
 > would have contradicted its own body, because the requirement's entire content was a
 > prohibition of the two actions this slice adds.

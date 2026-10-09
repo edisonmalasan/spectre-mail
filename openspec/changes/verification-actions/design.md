@@ -290,7 +290,66 @@ the anchor, bounded, and reports what focus last rested on when it gives up. **A
 cannot fail on the defect it is named for is not coverage**, and this repository has now
 recorded that shape many times over.
 
-## Risks / Trade-offs
+## Sync record
+
+Measured at this change's sync stage, 2026-10-09. The promotion was **rehearsed on a throwaway
+copy of `openspec/`** before it touched the real tree, with two instruments whose block readers
+are written separately and share no code — the promoter opens a block only inside a
+`## (REMOVED|MODIFIED|ADDED) Requirements` section and closes it at the next `### Requirement:` or
+the next `## `; the verifier is not section-aware at all and finds block boundaries by indexing
+headings first. **A tool that checks its own work cannot report its own defect**, so the second
+reader exists to disagree with the first rather than to confirm it.
+
+### The delta carried two defects, and both were repaired in the change
+
+**A promoted spec must not carry a claim its own text contradicts.** The `MODIFIED` block's
+2026-10-06 note read *"Its four bullets are each a measurement…"* while `sections.ts`'s `LIMITS`
+holds **five** — and the note then enumerated **three** of them. The count was wrong before this
+change and had been carried silently through four syncs. It is now **no count at all**, and the
+code-and-link cross-reference is stated in the past tense, because the requirement it names is
+retired by this same change: **a cross-reference that reads as live and points at a requirement
+this change deleted is the same defect as a footer sentence that stopped being true**, and this
+repository has now found that defect in three documents about one bullet.
+
+**A `MODIFIED` block must preserve what the delta does not mention, and `openspec validate`
+enforces only scenarios.** The block dropped a surviving prose paragraph — the placement
+rationale — and the validator would not have reported the loss. It is **restored into the delta**,
+not into the promoted spec, because an amendment recorded in the wrong artifact is what the
+archived delta and the promoted spec disagreeing means. The arithmetic here is the same one this
+repository keeps relearning: **the fix belongs in the change, or the archive ships a delta that
+understates its own milestone.**
+
+### Five defects in the two instruments, and the independent reader earned its place
+
+| # | Defect | Which instrument | How it was caught |
+| --- | --- | --- | --- |
+| S01 | **logged a deletion of the removed requirement and never performed it** — the span was computed, the additions were inserted in its place, and the requirement itself stayed in the promoted spec | promoter | the verifier reported `24 requirements` where the arithmetic said `23`, and named the block as differing |
+| S02 | bounded the removed requirement by walking back to the last `#### Scenario:` heading and then advancing over non-blank lines — which advances over nothing, because the line after a heading is blank, so the deletion stopped at that blank and **left the scenario's own bullets behind as orphans** | promoter | the verifier's byte comparison of the following block |
+| S03 | treated "heading → next heading" as a requirement's extent, which is wider than the requirement: a promoted spec carries file-level provenance prose *between* requirements, so a replacement over that span would silently delete recorded history | both | the verifier reported a trailing difference on the last block before either was narrowed |
+| S04 | demanded the `REMOVED` block be present and byte-identical, so it would have **passed a spec still carrying a retired requirement** | verifier | S01 |
+| S05 | a boundary guard expected a blank line after a provenance deletion where the next **heading** is what must be left behind — a guard asserting the wrong invariant | promoter | its own refusal to continue |
+
+**S01 is the one worth keeping, and it is the shape this repository has recorded before: a log
+line stating a deletion that never happened.** It printed `REMOVED …: deleted lines 498..599`
+while the requirement was still in the file, and the file grew rather than shrank. The instrument
+was not wrong in its arithmetic — it was wrong about what it had done, and its own output said
+otherwise. **The independent reader is the only reason that was visible before promotion touched
+the real tree.**
+
+### The measured promotion
+
+`website-client` **21 → 23 requirements** and **69 → 75 scenarios**; the tree moves from **151
+requirements and 446 scenarios** across 14 capabilities to **153 and 452**. Four blocks promoted,
+each verified byte-identical to the delta it came from, and the removed requirement verified
+absent. **The 21 − 1 + 3 = 23 arithmetic was predicted before the promotion and measured after
+it**, and the scenario figure was not predicted — it is what the sync measured.
+
+The removal's extent was a **judgement**, not a mechanical rule, and it is recorded because the
+mechanical rule would have been wrong. The retired requirement's own two provenance paragraphs
+name it and name the two boundary rules that enforced it, so they go with it; the file-level
+provenance beside them — the slice 1–4 count correction, slice 2's inbox-cadence amendment —
+belongs to the file and to other requirements and stays. A heading-to-heading deletion would have
+destroyed that too, and the promoter's guard now refuses rather than guesses.
 
 - **The codes list grows a control per row, and the list can hold several.** → The name
   requirement (`Copy 493028`) is what keeps the controls distinguishable to a screen reader,
