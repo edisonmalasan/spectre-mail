@@ -67,6 +67,59 @@ export const POPUP_COPY = {
     `The last check failed. The count below is the last one that succeeded: ${n} message${n === 1 ? "" : "s"}.`,
   /** **A stored mailbox the provider no longer honours is `expired`, not empty.** */
   expired: "This address no longer receives mail.",
+
+  /** The listing's heading, and the reason it is separate from {@link COPY.count}. */
+  messages: "Messages",
+  /** Opening one listed message. */
+  openMessage: "Read",
+  /** While a message is being opened. */
+  reading: "Reading",
+  /** A message that would not open. */
+  readFailed: "That message could not be read.",
+  /** Closing whatever is open, so the codes stop being offered. */
+  closeMessage: "Close",
+  /** The heading above the codes found in the message the user opened. */
+  codes: "One-time codes in this message",
+  /** A message the parser found no code in, after it read the whole body. */
+  noCodes: "No one-time code was found in this message.",
+  /** A message whose sender the provider gave as an empty string. */
+  unnamedSender: "No sender",
+  /** A page answered that it is not the top-level document. */
+  fillNotTopFrame: "That is not the top of that page, so nothing was filled.",
+
+  /**
+   * **The second template, and a template rather than a function of the code.**
+   *
+   * The code is a detection this product did not invent and must not alter, so it is substituted
+   * verbatim the way the provider's own name is — and a template is declared in
+   * {@link POPUP_COPY_TEMPLATES}, which is what stops a depiction from printing `{code}`.
+   *
+   * **`{code}` and not the value itself, and not an index.** The person pressing this is looking at
+   * the code on the line above; what they are *not* sure of is which field on somebody else's page
+   * it is for, and the control's name says what pressing it will do.
+   */
+  fillCode: "Fill in code {code}",
+
+  /** While a delivery is outstanding. */
+  filling: "Sending…",
+  /** The page confirmed the code is in one of its fields. */
+  fillFilled: "The code is in the page.",
+  /** The page found more than one field and is asking. */
+  fillAsked: "The page is asking which field to fill.",
+  /** The page has no field this extension will put a code into. */
+  fillNoField: "That page has no one-time-code field.",
+  /** Every qualifying field already holds text. */
+  fillFieldHoldsText: "The only field on that page already has something in it.",
+  /** Nothing was sent because this extension could not name a tab. */
+  fillNoTab: "Could not find which page to send it to.",
+  /**
+   * **The line that keeps this requirement, and it is a refusal rather than a verdict.**
+   *
+   * No page confirmed anything, so nothing is claimed about what happened: not that the code went
+   * in, and not that it did not. `extension-client` requires the popup to report that it *could not
+   * confirm*, and this is that sentence.
+   */
+  fillUnconfirmed: "Could not confirm the code went into the page.",
 } as const;
 
 /**
@@ -77,7 +130,7 @@ export const POPUP_COPY = {
  * including a new template added next month. Declaring the list means a *second* token fails,
  * which is the only direction in which this can fail.
  */
-export const POPUP_COPY_TEMPLATES: readonly string[] = ["reaching"];
+export const POPUP_COPY_TEMPLATES: readonly string[] = ["reaching", "fillCode"];
 
 /** Every entry name, for a caller that resolves names rather than holding them. */
 export const POPUP_COPY_KEYS = Object.keys(POPUP_COPY);

@@ -21,6 +21,7 @@ import {
   isFailed,
   isIdle,
   isReady,
+  isMessageOpened,
   openedOf,
   verdictFor,
 } from "./index";
@@ -1376,6 +1377,41 @@ describe("createMailboxSession", () => {
       // second call must not throw or leave a state behind.
       session.closeMessage();
       expect(openedOf(session.current())).toEqual({ kind: "none" });
+    });
+
+    /**
+     * **Closing a message does not make the session forget it, and this case holds the wiring.**
+     *
+     * `opened.test.ts` proves the tracker keeps its reading across a close; nothing proved the
+     * *session* called that method rather than the one that discards. The case above it asserted
+     * only the published state, which both methods produce — which is how `closeMessage` reaching
+     * `reset` stayed invisible to the whole unit tier while costing a provider request every time
+     * somebody closed a message and opened it again. Found by `in-page-fill`'s browser case,
+     * counting `/messages/{id}` requests in recorded traffic.
+     *
+     * **Counted on the provider rather than on the session**, because the defect was never in what
+     * the session reported: both methods report the same thing, and only one of them is expensive.
+     */
+    it("re-opens a message it closed without asking the provider for it again", async () => {
+      const provider = stubProvider("guerrilla", {
+        messages: { summaries: [makeSummary("a", "mailbox")], bodies: { a: CODE_BODY } },
+      });
+      const session = await readySession(provider, manualScheduler());
+      await session.checkInbox();
+
+      await session.openMessage("a");
+      expect(provider.readCalls).toBe(1);
+
+      session.closeMessage();
+      const again = await session.openMessage("a");
+
+      // **The positive control is the count above**, established before the close, so a session
+      // that simply never reads anything would be caught here rather than by the zero below.
+      expect(provider.readCalls).toBe(1);
+      if (!isMessageOpened(again)) {
+        throw new Error(`expected an opened message, got ${again.kind}`);
+      }
+      expect(again.message.id).toBe("a");
     });
 
     it("reads again once a message has left the listing and come back", async () => {

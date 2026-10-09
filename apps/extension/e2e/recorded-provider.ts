@@ -41,6 +41,7 @@ import {
   guerrillaThrottled,
   mailtmAccountCreated,
   mailtmDomains,
+  mailtmMessageFetched,
   mailtmMessageList,
   mailtmThrottled,
   mailtmToken,
@@ -94,12 +95,21 @@ interface ScriptedResponse {
  *
  * **Ordered longest-prefix-last on purpose** — the lookup below takes the first match, so
  * `/messages` is written after nothing that could shadow it and must not shadow
- * `/messages/{id}`. No spec opens a message this milestone, so no entry fetches one.
+ * `/messages/{id}`. **That entry exists now, and it is written before the collection for
+ * exactly this reason**: `in-page-fill` opens a message, and with the two the other way round
+ * the fetch would have been answered with the *list*, the adapter would have found no member
+ * matching the id it asked for, and the case would have failed as *the message could not be
+ * read* — which is a sentence about the product and not about the script table.
+ *
+ * **The id is the recorded one rather than a value typed here**, for the reason the rest of this
+ * file imports its fixtures by name: a browser case asserting on `493028` must be asserting on
+ * the code a provider actually sent.
  */
 const SCRIPT: ReadonlyArray<readonly [string, ScriptedResponse]> = [
   ["https://api.mail.tm/domains", recorded(mailtmDomains)],
   [MAILTM_ACCOUNTS, recorded(mailtmAccountCreated)],
   ["https://api.mail.tm/token", recorded(mailtmToken)],
+  [`https://api.mail.tm/messages/${FIXTURE_IDS.mailtm.messageId}`, recorded(mailtmMessageFetched)],
   ["https://api.mail.tm/messages", recorded(mailtmMessageList)],
   [GUERRILLA_AJAX, recorded(guerrillaLiveList)],
 ];

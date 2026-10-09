@@ -66,6 +66,72 @@ export const AFFORDANCE_HOST_ATTRIBUTE = "data-spectre-affordance";
 /** The attribute marking the control itself, inside the shadow root. */
 export const AFFORDANCE_BUTTON_ATTRIBUTE = "data-spectre-affordance-button";
 
+/** The attribute marking the element the asking control is attached to the page through. */
+export const FIELD_CHOICE_HOST_ATTRIBUTE = "data-spectre-field-choice";
+
+/** The attribute marking one of the asking control's choices, inside its shadow root. */
+export const FIELD_CHOICE_OPTION_ATTRIBUTE = "data-spectre-field-choice-option";
+
+/** The attribute marking the asking control's way out, which fills nothing. */
+export const FIELD_CHOICE_DISMISS_ATTRIBUTE = "data-spectre-field-choice-dismiss";
+
+/**
+ * The asking control's heading, with the code appended.
+ *
+ * **The code is in the heading and the field is on the button, because those are two different
+ * questions.** "Which field?" is the decision this control exists for, and it belongs on the
+ * control being pressed; "with what?" is not in doubt and belongs once, above them. A heading that
+ * omitted the code would leave a person confirming that a field is right without knowing which
+ * value would go into it, on a page that has just navigated.
+ */
+export const FIELD_CHOICE_HEADING_PREFIX = "Put the code";
+
+/** The start of every choice's name. */
+export const FIELD_CHOICE_OPTION_PREFIX = "Fill in";
+
+/**
+ * What a choice whose field **declares** its own purpose says that the others do not.
+ *
+ * **The requirement's preference, stated to the person rather than applied silently.** The page
+ * wrote `autocomplete="one-time-code"`, which is the one signal a machine can read and a person
+ * cannot see, so the choice that carries the page's own claim is marked — and the marking is a
+ * sentence rather than an asterisk, because this control is read aloud by the same people who are
+ * asked to identify a field by looking at one.
+ */
+export const FIELD_CHOICE_PREFERRED_SUFFIX = "(this page declares this is a code field)";
+
+/**
+ * The asking control's way out.
+ *
+ * **It exists because a control with no way to refuse is a control a person has to leave the page
+ * to escape.** `in-page-integration` requires the control to be removable once the person has
+ * chosen *or dismissed*, and a dismiss that is only "choose something else" is not a refusal.
+ */
+export const FIELD_CHOICE_DISMISS_LABEL = "Leave the field alone";
+
+/** How the asking control is arranged, which `SHADOW_STYLES` alone does not describe. */
+const FIELD_CHOICE_STYLES = `
+  .heading {
+    font: 600 13px/1.4 ui-sans-serif, system-ui, sans-serif;
+    color: #ffffff;
+    margin: 0 0 6px;
+  }
+  .options { display: flex; flex-wrap: wrap; gap: 6px; }
+  .preferred { border-color: #7c6cf0; }
+  .dismiss {
+    font: 400 12px/1.4 ui-sans-serif, system-ui, sans-serif;
+    color: #c8c8ce;
+    background: transparent;
+    border: 1px solid #55555c;
+    border-radius: 4px;
+    padding: 5px 8px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .dismiss:hover { background: #3b3b41; }
+  .dismiss:focus-visible { outline: 2px solid #7c6cf0; outline-offset: 2px; }
+`;
+
 /**
  * The label the control carries when this device already holds an address.
  *
@@ -249,4 +315,153 @@ export function createAffordance({ label, onPress }: AffordanceOptions): Afforda
       host.remove();
     },
   };
+}
+
+/** One field the person can choose, and what choosing it does. */
+export interface FieldChoiceOption {
+  /**
+   * What this field is called to a person.
+   *
+   * **The page's own word for it**, produced by `code-field.ts`, and this module never composes it
+   * into a sentence. The composition happens once, below, where the prefix is joined — so there is
+   * one sentence in this file rather than one per caller.
+   */
+  readonly label: string;
+  /** Whether this field **declares** its own purpose, which the requirement makes the preference. */
+  readonly preferred: boolean;
+  /** What this person chose by pressing this one. Called at most once — `remove` runs first. */
+  readonly choose: () => void;
+}
+
+/** What the asking control hands back. */
+export interface FieldChoice {
+  /** The element inserted into the page. Removing it removes every control. */
+  readonly host: HTMLElement;
+  /** The choices, in the order the page lays the fields out. */
+  readonly options: readonly HTMLButtonElement[];
+  /** The control that fills nothing. */
+  readonly dismiss: HTMLButtonElement;
+  /**
+   * Detach every listener and remove the host.
+   *
+   * **Idempotent, and it removes the listeners as well as the node**, for the reason
+   * {@link Affordance.remove} records: a control a page kept a reference to must not be able to
+   * press into a handler whose code has moved on.
+   */
+  readonly remove: () => void;
+}
+
+/**
+ * Draw the asking control, without inserting it.
+ *
+ * ## Why a second drawer rather than {@link createAffordance} with two buttons
+ *
+ * **`createAffordance` is one button with one name and one pending state, and asking is N buttons
+ * with a heading above them and a way out beside them.** Composing N affordances would give N
+ * shadow roots, N hosts to place in the page, and N click handlers to tear down — and it would put
+ * this product's heading, its dismissal and its option list into a shape where none of them
+ * existed. **The shadow root, the attribute seam and the stylesheet are shared; the composition is
+ * not.**
+ *
+ * ## Why the same `SHADOW_STYLES` and not a second one
+ *
+ * **A control drawn on somebody else's page must look like the same product, and two stylesheets
+ * are two things that can drift.** The shared block styles every `button` in this root, so the
+ * choices inherit the focus ring, the border and the hover without a second declaration of any of
+ * them; only the arrangement is added, and only the arrangement is a fact about asking rather than
+ * about this product's voice.
+ *
+ * **No design token is added here, for the reason the whole file was written.** The page's tokens
+ * belong to the page, and a control drawn inside somebody else's page is not a surface
+ * `visual-system` describes.
+ */
+export interface FieldChoiceOptions {
+  /** The code this person has chosen to fill. Shown in the heading, verbatim. */
+  readonly code: string;
+  /** The fields, in page order, each already named by `code-field.ts`. */
+  readonly options: readonly FieldChoiceOption[];
+  /**
+   * Called when the person takes the way out, after the control has removed itself.
+   *
+   * ## Why a refusal is reported and a choice is not
+   *
+   * **A choice calls the option's own `choose`, which the caller already owns; a refusal has no
+   * option and so has no callback for the caller to have written.** Without this, a caller that
+   * remembered the control it drew kept a reference to a control that was no longer on the page,
+   * and the first version of this module's own case caught exactly that: the node was gone and
+   * `pending()` still answered with it.
+   *
+   * **It is optional because a caller with nothing to remember needs nothing said to it,** and it
+   * is called after `remove` rather than before so a caller reading the page sees the same state
+   * in both paths.
+   */
+  readonly onDismissed?: () => void;
+}
+
+/** Draw the asking control, without inserting it. */
+export function createFieldChoice({ code, options, onDismissed }: FieldChoiceOptions): FieldChoice {
+  const host = document.createElement("div");
+  host.setAttribute(FIELD_CHOICE_HOST_ATTRIBUTE, "");
+
+  const shadow = host.attachShadow({ mode: "open" });
+
+  const style = document.createElement("style");
+  style.textContent = SHADOW_STYLES + FIELD_CHOICE_STYLES;
+
+  const heading = document.createElement("p");
+  heading.className = "heading";
+  heading.textContent = `${FIELD_CHOICE_HEADING_PREFIX} ${code}`;
+
+  const list = document.createElement("div");
+  list.className = "options";
+
+  const buttons: HTMLButtonElement[] = [];
+  const handlers: Array<() => void> = [];
+
+  for (const option of options) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = option.preferred ? "preferred" : "";
+    button.textContent = `${FIELD_CHOICE_OPTION_PREFIX} ${option.label}${
+      option.preferred ? ` ${FIELD_CHOICE_PREFERRED_SUFFIX}` : ""
+    }`;
+    button.setAttribute(FIELD_CHOICE_OPTION_ATTRIBUTE, "");
+    const onPress = option.choose;
+    button.addEventListener("click", onPress);
+    handlers.push(() => {
+      button.removeEventListener("click", onPress);
+    });
+    buttons.push(button);
+    list.append(button);
+  }
+
+  const dismiss = document.createElement("button");
+  dismiss.type = "button";
+  dismiss.className = "dismiss";
+  dismiss.textContent = FIELD_CHOICE_DISMISS_LABEL;
+  dismiss.setAttribute(FIELD_CHOICE_DISMISS_ATTRIBUTE, "");
+  const onDismiss = (): void => {
+    control.remove();
+    // **After `remove`, so a caller that reads the page in `onDismissed` sees the same state it
+    // would have seen in the path where it removed the control itself.**
+    onDismissed?.();
+  };
+  dismiss.addEventListener("click", onDismiss);
+
+  shadow.append(style, heading, list, dismiss);
+
+  const control: FieldChoice = {
+    host,
+    options: buttons,
+    dismiss,
+    remove: () => {
+      for (const detach of handlers) {
+        detach();
+      }
+      dismiss.removeEventListener("click", onDismiss);
+      host.remove();
+    },
+  };
+
+  return control;
 }

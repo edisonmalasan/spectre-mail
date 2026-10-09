@@ -100,7 +100,7 @@ import {
 import type { Affordance } from "./affordance";
 import { IN_PAGE_CREATE_CEILING_MS } from "./create-wait";
 import { holdsText, isEmailField } from "./email-field";
-import { insertAddress } from "./insert";
+import { insertValue } from "./insert";
 
 /**
  * The three records this page is allowed to ask about, and the one thing it may write.
@@ -344,7 +344,7 @@ export function startInPageIntegration(options: InPageOptions): () => void {
    * the page would be a worse product.
    */
   function insertAndRemember(field: HTMLInputElement, insertable: Insertable): void {
-    insertAddress(field, insertable.address);
+    insertValue(field, insertable.address);
 
     if (host.length === 0) {
       return;

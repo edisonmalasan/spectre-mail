@@ -519,6 +519,71 @@ export async function blurField(page: Page, toId = "username-input"): Promise<vo
 }
 
 /**
+ * Add a **second** qualifying one-time-code field to a page that already has one, and report how
+ * many the page now owns.
+ *
+ * ## Why this is a helper and not a fixture, and why it is planted rather than rendered
+ *
+ * **The fixture carries exactly one qualifying field on purpose**, because "exactly one field
+ * qualified" is the claim most of the delivery cases rest on, and a page carrying a second would
+ * make every one of them report a *refusal* for the wrong reason. Asking is the other claim, and
+ * it needs two — so the second is added by the case that asks for it, and only that case pays for
+ * it.
+ *
+ * **Planted rather than rendered through React, and the asymmetry is stated rather than hidden:**
+ * this case asserts that a control appears and that *no field was written to*, which needs a real
+ * DOM input and no framework. It does not assert anything about React's state on the planted field,
+ * and the one case that does assert about React's state uses the field the fixture itself renders.
+ *
+ * **The field declares `autocomplete="one-time-code"`**, which is the strongest signal the
+ * recogniser has and therefore the field least likely to be missed: if a fill would have gone into
+ * it unasked, that is the recogniser over-filling rather than under-filling.
+ */
+export async function plantSecondCodeField(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const field = document.createElement("input");
+    field.id = "planted-code";
+    // **Named, not declared** — see below — and the name carries *two* whole-word code tokens
+    // rather than one. That is the shape a real sign-up form uses (`verification_code`), and it
+    // is a different signal from the fixture's own field, which is recognised by its
+    // declaration.
+    field.name = "verification_code";
+    // **Deliberately *not* `one-time-code`.** Two fields both declaring it would make the two
+    // equivalent signals, and the case could not say whether the product asked because two fields
+    // qualified or because it had nothing to go on. The planted one is recognised by its **name**
+    // instead, so the asking rule is exercised across two different signals.
+    field.setAttribute("autocomplete", "off");
+    document.body.append(field);
+    return document.querySelectorAll("#code-input, #planted-code").length;
+  });
+}
+
+/**
+ * Remove the fixture's own code field, leaving the page with nothing that qualifies.
+ *
+ * **The counterpart to {@link plantSecondCodeField}, and it distinguishes two refusals that read
+ * almost identically in a popup.** A page with a content script and *no* qualifying field answers
+ * `noField`; a page with *no content script* answers nothing at all. Removing the field is how a
+ * case reaches the first from the same page that reaches the second.
+ *
+ * **The existence check is written out rather than chained, and the first version chained.** It read
+ * `document.getElementById("code-input")?.remove() !== undefined`, which is **always `false`** —
+ * `remove()` returns `undefined` whether it removed anything or there was nothing there, so the
+ * expression reported "no field was removed" in both cases. It failed the case that used it, and
+ * the failure read as a product defect about a page the product had never been given.
+ */
+export async function removeFixtureCodeField(page: Page): Promise<boolean> {
+  return page.evaluate(() => {
+    const field = document.getElementById("code-input");
+    if (field === null) {
+      return false;
+    }
+    field.remove();
+    return true;
+  });
+}
+
+/**
  * Assert the page's hostile stylesheet is actually firing.
  *
  * **This is a precondition, not an assertion about the product.** Without it, every

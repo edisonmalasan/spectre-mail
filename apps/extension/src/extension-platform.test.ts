@@ -33,7 +33,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ChromeStorageArea } from "@spectre-mail/storage";
 
-import { onBackgroundMessage, readChromeLocalArea, sendToBackground } from "./extension-platform";
+import {
+  findActiveTab,
+  onExtensionMessage,
+  readChromeLocalArea,
+  sendToBackground,
+  sendToTab,
+} from "./extension-platform";
 
 /** How the platform was before this file touched it, captured before any case can change it. */
 const ORIGINAL = Object.getOwnPropertyDescriptor(globalThis, "chrome");
@@ -204,6 +210,257 @@ describe("sending a request to the background context", () => {
   });
 });
 
+/**
+ * ## The tab seam, and why its cases are as many absences as successes
+ *
+ * **A tab id is the only address this extension ever delivers a code to, and a wrong one is a code
+ * in somebody else's form.** So the cases below are mostly about *not* producing one: no platform,
+ * a `tabs` without a `query`, a query that answered with something that is not a list, a list with
+ * no usable id in it, and a query that threw. **A seam that produced an id for any of those would
+ * deliver a verification code to an arbitrary page**, and the platform would raise no complaint
+ * doing it.
+ */
+describe("finding the tab this extension is looking at", () => {
+  /** A platform whose `tabs.query` records what it was asked and answers with `tabs`. */
+  function queryingPlatform(tabs: unknown) {
+    const asked: unknown[] = [];
+    const receivers: unknown[] = [];
+    const query = function (this: unknown, queryInfo: unknown, respond: (found: unknown) => void) {
+      receivers.push(this);
+      asked.push(queryInfo);
+      respond(tabs);
+    };
+
+    installPlatform({ tabs: { query, sendMessage: vi.fn() } });
+
+    return { asked, receivers };
+  }
+
+  it("names the active tab of this extension's own window", async () => {
+    // **The query itself is the assertion, not just the id.** An implementation that asked for
+    // `{ active: true }` alone would return a tab id from a *different* window most of the time,
+    // which is a page the person did not ask about and this suite would have called a pass.
+    const { asked, receivers } = queryingPlatform([{ id: 41 }]);
+
+    await expect(findActiveTab()).resolves.toBe(41);
+
+    expect(asked).toEqual([{ active: true, currentWindow: true }]);
+    // **And the receiver, because the platform's methods are read reflectively** — the same reason
+    // the messaging cases above assert it.
+    expect(receivers).toHaveLength(1);
+    expect(receivers[0]).toMatchObject({ query: expect.any(Function) });
+  });
+
+  it("takes the first tab carrying a usable id, and ignores one that carries none", async () => {
+    // **A tab object is not a tab id.** `active` and `currentWindow` narrow the *answer*, and a
+    // window with its active tab mid-close answers with an entry whose `id` is gone; taking the
+    // first entry rather than the first *usable* one would address nothing at all.
+    queryingPlatform([{ pendingUrl: "https://elsewhere.invalid" }, { id: 41 }, { id: 42 }]);
+
+    await expect(findActiveTab()).resolves.toBe(41);
+  });
+
+  it.each([
+    ["no platform at all", () => removePlatform()],
+    ["a platform that is not an object", () => installPlatform("chrome")],
+    ["a platform with no tabs", () => installPlatform({ runtime: { onMessage: {} } })],
+    ["tabs with no query", () => installPlatform({ tabs: { sendMessage: vi.fn() } })],
+    [
+      "a query that is not callable",
+      () => installPlatform({ tabs: { query: "query", sendMessage: vi.fn() } }),
+    ],
+    // **Both seams are required together, and this row is where the coupling is checked.** A `tabs`
+    // with a query and no `sendMessage` cannot deliver anything, so reporting a tab id from it would
+    // be naming a destination this module cannot reach.
+    ["tabs that can query but not send", () => installPlatform({ tabs: { query: vi.fn() } })],
+    ["a null tabs", () => installPlatform({ tabs: null })],
+  ])("names no tab for %s", async (_label, install) => {
+    install();
+
+    await expect(findActiveTab()).resolves.toBeNull();
+  });
+
+  it.each([
+    ["an empty answer", []],
+    ["an answer that is not a list", { id: 41 }],
+    ["an answer that is a string", "tabs"],
+    ["a list of entries with no usable id", [{ active: true }, { id: "41" }, {}]],
+    ["nothing at all", undefined],
+    ["null", null],
+  ])("names no tab for %s", async (_label, answer) => {
+    queryingPlatform(answer);
+
+    await expect(findActiveTab()).resolves.toBeNull();
+  });
+
+  /**
+   * **The refusal, and it is the one this function must never grow a way around.**
+   *
+   * **No tab means no tab — not "the next one", and not "all of them".** `design.md` D1 measured
+   * what sending to every tab id does: exactly one page answered, and that is not a delivery, it is
+   * a coincidence. A fallback here would put a verification code into every page the user has open
+   * that happens to have a qualifying field, and the assertion that would have caught it is this
+   * one.
+   */
+  it("names no tab rather than falling back to another tab", async () => {
+    // **Two tabs in the answer, and `findActiveTab` is handed neither** — a query answering empty
+    // while other tabs exist is the shape a fallback would quietly widen.
+    queryingPlatform([]);
+    await expect(findActiveTab()).resolves.toBeNull();
+
+    // **And the positive control beside it, so the refusal above is not satisfied by a reader that
+    // never names a tab at all.** A reader that answered `null` for every query would pass every
+    // refusal row in this file, which is the recorded failure of a narrowing function.
+    queryingPlatform([{ id: 41 }]);
+    await expect(findActiveTab()).resolves.toBe(41);
+  });
+
+  it("names no tab when the query throws rather than answering", async () => {
+    installPlatform({
+      tabs: {
+        query: () => {
+          throw new Error("Extension context invalidated.");
+        },
+        sendMessage: vi.fn(),
+      },
+    });
+
+    // **The same real platform outcome the messaging seam handles**, and for the same reason: a
+    // torn-down context throws from every extension API, and an exception escaping here would be
+    // raised inside a popup the user is looking at.
+    await expect(findActiveTab()).resolves.toBeNull();
+  });
+});
+
+describe("sending a request to one named tab", () => {
+  /** A platform whose `tabs.sendMessage` records every call and answers with `reply`. */
+  function sendingPlatform(reply: unknown) {
+    const sent: Array<{ receiver: unknown; tabId: unknown; request: unknown }> = [];
+    const sendMessage = function (
+      this: unknown,
+      tabId: unknown,
+      request: unknown,
+      respond: (value: unknown) => void,
+    ) {
+      sent.push({ receiver: this, tabId, request });
+      respond(reply);
+    };
+
+    installPlatform({ runtime: { onMessage: {} }, tabs: { query: vi.fn(), sendMessage } });
+
+    return { sent };
+  }
+
+  it("sends to exactly the tab it was given, and resolves with what that page answered", async () => {
+    // **The tab id is the assertion.** A send that reached every tab id would satisfy the first row
+    // of this table and none of the rest of the product: `in-page-integration` requires that no
+    // page the extension did not name be sent anything, and the *whole* of that claim is this list
+    // having one entry carrying the id the caller named.
+    const { sent } = sendingPlatform({ kind: "filled" });
+
+    await expect(sendToTab(41, { kind: "spectre:fill-code", code: "493028" })).resolves.toEqual({
+      kind: "filled",
+    });
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.tabId).toBe(41);
+    expect(sent[0]?.request).toEqual({ kind: "spectre:fill-code", code: "493028" });
+    expect(sent[0]?.receiver).toMatchObject({ sendMessage: expect.any(Function) });
+  });
+
+  /**
+   * **The request is sent verbatim, byte for byte.**
+   *
+   * A send that rebuilt the message from its parts would be free to add a field, and the content
+   * script's narrower would admit it — so this case does not merely check that the code arrived, it
+   * checks that nothing *else* did either.
+   */
+  it("carries the request through without adding or removing anything", async () => {
+    const { sent } = sendingPlatform({ kind: "filled" });
+
+    await sendToTab(41, { kind: "spectre:fill-code", code: "493028" });
+
+    expect(sent[0]?.request).toEqual({ kind: "spectre:fill-code", code: "493028" });
+    expect(Object.keys(sent[0]?.request as object)).toEqual(["kind", "code"]);
+  });
+
+  it("reads the platform's error channel inside the reply callback", async () => {
+    // **The order is the whole assertion,** for the reason the messaging case above records: an
+    // implementation that never read the channel inside the callback would pass a count-based check.
+    const log: string[] = [];
+    const runtime = {
+      onMessage: {},
+      sendMessage: vi.fn(),
+      get lastError(): unknown {
+        log.push("lastError");
+        return { message: "Could not establish connection. Receiving end does not exist." };
+      },
+    };
+    installPlatform({
+      runtime,
+      tabs: {
+        query: vi.fn(),
+        sendMessage(_tabId: unknown, _request: unknown, respond: (value: unknown) => void) {
+          log.push("sendMessage");
+          respond(undefined);
+        },
+      },
+    });
+
+    await expect(sendToTab(41, { kind: "spectre:fill-code", code: "1" })).resolves.toBeUndefined();
+
+    expect(log).toEqual(["lastError", "sendMessage", "lastError"]);
+  });
+
+  it.each([
+    ["no platform at all", () => removePlatform()],
+    ["a platform with no tabs", () => installPlatform({ runtime: { onMessage: {} } })],
+    ["tabs with no sendMessage", () => installPlatform({ tabs: { query: vi.fn() } })],
+    [
+      "a sendMessage that is not callable",
+      () => installPlatform({ tabs: { query: vi.fn(), sendMessage: "send" } }),
+    ],
+  ])("resolves no answer for %s", async (_label, install) => {
+    install();
+
+    await expect(sendToTab(41, { kind: "spectre:fill-code", code: "1" })).resolves.toBeUndefined();
+  });
+
+  /**
+   * **A tab id naming nothing answers with no answer, and is not the same fact as "no tab".**
+   *
+   * The platform answers `undefined` with `lastError` set when no content script is listening on
+   * that tab, and this function reports that as **no answer** rather than inventing a refusal. Both
+   * facts — a missing tab and an unanswered one — are the same thing as far as a *person* is
+   * concerned: **the page has not confirmed that anything was filled.**
+   */
+  it("resolves no answer for a tab that names nothing, without inventing a refusal", async () => {
+    sendingPlatform(undefined);
+
+    const answer = await sendToTab(41, { kind: "spectre:fill-code", code: "493028" });
+
+    expect(answer).toBeUndefined();
+    // **Not a refusal the content script never wrote.** `noField` is the honest answer for a page
+    // that looked and found nothing; inventing it here would be the extension reporting on a page
+    // it never reached.
+    expect(answer).not.toEqual({ kind: "noField" });
+  });
+
+  it("resolves no answer when the platform throws rather than answering", async () => {
+    installPlatform({
+      runtime: { onMessage: {} },
+      tabs: {
+        query: vi.fn(),
+        sendMessage: () => {
+          throw new Error("Extension context invalidated.");
+        },
+      },
+    });
+
+    await expect(sendToTab(41, { kind: "spectre:fill-code", code: "1" })).resolves.toBeUndefined();
+  });
+});
+
 describe("answering requests from this context", () => {
   /** A platform whose `onMessage` records what was registered, so a listener can be driven. */
   function listeningPlatform() {
@@ -231,7 +488,7 @@ describe("answering requests from this context", () => {
     const { registered } = listeningPlatform();
     const handle = vi.fn(async () => ({ kind: "created", address: "made@address.test" }));
 
-    onBackgroundMessage(handle);
+    onExtensionMessage(handle);
 
     expect(registered).toHaveLength(1);
     const answers: unknown[] = [];
@@ -252,7 +509,7 @@ describe("answering requests from this context", () => {
   it("answers no answer at all when the handler rejects", async () => {
     const { registered } = listeningPlatform();
 
-    onBackgroundMessage(() => Promise.reject(new Error("the store is gone")));
+    onExtensionMessage(() => Promise.reject(new Error("the store is gone")));
 
     const answers: unknown[] = [];
     registered[0]?.({ kind: "spectre:create-mailbox" }, {}, (value) => {
@@ -271,7 +528,7 @@ describe("answering requests from this context", () => {
   it("stops listening, and reports nothing as removed twice", () => {
     const { registered, removed } = listeningPlatform();
 
-    const stop = onBackgroundMessage(async () => undefined);
+    const stop = onExtensionMessage(async () => undefined);
     stop();
 
     expect(removed).toEqual(registered);
@@ -288,7 +545,7 @@ describe("answering requests from this context", () => {
     // only obligation is that asking must not throw.
     removePlatform();
 
-    const stop = onBackgroundMessage(async () => ({ kind: "notActedOn" }));
+    const stop = onExtensionMessage(async () => ({ kind: "notActedOn" }));
 
     expect(typeof stop).toBe("function");
     expect(() => stop()).not.toThrow();
@@ -297,6 +554,6 @@ describe("answering requests from this context", () => {
   it("registers nothing where the platform's onMessage cannot add listeners", () => {
     installPlatform({ runtime: { onMessage: { addListener: "add" }, sendMessage: vi.fn() } });
 
-    expect(() => onBackgroundMessage(async () => undefined)).not.toThrow();
+    expect(() => onExtensionMessage(async () => undefined)).not.toThrow();
   });
 });

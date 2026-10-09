@@ -1,5 +1,17 @@
 /**
- * Putting the address into the page's own field, the way the page expects to receive it.
+ * Putting a value into the page's own field, the way the page expects to receive it.
+ *
+ * ## Why this is one function with two callers, rather than a fill that reuses the address path
+ *
+ * **The measurement below was made with an address, and it is about the write rather than the
+ * payload.** `in-page-integration` states one property — *"An inserted value becomes the value the
+ * page's own state holds"* — and this milestone gave it a second caller. A second function would be
+ * a second copy of a setter, a pair of dispatched events and an ordering, and the two copies would
+ * drift the first time one of them was edited: **an address inserted correctly and a code inserted
+ * wrongly would be two behaviours, and only one of them would have a requirement behind it.**
+ *
+ * So the payload is a parameter and the property is stated once. The name says *value* because that
+ * is what it carries.
  *
  * ## Why a setter the page installed, and two dispatched events, and not `field.value = x`
  *
@@ -36,9 +48,10 @@
 /**
  * Write `value` into `field` through the setter the platform's own prototype declares.
  *
- * **No `null` check**, because every caller has already established this is an email input
- * through {@link isEmailField}, and a caller that had not would want a `TypeError` rather than
- * a field silently left alone.
+ * **No `null` check**, because every caller has already established this is an input worth writing
+ * into — {@link ./email-field!isEmailField} for the address and
+ * {@link ./code-field!isOneTimeCodeField} for the code — and a caller that had not would want a
+ * `TypeError` rather than a field silently left alone.
  */
 function setFieldValue(field: HTMLInputElement, value: string): void {
   const prototypeSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
@@ -52,12 +65,12 @@ function setFieldValue(field: HTMLInputElement, value: string): void {
 }
 
 /**
- * Put `address` into `field` and announce it the way a person's typing would.
+ * Put `value` into `field` and announce it the way a person's typing would.
  *
  * **`input` and then `change`, in that order, and both bubbling.** `input` is what a controlled
  * field's state updates on; `change` is what a form's "dirty" tracking and its submit handling
  * listen for. Dispatching only one leaves a page that watches the other believing nothing
- * happened — and the address is on screen, so a page that believes nothing happened is a page
+ * happened — and the value is on screen, so a page that believes nothing happened is a page
  * submitting an empty form.
  *
  * **`new Event` and not `new InputEvent`.** An `InputEvent` carries `data` and `inputType`,
@@ -65,9 +78,14 @@ function setFieldValue(field: HTMLInputElement, value: string): void {
  * behaviour that made this requirement was `input` reaching React state, which is a question
  * about the event *type* being `input` and nothing more; claiming the richer event would be a
  * claim this repository has not measured.
+ *
+ * @param field - An input the caller has already recognised.
+ * @param value - The value, sent verbatim. Nothing here trims it, reformats it or decides what a
+ *   code looks like: the parser ranked it and the page will submit it, and a value altered in
+ *   transit is a value the page never sent.
  */
-export function insertAddress(field: HTMLInputElement, address: string): void {
-  setFieldValue(field, address);
+export function insertValue(field: HTMLInputElement, value: string): void {
+  setFieldValue(field, value);
 
   field.dispatchEvent(new Event("input", { bubbles: true }));
   field.dispatchEvent(new Event("change", { bubbles: true }));
