@@ -618,6 +618,56 @@ engine: neither Firefox nor WebKit loads an unpacked extension, so this tier is 
 
 ---
 
+### 4.5 Notification facts, measured before the notification slice was built (2026-10-11)
+
+Measured while `incoming-mail-notification` (M10 slice 4) was still at apply stage, because
+`design.md` D12 named three branches for the icon and refused to choose between them by preference.
+Chromium (Playwright 1.63.0), **unpacked and headless**, against a throwaway probe — a sibling
+control fixture that differs from the probe in exactly one manifest entry, which is what makes the
+positive arms mean anything.
+
+| Question | Measured answer | What it does **not** establish |
+|---|---|---|
+| Does `chrome.notifications` exist without the `notifications` permission? | **No.** Undefined in the control; present in the probe. **That one entry is the whole difference.** | Nothing about any other API, and nothing about a context other than a service worker. |
+| Are `notifications` and `alarms` granted at install, or prompted for? | **Granted at install, with no prompt.** Read through `chrome.permissions.getAll()`, which returned both | Nothing about an *optional* permission, which prompts by design, and nothing about a user who has revoked one. |
+| Will Chromium take a notification with **no icon**? | **It will "accept" one and register nothing.** The `create` callback resolved with the requested id; `getAll()` did not hold it | Nothing about whether anything appeared — see the limit below. |
+| Does an **SVG** satisfy it? | **No.** The callback resolved **`null`** — refused outright | Nothing about other vector formats, of which there are none in this API. |
+| Does a **PNG** satisfy it? | **Yes.** Resolved **and** held in `getAll()`, and the reader control — an id never created — correctly did not appear | Nothing about image size, colour depth, or how any of it renders. |
+| Is there an error channel? | **There is not one.** `chrome.notifications.onError` is **`undefined`**, and a worker that added a listener to it threw `Cannot read properties of undefined (reading 'addListener')` before creating anything | Nothing about other Chromium versions or other engines, where it may well exist. |
+
+**The result that changed a requirement rather than merely informing one.** The first version of
+D12 said a failed notification is caught because "`chrome.notifications` reports failure through an
+error callback and fires `onError`". **There is no such channel here**, so the only observed
+rejection signal is a `create` callback resolving `null`. And the callback is *not* sufficient on its
+own: it resolved for the arm that registered nothing. **So the icon is load-bearing** — it is the
+difference between the platform holding a notification and silently producing none while the
+callback reports success — and it is required rather than preferred. **`onError`'s absence is a
+property of *this* Chromium, not a documented guarantee in either direction**, so it may not be cited
+as though the event does not exist everywhere.
+
+**Three limits, stated because the requirement leans on the measurement.**
+
+- **Nothing here observed a notification being seen.** The browser is headless and has no
+  notification centre; `getAll()` holding an id is **registration**, which is what separated the
+  arms, and it is a smaller fact than a person seeing one.
+- **Nothing here is about a headed desktop**, where focus settings or a missing notification service
+  could suppress a request this run accepted. One engine, one machine, headless, unpacked.
+- **Nothing here covers a platform that accepts a request and shows nothing**, which is the one case
+  where a null callback would be the only available signal and this measurement cannot produce it. A
+  wake can therefore advance its seen-record on a notification nobody saw; that residual is named in
+  `design.md` rather than closed.
+
+**Instrument: `apps/extension/e2e/notification-display.mjs`**, quarantined alongside
+`alarms-packing.mjs` and `live-host-permission.mjs`. Three consecutive runs produced identical
+results. **Its own two defects are recorded because both produced confident wrong answers rather than
+failures:** reading the worker's published surface as a value returned a JSON snapshot whose methods
+were `undefined`, which surfaced as `surface.selfReport is not a function` and would have been easy
+to misread as a platform finding; and a duration printed from an object other than the one reported
+printed `undefined ms` for all three arms while the run stayed green, because a formatter that pads a
+non-number renders absence in the same shape as presence. **The PNG arm's asset is generated into a
+staged copy of the fixture at run time** rather than committed — this repository owns no binary
+asset, and a generated file left in a source tree would be read as evidence about a later run.
+
 ## 5. Real external delivery — **verified on both providers**
 
 Run `2026-10-01T18-08-41-251Z` (`spike:interactive --timeout-ms 600000`) observed

@@ -298,12 +298,30 @@ this product enforces. A `MessageSummary` carries no body at all, by product pri
 (`packages/core`: *"listing a mailbox must not require fetching bodies"*), so a notification built
 from a summary **cannot** contain a code, and the check that raises it **never opens a message**.
 
+**Every notification SHALL carry the shipped raster icon, and that is load-bearing rather than
+decorative.** Measured on 2026-10-11 against this Chromium, unpacked and headless: a notification
+created with **no `iconUrl` resolves its callback and registers nothing**, so the callback reports
+success for a notification the platform does not hold. An `iconUrl` naming an SVG is **refused
+outright**, the callback resolving `null`. Only a raster image both resolves and is registered. The
+icon is therefore the difference between the platform holding a notification and silently producing
+none, and a build whose output does not carry the file SHALL fail rather than ship notifications the
+platform is refusing.
+
 **A notification that could not be created SHALL be reported, and SHALL NOT advance what this device
-has been told.** `chrome.notifications` reports failure rather than throwing, so a wake that ignored
-its own error would record a message as announced and tell nobody — the same defect `in-page-fill`
-found in a control that removed itself from the page without telling its caller. The property is
-that the set of ids this device holds grows **only** on a notification that was actually created, so
-one that failed is raised again by a later wake rather than swallowed.
+has been told.** The platform's only observed rejection signal is a `create` callback resolving
+**`null`**, so that is what the wake reads. **This requirement names no error event, because there is
+none to name:** `chrome.notifications.onError` does not exist on the Chromium measured, so a
+requirement resting on it would describe a channel no implementation could ever observe — and a
+wake that assumed success would record a message as announced and tell nobody, the same defect
+`in-page-fill` found in a control that removed itself from the page without telling its caller. The
+property is that the set of ids this device holds grows **only** on a notification the platform
+answered for, so one that failed is raised again by a later wake rather than swallowed.
+
+**The callback alone is not evidence, and the requirement does not claim it is.** It resolved for an
+arm that registered nothing, which is why the icon is mandatory above rather than preferred. This
+capability makes no claim about a notification having been **seen**: nothing in this repository can
+observe an operating system's notification centre, and `create` answering is a smaller fact than
+that.
 
 #### Scenario: A message this device has not seen arrives
 
@@ -318,9 +336,21 @@ one that failed is raised again by a later wake rather than swallowed.
 
 #### Scenario: A notification cannot be created
 
-- **WHEN** the platform reports that a notification could not be created
+- **WHEN** the platform answers a `create` with a null id
 - **THEN** the wake SHALL NOT record that message as one this device has been told about
 - **AND** a later wake SHALL raise it again
+
+#### Scenario: A notification is raised without the shipped icon
+
+- **WHEN** a notification is raised without the raster icon this extension ships
+- **THEN** the platform SHALL be asked for a notification it does not hold
+- **AND** no requirement above is satisfied by the callback resolving
+
+#### Scenario: A build whose output carries no icon
+
+- **WHEN** the built extension output does not carry the shipped icon file
+- **THEN** the build SHALL fail
+- **AND** no notification requirement above is claimed to be met
 
 ### Requirement: A check with nothing to compare against establishes a baseline and raises nothing
 

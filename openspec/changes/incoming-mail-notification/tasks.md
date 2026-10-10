@@ -2,19 +2,37 @@
 
 ## 1. Measurement before implementation
 
-- [ ] 1.1 **Measure whether Chromium will display a notification from this extension at all**, and
+- [x] 1.1 **Measure whether Chromium will display a notification from this extension at all**, and
   whether it requires an `iconUrl`. The extension ships no icon — `static/` holds only
   `manifest.json` — so the answer decides between three branches (`design.md` D12): nothing ships, an
   SVG ships, or a raster image ships. **The measurement is a quarantined probe beside
   `apps/extension/e2e/alarms-packing.mjs`, added to `QUARANTINED_PROBES`, and its result is recorded
   in `docs/PROVIDERS.md`.** A branch chosen by preference here is a branch this repository does not
   make.
-- [ ] 1.2 Record whether `notifications` and `alarms` are granted at install or require a prompt, from
+  > **Result, 2026-10-11 — branch 3, and branch 1 is worse than false.**
+  > `apps/extension/e2e/notification-display.mjs`, three consecutive runs identical. Control arm
+  > (no `notifications`): the API is `undefined`. No icon: **the `create` callback resolves and
+  > `getAll()` holds nothing.** SVG: **the callback resolves `null`** — refused. PNG: resolves *and*
+  > registers. **`chrome.notifications.onError` does not exist on this Chromium.** Recorded in
+  > `docs/PROVIDERS.md` §4.5.
+- [x] 1.2 Record whether `notifications` and `alarms` are granted at install or require a prompt, from
   the same run, and record it with its substrate. **Do not assume** — an MV3 permission's grant
   behaviour is a platform fact and this repository has never observed it for this extension.
-- [ ] 1.3 Fix the three branches into `design.md` D12 and into the requirement text, before the
+  > **Granted at install, with no prompt** — read through `chrome.permissions.getAll()`, which
+  > returned `["notifications","storage"]`. Substrate recorded: Playwright 1.63.0, `channel:
+  > "chromium"`, unpacked, headless, one machine. **The limit is recorded with it:** that says
+  > nothing about an *optional* permission, which prompts by design, nor about a revoked grant.
+- [x] 1.3 Fix the three branches into `design.md` D12 and into the requirement text, before the
   implementation exists. **A requirement written after the failure describes the failure rather than
   the rule.**
+  > **D12 amended and the requirement rewritten before any implementation exists.** The branch is
+  > raster. **Two clauses were falsified by the measurement rather than confirmed**, and both are
+  > deleted rather than reworded: the paragraph saying `chrome.notifications` "fires `onError`"
+  > (there is no such channel here) and the requirement's reliance on the `create` callback as
+  > success evidence (it resolved for an arm that registered nothing). **The icon is therefore
+  > mandatory in every notification** and the built `dist/` is required to carry it, so the failing
+  > arm is unreachable by construction. **One scenario became three**, so `extension-client`'s
+  > predicted scenario count moved with it — recounted by heading, not adjusted by hand.
 
 ## 2. The record kind (`packages/storage`)
 

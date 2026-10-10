@@ -314,12 +314,86 @@ Three branches, and the branch is chosen by a measurement rather than by prefere
    the notification only.
 
 **In every branch, a notification that cannot be created is reported rather than assumed shown.**
-`chrome.notifications` reports failure through an error callback and fires `onError`; a wake that
-swallowed that would record a message as "announced" and tell nobody, which is the exact failure
-`in-page-fill` found in a control that removed itself from the page without telling the caller. **The
-record is only advanced when the notification was actually created**, so a failed one is retried by
-the next wake rather than swallowed. That is the property; the branch above only decides what file, if
-any, `iconUrl` names.
+**This paragraph was written before the measurement and it was wrong in two directions, so it is
+replaced rather than reworded.** It said `chrome.notifications` "reports failure through an error
+callback and fires `onError`". Measured on 2026-10-11: **`chrome.notifications.onError` does not
+exist on this Chromium at all**, so the platform reports nothing, in either direction. The
+defect it was guarding against is real and the guard is still owed — a wake that assumed success
+would record a message as announced and tell nobody, which is the exact failure `in-page-fill` found
+in a control that removed itself from the page without telling its caller — but the clause naming
+the mechanism is deleted, because naming a mechanism no test can reach is how a requirement stops
+describing anything. What replaces it is below, and it is the *observed* signal rather than a
+documented one.
+
+### D12 (amended during apply, 2026-10-11) — "The measurement chose the branch, and the branch is a raster image"
+
+**Measured with `apps/extension/e2e/notification-display.mjs`**, quarantined, three consecutive runs
+identical. Four arms — a control and three icons — and the control is the one that makes the other
+three mean anything: if the API were absent in all four, "the icon made no difference" would have been
+a fact about a run where nothing worked.
+
+| arm                  | manifest                   | `create` callback | in `getAll()`? |
+| -------------------- | -------------------------- | ----------------- | -------------- |
+| **control**          | no `notifications`         | *(API undefined)* | —              |
+| no icon              | `notifications`            | **resolves**      | **no**         |
+| `icon.svg`           | `notifications`            | **resolves `null`** | no            |
+| `icon.png`           | `notifications`            | **resolves**      | **yes**        |
+
+Four things follow, and three of them were not available before the measurement ran.
+
+1. **The permission is what makes the API exist.** The control's `chrome.notifications` is
+   `undefined`; the probe's is present. And it is **granted at install, with no prompt** — read
+   through `chrome.permissions.getAll()` rather than inferred from the manifest, because a declared
+   permission and a granted one are different facts and this repository does not cite one for the
+   other. `alarms` was already known to behave this way from `alarm-floor.spec.ts`.
+
+2. **Branch 1 is false, and false in the worst direction: it overstates.** A notification with **no
+   icon** resolves its callback with the requested id and registers **nothing**. So the callback is
+   **not** a success signal, and the design that treated it as one is the finding rather than the
+   detail. This is why the icon is load-bearing below.
+
+3. **An SVG is refused outright**, with the callback resolving `null` — the one arm where the
+   platform's own answer is unambiguous. Branch 2 is out.
+
+4. **`chrome.notifications.onError` does not exist here.** Not "did not fire": the member is
+   `undefined`, and a worker that added a listener to it threw
+   `Cannot read properties of undefined (reading 'addListener')` before creating anything at all.
+
+**So branch 3: a raster PNG ships in `static/`, referenced from the notification only.**
+`manifest.icons` stays untouched — how the toolbar looks is not this slice's business, and changing
+it would be visual surface no capability describes.
+
+**The three-branch list above is retained as the record of what was undecided**, because it is what
+the measurement was for. What replaces it operationally is below.
+
+**The icon is mandatory in every notification, and that is the repair for point 2.** The only arm
+that resolved without registering is the arm with no icon, so "optionally include an icon" is not a
+style question here — it is the difference between the platform reporting a notification and
+silently producing nothing while the callback says it worked. The requirement therefore names the
+icon as required, and **the built `dist/` is required to carry the file**, so the failing arm is
+unreachable by construction rather than improbable by discipline. `manifest.spec.ts` holds that half,
+against the built artefact rather than the source tree.
+
+**What the requirement's failure clause is, given that there is no error channel.** The one
+observed rejection signal is a `create` callback resolving **`null`** — the SVG arm, and the arm a
+missing icon is closest to. So: a null callback does not advance the seen-record, and a later wake
+raises the message again. **The requirement does not name `onError`, does not name `getAll`, and
+does not claim the callback is sufficient** — the first does not exist here, the second is a second
+provider request per notification for evidence this repository has no need to gather at runtime, and
+the third is false as point 2 shows.
+
+**Three limits on this measurement, stated because the requirement leans on it.**
+
+- **It cannot observe display.** Nothing here can tell a person a notification appeared: the browser
+  is headless and has no notification centre. `getAll()` holding an id is *registration*, and
+  registration is the strongest observable available — it is what separated the arms — but it is not
+  a sighting.
+- **It cannot observe a headed desktop**, where the notification may be presented, suppressed by
+  focus settings, or dropped for want of a notification centre. Every number above is headless,
+  unpacked, on one engine, one machine.
+- **It cannot observe what happens with no notification service at all** — the case where a request
+  is accepted and nothing is ever shown, which is exactly where a null callback would be the only
+  available signal and this measurement cannot produce it.
 
 ### D13 — What the notification deliberately cannot do
 
@@ -335,10 +409,18 @@ already live on, and it is honest about what a notification can do.
 
 ## Risks / Trade-offs
 
-- **Three assumptions ship unmeasured**, each with a named owner task and none of them discovered
-  through the browser: that Chromium displays notifications from this extension at all (D12), that
-  5 000 ms is tolerable to a provider whose authenticated limit was never measured (D4), and that
-  announcing mail automatically is the shape a person wants (D6, D7).
+- **Two assumptions ship unmeasured**, each with a named owner task and neither discovered through
+  the browser: that 5 000 ms is tolerable to a provider whose authenticated limit was never measured
+  (D4), and that announcing mail automatically is the shape a person wants (D6, D7).
+  **The third is retired, and it is retired by measurement rather than by argument:** D12's
+  unmeasured arm — "that Chromium displays notifications from this extension at all" — was measured
+  on 2026-10-11 and the answer is yes *with a raster icon and no other way*. **What replaced it is
+  narrower and is not the same claim: that the platform *registers* the notification on a **headless,
+  unpacked, single-engine** run is measured, and that a person **sees** one is not, because nothing
+  in this repository can observe a notification centre.**
+- **The seen-record can advance on a notification nobody saw.** The only observed rejection signal is
+  a null `create` callback, and a request accepted by a platform with no notification service
+  returns something else. That is the residual of D12's point 2 and it is named rather than closed.
 - **The watched mailbox can be the wrong one** — the head is the newest written, not the last used
   (D6).
 - **Mail arriving before the first wake is never announced** (D7).
