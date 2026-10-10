@@ -36,18 +36,37 @@
 
 ## 2. The record kind (`packages/storage`)
 
-- [ ] 2.1 Add `SpectreSeenMessages` — `loadSeenMessageIds(mailboxId)` and `saveSeenMessageIds(mailboxId, ids)` —
+- [x] 2.1 Add `SpectreSeenMessages` — `loadSeenMessageIds(mailboxId)` and `saveSeenMessageIds(mailboxId, ids)` —
   beside `SpectreMailboxes` and `SpectreSiteAssociations`, following `site-associations`' shape: a
   versioned envelope, an entry per mailbox, **`null` for absence and rejection for failure**, and
   entries this build cannot narrow left verbatim by a write as well as by a read.
-- [ ] 2.2 Add `createChromeSeenMessages({ area })` beside the two existing chrome adapters. **No
+  > **Done, and the reader is a union rather than `| null` because the test caught the alternative.**
+  > The first version returned `readonly string[] | null` and the adapter passed it through, so **a
+  > record this build could not read at all was reported as "this mailbox has nothing recorded"** —
+  > the exact confusion the contract forbids, reached by the shortest possible route. `readStoredSeenMessageIds`
+  > now answers `record-unreadable` / `nothing-recorded` / `ids`, and **only the middle one becomes a
+  > `null`**, because it is the only one that is really an absence. Caught by *"reports a read failure
+  > as a rejection rather than as an absence"*; **two different `null`s in one return type is the
+  > defect, and reading the file would not have shown it.**
+- [x] 2.2 Add `createChromeSeenMessages({ area })` beside the two existing chrome adapters. **No
   IndexedDB adapter**, and a test asserting its absence so the omission is a decision rather than a
   gap someone fills in.
-- [ ] 2.3 Export both from `packages/storage/src/index.ts`, and update `contract.ts`'s "three
+  > **Done.** The absence case asserts the **module surface** rather than the file system — that the
+  > exports carry no `createIndexedDbSeenMessages` or `createBrowserSeenMessages` — because a
+  > contract the website cannot use is a contract the website should not be made to hold, and a
+  > missing adapter is the kind of gap that reads as an oversight rather than a decision.
+- [x] 2.3 Export both from `packages/storage/src/index.ts`, and update `contract.ts`'s "three
   contracts" note — it currently says three and will say four, and a note counting the wrong number
   is the same stale claim in a different file.
-- [ ] 2.4 Tests for the record: round trip, absence vs failure, another mailbox's ids untouched by a
+  > **Done.** The note now says four and answers *why* rather than only *how many*, because a
+  > reported message id is not one of `M6`'s five record kinds any more than a site association was.
+- [x] 2.4 Tests for the record: round trip, absence vs failure, another mailbox's ids untouched by a
   write, an unnarrowable entry preserved, and the empty-id and empty-mailbox refusals.
+  > **Done — 8 cases, `packages/storage` 78 → 86.** **The case worth reading first is**
+  > *"keeps an entry it cannot read, both by a read and by a write"*: an unreadable entry for a
+  > **different** mailbox is still there, byte for byte, after a write that touched another one. **A
+  > `saveSeenMessageIds` rebuilding the record from the ids it could read would pass every other case
+  > in the file while discarding another mailbox's whole history on the first write of the day.**
 
 ## 3. The check (`apps/extension/src`)
 

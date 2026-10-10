@@ -68,13 +68,17 @@ import {
   prependStoredMailbox,
   readStoredMailboxCollection,
   readStoredMailboxRecord,
+  readStoredSeenMessageIds,
   readStoredSiteAssociations,
   toStoredMailboxCollection,
   toStoredMailboxRecord,
+  toStoredSeenMessages,
   toStoredSiteAssociations,
+  withStoredSeenMessageIds,
 } from "./record";
 import type { StoredMailboxRecord } from "./record";
 import type { SpectreMailboxes } from "./mailboxes";
+import type { SpectreSeenMessages } from "./seen-messages";
 import type { SpectreSiteAssociations } from "./site-associations";
 
 import type { ChromeStorageArea } from "./chrome-api";
@@ -106,6 +110,15 @@ export const EXTENSION_MAILBOXES_KEY = "mailboxes";
  * mailbox each site was last used with, and a key that named only the sites would read as one.
  */
 export const EXTENSION_SITE_MAILBOXES_KEY = "site-mailboxes";
+
+/**
+ * The key the reported message ids are written under.
+ *
+ * "seen-messages" rather than "messages" because the record holds **ids this device has already
+ * reported** and nothing else - not the messages, not a sender, not a subject. A key named for the
+ * messages would invite the next reader to put them there.
+ */
+export const EXTENSION_SEEN_MESSAGES_KEY = "seen-messages";
 
 /** Everything the adapter needs, and nothing it could invent for itself. */
 export interface ChromeStorageOptions {
@@ -359,6 +372,109 @@ export function createChromeSiteAssociations(
           [host]: mailboxId,
         }),
       });
+    },
+  };
+}
+
+/**
+ * A {@link SpectreSeenMessages} over one `chrome.storage` area.
+ *
+ * ## One key, one read, one write, and the same reasoning as the two above it
+ *
+ * `chrome.storage` has no transactions, so "read the record, change one mailbox's entry, write it
+ * back" is the only shape the platform offers. That is a limitation rather than a design, and it is
+ * safe for the reason `createChromeMailboxes` gives: a lost update needs two writers racing, and
+ * this client has one - a background check that runs one listing per wake.
+ */
+export function createChromeSeenMessages(options: ChromeStorageOptions): SpectreSeenMessages {
+  const { area } = options;
+
+  return {
+    async loadSeenMessageIds(mailboxId: string) {
+      if (mailboxId.length === 0) {
+        throw new TypeError(
+          "loadSeenMessageIds was given an empty mailbox id, so nothing was read.",
+        );
+      }
+
+      const raw = await readRaw(area, EXTENSION_SEEN_MESSAGES_KEY);
+      if (raw === undefined) {
+        return null;
+      }
+
+      /**
+       * **Three answers, and the middle one is the whole reason the reader is a union.**
+       *
+       * A record this build cannot read is refused rather than answered: reporting it as "this
+       * mailbox has nothing recorded" would tell a background check that this device has never
+       * reported anything here, and it would answer the first wake's question with a fact about the
+       * *record* rather than about the mailbox.
+       */
+      const read = readStoredSeenMessageIds(raw, mailboxId);
+
+      if (read.kind === "record-unreadable") {
+        throw new Error(
+          `The reported messages stored at "${EXTENSION_SEEN_MESSAGES_KEY}" could not be read, so ` +
+            `"${mailboxId}" cannot be answered: a record this build does not understand is never ` +
+            "treated as though it were absent, and it is never replaced.",
+        );
+      }
+
+      return read.kind === "nothing-recorded" ? null : read.ids;
+    },
+
+    async saveSeenMessageIds(mailboxId: string, ids: readonly string[]) {
+      /**
+       * **Every empty-id refusal is here rather than in the record helpers, for the reason the
+       * mailbox adapter gives about narrowing on the way in.** A value assembled from outside reaches
+       * a typed parameter happily, and writing one would be a save that reports success and announces
+       * the same message on every later wake.
+       */
+      if (mailboxId.length === 0) {
+        throw new TypeError(
+          "saveSeenMessageIds was given an empty mailbox id, so nothing was stored.",
+        );
+      }
+      if (ids.length === 0) {
+        /**
+         * **An empty list is refused rather than stored, and the reason is the record's meaning.**
+         *
+         * `loadSeenMessageIds` answers `null` for a mailbox it has no entry for, so storing `[]` would
+         * write a second spelling of "nothing recorded" - and a caller checking `ids !== null` could
+         * not tell a mailbox this device has never watched from one it has watched and found empty.
+         */
+        throw new TypeError(
+          "saveSeenMessageIds was given no ids, so nothing was stored: an empty list is not a " +
+            "record of having reported nothing.",
+        );
+      }
+      if (ids.some((id) => id.length === 0)) {
+        throw new TypeError(
+          "saveSeenMessageIds was given an empty message id, so nothing was stored.",
+        );
+      }
+
+      const raw = await readRaw(area, EXTENSION_SEEN_MESSAGES_KEY);
+
+      /**
+       * **A record this build cannot read is refused rather than replaced**, for the same reason
+       * `addMailbox` gives: the only way to "recover" would be to overwrite it, which is the deletion
+       * the readers refuse to perform.
+       */
+      const next =
+        raw === undefined
+          ? toStoredSeenMessages({ [mailboxId]: [...ids] })
+          : withStoredSeenMessageIds(raw, mailboxId, ids);
+
+      if (next === null) {
+        throw new Error(
+          `The reported messages stored at "${EXTENSION_SEEN_MESSAGES_KEY}" could not be read, so ` +
+            `nothing was recorded for "${mailboxId}": writing it would replace a record this build ` +
+            "does not understand.",
+        );
+      }
+
+      await area.set({ [EXTENSION_SEEN_MESSAGES_KEY]: next });
     },
   };
 }
