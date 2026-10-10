@@ -142,6 +142,24 @@ const SKIP_DIRECTORIES = new Set([
 ]);
 
 /**
+ * Scripts that reach past what the product ships, and must therefore be unreachable
+ * from all three runners.
+ *
+ * **`live-host-permission.mjs`** contacts a real provider, so it is opt-in because
+ * nothing in a build should depend on a third party's uptime.
+ *
+ * **`alarms-packing.mjs`** measures when Chromium *fires* an alarm rather than what the API
+ * stores. One run takes over four minutes, and the fixture it needs declares `alarms` plus
+ * `storage` — rights the shipped manifest must not carry, because no user-facing surface uses
+ * either for this purpose.
+ *
+ * **Adding a name here is the whole of opting a new probe out.** That is why this is a list and
+ * not two separate rules: a rule per probe is a rule that is easy to forget, and a probe nobody
+ * adds to this file is a probe whose cost nobody has reasoned about.
+ */
+const QUARANTINED_PROBES = ["live-host-permission.mjs", "alarms-packing.mjs"] as const;
+
+/**
  * Every module specifier a source file can name, in every syntactic form the
  * boundary rules must cover:
  *
@@ -3625,14 +3643,22 @@ describe("architecture boundaries", () => {
     expect(scan()).toEqual([]);
   });
 
-  it("runs the live host-permission check nowhere, deliberately", () => {
-    // ## Why this rule exists at all, given `design.md` D4 already says it
+  it("quarantines every platform probe that reaches past what the product ships", () => {
+    // ## Why this rule exists at all, given each change's design already says it
     //
-    // **D4 is a decision in a document; this is a fact about three configuration files.**
-    // Quarantine is a property that decays quietly: the day someone adds the live check to a
-    // script, or widens a glob until it matches, nothing fails — the suite simply starts
-    // depending on a third party's uptime, and the failure it eventually produces is
-    // `pnpm verify` red for a reason that has nothing to do with the code under test.
+    // **A decision in a document is not a fact about three configuration files.** Quarantine is
+    // a property that decays quietly: the day someone adds a quarantined probe to a script, or
+    // widens a glob until it matches, nothing fails — the suite simply starts depending on a
+    // third party's uptime, or spending four minutes a run re-establishing something already
+    // recorded, and the failure it eventually produces is `pnpm verify` red for a reason that
+    // has nothing to do with the code under test.
+    //
+    // **Two probes are quarantined, and for opposite reasons.**
+    // `live-host-permission.mjs` is opt-in because it contacts a third party.
+    // `alarms-packing.mjs` is opt-in because one run takes over four minutes and the fixture it
+    // needs declares permissions the product must not ship. Same property, different cause — so
+    // the rule is written **once over a list** rather than duplicated per probe, which is also
+    // the only way a *third* probe gets covered: adding a name to the list is the whole opt-in.
     //
     // So the quarantine is asserted the way everything else here is: read the configuration,
     // and require the file to be unreachable from all three runners.
@@ -3647,88 +3673,126 @@ describe("architecture boundaries", () => {
     //   collection rule gives.
     // - **The scripts**: no `package.json` anywhere names the file. This is the half that is
     //   easiest to miss and the easiest to do by accident.
-    const LIVE_CHECK = "live-host-permission.mjs";
+    for (const LIVE_CHECK of QUARANTINED_PROBES) {
+      // Preconditions. A rule that found nothing to check would satisfy all three assertions
+      // below, so each one's subject is established first.
+      const livePath = findFilesNamed(LIVE_CHECK);
+      expect(livePath, `${LIVE_CHECK} must exist, or this rule checks nothing`).toHaveLength(1);
 
-    // Preconditions. A rule that found nothing to check would satisfy all three assertions
-    // below, so each one's subject is established first.
-    const livePath = findFilesNamed(LIVE_CHECK);
-    expect(livePath, `${LIVE_CHECK} must exist, or this rule checks nothing`).toHaveLength(1);
-
-    // **Named rather than hard-coded, and the path is reported on failure** so a reader knows
-    // which file moved.
-    const [live] = livePath;
-    expect(live, `${LIVE_CHECK} must live under apps/extension/e2e`).toContain(
-      `apps/extension/e2e/${LIVE_CHECK}`,
-    );
-
-    // 1. Not a unit test, by filename.
-    expect(live?.endsWith(".test.ts") ?? false).toBe(false);
-
-    // 2. Not a browser spec, by filename.
-    expect(live?.endsWith(".spec.ts") ?? false).toBe(false);
-
-    // 3. Not collected by any configured browser suite — **through the same parser the spec
-    //    collection rule uses**, so a narrowed `testDir` is caught rather than assumed away.
-    const claimed = browserSuites().filter((suite) =>
-      suite.testMatch.test(toRepoPath(live as string)),
-    );
-    expect(
-      claimed.map((suite) => suite.configPath),
-      "a browser suite collects the one live check in this repository",
-    ).toEqual([]);
-
-    // 4. **No script names it.** Every manifest, from the root down, because the root script is
-    //    the one `pnpm verify` runs and a nested one is just as capable of making it run.
-    const manifests: string[] = [];
-    const collectManifests = (directory: string): void => {
-      for (const entry of readdirSync(directory, { withFileTypes: true })) {
-        if (SKIP_DIRECTORIES.has(entry.name)) continue;
-        const absolute = join(directory, entry.name);
-        if (entry.isDirectory()) {
-          collectManifests(absolute);
-        } else if (entry.name === "package.json") {
-          manifests.push(absolute);
-        }
-      }
-    };
-    collectManifests(REPO_ROOT);
-
-    expect(manifests.length).toBeGreaterThan(0);
-    for (const manifestPath of manifests) {
-      // **Comments cannot satisfy or trip this.** The file's own module note explains how to
-      // run the check, and a rule matching raw text would either report this repository's own
-      // documentation or be silenced by rewording it — the two outcomes this file records as
-      // the same defect.
-      const scripts = stripComments(readFileSync(manifestPath, "utf8"));
-      expect(scripts, `${toRepoPath(manifestPath)} names the live check in a script`).not.toContain(
-        LIVE_CHECK,
+      // **Named rather than hard-coded, and the path is reported on failure** so a reader knows
+      // which file moved.
+      const [live] = livePath;
+      expect(live, `${LIVE_CHECK} must live under apps/extension/e2e`).toContain(
+        `apps/extension/e2e/${LIVE_CHECK}`,
       );
+
+      // 1. Not a unit test, by filename.
+      expect(live?.endsWith(".test.ts") ?? false).toBe(false);
+
+      // 2. Not a browser spec, by filename.
+      expect(live?.endsWith(".spec.ts") ?? false).toBe(false);
+
+      // 3. Not collected by any configured browser suite — **through the same parser the spec
+      //    collection rule uses**, so a narrowed `testDir` is caught rather than assumed away.
+      const claimed = browserSuites().filter((suite) =>
+        suite.testMatch.test(toRepoPath(live as string)),
+      );
+      expect(
+        claimed.map((suite) => suite.configPath),
+        "a browser suite collects the one live check in this repository",
+      ).toEqual([]);
+
+      // 4. **No script names it.** Every manifest, from the root down, because the root script is
+      //    the one `pnpm verify` runs and a nested one is just as capable of making it run.
+      const manifests: string[] = [];
+      const collectManifests = (directory: string): void => {
+        for (const entry of readdirSync(directory, { withFileTypes: true })) {
+          if (SKIP_DIRECTORIES.has(entry.name)) continue;
+          const absolute = join(directory, entry.name);
+          if (entry.isDirectory()) {
+            collectManifests(absolute);
+          } else if (entry.name === "package.json") {
+            manifests.push(absolute);
+          }
+        }
+      };
+      collectManifests(REPO_ROOT);
+
+      expect(manifests.length).toBeGreaterThan(0);
+      for (const manifestPath of manifests) {
+        // **Comments cannot satisfy or trip this.** The file's own module note explains how to
+        // run the check, and a rule matching raw text would either report this repository's own
+        // documentation or be silenced by rewording it — the two outcomes this file records as
+        // the same defect.
+        const scripts = stripComments(readFileSync(manifestPath, "utf8"));
+        expect(
+          scripts,
+          `${toRepoPath(manifestPath)} names the live check in a script`,
+        ).not.toContain(LIVE_CHECK);
+      }
+
+      // **And the positive control, because every assertion above is negative.** A script that
+      // *did* name the live check must be caught — otherwise a rule with a broken match would
+      // pass all four.
+      //
+      // **The probe is a real manifest edit, restored in a `finally`, and the restore is
+      // verified by reading the file back** rather than by trusting that the write happened.
+      // A boundary test that leaves the repository in the state it was mutating is the
+      // `archive-bytes` defect one directory over.
+      const rootManifest = join(REPO_ROOT, "package.json");
+      const original = readFileSync(rootManifest, "utf8");
+      try {
+        const planted = JSON.parse(original) as { scripts?: Record<string, string> };
+        planted.scripts = { ...planted.scripts, "test:live-permission": `node ${LIVE_CHECK}` };
+        writeFileSync(rootManifest, JSON.stringify(planted, null, 2), "utf8");
+
+        const plantedScripts = stripComments(readFileSync(rootManifest, "utf8"));
+        expect(
+          plantedScripts.includes(LIVE_CHECK),
+          "a script naming the live check must be detectable, or the four assertions above are inert",
+        ).toBe(true);
+      } finally {
+        writeFileSync(rootManifest, original, "utf8");
+        // **Restoration verified, not assumed.**
+        expect(readFileSync(rootManifest, "utf8")).toBe(original);
+      }
     }
 
-    // **And the positive control, because every assertion above is negative.** A script that
-    // *did* name the live check must be caught — otherwise a rule with a broken match would
-    // pass all four.
+    // ## And the one thing a quarantine cannot assert for itself
     //
-    // **The probe is a real manifest edit, restored in a `finally`, and the restore is
-    // verified by reading the file back** rather than by trusting that the write happened.
-    // A boundary test that leaves the repository in the state it was mutating is the
-    // `archive-bytes` defect one directory over.
-    const rootManifest = join(REPO_ROOT, "package.json");
-    const original = readFileSync(rootManifest, "utf8");
-    try {
-      const planted = JSON.parse(original) as { scripts?: Record<string, string> };
-      planted.scripts = { ...planted.scripts, "test:live-permission": `node ${LIVE_CHECK}` };
-      writeFileSync(rootManifest, JSON.stringify(planted, null, 2), "utf8");
+    // **These scripts spell the two load flags, because a plain `.mjs` cannot import the
+    // TypeScript helper that exports them** — there is no `allowJs` in this workspace, and
+    // adding one would change the typecheck surface of a shipped config to accommodate one
+    // quarantined script. That is a real constraint, and it left this repository with **two
+    // spellings and nothing asserting they agreed**, which is the drift this file has recorded
+    // more than any other.
+    //
+    // So the duplication is made falsifiable: every quarantined probe and the shipped helper
+    // must name the same two flags. **This was already true before the second probe existed,
+    // and unasserted** — the rule closes a gap that predates it rather than only the one it
+    // was written for.
+    const helper = stripComments(
+      readFileSync(join(APPS_DIR, "extension", "playwright.config.ts"), "utf8"),
+    );
+    const REQUIRED_LOAD_FLAGS = ["--load-extension=", "--disable-extensions-except="];
 
-      const plantedScripts = stripComments(readFileSync(rootManifest, "utf8"));
+    for (const flag of REQUIRED_LOAD_FLAGS) {
       expect(
-        plantedScripts.includes(LIVE_CHECK),
-        "a script naming the live check must be detectable, or the four assertions above are inert",
+        helper.includes(flag),
+        `extensionFlags() must name ${flag}, or the probes below are compared against nothing`,
       ).toBe(true);
-    } finally {
-      writeFileSync(rootManifest, original, "utf8");
-      // **Restoration verified, not assumed.**
-      expect(readFileSync(rootManifest, "utf8")).toBe(original);
+
+      for (const probeName of QUARANTINED_PROBES) {
+        const [probePath] = findFilesNamed(probeName);
+        expect(probePath, `${probeName} must exist, or this rule checks nothing`).toBeDefined();
+        const probe = stripComments(readFileSync(probePath as string, "utf8"));
+        expect(
+          probe.includes(flag),
+          `${probeName} does not name ${flag}, so it cannot be known to load an extension the ` +
+            `same way extensionFlags() does. Chromium reports no error when an extension fails ` +
+            `to load — it silently loads nothing.`,
+        ).toBe(true);
+      }
     }
   });
 

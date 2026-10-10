@@ -104,6 +104,28 @@ export default tseslint.config(
   },
 
   {
+    // **A quarantined driver, which is a Node process *and* a browser author.**
+    //
+    // `apps/extension/e2e/alarms-packing.mjs` is a Node script that hands functions to
+    // Playwright's `worker.evaluate()`. Those functions are **serialized and executed inside the
+    // service worker**, so `chrome` and `self` in this file are browser references and not typos —
+    // but the file itself is a Node process and genuinely uses `process`, `URL` and `import`.
+    //
+    // ESLint has one environment per file, so one of the two has to be declared rather than
+    // inferred. Declaring only the browser side would teach the file it is a worker script, and
+    // the next `no-undef` would be reported against the wrong environment — the exact mistake the
+    // fixture block below records having avoided. **Both are declared, and the reason is written
+    // here so the next reader does not "tidy" one of them away.**
+    //
+    // Scoped to the drivers directly in `e2e/`, **not** to `e2e/**`, so the fixtures below keep
+    // their own narrower environment and this block cannot widen a worker file into a Node one.
+    files: ["**/e2e/*.mjs"],
+    languageOptions: {
+      globals: { ...globals.node, ...globals.serviceworker, chrome: "readonly" },
+    },
+  },
+
+  {
     // **A fixture that runs as a service worker**, which is neither a Node process nor a
     // page: it has `self` and `chrome`, and no `process` and no `document`.
     //
@@ -112,11 +134,16 @@ export default tseslint.config(
     // silencing one — it would have taught the file it is a script, and the next
     // `no-undef` would have been reported against the wrong environment.
     //
+    // **`chrome` is declared explicitly because `globals.serviceworker` does not carry it.**
+    // It did not need to be until the fixture recorded fired alarms, so the omission was never
+    // visible — and an environment key that quietly lacks the one global a file exists to use is
+    // the kind of gap that only shows up as a lint error on the wrong side of a real change.
+    //
     // Matched by shape (`e2e/fixtures/`) rather than by naming this directory, so a
     // second quarantined fixture is covered by existing rather than by remembering.
     files: ["**/e2e/fixtures/**/*.{js,mjs,cjs}"],
     languageOptions: {
-      globals: { ...globals.serviceworker },
+      globals: { ...globals.serviceworker, chrome: "readonly" },
     },
   },
 

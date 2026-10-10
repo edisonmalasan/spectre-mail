@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "SpectreMail alarm-floor probe",
+  "name": "SpectreMail alarms probe",
   "version": "0.0.0",
-  "description": "Throwaway fixture. Declares the `alarms` permission solely so `chrome.alarms` exists, so a measurement can be taken. Ships nothing.",
+  "description": "Throwaway fixture, not the product. Declares `alarms` so `chrome.alarms` exists at all, and `storage` so a fired-alarm record can outlive the worker that observed it. Ships no user-facing surface, and no product manifest may copy either permission: the instrument that answers a question may need rights the product must not have.",
 
-  "permissions": ["alarms"],
+  "permissions": ["alarms", "storage"],
 
   "background": {
     "service_worker": "probe.js",

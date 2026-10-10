@@ -405,9 +405,56 @@ assumptions written as if they were facts until M8 measured them. Chromium 141
 
 | Question | Measured answer | What it does **not** establish |
 |---|---|---|
-| Does an idle background worker survive? | **Still registered after a full 30 000 ms** idle, no events dispatched, no alarm created | **No lifetime.** It was alive when the measurement stopped, so the termination point is unmeasured. A *bound*, not a figure. |
-| Does `chrome.alarms` enforce a period floor? | **None found.** Every requested period was stored unchanged — 5 000/60 000, 30 000/60 000, `1`, `1/60`, and **0.0166 minutes (999.6 ms)** | **When Chromium fires.** Chrome documents *packing* recurring alarms to at most once per 30 s, and `getAll()` reports the **requested** period, not the packing interval. "The API accepted 5 s" and "a worker wakes every 5 s" are separate claims; only the first is established. |
+| Does an idle background worker survive? | **Still registered after a full 120 000 ms** idle, no events dispatched, no alarm created | **No lifetime.** It was alive when the measurement stopped, so the termination point is unmeasured. A *bound*, not a figure. Widened from the 30 000 ms bound of 2026-10-07 — the measurement stopped watching at two minutes, not because the worker stopped. |
+| Does `chrome.alarms` enforce a period floor? | **None found.** Every requested period was stored unchanged — 5 000/60 000, 30 000/60 000, `1`, `1/60`, and **0.0166 minutes (999.6 ms)** | *What this measures is what the API stores, not what the platform does with it.* See the two rows below — firing was measured separately, and only for the two periods `packages/mailbox` actually uses. |
+| **Does Chromium fire a 5 000 ms alarm every 5 000 ms?** | **Yes, on this substrate.** 24 firings in 120 006 ms, first at 5 017 ms after creation, spacing min 4 985 / mean 5 000 / max 5 014 ms | One run, one machine, unpacked, Chromium 153. **Chrome's documented 30 s packing was not observed.** That is a finding about this run, not a correction to Chrome and not a claim about a packed extension. |
+| **Does Chromium fire a 30 000 ms alarm every 30 000 ms?** | **Yes, on this substrate.** 4 firings in 120 002 ms, first at 30 017 ms after creation, spacing min 29 987 / mean 29 996 / max 30 004 ms | Same limits, and **measured in isolation** — see the starvation finding immediately below, which is why it is a separate run. |
+| **What happens when both are armed at once?** | **The 30 000 ms alarm fired nothing at all in 120 s** — 0 firings, while the 5 000 ms alarm fired 24 times as usual. Run alone, that same alarm fired 4 times in the same window. | Whether starvation is permanent or recovers, whether two *identical* periods starve each other (only a fast-vs-slow pair was tried), and whether a packed extension behaves the same. |
 | Is `chrome.alarms` available to the shipped worker? | **No — `undefined`.** | This is a *result*, not a gap: `static/manifest.json` requests only `storage`, so the absence confirms the manifest requests nothing no surface uses. |
+
+### 4.1.1 What the firing measurement established, and how (2026-10-10)
+
+**Measured by `apps/extension/e2e/alarms-packing.mjs`**, which is **quarantined** — no runner
+collects it and no manifest names it — because one run takes over four minutes and re-establishing
+this on every push is a poor trade. The instrument's own header carries the reasoning.
+
+**Two findings, and they must not be merged.**
+
+**There is no packing on this substrate.** A 5 000 ms alarm fired at 5 000 ms and a 30 000 ms alarm
+at 29 996 ms, each measured in isolation. Chrome's documented packing of recurring alarms to at most
+once per 30 seconds for unpacked extensions **was not observed**. Recorded as a finding in its own
+right and deliberately **not reconciled in either direction**: not "the documentation is wrong", and
+not "MV3 alarms are now exact".
+
+**Concurrent alarms starve one another, and the slower one loses outright.** Armed together, the
+30 s alarm fired **nothing at all** in a window that produced four firings when it ran alone. It was
+never scheduled late; it was never scheduled. This is the more consequential of the two findings,
+because "no packing" is a *permission* while starvation is a **constraint on the design**: an
+extension arming two alarm periods cannot assume both run, and the one that stops is the slower one —
+which is also the one a notification would hide behind.
+
+**The first version of this instrument got that wrong, and the way it got it wrong is recorded here
+rather than in a changelog.** It created both alarms at once, reasoning that a concurrent alarm is a
+positive control — one the platform must keep firing. It is a control, and it is *also a competitor*:
+a control that shares the resource under measurement is a confound. The first run therefore produced
+0 firings for the 30 s alarm, which an honest reader could not distinguish from "the platform ignored
+it" — the exact confusion this repository records most often. The repair is the `--only` flag, and
+the lesson is that **a control must not compete with its subject**.
+
+**What the record is, and why it is persisted.** Firings are appended to `chrome.storage.local`, not
+to an array in the worker, because a worker terminated between firings silently truncates an
+in-memory record — and a truncated record looks exactly like an alarm that stopped firing. Every
+firing also carries a per-worker-load UUID, so a platform *cadence* can be told apart from a platform
+*lifecycle*. Both properties are verified in-run: a planted record is read back through the same
+reader before anything is trusted, and the record is re-read **after the browser is fully restarted**
+and shown to have lost nothing.
+
+**What this does not establish.** One run, one machine, one machine's load, headless, unpacked,
+Chromium `153.0.8010.12`, Playwright `1.63.0` — note the 2026-07 rows above were measured on Chromium
+**141**, so the two sets of answers are about different builds. Nothing here says what a packed
+extension does, what another engine does, or what happens under load. The worker idle lifetime remains
+a **120 000 ms bound** and not a figure, for the same reason it was a 30 000 ms bound before: the
+measurement stopped watching and the worker did not stop.
 
 **The alarms floor was measured through a throwaway fixture, and that is worth
 stating as a finding of its own.** The obvious instrument — calling
@@ -421,16 +468,26 @@ The first attempt therefore established a fact worth more than the measurement i
 was trying to make — **the platform, not a JSON review, confirmed that the
 shipped manifest claims nothing it does not use.** The floor itself was then
 measured in `apps/extension/e2e/fixtures/alarm-probe/`, which declares `alarms`
-and ships nothing else. Same quarantine shape as the live host-permission check
+and ships no user-facing surface. Same quarantine shape as the live host-permission check
 above and as `tests/provider-spike/`: **the instrument that answers a question
 may need rights the product must not have.**
 
-**The open question this leaves, named.** D1 (no polling in the background
-worker) rests on the packing interval, which is still unmeasured. Nothing in
-this repository knows whether a background poller would wake every 5 seconds or
-every 30; `packages/mailbox`'s `INBOX_POLL_PROMPT_MS` of 5 000 is a *page*
-cadence. Whoever schedules background polling inherits an unanswered question,
-and it is not one this file answers.
+**That fixture has since grown a second permission, and the reason is the same
+rule.** It now also declares `storage`, so a fired-alarm record can outlive the
+worker that observed it — an array in the worker is silently truncated if the
+worker is terminated, and a truncated record is indistinguishable from an alarm
+that stopped firing. It still ships no user-facing surface, and
+`apps/extension/static/manifest.json` is unchanged and requests `storage` alone.
+
+**The open question this left is now answered, and answered differently than
+either candidate expected.** D1 (no polling in the background worker) rested on
+the packing interval. Measured on 2026-10-10: **there is no packing on this
+substrate** — the shared cadence's 5 000 ms fires at 5 000 ms — and a background
+poller may use `INBOX_POLL_PROMPT_MS` as written. **In exchange, a new constraint
+appeared that was not asked about:** two concurrent alarms starve one another, and
+the slower one can stop firing outright. Whoever schedules background polling now
+inherits a *measured* permission and a *measured* prohibition, and both are in
+§4.1.1 rather than in a comment.
 
 ### 4.2 Content-script facts, measured before the in-page milestone was built (2026-10-07)
 
@@ -683,9 +740,25 @@ provider that has not been measured the same way.
 | Provider reputation across senders | One sender proved delivery. Bulk senders that commonly blocklist disposable domains are untested. | Any durability claim in marketing or the privacy model |
 | **Live provider polling tolerance** | Nothing in this repository has watched a real provider respond to being polled every five seconds. Both browser tiers serve **recorded** responses, and the cadence assertions read the delay the scheduler was *asked* for — which proves this repository's arithmetic and nothing about a provider's patience. | Any background-polling decision; M9 |
 | **A stored mailbox reconciled against a live session** | Adoption was exercised against a recording, never against a real Guerrilla Mail session. | `use it externally`, in either client |
-| **MV3 `chrome.alarms` packing interval** | §4.1 measured what the API *stores*, not when Chromium *fires*. | D1's successor: whether a background poller could wake at the page cadence at all |
+| **Two concurrent `chrome.alarms`** | §4.1.1 measured that a 5 s alarm and a 30 s alarm armed together starve the slower one — it fired **nothing** in 120 s. What is unmeasured is whether starvation is permanent or recovers, and whether two *identical* periods starve each other; only a fast-vs-slow pair was tried. | Any design that arms more than one alarm period |
 
 These are genuine gaps and must not be reported as successes.
+
+**One item left this list on 2026-10-10 and is now closed rather than moved
+elsewhere: the MV3 `chrome.alarms` packing interval.** §4.1 had measured only
+what the API *stores*; `apps/extension/e2e/alarms-packing.mjs` measured what
+Chromium *fires*, and found **no packing on this substrate** — 5 000 ms asked,
+5 000 ms observed; 30 000 ms asked, 29 996 ms observed. The row above is this
+item's replacement: closing one gap is not the same act as having none, and the
+constraint this measurement uncovered — concurrent alarms starving one another —
+is a real gap that did not exist in the list a week ago.
+
+**The replacement row is not the same claim the closed row made.** The closed row
+asked for an *interval*; the new row asks about *interaction*, which only became
+visible once the interval was measured per-alarm rather than with both armed at
+once. An instrument that measures what it was pointed at can leave a worse
+question behind than the one it answered.
+
 
 **One item left this list on 2026-10-07 and is now closed rather than moved
 elsewhere:** `AGENTS.md` recorded, at length, that *there is still no Playwright
@@ -725,3 +798,12 @@ decisions themselves belong to an OpenSpec change, not to this document.
 7. **`MailboxStatus: expired` cannot assume a known TTL** for either provider.
    Mail.tm publishes values in its FAQ only; neither they nor any Guerrilla
    equivalent are exposed in the API or were measured live.
+8. **A background poller may use the shared cadence as written, but may arm one
+   alarm period** (2026-10-10, §4.1.1). The roadmap's extension-side milestones
+   assumed background polling was gated on an unanswered question about MV3
+   packing; it is now answered — there is none on this substrate — so the gate is
+   lifted. **What replaces it is a constraint, not a permission:** two concurrent
+   alarms starve one another and the slower one can stop firing outright. Any
+   milestone that wants a notification *and* a poll must either schedule them
+   inside one period or measure the pair first.
+
