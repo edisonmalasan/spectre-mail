@@ -95,6 +95,39 @@ So: if **both** alarms are silent, the run reports a **harness error**, not a re
 fires and the 5 s one does not, that is a real and very interesting finding, and it is recorded as
 one rather than as a failure of the instrument.
 
+### D4 amendment (recorded during apply, 2026-10-10) — a concurrent alarm is a confound, not only a control
+
+**The first half of D4 held. The second half was wrong, and the way it was wrong is worth more than
+the decision was.**
+
+The "both silent ⇒ harness error" reasoning survived the run untouched, and the run proved it was
+load-bearing: the reader control passed and the run still reported a fault rather than a measurement.
+That half was right for the reason it was given.
+
+What was wrong is the assumption underneath it — that a second alarm running at the same time is a
+*control* and is otherwise neutral to the alarm being measured. **It is a competitor.** Chromium
+schedules alarms out of one queue, and a 5 000 ms alarm and a 30 000 ms alarm are not two independent
+observations of the same clock; they are two requests competing for it.
+
+Measured, same machine, same substrate, same day, one script:
+
+| run | 5 000 ms alarm | 30 000 ms alarm |
+| --- | --- | --- |
+| both armed together | 24 firings, mean spacing 5 000 ms | **0 firings in 120 s** |
+| 5 000 ms alone | 24 firings, mean spacing 5 000 ms | — |
+| 30 000 ms alone | — | 4 firings, mean spacing 29 996 ms |
+
+**Run alone, each alarm fires exactly on the period it was given. Armed together, the slower one
+fires not at all.** That is not a property D4 asked about and it is not a platform guarantee anyone
+has published; it is what this Chromium did here, and it is the single most consequential thing this
+change measured — see D8.
+
+The repair is not to distrust controls. It is that **a control must not share the resource under
+measurement**, and the isolation flag exists for exactly that reason. A control that competes is
+still a control in the harness-error sense and simultaneously a confound in the measurement sense,
+and no single run can tell those apart — only a second run with the competitor removed can.
+
+
 ### D5 — The window is derived from the two candidate intervals, and is stated
 
 **120 seconds.**
@@ -160,3 +193,97 @@ changes what the *notification* slice should schedule. That is a decision for th
 the measurement in hand — which is the whole point of taking it first. If the measurement shows 30 s
 packing, the notification has a ceiling and an honest promise; if it shows 5 s, it has neither
 problem and the cadence question reopens at the notification's own proposal.
+
+### D8 — Concurrent `chrome.alarms` starve one another, so each alarm is measured alone
+
+**Recorded during apply, 2026-10-10, from the measurement this change exists to take.**
+
+Unpacked Chromium `153.0.8010.12`, headless, this machine, one script, one day:
+
+| run | 5 000 ms alarm | 30 000 ms alarm |
+| --- | --- | --- |
+| both armed together | 24 firings, mean 5 000 ms, first at 5 015 ms | **0 firings in 120 s** |
+| 5 000 ms alone | 24 firings, mean 5 000 ms, first at 5 017 ms | not created |
+| 30 000 ms alone | not created | 4 firings, mean 29 996 ms, first at 30 017 ms |
+
+Two findings, and they must not be merged:
+
+**One: there is no packing on this substrate.** Each alarm fired at the period it was given - 5 000 ms
+asked, 5 000 ms observed; 30 000 ms asked, 29 996 ms observed. Chrome's documented 30-second packing
+for unpacked extensions was **not observed here**. This is one run on one substrate, not a statement
+about the platform, and it is recorded as a finding rather than as a correction to Chrome.
+
+**Two: concurrent alarms compete, and the slower one can lose outright.** Armed together, the 30 s
+alarm fired **nothing at all** in a window that produced four firings when it ran alone. Nothing was
+scheduled *late*; it was never scheduled.
+
+**Why the second is the more consequential of the two.** "No packing" is a permission: it means a
+background poller may use the shared cadence as written. Starvation is a **constraint on the design**:
+an extension that arms two alarm periods cannot assume both run, and the one that silently stops is
+the *slower* one, which is also the one a notification would hide behind.
+
+**So the notification slice inherits a rule this measurement produced:** one alarm period per
+extension, or a measurement of what two concurrent periods actually do on that substrate before
+relying on both. It is recorded here rather than left for that slice to discover through a notification
+that never arrives.
+
+**What this measurement still does not establish.** Whether two *identical* periods starve each other
+(this only compared a fast alarm against a slow one); whether the starvation is permanent or recovers;
+whether a packed extension behaves the same; and whether any of it survives a machine under load. Each
+is a real gap, named rather than assumed away.
+
+### D9 — The run ends with a summary, and the first version of it printed a confident wrong number
+
+**Recorded during apply, 2026-10-10.**
+
+A measurement whose two findings sit 600 lines apart has to be *reconstructed* to be quoted, and a
+reconstructed run is one where the second finding quietly disappears. So the run ends with both
+headline results together. `pnpm lint` found the reason that block did not already exist: the idle
+result was bound to a variable nothing read. **The correct repair was to use it, not to delete it.**
+
+**And the block it added was wrong on its first run.** A short smoke run with the 30 000 ms alarm
+printed:
+
+```text
+  spectre-packing-ceiling  requested 30000 ms  ->  fired every NaN ms over 1 firings
+```
+
+One firing means **zero gaps**, and the mean divided an empty array. It did not throw, it exited `0`,
+the reader control passed, and it printed the word `NaN` with the same confidence as a real figure.
+
+**This is the shape the repository records most often, arriving from an unexpected direction: an
+instrument that answers wrongly rather than one that declines.** The fix is not a guard against a
+non-finite result, which would turn `NaN` into `0 ms` and be worse. It is to state the degenerate
+case in words — *one firing cannot describe a cadence* — and to have two callers share one `meanOf`
+so the check cannot be forgotten by the next one. A helper that quietly returned `NaN` for an empty
+list would have reintroduced the defect for whoever called it next.
+
+**A second defect in the falsification harness, in the other direction, and worse for it.** The
+harness renamed each target file to a backup *before* reading it, so the restore had no content to
+write: its first arm left the repository's **`package.json` deleted**. It was restored from the
+backup and `git diff` confirmed it byte-identical before anything else ran.
+
+It is recorded rather than quietly repaired because **the failure is silent in the worst way**: the
+four remaining arms never executed, and a script that stops early without saying so reports exactly
+like one that passed. The repair is to read the file first and verify restoration by digest, which
+is what the SHA check was always claiming to do.
+
+### The falsification record, in one place
+
+| # | deliberate violation | caught by | outcome |
+|---|---|---|---|
+| Q1 | root `package.json` gains a script naming `alarms-packing.mjs` | the scripts half of the quarantine rule | caught |
+| Q2 | `alarms-packing.mjs` drops `--disable-extensions-except=` | the load-flag agreement rule | caught |
+| Q3 | `extensionFlags()` drops the same flag | the load-flag agreement rule | caught |
+| Q4 | `alarms-packing.mjs` drops `--load-extension=` | the same rule, for the *other* flag | caught |
+| Q5 | the extension `testMatch` widened to collect the probe | the browser-suite half of the quarantine rule | caught |
+| - | a planted record read back through the same reader | the instrument's own phase 0 | pass |
+| - | `--window 3000`, below the derivation | the window ceiling | `HARNESS-ERROR`, no measurement |
+| - | the ceiling mutated to half the window | the ceiling | `HARNESS-ERROR`, named |
+| - | `--only nonsense`, `--window` with no value | argument guards | `HARNESS-ERROR`, named |
+
+**5/5 and restoration verified by SHA-256 for every mutated file, re-run against the exact tree being
+committed** after `prettier` rewrote four of the files underneath the first pass. One arm was
+**`NOOP`** on the first attempt — a regex written against a guess at `extensionFlags()`'s text, which
+matches nothing because the two flags sit on one line inside an array literal. The harness reported
+it rather than counting it, which is the only reason it was found.
