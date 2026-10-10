@@ -289,13 +289,23 @@ still have teeth.
 
 **The count arithmetic is predicted here so the promotion can be checked against it rather than
 discovered there.** `extension-client` goes **6 → 10 requirements** — one removed, five added, two
-amended in place — and **24 → 35 scenarios**: the three the removed requirement carried come off,
-thirteen arrive with the five new requirements, and one more arrives with the amended popup. Over all
-fourteen capabilities the totals move **157 → 162 requirements** and **478 → 495 scenarios**.
+amended in place — and **24 → 37 scenarios**: the three the removed requirement carried come off,
+fifteen arrive with the five new requirements, and one more arrives with the amended popup. Over all
+fourteen capabilities the totals move **157 → 162 requirements** and **478 → 497 scenarios**.
 `spectre-storage` goes **15 → 16** and **51 → 57**. **These are predictions and are checked by
-counting headings after the sync, not by reading them back off this paragraph** — the first draft of
-this one said 34 scenarios and was wrong by exactly the scenario the popup amendment adds, which is
-the reason the rule is written down rather than trusted.
+counting headings after the sync, not by reading them back off this paragraph.** This paragraph has
+now been wrong twice, and both times in the same direction and by one or two scenarios, so the rule
+is worth more than the number:
+
+- **The first draft said 34 scenarios** and was wrong by exactly the scenario the popup amendment
+  adds.
+- **The second said 35** and was wrong by two, because the D12 measurement turned one failure
+  scenario into three. That is not a slip in arithmetic: it is what *happened* — the scenario count
+  is downstream of the requirement text, and the requirement text moved when a measurement falsified
+  a clause in it.
+
+**So the number is recomputed whenever the requirements change rather than carried forward**, which
+is the only part of this paragraph that is not arithmetic.
 
 ### D12 — The icon, and the measurement that decides between three branches
 
