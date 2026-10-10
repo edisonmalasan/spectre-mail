@@ -16,10 +16,17 @@
  * absence being confirmed by the platform rather than by a review of a JSON file.
  *
  * So the measurement runs against `e2e/fixtures/alarm-probe/`, which declares `alarms`
- * and ships nothing else. This is the same quarantine shape D4 establishes for the live
- * host-permission check, and the same one `tests/provider-spike/` established for the
- * provider probes: **the instrument that answers a question may need rights the product
- * must not have.**
+ * **and now `storage` as well**, and ships no user-facing surface. This is the same
+ * quarantine shape D4 establishes for the live host-permission check, and the same one
+ * `tests/provider-spike/` established for the provider probes: **the instrument that
+ * answers a question may need rights the product must not have.**
+ *
+ * **The second permission arrived with `alarms-packing-interval` (2026-10-10), which
+ * needed a fired-alarm record to outlive the worker that observed it** — an array held in
+ * the worker is silently truncated if the worker is terminated, and a truncated record is
+ * indistinguishable from an alarm that stopped firing. So the sentence above was false
+ * the moment that measurement landed and is corrected here rather than left to mislead.
+ * `apps/extension/static/manifest.json` is still unchanged and requests `storage` alone.
  *
  * ## What this measurement can and cannot establish
  *
@@ -28,7 +35,15 @@
  * per 30 seconds for unpacked extensions, while `getAll()` reports the requested period
  * verbatim. So "the platform accepted a 5-second period" and "the platform will wake a
  * worker every 5 seconds" are separate claims, only the first of which is established
- * here. The second needs a run long enough to observe firing, and is **not** claimed.
+ * here.
+ *
+ * **The second was measured on 2026-10-10 by `alarms-packing.mjs`, and the answer was
+ * that this file's caution was warranted and then some**: there is no packing on this
+ * substrate (a 5 000 ms alarm fired at 5 000 ms), **and two alarms armed together starve
+ * one another**, the slower firing not at all in a 120 s window. Both are in
+ * `docs/PROVIDERS.md` §4.1.1. **This spec still claims only what the API stores** — it is
+ * a fast gate over a shipped manifest, and folding a four-minute measurement into it
+ * would buy nothing: the finding is recorded once, in the place that owns it.
  */
 
 import { existsSync } from "node:fs";
