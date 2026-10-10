@@ -1,0 +1,16 @@
+<!--
+  A placeholder icon for the notification probe.
+
+  What it looks like is irrelevant and deliberately so: the measurement asks whether Chromium will
+  *accept and register* a notification carrying this file, not whether the icon is any good. A
+  committed mark here would be a visual artefact in the repository that describes nothing.
+
+  It is committed as text rather than generated beside the PNG so that the SVG arm has an asset a
+  reviewer can read. **The PNG arm has no committed counterpart and is written at run time** - a
+  binary blob in this repository would be the first one, for a throwaway fixture, and the driver can
+  produce it in four lines with `node:zlib`.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <rect width="128" height="128" fill="#2b2a33" />
+  <circle cx="64" cy="64" r="40" fill="#6f5cc9" />
+</svg>

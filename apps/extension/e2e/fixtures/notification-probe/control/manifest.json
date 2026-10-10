@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "SpectreMail notification probe control",
+  "version": "0.0.0",
+  "description": "Throwaway fixture, not the product. Identical to its sibling except that it does NOT declare `notifications`, so `chrome.notifications` should be undefined. It is the control that makes the sibling's positive arm mean something: without it, 'the API exists' could be a property of headless Chromium rather than of the permission.",
+
+  "permissions": ["storage"],
+
+  "background": {
+    "service_worker": "probe.js",
+    "type": "module"
+  }
+}

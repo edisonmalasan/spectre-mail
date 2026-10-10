@@ -34,6 +34,18 @@ export default tseslint.config(
       "**/build/**",
       "**/.vite/**",
       "**/*.tsbuildinfo",
+      // **`test-results/` and `playwright-report/` are run artefacts, and they are listed
+      // here for the reason `.gitignore` lists them one-per-client: neither is source, and a
+      // path only one tool writes into must not be a place the linter reports.** This was not
+      // free — `notification-display.mjs` stages a *copy of a fixture* into
+      // `apps/extension/test-results/`, so the directory briefly held `.js` files and `eslint .`
+      // reported 153 `no-undef` errors for a measurement that had run. **An instrument that
+      // breaks `pnpm lint` by existing is an instrument that gets deleted**, which is the
+      // `extension-preview` failure this repository has already recorded once. The glob covers
+      // every client rather than a listed path, because `.gitignore` deliberately writes them out
+      // per client and that is where the difference is noticed.
+      "**/test-results/**",
+      "**/playwright-report/**",
       "tests/provider-spike/**",
       "openspec/changes/archive/**",
     ],

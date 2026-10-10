@@ -153,11 +153,21 @@ const SKIP_DIRECTORIES = new Set([
  * `storage` — rights the shipped manifest must not carry, because no user-facing surface uses
  * either for this purpose.
  *
+ * **`notification-display.mjs`** measures whether Chromium will register a notification from this
+ * extension at all, and whether an `iconUrl` is required. Its fixture declares `notifications`,
+ * which the shipped manifest deliberately did not before M10 slice 4 and which it still may not
+ * carry for the probe's own reasons, and it stages a generated PNG beside the committed SVG so no
+ * binary asset enters the source tree.
+ *
  * **Adding a name here is the whole of opting a new probe out.** That is why this is a list and
  * not two separate rules: a rule per probe is a rule that is easy to forget, and a probe nobody
  * adds to this file is a probe whose cost nobody has reasoned about.
  */
-const QUARANTINED_PROBES = ["live-host-permission.mjs", "alarms-packing.mjs"] as const;
+const QUARANTINED_PROBES = [
+  "live-host-permission.mjs",
+  "alarms-packing.mjs",
+  "notification-display.mjs",
+] as const;
 
 /**
  * Every module specifier a source file can name, in every syntactic form the
