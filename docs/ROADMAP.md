@@ -27,6 +27,15 @@
 > `in-page-integration` (M9 slice 1). Counted mechanically at each sync and again
 > after each archive, they hold **157 requirements and 478 scenarios** in total.
 >
+> **The `alarms-packing-interval` spike declared `skip_specs` and promoted nothing, and
+> that was verified rather than assumed**: immediately after the archive the totals were
+> **re-counted at 14 capabilities, 157 requirements and 478 scenarios — identical to the
+> figures above**, and `openspec validate --specs --strict` reports **14 passed, 0 failed**.
+> The counts did not move because no delta was written, and the correct reading of that is
+> "the archive touched nothing it should not have" — a change that measures a platform
+> records its answer in `docs/PROVIDERS.md`, and a requirement restating Chromium's
+> behaviour is the one thing `extension-client`'s no-polling requirement exists to prevent.
+>
 > **The per-capability figures, re-counted on 2026-10-10 at `in-page-fill`'s sync
 > stage and not transcribed:** `browser-verification` 5/12,
 > `build-and-verification` 10/28, `extension-client` **6/24**,
@@ -98,7 +107,10 @@
 **Roadmap cursor: M10 - Verification Workflow, slices 1 (`verification-actions`) and 2
 (`in-page-fill`) are both APPLIED, VERIFIED, SYNCED and ARCHIVED** at
 `openspec/changes/archive/2026-10-10-verification-actions/` and
-`openspec/changes/archive/2026-10-10-in-page-fill/`. Slice 2's four stages were proposal PR #100
+`openspec/changes/archive/2026-10-10-in-page-fill/`, and the `alarms-packing-interval` spike that
+unblocked the notification is APPLIED, VERIFIED and ARCHIVED** at
+`openspec/changes/archive/2026-10-10-alarms-packing-interval/` - proposal PR #104 merged `de00857`,
+apply PR #105 merged `716049f`. Slice 2's four stages were proposal PR #100
 merged `11c28fa`, apply PR #101 merged `99bc35c`, sync PR #102, archive PR #103 — **and its
 archive moved 6 files, every one SHA-256 identical to the digest taken before the command ran, with
 `.openspec.yaml` kept and all 8 promoted blocks byte-identical again afterwards, checked against
@@ -3833,6 +3845,18 @@ This becomes a core extension-specific feature.
 Complete the browser-native verification flow.
 
 ## Incoming mail notification
+
+> **Status: now unblocked, and carrying a measured constraint.** This item was gated on an
+> unanswered question about MV3 `chrome.alarms` packing. `alarms-packing-interval` answered
+> it on 2026-10-10 (`docs/PROVIDERS.md` §4.1.1): **there is no packing on this substrate**,
+> so `INBOX_POLL_PROMPT_MS` of 5 000 is available to a background poller as written.
+>
+> **What replaces the gate is a constraint rather than a permission: concurrent alarms
+> starve one another.** A 5 000 ms alarm and a 30 000 ms alarm armed together produced
+> 24 firings and **0** respectively in the same 120 s window; run alone, the slow one fired
+> four times. **The notification must therefore schedule inside one alarm period, or
+> measure the pair first on the substrate it ships to.** It also needs the `notifications`
+> permission, which is a product permission this repository has never shipped.
 
 When likely verification mail arrives:
 

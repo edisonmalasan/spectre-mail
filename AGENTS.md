@@ -1,7 +1,13 @@
 # AGENTS.md
 
 > **Current milestone state (reconciled against Git and OpenSpec 2026-10-10): M0-M9 are complete
-> in scope, M10 slice 1 (`verification-actions`) is **APPLIED, VERIFIED, SYNCED and ARCHIVED**
+> in scope, and the `alarms-packing-interval` spike that unblocked M10's remaining work is
+> **APPLIED, VERIFIED and ARCHIVED** at
+> `openspec/changes/archive/2026-10-10-alarms-packing-interval/` — proposal PR **#104** merged
+> `de00857`, apply PR **#105** merged `716049f`, **no sync stage because the change declares
+> `skip_specs` and promoted nothing**. **The next milestone is M10 slice 4, the incoming-mail
+> notification**, which that measurement unblocked and simultaneously constrained: see
+> `docs/PROVIDERS.md` §4.1.1. M10 slice 1 (`verification-actions`) is **APPLIED, VERIFIED, SYNCED and ARCHIVED**
 > at `openspec/changes/archive/2026-10-10-verification-actions/`** — proposal PR **#96** merged
 > `421d56f`, apply PR **#97** merged `bdd13b6`, sync PR **#98** merged `550741f`, archive PR
 > **#99** — and **M10 slice 2 (`in-page-fill`) is APPLIED, VERIFIED, SYNCED and ARCHIVED**
@@ -2014,7 +2020,12 @@ it or inherit the previous one's mailbox.
   judgement the task asks for.
 - **Nothing about a service worker's actual lifetime.** The measurement is a **bound**, not a
   figure: the worker was alive when the 30 000 ms window closed, so the termination point is
-  unmeasured and no document here claims one. **The delegated creation path rests on that same
+  unmeasured and no document here claims one. **The bound has since been widened from 30 000 ms to
+  120 000 ms** by `alarms-packing-interval`, in a separate profile with **no alarm created during the
+  idle phase** so the measurement is not reading a wake it caused itself. **It is still a bound, and
+  it moved because the window did — not because the worker survived longer**, which is the only
+  reading the evidence supports and the reason a longer window is not a longer lifetime.
+  **The delegated creation path rests on that same
   bound** - a worker that has already been terminated is woken by the message, which is what MV3
   promises, and **nothing in this repository has observed that wake.** The round trip measured at
   idle gaps of 0, 5 and 35 seconds is a bound on latency, not a measurement of lifetime, and the
@@ -2026,17 +2037,33 @@ it or inherit the previous one's mailbox.
   to lie about the sender. **The reader half is unit-tested** (`create-mailbox.test.ts`), so the
   variant is exercised where it can be, and **the end-to-end half is recorded as deliberate
   non-coverage in the change's own spec** rather than left to look like coverage.
-- **Nothing about when `chrome.alarms` fires.** The suite establishes what the API
-  **stores**; Chrome's documented **packing** of recurring alarms to at most once per 30 seconds
-  is a separate behaviour this repository has still not observed. `docs/PROVIDERS.md` §4.1
-  records both halves, and the second is the open question `extension-foundation`'s D1 leaves.
+- ~~**Nothing about when `chrome.alarms` fires.**~~ **Closed 2026-10-10, and the answer
+  was not the one the sentence assumed.** `alarms-packing-interval` measured it rather than
+  reading it: **there is no packing on this substrate** — a 5 000 ms alarm fired 24 times in
+  120 s at a mean spacing of 5 000 ms, and a 30 000 ms alarm 4 times at 29 996 ms, each
+  measured alone. **The sentence above survived its own change and was therefore deleted
+  rather than reworded, because what it called the open question no longer was one** — and
+  because the measurement that answered it raised a *worse* question nobody had asked:
+  **armed together, the two alarms starve one another and the 30 s one fires not at all.**
+  So the limit is replaced rather than removed, and the replacement is narrower:
+  **nothing about a packed extension, another engine, a machine under load, or whether
+  starvation is permanent.** The instrument is `apps/extension/e2e/alarms-packing.mjs`,
+  quarantined, run once per alarm via `--only`; `docs/PROVIDERS.md` §4.1.1 carries the full
+  record and §5.2 carries what it still does not establish.
 - **Nothing about a live provider — in either tier.** Every provider response is a
   **recorded** one, imported by name from `packages/providers`, and any other origin is
   aborted **and reported by name**; the extension's tier additionally asserts that it
   **requests no origin it did not script**. `use it externally` remains unverified, and a
   stored mailbox has still never been reconciled against a live Guerrilla Mail session. The
   one live call in this repository is `apps/extension/e2e/live-host-permission.mjs`, which is
-  **quarantined from all three suites** and enforced by a boundary assertion.
+  **quarantined from all three suites** and enforced by a boundary assertion. **There are now two
+  quarantined probes and the assertion covering them is a list, not a per-probe rule** — that is
+  what makes opting a third one out a matter of adding a name rather than writing a new test. **The
+  same assertion now also checks that every probe's spelled `--load-extension` /
+  `--disable-extensions-except` flags agree with `extensionFlags()`**, because a plain `.mjs`
+  cannot import the TypeScript helper; **that duplication already existed and was unasserted before
+  the second probe, and Chromium reports no error when an extension fails to load — it silently
+  loads nothing.**
 - **Nothing about how a real provider tolerates being polled.** The cadence assertions
   read the delay the scheduler was asked for; no live provider has been polled here.
 - **Nothing about Firefox or WebKit.** One engine is configured, on purpose: adding a
