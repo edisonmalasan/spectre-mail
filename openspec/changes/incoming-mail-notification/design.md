@@ -289,13 +289,14 @@ still have teeth.
 
 **The count arithmetic is predicted here so the promotion can be checked against it rather than
 discovered there.** `extension-client` goes **6 → 10 requirements** — one removed, five added, two
-amended in place — and **24 → 37 scenarios**: the three the removed requirement carried come off,
-fifteen arrive with the five new requirements, and one more arrives with the amended popup. Over all
-fourteen capabilities the totals move **157 → 162 requirements** and **478 → 497 scenarios**.
-`spectre-storage` goes **15 → 16** and **51 → 57**. **These are predictions and are checked by
-counting headings after the sync, not by reading them back off this paragraph.** This paragraph has
-now been wrong twice, and both times in the same direction and by one or two scenarios, so the rule
-is worth more than the number:
+amended in place — and **24 → 39 scenarios**: the three the removed requirement carried come off,
+**eighteen** arrive (seventeen with the five new requirements and one with the amended popup), and two
+more arrived during apply. Over all fourteen capabilities the totals move **157 → 162 requirements**
+and **478 → 499 scenarios**. `spectre-storage` goes **15 → 16** and **51 → 57**. **These are measured,
+by counting headings across `openspec/specs/` and across this change's delta, and they are still
+checked by counting headings again after the sync rather than read back off this paragraph.** This
+paragraph has now been wrong three times, and every time in the same direction and by one to four
+scenarios, so the rule is worth more than the number:
 
 - **The first draft said 34 scenarios** and was wrong by exactly the scenario the popup amendment
   adds.
@@ -303,6 +304,14 @@ is worth more than the number:
   scenario into three. That is not a slip in arithmetic: it is what *happened* — the scenario count
   is downstream of the requirement text, and the requirement text moved when a measurement falsified
   a clause in it.
+- **The third said 37** and was wrong by two, and this time **the requirement text moved because a
+  test failed**: the refused-notification arm and the emptied-mailbox arm were both added during
+  apply, in each case because the implementation could not satisfy the clause as written. **A count
+  of a requirement is downstream of the requirement, always** — which is the same fact the second
+  bullet records, arriving from the opposite direction: once from a measurement and once from a
+  failing test. **The prediction was not wrong because the arithmetic was careless; it was wrong
+  because the thing being counted had not finished being written**, and that is the whole reason a
+  count is measured rather than carried forward.
 
 **So the number is recomputed whenever the requirements change rather than carried forward**, which
 is the only part of this paragraph that is not arithmetic.

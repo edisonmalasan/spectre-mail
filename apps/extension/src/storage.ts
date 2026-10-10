@@ -35,12 +35,14 @@
 
 import {
   createChromeMailboxes,
+  createChromeSeenMessages,
   createChromeSiteAssociations,
   createChromeStorage,
 } from "@spectre-mail/storage";
 import type {
   ChromeStorageArea,
   SpectreMailboxes,
+  SpectreSeenMessages,
   SpectreSiteAssociations,
   SpectreStorage,
 } from "@spectre-mail/storage";
@@ -48,18 +50,26 @@ import type {
 import type { Mailbox } from "@spectre-mail/core";
 
 /**
- * The three record kinds this client keeps, over one platform area.
+ * The four record kinds this client keeps, over one platform area.
  *
  * **`stored` is the singular record, and it is read rather than written.** `site-associations` moved
  * every write in this client onto {@link SpectreMailboxes.addMailbox}, and a device that already
  * had a mailbox before this build has it in `stored` and nowhere else. So this client reads both and
  * writes one: see {@link loadInsertableMailboxes} for how the answer to "which address can this
  * device insert" is computed, and why it is computed once rather than in three places.
+ *
+ * **`seen` arrived with `incoming-mail-notification`, and the other three have no consumer for it.**
+ * It records which message ids this device has been told about for a mailbox, and **nothing else
+ * reads it**: the popup does not, the content script does not, and `loadInsertableMailboxes` does
+ * not. It is here because it is a record kind this client keeps over the same area, and putting it
+ * on its own would mean a second `chrome.storage.local` handle whose relationship to the other three
+ * nobody could see.
  */
 export interface ExtensionRecords {
   readonly stored: SpectreStorage;
   readonly mailboxes: SpectreMailboxes;
   readonly associations: SpectreSiteAssociations;
+  readonly seen: SpectreSeenMessages;
 }
 
 /**
@@ -190,9 +200,9 @@ export function createExtensionStorage(
 }
 
 /**
- * Build all three records over one area.
+ * Build all four records over one area.
  *
- * **One area, three adapters, and they are built together on purpose.** Two of them would be over
+ * **One area, four adapters, and they are built together on purpose.** Two of them would be over
  * separate areas otherwise, and a client that could read its mailboxes from one store and its site
  * associations from another would have to reason about a split this product never creates.
  */
@@ -201,6 +211,7 @@ function buildAllRecords(options: { area: ChromeStorageArea }): ExtensionRecords
     stored: createChromeStorage(options),
     mailboxes: createChromeMailboxes(options),
     associations: createChromeSiteAssociations(options),
+    seen: createChromeSeenMessages(options),
   };
 }
 

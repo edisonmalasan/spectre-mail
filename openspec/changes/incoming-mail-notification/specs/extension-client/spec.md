@@ -22,12 +22,21 @@ rule this repository applies to its own documents and which applies to a promote
 reason.
 
 **The arithmetic is stated here so it can be checked against the promotion rather than discovered
-there.** `extension-client` goes **6 requirements to 10** — one removed, five added, two amended in
-place — and **24 scenarios to 35**: the three the removed requirement carried come off, thirteen
-arrive with the new requirements, and one more arrives with the amended popup. `spectre-storage` goes
-**15 to 16** requirements and **51 to 57** scenarios. Across all capabilities the requirement total
-moves **157 to 162** and the scenario total **478 to 495**. No other capability is touched, and
-`apps/web`'s requirements are not among them.
+there — and the first version of this paragraph was wrong by four, so the corrected figures are the
+measured ones.** `extension-client` goes **6 requirements to 10** — one removed, five added, two
+amended in place — and **24 scenarios to 39**: the three the removed requirement carried come off,
+**eighteen** arrive (seventeen with the new requirements and one with the amended popup), and two more
+were added during apply. `spectre-storage` goes **15 to 16** requirements and **51 to 57** scenarios.
+Across all capabilities the requirement total moves **157 to 162** and the scenario total **478 to
+499**, both counted by heading across `openspec/specs/` and across this delta rather than
+transcribed. No other capability is touched, and `apps/web`'s requirements are not among them.
+
+**The first draft predicted 35 and 495, and it was wrong in the same direction twice.** It counted
+the added requirements' scenarios by eye and got thirteen where the delta carries seventeen, and it
+counted before the two scenarios the apply stage's failing test forced into this file. **A prediction
+of a count is still a prediction of a count**, and this repository's rule is that a number nobody
+measured is a number nobody checked — so both figures here are now measured, and the arithmetic is
+stated so the sync stage can falsify it rather than discover it.
 
 ## REMOVED Requirements
 
@@ -336,9 +345,38 @@ that.
 
 #### Scenario: A notification cannot be created
 
-- **WHEN** the platform answers a `create` with a null id
+- **WHEN** the platform answers a `create` with a null id, or throws rather than answering
 - **THEN** the wake SHALL NOT record that message as one this device has been told about
 - **AND** a later wake SHALL raise it again
+- **AND** it SHALL report the message as one it did not announce, rather than report that nothing
+  happened
+
+**Amendment, recorded during apply (2026-10-11).** **Two clauses were added, and both were added
+because a test failed against a product that was otherwise correct.**
+
+**A `create` that throws is the same answer as one that resolves `null`.** `docs/PROVIDERS.md` §4.5
+measured no error channel on this Chromium — `chrome.notifications.onError` does not exist — so the
+only observed refusal is the callback's own value. **A throw is the one shape a callback-based API
+can refuse in**, and treating it as an unhandled fault would leave the message unrecorded for the
+opposite reason to the one that matters: the record would advance only if the failure happened to be
+a value.
+
+**The wake reports the message as one it did not announce.** The outcome union originally had a
+single `quiet` arm, reached whenever the id set was unchanged — **which is exactly the state a
+refused notification produces**, because a refused message is not recorded and the set therefore did
+not change. So a wake the platform had just refused a notification for reported *"nothing happened"*
+while having happened, and the retry the first clause depends on depended on the caller being told.
+`quiet` is therefore split into `unchanged` (nothing was asked of the platform and the set is the
+same) and `pruned` (nothing was asked of the platform and the set shrank), and an arm claims
+notifications were raised **when something was attempted**, not when something succeeded. **An arm
+claiming a notification was raised when none was is the same defect as a record that advanced on a
+refused one**, and only the second of the two was visible when this requirement was written.
+
+#### Scenario: The notification could not be raised and the record did not change
+
+- **WHEN** every message in a listing has already been announced and a notification is refused
+- **THEN** the wake SHALL raise no notification
+- **AND** it SHALL not rewrite the record, because replacing it with itself is not a change
 
 #### Scenario: A notification is raised without the shipped icon
 
@@ -349,8 +387,25 @@ that.
 #### Scenario: A build whose output carries no icon
 
 - **WHEN** the built extension output does not carry the shipped icon file
-- **THEN** the build SHALL fail
+- **THEN** the extension's browser suite SHALL fail
 - **AND** no notification requirement above is claimed to be met
+
+**Amendment, recorded during apply (2026-10-11).** **"The build SHALL fail" became "the extension's
+browser suite SHALL fail", and the reason is that the build cannot fail here.**
+
+`vite build` copies `static/` verbatim and checks nothing about its contents, so an icon missing from
+the output is not a build failure — **and the icon cannot be missing from a build that succeeded**,
+because the two are the same directory copy. The first version of this clause would therefore have
+been satisfied by a build script nobody writes: it described a gate that does not exist, which is the
+same shape as a boundary rule enforcing a rule that was retired.
+
+The claim is enforced where it can be, by `manifest.spec.ts` **reading the emitted artefact**: the
+PNG signature and its `IEND` chunk, so a truncated write and an HTML error page served in its place
+are both refused, and `manifest.icons`/`action.default_icon` staying `undefined`, so the icon is
+reachable only from a notification. **A test in the browser tier is the right instrument rather than
+a convenient one** — the failure this exists to catch is silent by measurement (§4.5: the callback
+resolves and the platform registers nothing), so nothing short of reading the artefact and reading
+the registration would ever notice it.
 
 ### Requirement: A check with nothing to compare against establishes a baseline and raises nothing
 
@@ -370,6 +425,30 @@ bounded by the mailbox rather than by this device's history, and an unchanged ma
 The trade that buys it is also stated: **a message that leaves a listing and later returns is new to
 this device again and is announced again.**
 
+**Amendment, recorded during apply (2026-10-11).** **The prune clause is qualified where the listing
+is empty, because the record kind cannot express it — and the divergence is recorded here rather than
+discovered later as a surprise.**
+
+The clause above reads *"SHALL keep only the ids present in the listing it just took"*, and for a
+mailbox that has been **emptied** the implementation cannot do that. `SpectreSeenMessages`'s
+`saveSeenMessageIds` **refuses an empty list**, and refusing is the right behaviour at the contract
+level: `loadSeenMessageIds` answers `null` for a mailbox it has no entry for, so storing `[]` would
+give one fact — *this device has an entry and it is empty* — **two spellings**, and a reader could
+not tell a mailbox that was emptied from one that was never watched.
+
+So **a mailbox that empties keeps whatever it had recorded**, and the qualification is a property of
+the record rather than a gap in the check. **The cost is stated rather than assumed:** the stale ids
+cost nothing, because the clause above already accepts that a message which leaves a listing and later
+returns is announced again — a stale id in the record is exactly the state that trade describes, held
+one wake earlier. **The alternative — a seen-record that can be empty — was rejected because it would
+have put an ambiguity into the one contract that answers "has this device been told about this?"**,
+and the wake answers that question with `null` for absence.
+
+**This is why the empty listing is answered before the record is read at all.** A wake over an empty
+mailbox has nothing to baseline, nothing to announce, and nothing to write, so it costs **one listing
+and no storage traffic whatsoever** — and an implementation that read the record first would have had
+to decide what to do with a record it could not shorten.
+
 #### Scenario: This device has watched nothing yet
 
 - **WHEN** a check finds no record for the watched mailbox
@@ -381,6 +460,13 @@ this device again and is announced again.**
 - **WHEN** a check finds the same set of message ids it already held
 - **THEN** it SHALL raise no notification
 - **AND** it SHALL not rewrite the record
+
+#### Scenario: The mailbox has been emptied
+
+- **WHEN** a check takes a listing holding no messages at all
+- **THEN** it SHALL raise no notification
+- **AND** it SHALL not read or rewrite the record
+- **AND** a later check finding those messages again SHALL raise notifications for them
 
 ### Requirement: A check that fails raises nothing, and a mailbox the provider has reported gone stops the check
 

@@ -47,8 +47,9 @@ const manifest = JSON.parse(readFileSync(MANIFEST_PATH, "utf8")) as {
   host_permissions?: string[];
   content_scripts?: unknown;
   side_panel?: unknown;
+  icons?: unknown;
   background: { service_worker: string; type: string };
-  action: { default_popup: string };
+  action: { default_popup: string; default_icon?: unknown };
 };
 
 /**
@@ -178,10 +179,11 @@ test.describe("the built extension's manifest", () => {
     // **The M12 review's question, asked now rather than at M12.**
     //
     // `storage` is used by the popup **and by the content script**, which reads the same
-    // stored address directly. Nothing else is: `tabs` and `scripting` would only be needed by
-    // a surface that does not exist, and `activeTab` would only be needed by one. A permission
-    // nothing uses is one that review deletes — so a permission added here without a surface is
-    // a permission this milestone has no answer for.
+    // stored address directly. `alarms` and `notifications` are used by the **background
+    // service worker** — the one alarm and the notification a background check raises. `tabs` and
+    // `scripting` would only be needed by a surface that does not exist, and `activeTab` would only
+    // be needed by one. A permission nothing uses is one that review deletes — so a permission
+    // added here without a surface is a permission this milestone has no answer for.
     //
     // **Still exactly `["storage"]` after the content script landed, and that is a
     // measurement rather than a carry-over.** The content script's own note records the
@@ -191,7 +193,44 @@ test.describe("the built extension's manifest", () => {
     // permission alone, with `host_permissions` left at the two provider origins. So the
     // content script added a **surface** and no **permission**, and this assertion is what
     // says so.
-    expect(manifest.permissions ?? []).toEqual(["storage"]);
+    //
+    // **`alarms` and `notifications` arrived with this change, and the reason the requirement is
+    // unchanged is the point.** It forbids a permission no shipped surface uses; this change ships
+    // two surfaces that need them, so the clause does its work rather than being amended. **The two
+    // were measured to be granted at install with no prompt** (`docs/PROVIDERS.md` §4.5), which is
+    // a claim about *this* permission kind and not about an optional one, which prompts by design.
+    expect(manifest.permissions ?? []).toEqual(["storage", "alarms", "notifications"]);
+  });
+
+  test("ships the icon a notification names, and declares it nowhere else", () => {
+    // **Read as bytes, because the failure this exists to catch returns a file.**
+    //
+    // `docs/PROVIDERS.md` §4.5 measured three arms on this Chromium: a notification with **no
+    // icon** resolves its callback and **registers nothing**, an **SVG** is refused outright with a
+    // `null`, and a **PNG** resolves *and* registers. So the icon is load-bearing, and a missing
+    // asset does not fail a build, a test, or a callback — **it fails silently, which is the only
+    // kind of failure nothing else would notice.** Reading the signature rather than the size is
+    // what distinguishes the asset from an HTML error page served in its place.
+    const icon = join(EXTENSION_DIST_PATH, "icon.png");
+    expect(
+      existsSync(icon),
+      `${icon} is named by every notification and the build did not emit it`,
+    ).toBe(true);
+
+    const bytes = readFileSync(icon);
+    expect(bytes.subarray(0, 8)).toEqual(
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    );
+    // **A PNG header and nothing else is not enough**, so the file has to hold an image: a header
+    // followed by no `IEND` chunk is a truncated write that every check above would accept.
+    expect(bytes.subarray(-8, -4).toString("ascii")).toBe("IEND");
+
+    // **And the toolbar is untouched, which is the half that could be forgotten.** The icon exists
+    // to satisfy a notification, so how the toolbar looks is not this change's business: neither
+    // `manifest.icons` nor `action.default_icon` may name it. **A reader matching nothing would
+    // satisfy the three assertions above for ever**, so this half is what makes them mean anything.
+    expect(manifest.icons).toBeUndefined();
+    expect(manifest.action.default_icon).toBeUndefined();
   });
 
   test("declares one content script, on every page, running when the document is idle", () => {

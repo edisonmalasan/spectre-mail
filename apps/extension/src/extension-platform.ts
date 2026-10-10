@@ -430,3 +430,245 @@ export function sendToTab(tabId: number, request: unknown): Promise<unknown> {
     }
   });
 }
+
+/**
+ * What this platform can be asked to raise, and nothing else about it.
+ *
+ * ## The two members, and why the interface is this small
+ *
+ * `create` is what the product needs. `clear` is not used by anything this slice ships, and it is
+ * here **only so a future caller cannot reach past this seam** — the whole point of reading the
+ * platform reflectively is that the shape is checked at this boundary rather than assumed anywhere
+ * downstream. A seam that carried the whole API would be a seam that could be used to reach a
+ * member nobody looked at.
+ */
+export interface NotificationPlatform {
+  /**
+   * Ask for a notification, and resolve with the id the platform reports or `null`.
+   *
+   * **The resolved value is the whole of the answer, and `null` is the only refusal there is.**
+   * Measured on 2026-10-11 (`docs/PROVIDERS.md` §4.5): `chrome.notifications.onError` **does not
+   * exist** on the Chromium measured, so there is no second channel, and a callback that resolves
+   * is *not* by itself evidence the platform holds a notification — a request with no icon resolved
+   * and registered nothing. The caller must therefore treat `null` as a refusal and must not treat a
+   * resolved id as proof of delivery to a person, which nothing here can observe.
+   */
+  readonly create: (notificationId: string, options: NotificationRequest) => Promise<string | null>;
+  readonly clear: (notificationId: string) => Promise<boolean>;
+}
+
+/** What a notification asks the platform to show. Three fields, and the third is measured in. */
+export interface NotificationRequest {
+  /** The line a person reads first. */
+  readonly title: string;
+  /** The line under it. */
+  readonly message: string;
+  /**
+   * The icon, as an absolute URL.
+   *
+   * **Not optional, and that is a measurement rather than a style.** `docs/PROVIDERS.md` §4.5: a
+   * notification created without one resolves its callback and registers nothing, and an SVG is
+   * refused outright. Making it optional here would put that trap one line away.
+   */
+  readonly iconUrl: string;
+}
+
+/**
+ * Read the notification platform, or `undefined` where this context has none.
+ *
+ * **A shape check naming `create`, not `onError`, because the error event does not exist here.**
+ * `onError` is checked in `notification-display.mjs`'s probe and found `undefined`; requiring it here
+ * would report this platform unusable on the Chromium this repository measures, and requiring nothing
+ * beyond `create` would not notice a platform that had lost `clear`. So the check is what the product
+ * actually calls, and the absence it reports is a real one.
+ */
+export function readNotificationPlatform(): NotificationPlatform | undefined {
+  const value: unknown = readMember(readPlatform(), "notifications");
+
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    typeof readMember(value, "create") !== "function" ||
+    typeof readMember(value, "clear") !== "function"
+  ) {
+    return undefined;
+  }
+
+  return value as NotificationPlatform;
+}
+
+/**
+ * The absolute URL of a file this extension ships, or `undefined` where the runtime is absent.
+ *
+ * ## Why the icon cannot be spelled here or at the call site
+ *
+ * A relative path would be resolved against whatever document happened to load, and a notification
+ * is raised from a worker that has no document at all. The extension's own URL prefix is therefore
+ * the only correct spelling, and `design.md` D12's measurement says the icon is load-bearing — so it
+ * is resolved in **one** place rather than in each caller, and the file name is a parameter so this
+ * module holds no opinion about which asset the product ships.
+ */
+export function extensionAssetUrl(file: string): string | undefined {
+  const runtime: unknown = readMember(readPlatform(), "runtime");
+  const getUrl: unknown = readMember(runtime, "getURL");
+
+  if (typeof getUrl !== "function") {
+    return undefined;
+  }
+
+  try {
+    const url: unknown = Reflect.apply(getUrl, runtime, [file]);
+    return typeof url === "string" ? url : undefined;
+  } catch {
+    // **The same three absences {@link sendToTab} collapses**, for the same reason: a file this
+    // extension cannot address is absence of the asset, not a fault to raise inside a listener.
+    return undefined;
+  }
+}
+
+/** What a repeated alarm is asked to be. One member, and the period is the only thing it carries. */
+export interface AlarmSchedule {
+  /**
+   * The period, in minutes.
+   *
+   * **A fraction, not a floor.** `docs/PROVIDERS.md` §4.1.1 measured a 5 000 ms period firing at
+   * 5 000 ms on the Chromium this repository uses, so the number reaching this interface is
+   * `5000 / 60000` and rounding it up would silently quadruple the request rate.
+   */
+  readonly periodInMinutes: number;
+}
+
+/**
+ * What this platform offers for scheduling this extension's own work.
+ *
+ * **`get` is deliberately absent.** `create` replaces an alarm of the same name, so "is there
+ * already one" has no answer this product needs: reconciling on browser start means **asking for
+ * the alarm again**, which is correct whether or not the previous one survived. A seam carrying a
+ * member nothing calls is a seam a future caller can reach a member nobody looked at.
+ */
+export interface AlarmPlatform {
+  /** Create, or replace, the named alarm. Resolves when the platform has taken the request. */
+  readonly create: (name: string, schedule: AlarmSchedule) => Promise<void>;
+  /** Clear the named alarm. Resolves with whether there was one. */
+  readonly clear: (name: string) => Promise<boolean>;
+}
+
+/**
+ * Read the alarm platform, or `undefined` where this context has none.
+ *
+ * **The shape check names the two members the product calls**, for the reason
+ * {@link readNotificationPlatform} gives: requiring a member nothing uses would report this platform
+ * unusable on a browser that has it.
+ *
+ * **Both members are wrapped rather than handed back raw**, because neither is awaited at the call
+ * site without a promise: `create` returns nothing in some versions of the platform and a promise in
+ * others, and the wrapper accepts either, so a caller can `await` unconditionally. The `catch` is the
+ * same collapse {@link sendToTab} makes - an alarm this platform refused to schedule is absence of
+ * the schedule, not a fault to raise inside a listener that fired on its own.
+ */
+export function readAlarmPlatform(): AlarmPlatform | undefined {
+  const receiver: unknown = readMember(readPlatform(), "alarms");
+  const rawCreate = readMember(receiver, "create");
+  const rawClear = readMember(receiver, "clear");
+
+  if (typeof rawCreate !== "function" || typeof rawClear !== "function") {
+    return undefined;
+  }
+
+  return {
+    create: async (name: string, schedule: AlarmSchedule): Promise<void> => {
+      try {
+        await Reflect.apply(rawCreate, receiver, [name, schedule]);
+      } catch {
+        // **Nothing here.** An alarm the platform refused is a check this device is not running, and
+        // the only listener that would report it is a timer that never fired.
+      }
+    },
+    clear: async (name: string): Promise<boolean> => {
+      try {
+        return (await Reflect.apply(rawClear, receiver, [name])) === true;
+      } catch {
+        return false;
+      }
+    },
+  };
+}
+
+/**
+ * Add a listener to one platform event, and return the function that removes it.
+ *
+ * **Both event registrations go through here rather than being written out twice**, because the two
+ * that exist - an alarm firing and the browser starting - are read the same reflective way and fail
+ * the same way, and a second spelling of "listen to an event" is a second place for a missing
+ * `removeListener` to hide.
+ *
+ * @param object - The event object to listen on, or `undefined` where the platform offers none.
+ * @returns A function that removes the listener. Idempotent, and safe where there was none.
+ */
+function onPlatformEvent(
+  object: unknown,
+  handle: (payload: unknown) => void,
+): () => void {
+  const add = readMember(object, "addListener");
+  const remove = readMember(object, "removeListener");
+
+  if (typeof add !== "function" || typeof remove !== "function") {
+    return () => {};
+  }
+
+  // **Called on the event, never on the function itself** - the reason `readMessaging` records, and
+  // the same trap: a reflective read of a method invites detaching it.
+  add.call(object, handle);
+
+  return () => {
+    remove.call(object, handle);
+  };
+}
+
+/**
+ * Run `handle` when the browser starts.
+ *
+ * **This is the reconciliation seam, and `chrome.runtime.onStartup` is the third listener this
+ * worker registers** (`design.md` D10). It exists because the measurement that discharged the
+ * removed requirement's gate established that a **record** in `chrome.storage.local` survives a
+ * restart, and established nothing about an **alarm**: `docs/PROVIDERS.md` §4.1.1 holds a 120 000 ms
+ * idle bound and not a lifetime, so nothing here may assume a schedule outlived a reboot.
+ *
+ * @returns A function that removes the listener. Idempotent, and safe where the platform offers none.
+ */
+export function onBrowserStart(handle: () => void): () => void {
+  return onPlatformEvent(
+    readMember(readMember(readPlatform(), "runtime"), "onStartup"),
+    () => {
+      handle();
+    },
+  );
+}
+
+/**
+ * Run `handle` with the name of an alarm that fired.
+ *
+ * **The name is passed through rather than filtered here.** "Exactly one alarm" is a property of
+ * what this extension *creates*, and a filter would make that property unfalsifiable: a second alarm
+ * would simply never reach a listener, and the suite would have nothing to catch.
+ *
+ * **An event carrying no readable name is ignored**, because an alarm this extension cannot name is
+ * not one it created, and treating it as its own would make the one-alarm property a claim about a
+ * listener rather than about the code.
+ *
+ * @returns A function that removes the listener. Idempotent, and safe where the platform offers none.
+ */
+export function onAlarmFired(handle: (alarmName: string) => void): () => void {
+  return onPlatformEvent(
+    readMember(readMember(readPlatform(), "alarms"), "onAlarm"),
+    (alarm: unknown) => {
+      const name: unknown = readMember(alarm, "name");
+
+      if (typeof name !== "string") {
+        return;
+      }
+
+      handle(name);
+    },
+  );
+}

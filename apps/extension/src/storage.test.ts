@@ -82,6 +82,17 @@ function records(overrides: {
         loadSiteMailboxId: async (): Promise<string | null> => null,
         saveSiteMailboxId: async (): Promise<void> => {},
       },
+      /**
+       * **Present and never exercised by this file.** `seen` arrived with
+       * `incoming-mail-notification`, and nothing here reads it — the cases below are about which
+       * mailbox this device would insert — so it is a stub rather than a fixture. Its absence would be
+       * a compile error rather than a silently unreachable case, which is the point of it being here
+       * at all.
+       */
+      seen: {
+        loadSeenMessageIds: async (): Promise<readonly string[] | null> => null,
+        saveSeenMessageIds: async (): Promise<void> => {},
+      },
     },
   };
 }

@@ -70,29 +70,81 @@
 
 ## 3. The check (`apps/extension/src`)
 
-- [ ] 3.1 `background-check.ts`: build a provider manager and a session per wake, `restore()` the
+- [x] 3.1 `background-check.ts`: build a provider manager and a session per wake, `restore()` the
   watched mailbox, take the listing from the returned state, and `destroy()` in a `finally` — the
   shape `create-mailbox.ts` already establishes. **Never `openMessage`, never `analyseMessage`.**
-- [ ] 3.2 `notification.ts`: build the notification from `MessageSummary` fields only, and report a
+  > **Done, and "never opens a message" is a type property rather than a reviewer's promise.** The
+  > session the wake holds is typed `Pick<MailboxSession, "restore" | "destroy">`, so a call to
+  > `openMessage` does not fail a test — it fails to compile. **A requirement that can only be checked
+  > by reading is a requirement that will eventually be read wrongly.**
+- [x] 3.2 `notification.ts`: build the notification from `MessageSummary` fields only, and report a
   creation the platform refused. **The record advances only on a notification actually created**
   (`design.md` D12).
-- [ ] 3.3 The comparison: baseline when there is no record, notify for ids not held, prune to the
+  > **Done, 10 cases.** A refusal is `null` **or a throw** — §4.5 measured no `onError` channel, so a
+  > thrown `create` is the same answer and is collapsed the same way rather than being given a second
+  > spelling.
+- [x] 3.3 The comparison: baseline when there is no record, notify for ids not held, prune to the
   current listing, write only when the set changed, and **change nothing on a failed check**.
-- [ ] 3.4 `alarms.ts`: one alarm name, one period **imported from `packages/mailbox/src/cadence` and
+  > **Done, 17 cases, and the new cases found a product defect rather than only a test error.** The
+  > outcome union's `quiet` arm was reached whenever the id set was unchanged, so **a wake the
+  > platform had just refused a notification for reported `quiet`** — "nothing happened" — while
+  > having happened. `quiet` is therefore split into `unchanged` and `pruned`, and an arm claims a
+  > notification was raised **when something was attempted**, not when something succeeded. **An arm
+  > claiming a notification was raised when none was is the same defect as a record that advanced on a
+  > refused one**, and only the first of the two was visible when the task was written.
+  > **Two findings worth carrying.** The compose function takes an **optional injected listing
+  > reader**, mirroring `createExtensionStorage`'s precedent, because a case about *which mailbox was
+  > chosen* otherwise needs a provider — and the first version of that case passed a real session
+  > over a stub transport and asserted the wrong thing, because `restore` correctly answers
+  > `restoreFailed` there. And **`empty-mailbox` is its own outcome**, answered before the record is
+  > read at all, because `saveSeenMessageIds` **refuses an empty list** — which is a **divergence
+  > from the delta's prune clause, amended there during apply** with the reason.
+- [x] 3.4 `alarms.ts`: one alarm name, one period **imported from `packages/mailbox/src/cadence` and
   never restated**, armed when a mailbox is recorded, reconciled on `chrome.runtime.onStartup`, and
   cleared on `expired` only.
-- [ ] 3.5 Add `chrome.runtime.onStartup` and the alarm listener to `service-worker.ts`. **Leave `install`
+  > **Done, 7 cases, and the period's single spelling is asserted twice.** Once for the file
+  > (`alarms.test.ts`: one `periodInMinutes`, one `INBOX_POLL_PROMPT_MS`, no literal) and once across
+  > the directory (`service-worker.test.ts`: **no shipped module but `alarms.ts` may name
+  > `INBOX_POLL_PROMPT_MS`**). The file-local rule cannot be broken by a *second* file, which is the
+  > shape the defect would actually take, so the directory rule exists beside it rather than in place
+  > of it.
+- [x] 3.5 Add `chrome.runtime.onStartup` and the alarm listener to `service-worker.ts`. **Leave `install`
   and `activate` empty** (`design.md` D10) and replace their "intentionally empty" note with one that
   says they are deliberately unfilled and why, so the next reader does not read it as forgotten.
+  > **Done — `service-worker.test.ts` was rewritten rather than extended, and the rewrite is the
+  > finding.** Its first rule read *"arms no alarm"*, which this change made false; the rule behind it
+  > did not, because the worker reaches the platform through `extension-platform.ts` and the decision
+  > through `alarms.ts`. **Retained with a corrected claim** — deleting a rule whose property still
+  > holds is the retired-rule defect this repository records twice — and given the positive half it
+  > lacked: the worker's only `self` listeners must be `install` and `activate`, because a worker
+  > that registered its own `fetch` listener would hold nothing, arm no timer, and satisfy every rule
+  > the file had while doing ambient work on somebody else's page. **Retention now covers three
+  > files**, the third being `background-check.ts`: a rule not extended to the newest way this worker
+  > can hold a session is a rule that stopped covering it. 5 → **8** cases.
 
 ## 4. The client
 
-- [ ] 4.1 `static/manifest.json`: add `alarms` and `notifications`. **Nothing else in that file
+- [x] 4.1 `static/manifest.json`: add `alarms` and `notifications`. **Nothing else in that file
   changes** — a diff showing anything else is a defect, and the byte-identity check is a task below.
-- [ ] 4.2 The icon, if 1.1 selected a branch that ships one. **`manifest.icons` and
+  > **Done, and the diff is the two strings.** Verified with `git diff --stat` rather than by reading
+  > the file: one line changed, `permissions`. **`manifest.icons`, `action.default_icon` and every
+  > `content_scripts` entry are byte-identical**, which is 7.4's instrument rather than this
+  > task's assertion.
+- [x] 4.2 The icon, if 1.1 selected a branch that ships one. **`manifest.icons` and
   `action.default_icon` stay untouched** — how the toolbar looks is not this slice's business.
-- [ ] 4.3 Wire the watched mailbox through `loadInsertableMailboxes`, so the answer stays computed in
+  > **Done — 1.1 selected raster, so `static/icon.png` ships: 307 bytes,
+  > SHA-256 `4e1ed280…a6`,** referenced from the notification and from nowhere else. **It is carried
+  > into `dist/`**, checked by the browser tier rather than by a build-log reading, because §4.5's
+  > finding is that a notification whose icon cannot be addressed **resolves its callback and
+  > registers nothing** — so "the build succeeded" says nothing about the asset arriving. The PNG was
+  > produced by a throwaway script outside the repository, so the asset ships without a generator in
+  > the tree that nothing would keep honest.
+- [x] 4.3 Wire the watched mailbox through `loadInsertableMailboxes`, so the answer stays computed in
   one place (`design.md` D6).
+  > **Done, and two cases hold it: the head of the collection, and a device whose only mailbox
+  > predates it.** The second is the one that would have been easy to miss: asking the collection
+  > alone would tell this extension it holds nothing to watch — **silently, at the one moment the
+  > answer decides whether anybody is told about new mail at all.**
 
 ## 5. Documentation and specs
 
