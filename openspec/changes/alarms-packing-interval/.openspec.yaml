@@ -1,0 +1,28 @@
+schema: spec-driven
+created: 2026-10-10
+
+# Why there is no spec delta, recorded here because `skip_specs` is the one flag in this
+# repository that can be set for the wrong reason and still validate.
+#
+# This change measures a platform and records the answer in `docs/PROVIDERS.md`, which is where
+# `extension-client`'s no-polling requirement says the measurement must be recorded. It changes no
+# product behaviour: no code under `apps/extension/src`, no permission, no alarm, no polling loop, no
+# notification, and `static/manifest.json` is not touched.
+#
+# Every requirement it bears on already exists and stays true --
+#
+#   * "The background service worker carries no polling until its lifetime is measured" continues to
+#     forbid a polling loop and continues to forbid any decision about which context owns the
+#     session. Satisfying its "SHALL measure" clause does not discharge its prohibition.
+#   * "Scenario: The measurement has not been taken" continues to forbid any document claiming a
+#     background cadence this repository has not observed. Recording a measured cadence is what it
+#     asks for; a requirement restating the measurement would be a second place for the number to
+#     drift.
+#   * "Scenario: A change needs a background poll" continues to gate the notification on this
+#     measurement existing -- and it stops gating it, which is this change's entire purpose and is a
+#     change in what is *permitted*, not in what is *required*.
+#
+# So a delta here would be a requirement describing Chromium's behaviour. That is the one thing the
+# requirement being satisfied exists to prevent, and the workflow's own guidance is explicit: do not
+# invent a requirement to satisfy validation.
+skip_specs: true
