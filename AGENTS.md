@@ -1,13 +1,19 @@
 # AGENTS.md
 
-> **Current milestone state (reconciled against Git and OpenSpec 2026-10-10): M0-M9 are complete
+> **Current milestone state (reconciled against Git and OpenSpec 2026-10-11): M0-M9 are complete
 > in scope, and the `alarms-packing-interval` spike that unblocked M10's remaining work is
 > **APPLIED, VERIFIED and ARCHIVED** at
 > `openspec/changes/archive/2026-10-10-alarms-packing-interval/` — proposal PR **#104** merged
 > `de00857`, apply PR **#105** merged `716049f`, **no sync stage because the change declares
-> `skip_specs` and promoted nothing**. **The next milestone is M10 slice 4, the incoming-mail
-> notification**, which that measurement unblocked and simultaneously constrained: see
-> `docs/PROVIDERS.md` §4.1.1. M10 slice 1 (`verification-actions`) is **APPLIED, VERIFIED, SYNCED and ARCHIVED**
+> `skip_specs` and promoted nothing**. **M10 slice 4, the incoming-mail
+> notification** (`incoming-mail-notification`), is **proposed and at its APPLY stage** —
+> proposal PR **#107** merged `788d742`, apply on `feat/incoming-mail-notification`.
+> **It was the first change in this repository to remove a permission-carrying requirement on
+> measurement, and the removal is recorded rather than implied**: `extension-client`'s
+> *"The background service worker carries no polling until its lifetime is measured"* is **REMOVED
+> and re-ADDED**, because two of its three clauses still bind once the measurement that gated it
+> exists — see `docs/PROVIDERS.md` §4.1.1 for the gate and §4.5 for the notification measurement
+> that rewrote a clause before any implementation was written. M10 slice 1 (`verification-actions`) is **APPLIED, VERIFIED, SYNCED and ARCHIVED**
 > at `openspec/changes/archive/2026-10-10-verification-actions/`** — proposal PR **#96** merged
 > `421d56f`, apply PR **#97** merged `bdd13b6`, sync PR **#98** merged `550741f`, archive PR
 > **#99** — and **M10 slice 2 (`in-page-fill`) is APPLIED, VERIFIED, SYNCED and ARCHIVED**
@@ -2050,15 +2056,31 @@ it or inherit the previous one's mailbox.
   starvation is permanent.** The instrument is `apps/extension/e2e/alarms-packing.mjs`,
   quarantined, run once per alarm via `--only`; `docs/PROVIDERS.md` §4.1.1 carries the full
   record and §5.2 carries what it still does not establish.
+- **Nothing about a notification being *seen*, and the three ways this is narrower than "a
+  notification appeared".** §4.5 measured the API and nothing past it: **the Chromium that
+  measured it is headless and has no notification centre**, so `getAll()` holding an id is
+  **registration** — which is exactly what separated the measurement's arms, and is a smaller
+  fact than a person seeing one. **Nothing here is about a headed desktop**, where focus
+  settings or a missing notification service could suppress a request this run accepted; and
+  **nothing covers a platform that accepts a request and shows nothing**, which is the one case
+  where a `null` callback would be the only available signal and this measurement cannot
+  produce it. **So a wake can advance its seen-record on a notification nobody saw**, and that
+  residual is named in the change's `design.md` rather than closed. The instrument is
+  `apps/extension/e2e/notification-display.mjs`, quarantined beside the other two.
+  **A consequence worth stating where a reader will meet it: `chrome.notifications.onError`
+  does not exist on the Chromium measured** — a listener added to it throws before creating
+  anything — so the only observed refusal is a `create` callback resolving `null`, **and a
+  throw is treated identically**. That is a property of *this* Chromium and may not be cited
+  as though the event does not exist everywhere.
 - **Nothing about a live provider — in either tier.** Every provider response is a
   **recorded** one, imported by name from `packages/providers`, and any other origin is
   aborted **and reported by name**; the extension's tier additionally asserts that it
   **requests no origin it did not script**. `use it externally` remains unverified, and a
   stored mailbox has still never been reconciled against a live Guerrilla Mail session. The
   one live call in this repository is `apps/extension/e2e/live-host-permission.mjs`, which is
-  **quarantined from all three suites** and enforced by a boundary assertion. **There are now two
+  **quarantined from all three suites** and enforced by a boundary assertion. **There are now three
   quarantined probes and the assertion covering them is a list, not a per-probe rule** — that is
-  what makes opting a third one out a matter of adding a name rather than writing a new test. **The
+  what makes opting a fourth one out a matter of adding a name rather than writing a new test. **The
   same assertion now also checks that every probe's spelled `--load-extension` /
   `--disable-extensions-except` flags agree with `extensionFlags()`**, because a plain `.mjs`
   cannot import the TypeScript helper; **that duplication already existed and was unasserted before

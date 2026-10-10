@@ -144,6 +144,22 @@ describe("whether the platform answered", () => {
     await expect(raiseNotification(summary(), platformThat(null), ICON_URL)).resolves.toBe(false);
   });
 
+  it("an answer that is not an id is a refusal, because this seam is read reflectively", async () => {
+    // **The platform's own types are not available here, which is the whole reason the check
+    // exists.** `extension-platform.ts` reads `chrome.notifications` through `Reflect.get` and
+    // verifies only the shape it needs, so an answer this function is told is a string can be
+    // anything the platform produced — and treating it as an acceptance would advance the
+    // seen-record on a notification nothing holds, **which is the one failure §4.5 measured
+    // happening silently.** The cast is written where it is used rather than widened into
+    // `platformThat`, so the fixture above keeps answering only what a platform can.
+    const platform = {
+      create: vi.fn(async () => 42 as unknown as string),
+      clear: vi.fn(async () => true),
+    } satisfies NotificationPlatform;
+
+    await expect(raiseNotification(summary(), platform, ICON_URL)).resolves.toBe(false);
+  });
+
   it("reports a throw as the same refusal, because the platform offers no other signal", async () => {
     // **`chrome.notifications.onError` does not exist on the Chromium measured**, so a throwing
     // `create` and a `null` answer are the only two refusals a caller can observe. Treating one

@@ -104,13 +104,18 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor: M10 - Verification Workflow, slices 1 (`verification-actions`) and 2
+**Roadmap cursor: M10 - Verification Workflow. Slices 1 (`verification-actions`) and 2
 (`in-page-fill`) are both APPLIED, VERIFIED, SYNCED and ARCHIVED** at
 `openspec/changes/archive/2026-10-10-verification-actions/` and
-`openspec/changes/archive/2026-10-10-in-page-fill/`, and the `alarms-packing-interval` spike that
+`openspec/changes/archive/2026-10-10-in-page-fill/`; the `alarms-packing-interval` spike that
 unblocked the notification is APPLIED, VERIFIED and ARCHIVED** at
 `openspec/changes/archive/2026-10-10-alarms-packing-interval/` - proposal PR #104 merged `de00857`,
-apply PR #105 merged `716049f`. Slice 2's four stages were proposal PR #100
+apply PR #105 merged `716049f`, archive PR #106; and **slice 4 (`incoming-mail-notification`) is at
+its APPLY stage on `feat/incoming-mail-notification`** - proposal PR #107 merged `788d742`, and
+**what the proposal's measurement already changed is recorded rather than merely noted**: the roadmap's
+own depiction of the notification carried a one-time code in the body, and the shipped requirement
+forbids it, because a code lives in a message body and a listing carries none - see the M10 section
+below. Slice 2's four stages were proposal PR #100
 merged `11c28fa`, apply PR #101 merged `99bc35c`, sync PR #102, archive PR #103 — **and its
 archive moved 6 files, every one SHA-256 identical to the digest taken before the command ran, with
 `.openspec.yaml` kept and all 8 promoted blocks byte-identical again afterwards, checked against
@@ -123,7 +128,7 @@ archived, slice 3 at `openspec/changes/archive/2026-10-09-site-associations/` wi
 lifecycle: proposal PR #96 merged `421d56f` (artifacts commit `e196b8d`), apply PR #97 merged
 `bdd13b6`, sync PR #98 merged `550741f`, archive PR #99.
 
-**M10 is four slices, and two of them are now complete through their full lifecycle.** The roadmap's M10 lists four user actions -
+**M10 is four slices; two are complete through their full lifecycle and a third is at apply.** The roadmap's M10 lists four user actions -
 *copy code*, *open SpectreMail*, *fill code*, *open verification link* - plus an incoming-mail
 notification, and slice 1 takes the two that are website actions and **no** notification, **no** fill
 and **no** `chrome` permission of any kind. `design.md` D1 records why the old prohibition was
@@ -131,6 +136,14 @@ and **no** `chrome` permission of any kind. `design.md` D1 records why the old p
 on it"* forbade exactly the two actions this product exists for. **Slice 2 is the first `fill
 code`**, it lives in the extension's popup rather than on the website, and it adds **no**
 permission, **no** background polling and **no** new persisted record.
+
+**Slice 4 is the first slice that adds a permission, a background schedule, and a persisted record,
+and all three are traceable to a requirement in its own delta** - which is what keeps
+`extension-client`'s *"it SHALL request no permission that no shipped surface uses"* a working rule
+rather than a wish. **It is also the slice that retired that requirement and re-added it**: the
+requirement the old no-polling rule gated on was **REMOVED** once `alarms-packing-interval`
+discharged its measurement clause, and re-added with two of its three clauses carried forward, because
+a rule that is removed must not take the rules inside it with it.
 
 **What slice 1's apply stage actually measured, all of it re-measured rather than
 transcribed:** `pnpm test` is **895 tests across 52 files**, grouped from a JSON reporter -
@@ -3846,26 +3859,47 @@ Complete the browser-native verification flow.
 
 ## Incoming mail notification
 
-> **Status: now unblocked, and carrying a measured constraint.** This item was gated on an
-> unanswered question about MV3 `chrome.alarms` packing. `alarms-packing-interval` answered
-> it on 2026-10-10 (`docs/PROVIDERS.md` §4.1.1): **there is no packing on this substrate**,
-> so `INBOX_POLL_PROMPT_MS` of 5 000 is available to a background poller as written.
+> **Status: delivered by `incoming-mail-notification` (M10 slice 4), and the depiction below is
+> corrected rather than shipped.** The item was gated on an unanswered question about MV3
+> `chrome.alarms` packing. `alarms-packing-interval` answered it on 2026-10-10
+> (`docs/PROVIDERS.md` §4.1.1): **there is no packing on this substrate**, so `INBOX_POLL_PROMPT_MS`
+> of 5 000 is available to a background poller as written.
 >
-> **What replaces the gate is a constraint rather than a permission: concurrent alarms
-> starve one another.** A 5 000 ms alarm and a 30 000 ms alarm armed together produced
-> 24 firings and **0** respectively in the same 120 s window; run alone, the slow one fired
-> four times. **The notification must therefore schedule inside one alarm period, or
-> measure the pair first on the substrate it ships to.** It also needs the `notifications`
-> permission, which is a product permission this repository has never shipped.
+> **What replaced the gate is a constraint rather than a permission: concurrent alarms starve one
+> another.** A 5 000 ms alarm and a 30 000 ms alarm armed together produced 24 firings and **0**
+> respectively in the same 120 s window; run alone, the slow one fired four times. **The notification
+> therefore schedules inside one alarm period** — one alarm, armed once, at the shared cadence. It
+> also needs the `notifications` permission, which is a product permission this repository had never
+> shipped; **both were measured to be granted at install with no prompt** (`docs/PROVIDERS.md` §4.5),
+> which is a claim about *these* permissions and not about an optional one, which prompts by design.
+>
+> **The depiction's body carried the code, and the shipped requirement forbids it.** The first draft
+> of this block showed `583291` in the notification body. That is **not what ships**, and the reason
+> is structural rather than a matter of taste: a code is a detection inside a message *body*, and a
+> listing carries no body — `packages/core` states that codes and links are absent from a summary
+> *"on purpose: listing a mailbox must not require fetching bodies"*. **Putting a code on the lock
+> screen would therefore cost a provider request per notification and would open every message in the
+> mailbox** — a background worker reading mail to build a string a passerby may never look at. The
+> shipped notification names the sender and the subject, which is what a summary carries.
+>
+> **The other two limits are recorded rather than closed.** Nothing observed a notification being
+> *seen* — the headless Chromium that measured the API has no notification centre, and `getAll()`
+> holding an id is registration, which is a smaller fact — and nothing measured how a real provider
+> tolerates being polled every five seconds, because `use it externally` remains unverified.
 
 When likely verification mail arrives:
 
 ```text
 SpectreMail
-Verification code received from example.com
+Message from example.com
 
-583291
+Open SpectreMail to read it
 ```
+
+> **The code is stated, not shown.** The notification says that a message arrived and where to read
+> it, and the requirement forbids naming any other value from that message. **A notification is
+> visible to anyone standing at the screen**, which is the reason the code is not in it rather than a
+> detail of formatting.
 
 ## User actions
 

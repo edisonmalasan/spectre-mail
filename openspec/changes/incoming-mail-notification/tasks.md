@@ -148,21 +148,74 @@
 
 ## 5. Documentation and specs
 
-- [ ] 5.1 `docs/PROVIDERS.md`: record 1.1's measurement with its substrate, beside §4.1.1.
-- [ ] 5.2 `docs/ROADMAP.md`: move the incoming-mail notification out of M10's not-yet-delivered list,
+- [x] 5.1 `docs/PROVIDERS.md`: record 1.1's measurement with its substrate, beside §4.1.1.
+  > **Done as §4.5, with the substrate in the heading rather than a footnote** — Playwright 1.63.0,
+  > unpacked, headless, one machine — and a third column on every row reading what the answer does
+  > **not** establish. **That column is the reason the section is trustworthy:** an icon that
+  > "works" and an icon that *registered* are different facts, and only the second one was measured.
+- [x] 5.2 `docs/ROADMAP.md`: move the incoming-mail notification out of M10's not-yet-delivered list,
   and update the Project Status cursor. **The status block is the root orchestrator's alone.**
-- [ ] 5.3 `AGENTS.md`: update the module note in `service-worker.ts`'s header if it still claims
+  > **Done — and the roadmap's own depiction of this feature was wrong, which is the part worth
+  > recording.** Its depicted notification body carried a one-time code (`583291`), and the shipped
+  > requirement forbids it. **The depiction is corrected in the roadmap rather than quietly left**, and
+  > the reason is structural: a code is a detection inside a message body, `packages/core` says
+  > outright that a summary carries none *"on purpose: listing a mailbox must not require fetching
+  > bodies"*, and **so the depicted feature could only have been built by opening every message in
+  > the mailbox.** A roadmap a change contradicts is a document this repository has to reconcile
+  > rather than leave for the next reader to discover.
+  >
+  > The cursor records that slice 4 is **at apply**, not complete, and names the PR that put it there.
+- [x] 5.3 `AGENTS.md`: update the module note in `service-worker.ts`'s header if it still claims
   `chrome.alarms` "enforces a floor of its own" — that sentence is now false and
   `alarms-packing-interval` measured it false.
+  > **Done in two places, because the sentence existed in two places** — the `service-worker.ts`
+  > module note, **deleted rather than reworded** (what it called a fact was never evidence in either
+  > direction), and `AGENTS.md`'s browser-tier limit list, where the `chrome.alarms` entry was
+  > already closed by the spike and this change **adds a fourth bullet** rather than extending it:
+  > nothing observed a notification being **seen**, which is narrower than "it appeared" in three
+  > named ways (headless has no notification centre; `getAll()` holding an id is *registration*;
+  > nothing covers a platform that accepts a request and shows nothing). **The quarantined-probe
+  > count moved from two to three** and the sentence about what adding a name means with it.
 
 ## 6. Boundaries
 
-- [ ] 6.1 **No boundary rule is retired, exempted or widened.** The count must stay **53** unless a
+- [x] 6.1 **No boundary rule is retired, exempted or widened.** The count must stay **53** unless a
   genuinely new rule is added, and if one is, its property is named beside it. `packages/ui` must stay
   **38** — no new token, no new motion.
-- [ ] 6.2 Check whether `static/manifest.json`'s permissions are read by any existing rule and whether
+  > **Done: `architecture` is 53 and `packages/ui` is 38, both measured rather than asserted here.**
+  > **No new rule was added, and the reason is worth stating because it is the rule this repository
+  > has learned the hard way.** Every property this slice needed was *a rule a reviewer would
+  > otherwise write*: "the worker names no `chrome`", "no module but `alarms.ts` names the period",
+  > "the worker attaches no listener of its own". Each already has an instrument beside it —
+  > the platform-global confinement is a boundary rule, the other two are `service-worker.test.ts` —
+  > **and a second instrument for a property that has one is a duplicate, not a defence.** The M7
+  > slice 4 record names the case exactly: a mutation appeared to show a gap, the "gap" was a
+  > duplicate assertion, and the file was deleted rather than kept.
+  >
+  > **One comment was corrected and one sentence deleted, and neither is a rule change.** The
+  > quarantine list's note on `notification-display.mjs` said the shipped manifest *"deliberately
+  > did not* carry `notifications`* — **half of which became false the moment this change shipped
+  > it**, while the other half was never the reason the probe is quarantined. Deleted rather than
+  > reworded, with the real reason written in its place: **the script is quarantined because it is an
+  > instrument, and its fixture is free to vary a right the product already holds.**
+- [x] 6.2 Check whether `static/manifest.json`'s permissions are read by any existing rule and whether
   the two additions need a case. **The `extension-client` manifest scenario is a requirement, not a
   boundary rule**, so the enforcement is the requirement being falsifiable — see 6.3.
+  > **Checked, and one case had become false rather than one needing to be added.** `manifest.spec.ts`
+  > reads `permissions` and asserted `["storage"]`, so the two additions would have failed it — which
+  > is the rule working, and it took **two mutations** to make the assertion mean what it says
+  > (§7.1). It now reads the three and says *why each is there*: `storage` by the popup and the
+  > content script, `alarms` and `notifications` by the worker, and `tabs`/`scripting`/`activeTab`
+  > still absent because no shipped surface needs them. **A requirement that forbids an unused
+  > permission is only a rule if something reads the list**, and this was the one place that does.
+  >
+  > **The new case is the icon, and it exists because the failure it catches is silent by
+  > measurement**: a notification naming an icon the build did not carry **resolves its callback and
+  > registers nothing** (§4.5), so no callback, no build and no assertion would ever notice. It
+  > reads the PNG signature *and* its `IEND` chunk — so a truncated write and an HTML error page
+  > served in its place are both refused — and asserts `manifest.icons` and
+  > `action.default_icon` stay `undefined`, **which is the half that could be forgotten and the half
+  > that makes the other half mean anything.**
 
 ## 7. Verification
 
