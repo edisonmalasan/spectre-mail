@@ -207,6 +207,23 @@ export interface RecordingOptions {
 export interface ProviderTraffic {
   /** Every URL the page requested, whatever its origin. */
   readonly requested: readonly string[];
+  /**
+   * When each of those requests was made, in the same order as {@link ProviderTraffic.requested}.
+   *
+   * **A log of URLs alone cannot answer "how many times did this happen?", and a spec that
+   * asked anyway would be reading its own arithmetic.** The one caller that asked is
+   * `background-check.spec.ts`: a wake that listed twice and two wakes that listed once each both
+   * produce a log of **two** URLs, and a count that accepts either is not a measurement of a
+   * per-wake cost — it is a measurement of a total. Requests made by one iteration of a loop are
+   * milliseconds apart; requests made by two iterations of a *timed* loop are a period apart, and
+   * **the gap is what separates the two**.
+   *
+   * **Milliseconds from `Date.now()`, taken at the moment the route handler runs.** That is the
+   * instant the request was observed reaching the interceptor, which is early enough to be before
+   * any response and late enough to be after the caller's `fetch`. It is not a measure of anything
+   * about a provider, and no case asserts an absolute duration against it.
+   */
+  readonly requestedAt: readonly number[];
   /** Every origin that was requested but had no script, and therefore was aborted. */
   readonly unscripted: readonly string[];
 }
@@ -222,6 +239,7 @@ export async function recordProviderTraffic(
   options: RecordingOptions = {},
 ): Promise<ProviderTraffic> {
   const requested: string[] = [];
+  const requestedAt: number[] = [];
   const unscripted: string[] = [];
 
   await context.route("**/*", async (route) => {
@@ -236,6 +254,7 @@ export async function recordProviderTraffic(
     }
 
     requested.push(url);
+    requestedAt.push(Date.now());
 
     if (options.mailTmUnavailable && url.startsWith("https://api.mail.tm")) {
       await route.fulfill({ status: 503, contentType: "application/json", body: "{}" });
@@ -282,6 +301,9 @@ export async function recordProviderTraffic(
   return {
     get requested() {
       return requested;
+    },
+    get requestedAt() {
+      return requestedAt;
     },
     get unscripted() {
       return unscripted;

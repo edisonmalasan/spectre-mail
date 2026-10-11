@@ -59,6 +59,7 @@ import {
 } from "../src/content-script/affordance";
 import { IN_PAGE_CREATE_CEILING_MS } from "../src/content-script/create-wait";
 import { EXTENSION_PROVIDER_IDS } from "../src/provider-config";
+import { clearArmedAlarms } from "./helpers/background-state";
 import {
   clearStoredMailbox,
   readHeldAddresses,
@@ -116,6 +117,24 @@ test.afterEach(async () => {
   while (opened.length > 0) {
     await opened.pop()?.close();
   }
+
+  /**
+   * **The background check is disarmed after every case here, for the reason the module note above
+   * gives about provider work outliving the page — applied to the schedule rather than the request.**
+   *
+   * Creation in this file is **delegated**: the content script asks this extension's worker, and the
+   * worker arms the 5 000 ms alarm on a mailbox it actually recorded
+   * (`service-worker.ts`, `design.md` D14). So a case here starts provider work *on a schedule*, and
+   * the alarm outlives the document exactly as the late-answer rule says the worker does.
+   *
+   * **This file's assertions are already tolerant of a wake** — a wake requests `api.mail.tm`, which
+   * this tier scripts, and every count here is about delegation reaching one origin or the other
+   * rather than about how many listings were made. The disarm is therefore not repairing a failure
+   * observed here; it is stating the precondition this file now needs so that a *future* exact count
+   * is not written against a schedule it never disarmed. **A precondition added before the assertion
+   * that needs it is the cheap direction**; the recorded cases all went the other way.
+   */
+  await clearArmedAlarms(extension);
 });
 
 /** A promise the spec resolves, and the two halves it needs to do that. */
