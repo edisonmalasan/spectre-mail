@@ -149,6 +149,25 @@ So the free route exists and costs a round trip to the content script that alrea
 across every window. **M11 slice 1 chooses between two measured routes rather than assuming a panel
 sees what a content script sees.**
 
+**M11 slice 1 is now PROPOSED as `side-panel-surface`.** The route was chosen by the maintainer
+after §4.6 was recorded: **the content-script round trip, and not the `tabs` permission** — the
+free route exists, and `in-page-integration` carries a promoted requirement whose generalised
+manifest clause makes every permission this extension requests traceable to a shipped surface,
+so `tabs` would be a permission declared for a convenience on one page. The slice also makes
+**the hostname and nothing else** the answer, which is the sharpest decision in it: a signup
+page's query string is where its tokens are, and a panel reporting `location.href` would hold one
+for every page it had been docked beside.
+
+**Two facts about the slice are recorded now rather than discovered later.** One is a
+**prediction, not a measurement**: §4.6 measured the panel document as an *active* tab and found
+that it cannot answer "which page am I beside", but `in-page-fill.spec.ts` already backgrounds
+the same kind of substitute to get the popup's query to name the fixture page — and whether that
+arrangement works for a panel is measured in `tasks.md` §2 before any case depends on it. The
+other is a **premise nothing in this repository can verify**: with `openPanelOnActionClick` left
+unset, the panel is reachable only through Chromium's own side-panel entry point, and no
+instrument here reads a browser's own UI. Both are in `design.md` D6 and D7 rather than left for
+the first person to open a panel and find out.
+
 **Three things the spike cost more than its finding, and they are recorded because a spike that looks
 cheap in its diff is not cheap in its blast radius.** It edited **two boundary rules and one eslint
 config**, and **both edits were found by a gate failing on a tree nobody had broken** - the storage

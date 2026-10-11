@@ -1,0 +1,42 @@
+schema: spec-driven
+created: 2026-10-11
+
+# This change PROMOTES a delta. skip_specs is deliberately absent and false.
+
+# side-panel-runtime-facts declared skip_specs because it changed no product behaviour: it added
+# an instrument and recorded what it observed, and inventing a delta to satisfy validation would
+# have added a requirement describing a platform's behaviour — which is exactly what the
+# requirements it bears on exist to prevent.
+#
+# This change is the opposite case and the difference is the whole reason the stage exists. It
+# ships a surface, and the two requirements it amends are the ones whose assertions the surface
+# bears on. Both amendments were written as amendments rather than as deletions, because:
+#
+#   extension-client / "The extension declares its non-goals as requirements"
+#     Its own second scenario requires the milestone that adds a forbidden surface to AMEND the
+#     requirement rather than delete the assertion, and this is that milestone for the last three
+#     items on its list. Taking all three leaves the list empty; an empty list makes the
+#     requirement vacuous while it still reads as though it asserts something, which is the same
+#     shape as the retired-rule-without-its-requirement defect the boundary tombstone exists to
+#     prevent. It is rewritten over the CLASS of surfaces — every manifest surface key plus every
+#     declared document path — which is BROADER than the three-item list it replaces, because
+#     options_ui, devtools_page and chrome_url_overrides would all have passed the old text.
+#     The assertion survives and is arguably stronger; nothing is deleted.
+#
+#   in-page-integration / "A code reaches the page without a permission this extension does not
+#   already hold"
+#     Its manifest scenario read "WHEN the extension's manifest is read AFTER THIS CHANGE", which
+#     stops guarding anything the moment the change it names is archived. The clauses are
+#     generalised to the standing form — every permission the manifest requests SHALL be one a
+#     shipped surface uses — which is what makes the new `sidePanel` permission honest. The
+#     scenario's HEADING is deliberately left reading "after this change": a MODIFIED block
+#     replaces the whole requirement and OpenSpec refuses a promotion that drops a scenario the
+#     current spec still has, so rewording it would be the cheaper reading only until the next
+#     change modified this requirement and found the validator would not let it. That is a small
+#     permanent cost for a rule that cannot be silently narrowed, and it is recorded in the
+#     requirement rather than worked around silently.
+#
+# The permission requirement's SUBSTANCE is unchanged and is the reason this change takes the
+# content-script round trip rather than the `tabs` permission: nothing was relaxed to make
+# `sidePanel` fit, because `sidePanel` is traceable to a requirement in this delta that cannot be
+# met without it, which is exactly what the generalised clause asks for.
