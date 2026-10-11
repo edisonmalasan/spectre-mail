@@ -852,7 +852,8 @@ Pin versions when exact versions matter.
   reworded.**
 
 - Testing: Vitest `3.2.7` at the workspace root, verified running **1093 tests across
-  58 files** via `pnpm test` (2026-10-11, at `incoming-mail-notification`'s apply stage, with
+  58 files** via `pnpm test` (2026-10-11, at `incoming-mail-notification`'s apply stage, and
+  **re-measured at `side-panel-runtime-facts`'s apply stage with every figure identical**, with
   `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory), counted from a
   JSON reporter **grouped by project** rather than read off a summary line:
   54 in `packages/core`, 92 in `packages/providers`, **149 in `packages/mail-parser`**,
@@ -868,6 +869,19 @@ Pin versions when exact versions matter.
   **11** in `notification.test.ts`, **7** in `alarms.test.ts`,
   **5** in `popup-copy.test.ts`, **8** in `service-worker.test.ts`, **4** in `scheduler.test.ts`),
   **38 in `packages/ui`**, and **53 architecture boundary assertions**.
+  **`side-panel-runtime-facts` moved no total at all, and that is the whole claim.** It is a
+  measurement spike: it ships one `.mjs` and one fixture, **zero files under `apps/extension/src/`
+  and a byte-identical `apps/extension/static/manifest.json`**, so `apps/extension` is still
+  **330**, `apps/web` still **125**, `packages/ui` still **38 for the tenth time**, and the
+  boundary count still **53**. **53 staying at 53 while two boundary rules were edited is the
+  measurement worth reading twice**: the edits were an entry in `SKIP_DIRECTORIES` and a control
+  pair, both added *inside* an existing test, so **the count says nothing about whether the work
+  happened — the diff does** — and a change that had added a fourth rule to "prove" the probe was
+  quarantined would have added a rule where an instrument already existed, which is not coverage.
+  **`pnpm test:browser` was re-run and is still 40 website and 67 extension cases**, which is the
+  other half: the fixture directories are not collected by any suite, and the rule requiring every
+  shipped `*.spec.ts` to be collected by exactly one browser suite is what says so rather than a
+  note.
   **`incoming-mail-notification` moved `apps/extension` 262 → 330, `packages/storage` 78 → 86,
   `packages/mailbox` 158 → 166, and moved nothing else - and the four numbers that did not move are
   the measurement this change's plan turned on.** `apps/web` is still **125**, which is how the
@@ -2186,16 +2200,33 @@ it or inherit the previous one's mailbox.
   **recorded** one, imported by name from `packages/providers`, and any other origin is
   aborted **and reported by name**; the extension's tier additionally asserts that it
   **requests no origin it did not script**. `use it externally` remains unverified, and a
-  stored mailbox has still never been reconciled against a live Guerrilla Mail session. The
-  one live call in this repository is `apps/extension/e2e/live-host-permission.mjs`, which is
-  **quarantined from all three suites** and enforced by a boundary assertion. **There are now three
-  quarantined probes and the assertion covering them is a list, not a per-probe rule** — that is
-  what makes opting a fourth one out a matter of adding a name rather than writing a new test. **The
+  stored mailbox has still never been reconciled against a live Guerrilla Mail session.
+  **There are now two live calls in this repository and both are quarantined**, which
+  makes the sentence this replaces false in the direction that matters: `live-host-permission.mjs`
+  is no longer *the* one, because `side-panel-runtime.mjs` also reaches a real provider origin in
+  one arm — establishing that an extension-hosted page **may** fetch a provider, the panel half of
+  the question §4.4 answered *no* for a content script. **That request's body is never read**, and
+  the arm's whole claim is whether the request was allowed. **There are now four quarantined probes
+  and the assertion covering them is a list, not a per-probe rule** — that is
+  what makes opting a fifth one out a matter of adding a name rather than writing a new test. **The
   same assertion now also checks that every probe's spelled `--load-extension` /
   `--disable-extensions-except` flags agree with `extensionFlags()`**, because a plain `.mjs`
   cannot import the TypeScript helper; **that duplication already existed and was unasserted before
   the second probe, and Chromium reports no error when an extension fails to load — it silently
   loads nothing.**
+- **Nothing about a side panel a person would see, and nothing about a panel that could be *asked*
+  whether it ran.** §4.6 measured the API and no further: `open()` resolved from a real click and
+  the panel's document then executed and wrote its own report, **but the Chromium is headless and
+  nothing in either tier reads a rendered pixel**, so *docked*, *opened* and *ran* are three
+  measured facts and *visible* is none of them. **Playwright adds no `Page` for a docked panel at
+  all** — the page count rose only by the launcher's own page — so the tier's usual instrument is
+  simply unavailable here. **And one run in six failed to dock the panel at all, with no cause
+  diagnosed**; the instrument reported that correctly (`MISS` arms, `answerable: false`, exit `1`)
+  rather than passing, and a repeatability figure without a cause is a number rather than a
+  finding. The substitute this repository uses — opening the panel document *as a tab* — **is a
+  substitute and cannot answer the question it was built for**: a tab-hosted document is its own
+  active tab, so it cannot test "which page am I beside". `apps/extension/e2e/side-panel-runtime.mjs`,
+  quarantined beside the other three.
 - **Nothing about how a real provider tolerates being polled.** The cadence assertions
   read the delay the scheduler was asked for; no live provider has been polled here.
 - **Nothing about Firefox or WebKit.** One engine is configured, on purpose: adding a

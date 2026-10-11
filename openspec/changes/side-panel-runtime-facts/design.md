@@ -83,6 +83,46 @@ and the two facts are named, because *"one variable"* is not the same claim as *
 | `control/` | the surface is **not declared**: no `sidePanel` permission and no `side_panel` key — **one variable, two lines**, because Chromium requires both before the API exists | is the API absent without it declared? |
 | `tabs/`    | one entry added: `tabs`                                      | does reading the active tab's URL cost a permission? |
 
+**One code copy and two manifest fragments, not three directory copies — and the reason is a
+defect rather than a preference.** The first version of this decision said each sibling would be an
+*exact copy* of the fixture, which is what `notification-probe/` does. Copying there was cheap
+because its `probe.js` is a notification attempt and a short control-only variant stood in for it.
+**Copying here would put three copies of the panel-report code on disk**, and three copies of the
+file under measurement is the shape this repository records as *"the arms are not comparable"* — one
+edited and two stale measures three different programs and reports it as one variable.
+
+So the committed tree is **one fixture and two fragments**: a `manifest.json` base, a `variants/`
+directory holding `control.json` and `tabs.json`, and the one set of documents — `probe.js`,
+`sidepanel.html`, `sidepanel.js`, `launcher.html`, `launcher.js`.
+
+**Each fragment is a whole top-level replacement, never a merge of its contents.** `permissions` is
+replaced wholesale rather than unioned, so a fragment cannot silently accumulate an entry the base
+did not have. The merge is shallow over the top level and nothing else, and **task 1.4 merges each
+fragment and diffs the result against the base**, which is what makes the merge a checkable
+operation rather than a step a reader has to trust.
+
+**And the first version of task 1.4's script failed on its first run, because a shallow merge
+cannot delete.** It reported `control differs by ["permissions"]` where the decision required
+`["permissions", "side_panel"]`: the fragment named only `permissions`, so `side_panel` was
+inherited from the base intact. **A control that still declared a side panel would not have been a
+control** — the arm it exists to run asks whether the platform grants a panel *without* the
+permission, and a fixture that declares one answers that question by construction. Every later arm
+would have been measured against a control that agreed with it.
+
+So the merge carries **one deletion rule**, stated here because it is the only rule and a reader
+implementing it differently would produce a green run about a different fixture: **a key whose value
+is `null` removes the key.** A second rule came with it — **a key beginning with `_` is an
+annotation for a person and never reaches the materialised manifest**, because a comment that
+survives into a manifest is one refactor away from being load-bearing.
+
+**A fixture that cannot be told apart from its control is the defect, and the check found it
+before a single arm ran.** Both rules are asserted on their own in the script, so changing either is
+a red run rather than a difference no arm reports.
+
+**The materialised fixtures are written under `test-results/`**, for the reason
+`notification-display.mjs`'s header gives for writing its PNG there: a generated copy under
+`test-results/` cannot go stale and survive a run to be read as evidence about a later one.
+
 **Why the control is not optional.** This is `notification-display.mjs`'s recorded lesson, stated
 there as *"the alarms probe's own lesson: its first version armed two alarms at once, called the
 competitor a positive control, and produced 0 firings for one of them — a control that shares the
@@ -142,6 +182,27 @@ a window with no content script must still produce a report, saying so. If the d
 `open()` resolving, that arm would be indistinguishable from a working panel — and *"the panel cannot
 say which page it is beside"* is the failure mode slice 1's whole design turns on.
 
+**Measured, and this decision's own gap was demonstrated by this repository's fixture rather than by
+the platform.** The first version of `sidepanel.html` carried **no `<script>` tag**, so every arm that
+depends on the panel reported nothing while `open()` resolved and the launcher printed that the panel
+had opened. **That is the exact failure this decision exists to catch, produced by the probe itself** —
+and it is recorded here rather than only in §4.6 because a decision that is only ever tested against
+a *hostile* platform is a decision whose failure mode has never been produced locally.
+
+**And the API this decision would have used for a second opinion is not there.**
+`chrome.sidePanel.getPanelState` is **`undefined` on this Chromium** while `open` and
+`setPanelBehavior` are functions. **D4 therefore has no third observation on this substrate**, and
+that is a finding about the measurement rather than a gap in it: had the driver relied on
+`getPanelState`, it would have thrown on every arm and reported an instrument fault where the platform
+is merely different. The absence is a **§4.6 row**, because a reader deciding whether to use it on
+another Chromium needs to know it was looked for and not found.
+
+**One instability is recorded rather than diagnosed.** Across the runs taken while recording §4.6,
+**one run in six failed to dock the panel in either stage**; three consecutive re-runs produced four
+panel reports each. **The instrument reported it correctly** — `MISS` arms, `answerable: false`,
+exit `1` — which is D6 working, not a flake being tolerated. **No cause is claimed**, because none was
+found, and a repeatability figure without a cause is a number rather than a finding.
+
 ### D5 — A tab switch is **driven**, not waited for, and read back as a *second* report
 
 **Decision.** After the first report is read, the driver switches the fixture window's active tab
@@ -189,10 +250,23 @@ shape, and it is written the day the measurement is taken rather than reconstruc
 
 ### D8 — The fixture's rights are declared in its own `manifest.json` description
 
-**Decision.** `side-panel-probe/manifest.json` declares `sidePanel`, `storage`, `tabs` and the two
-provider host patterns, and its `description` field states **why**, in the words
-`notification-probe`'s already uses: *the instrument that answers a question may need rights the
-product does not have yet.*
+**Decision.** The base declares `sidePanel`, `storage`, a content script, and the two provider host
+patterns; its `description` field states **why**, in the words `notification-probe`'s already uses:
+*the instrument that answers a question may need rights the product does not have yet.*
+
+**`tabs` is not on that list, and the reason is D2's amendment.** It was in the first version of
+this decision, written while the variants were three directory copies and the base carried every
+permission any arm needed. With one base and two fragments, **`tabs` is the `tabs` variant's whole
+point** — declaring it on the base would have made the arms D2 exists to price indistinguishable,
+and the list would have been accurate about the file and misleading about the measurement.
+
+**Two of the entries are not rights at all, and both are here for a named reason.** The content
+script exists because `proposal.md` asks whether a panel can `chrome.tabs.sendMessage` the page
+beside it, and that question has no answer without a page that answers; the provider host patterns
+exist because the same list asks whether an extension-hosted page can reach a provider origin
+directly rather than delegating to the worker the way a content script must (§4.4 measured the
+content-script half). **Neither is a permission the shipped extension is being asked to take**, and a
+reader checking this list against the product's should find the difference is the whole design.
 
 **Why this is a design decision and not a copy.** The shipped manifest requests
 `["storage", "alarms", "notifications"]`. A probe whose fixture silently acquired `sidePanel` and
@@ -210,6 +284,92 @@ manifest deliberately lacks (`alarms-packing.mjs` staged `alarms` + `storage`;
 `notification-display.mjs` staged `notifications`). **The pattern is the finding**: this repository
 has a mechanism for learning what a new surface needs *without* declaring it first, and every
 future surface decision should be expected to route through it rather than around it.
+
+### D10 — A quarantined probe's *artefact* is still an artefact, and the boundary rule had to learn it
+
+**Found at apply, group 7, by the boundary suite failing on the shipped tree** — and the suite was
+right and the tree was not wrong. Adding this probe to `QUARANTINED_PROBES` made its name correct;
+it did nothing about the directory the probe *writes*. `side-panel-runtime.mjs` stages its fixture
+into `apps/extension/test-results/`, because a materialised `manifest.json` per variant is the whole
+mechanism behind D2's merge rules, and Playwright's output directory is the one place the
+repository already has for exactly that. **That directory is gitignored and nothing ships from it.**
+
+**So the storage rule reported a staged copy of `e2e/fixtures/side-panel-probe/sidepanel.js` for
+the `chrome.storage.local` calls its own source is written with** — and the source copy is *already
+exempt*, because it lives in a browser suite's `testDir`. **The same file was therefore judged twice,
+once correctly and once wrongly, with only the difference between them being which directory it
+sat in.** That is the **third recorded instance of this repository's "an artefact the measurement
+itself creates" defect**, and the first two were both in the *instrument* rather than the *rule*:
+the block-runner fingerprint that reported 2 930 changed files, and the `dist/` that outlived a
+restore. **The recurring shape is the same in all three: something that cannot tell a file it should
+read from a file it created reports on every run, which reads as busy rather than as broken** — and
+the natural response to a crying wolf is to delete the rule.
+
+**The repair is the definition `dist`, `build` and `coverage` already carry**, so `test-results` is
+added to `SKIP_DIRECTORIES` with its reason attached rather than exempted inside one rule. **It was
+not added as a carve-out inside `clientStorageApiViolations`**, because that function takes no
+argument and the repository has already paid once for a rule's second spelling of what it scans:
+M6 slice 1's falsification rewrote a call site to narrow a package list and the suite stayed green.
+
+**And a skip nobody has watched fire is a hole, so the control is a pair.** A probe inside
+`apps/extension/test-results/` must go **un**reported — load-bearing on a real artefact, because the
+run stages a copy there on every execution — and a probe in `apps/extension/test-results-src/`, whose
+name *contains* the skipped one, must still be **reported**, which is what distinguishes a
+whole-path-segment match from a substring one. **`test-results-src` rather than `testResults` or
+`test_results`,** because a normalising implementation is a different defect that a camelCase
+spelling would pass for the right reason. Both arms were run: removing the entry is caught, and
+turning the walk into a substring test is caught.
+
+**`SKIP_DIRECTORIES` feeds three call sites, so one entry covers all three**, and the browser-spec
+collection rule beside it now cannot require collection of a `.spec.ts` inside an output directory.
+That is correct — nothing there is shipped — and it is stated rather than discovered later, because
+a skip that quietly widens one rule while narrowing another is the shape of a change that reads as
+one line.
+
+### D11 — A fixture spanning three contexts declares each one exactly, and the config's merge semantics are why
+
+**Found at apply, group 7, by `pnpm lint` — the same gate that `extension-preview`'s falsification
+harness failed, for the same class of reason.** `eslint.config.js` gives a file **one** environment,
+and the block covering `e2e/fixtures/**/*.{js,mjs,cjs}` declares a **service worker**, because the
+first fixture to need one (`alarm-probe`) was a worker. `side-panel-probe` is a worker *and* a side
+panel document *and* a launcher document *and* a content script, so its three document scripts were
+linted as workers and `pnpm lint` reported `document is not defined` on `launcher.js` — correctly.
+
+**The fix that looks right and is not: declaring the union.** `{ ...serviceworker, ...browser }`
+would have silenced both errors, and it would have done it by **teaching
+`alarm-probe/probe.js`, `notification-probe/probe.js` and `notification-probe/control/probe.js`
+that `document` is defined** — the exact "wrong environment" failure the worker block's own comment
+records having avoided. **Three worker fixtures would have stopped being told they are workers**,
+in a configuration nobody was editing, with a green `pnpm lint` and no diff anywhere near them.
+
+**So the fixture makes the split in its own layout**, and the environment is then matched by shape:
+the three document scripts move under `documents/`, beside `probe.js` rather than among it. **A
+second mixed fixture is then covered by existing rather than by remembering** — the same reason the
+two blocks above are matched by shape — and a file moved into `documents/` needs no configuration
+edit to be linted as a page.
+
+**And the exclusion in the worker block is load-bearing rather than decorative, which was checked
+rather than believed.** Flat config **merges** `languageOptions.globals` across every matching
+config object, so a `documents/` block declared after the worker block would hand these files the
+worker globals too — **the union back, reintroduced implicitly by a merge**, which is the least
+visible way to reintroduce it and the reason `ignores: ["**/e2e/fixtures/**/documents/**"]` sits on
+the worker block rather than being left to the later one. Both directions were run: removing the
+`documents/` block reports `document is not defined` again, and **removing the `ignores` line makes
+`importScripts` ACCEPTED in a document script** — which is the proof that the merge is real, and it
+is a pass for the mutation and not a failure of it.
+
+**That second arm was recorded as a survivor on its first run, and the survivor was the harness's
+error rather than the configuration's.** It was written with L1's polarity — *this global must be
+rejected* — when L2's claim is the opposite one: *removing this line changes the answer*. **An arm
+with the wrong polarity reports a correct configuration as broken**, which is the most expensive
+direction for a falsification harness to be wrong in, because the obvious repair is to delete the
+configuration that was right.
+
+**The relocation was then measured, not assumed.** The driver's `stageVariant` copied six file
+names individually, so it learned the split a second time in a list whose job is catching strays; it
+now copies the `documents/` tree. **Every value in the verdict is unchanged after the move** —
+`answerable: true`, all nine arms observed, both hostname readings identical — which is the check
+that a restructure of a green instrument is the one that matters.
 
 ## Risks / Trade-offs
 
@@ -246,7 +406,12 @@ future surface decision should be expected to route through it rather than aroun
 None. Nothing shipped changes; the only new committed file reachable by any runner is one `.mjs`
 name added to `QUARANTINED_PROBES`, and that rule fails the build if any runner ever collects it.
 
-**Rollback** is deleting the probe script, its fixture directory and one list entry.
+**Rollback** is deleting the probe script and its fixture directory, reverting the two boundary
+edits named in **D10**, and removing one list entry. **That is two files and a list, not one list
+entry** — the sentence this replaces said "one list entry" and was true when written, and became
+false the moment a quarantined probe's staged fixture reached a boundary rule. **A rollback plan that
+was written before the change was applied is a prediction about the change's blast radius**, and the
+prediction to distrust is the one that says *small*.
 
 ## Open Questions
 
@@ -257,4 +422,4 @@ name added to `QUARANTINED_PROBES`, and that rule fails the build if any runner 
   it is measured before slice 2 is proposed, by this same instrument.
 - **Whether the panel and the worker can both be alive and both polling the same mailbox** — the
   shape §4.1.1's starvation finding makes worth asking before slice 2 exists. Also deferrable, and
-  for the same reason: it is a §4.6 row now and a design decision at slice 2, not a blocker here.
+  for the same reason: it is a §4.6 row now and a design decision at slice 2, not a blocker here

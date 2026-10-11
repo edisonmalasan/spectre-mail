@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>SpectreMail side-panel probe</title>
+  </head>
+  <body>
+    <!--
+      The panel document itself.
+
+      **Deliberately renders nothing.** This is not a depiction of a side panel and it is not a
+      substitute for one; it is the addressable document `side_panel.default_path` names, and the
+      only thing this repository is measuring about it is **what a document hosted in a panel can
+      see**. Rendering something would make it look like a designed surface that no capability
+      describes, which is the fake-UI defect `page-composition` exists to forbid.
+
+      Everything this document learns is written by `sidepanel.js` into `chrome.storage.local`, and
+      the driver reads it back through the worker's published surface. The panel is not observable
+      from Playwright, so storage is the channel.
+
+      **The script tag was missing from the first version of this file, and the run found it.** Every
+      arm that depends on the panel reported nothing while `open()` resolved and the launcher said
+      "opened" — which is precisely D4's gap, demonstrated by this repository's own fixture instead of
+      by a platform. A document that loads no script cannot report, and "cannot report" is the same
+      output as "was never mounted".
+    -->
+    <script type="module" src="sidepanel.js"></script>
+  </body>
+</html>

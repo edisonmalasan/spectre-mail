@@ -154,8 +154,45 @@ export default tseslint.config(
     // Matched by shape (`e2e/fixtures/`) rather than by naming this directory, so a
     // second quarantined fixture is covered by existing rather than by remembering.
     files: ["**/e2e/fixtures/**/*.{js,mjs,cjs}"],
+    // **The exclusion is load-bearing, and it is here rather than because flat config is
+    // tidy.** `languageOptions.globals` from two matching config objects are *merged*, so a
+    // `documents/` block declared after this one would hand these files the service worker
+    // globals as well and the union would be back - declared implicitly, by a merge, which is
+    // the least visible way to reintroduce it. Excluding the shape here is what makes "each
+    // environment is exact" a property of the configuration rather than a hope about it.
+    ignores: ["**/e2e/fixtures/**/documents/**"],
     languageOptions: {
       globals: { ...globals.serviceworker, chrome: "readonly" },
+    },
+  },
+
+  {
+    // **The scripts of a fixture that runs in a document**, which is the same three-context
+    // problem one level up, and the block above's own warning is what it runs into.
+    //
+    // `side-panel-probe` holds a service worker *and* a side panel document, a launcher
+    // document and a content script. ESLint has one environment per file, so one of the two
+    // has to be declared rather than inferred - and **declaring the union would have been
+    // the fix that looks right and is not**: it would teach `alarm-probe/probe.js`,
+    // `notification-probe/probe.js` and `notification-probe/control/probe.js` that `document`
+    // is defined, which is precisely the "wrong environment" failure the block above records
+    // having avoided. **Three worker fixtures would have stopped being told they are workers**,
+    // silently, in a configuration nobody was editing.
+    //
+    // So the fixture makes the split in its own layout instead: the three document scripts
+    // live under `documents/`, beside `probe.js` rather than among it. **The environment is
+    // then matched by shape, so a second mixed fixture is covered by existing rather than by
+    // remembering** - which is the reason the two blocks above are matched by shape too, and
+    // the reason a file moved into `documents/` needs no configuration edit to be linted as a
+    // page.
+    //
+    // **`chrome` is declared explicitly for the same reason the worker block declares it**:
+    // `globals.browser` does not carry it, and an environment key that quietly lacks the one
+    // global a file exists to use is a gap that only shows up as a lint error on the wrong
+    // side of a real change.
+    files: ["**/e2e/fixtures/**/documents/**/*.{js,mjs,cjs}"],
+    languageOptions: {
+      globals: { ...globals.browser, chrome: "readonly" },
     },
   },
 

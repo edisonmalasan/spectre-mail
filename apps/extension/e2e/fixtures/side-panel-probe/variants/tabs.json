@@ -1,0 +1,4 @@
+{
+  "_comment": "Merged over the base manifest by a shallow top-level assign. `permissions` is replaced WHOLE, never unioned, so a fragment cannot accumulate an entry the base did not have. This variant varies one thing only: it adds the `tabs` permission, so any difference in what the panel can see is attributable to that entry. Only the driver materialises this file.",
+  "permissions": ["sidePanel", "storage", "tabs"]
+}
