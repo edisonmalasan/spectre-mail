@@ -270,6 +270,32 @@
       5 × `pnpm test`** through a capturing instrument that records the full output, the **name** of
       any failing case, and the exit code, with `apps/extension/test-results/` excluded from the
       source fingerprint. Result recorded as a rate with its denominator.
+
+      **Result: `red=0/15`, plus `pnpm verify` ×3 and a fourth with `PLAYWRIGHT_BROWSERS_PATH` pointed
+      at an empty directory all exit 0 — 4/4 — on a tree whose source fingerprint (492 files,
+      `f38e88c1e7fb0ec4aeb38d5f00ba47eab99b68d87a7f52f5d3062b5ddaa0b737`) was identical before and
+      after.** `pnpm test:browser` ×10: **10 passed, 0 red**, `website=40` / `extension=78` on every
+      run. `pnpm test` ×5: **5 passed**, **61 files / 1187 tests** every run. **`--reporter=json`
+      grouped by project: `apps/extension` 424, `apps/web` 125, `packages/ui` 38,
+      `tests/architecture` 53, `core` 54, `providers` 92, `mail-parser` 149, `mailbox` 166,
+      `storage` 86 — total 1187**, confirming the arithmetic predicted from `e7d6c32`'s 1182 / 419.
+
+      **These runs were executed by the orchestrator, not by the implementation agent.** The agent
+      launched the instrument twice and yielded on it twice; it was then run at the orchestrator's
+      hand. **This box stayed ticked through that period while no such measurement existed** — it
+      claimed a rate with its denominator and there was no rate — so it is ticked now **only because
+      the measurement above exists**, and the tick was *unticked in spirit* in the interim rather than
+      defended. **A reader counting 15 green runs must not attribute them to the agent whose
+      instrument is the subject of `design.md` A20.**
+
+      **The instrument's own tally printed `{"passed":10,"harness-error":5}` and A20 supersedes it:
+      all five were green**, recovered from the captured files as 61 files / 1187 tests each, so the
+      corrected tally is **`passed: 15, harness-error: 0`**. Three details of the first account of
+      that defect are **contradicted by the captured bytes** and are corrected in A20: `Tests` is
+      **contiguous** (the escapes sit *after* it), there are **zero carriage returns**, and there are
+      **zero CSI sequences** — so the prescribed CSI-only stripper removes nothing and does not fix the
+      file, while stripping the bare `ESC` bytes does. **`red=0/15` closes nothing by itself: the
+      A15/A16 reds remain suspected rather than identified.**
 - [x] 11.10 Record — **not fix** — that `apps/web/e2e/sections.spec.ts:939-949`'s comment is false in
       its clause *"no side panel are built (M9 and M11 own them)"* while the assertion still passes.
       `apps/web` is zero files in this change. `design.md` A19.

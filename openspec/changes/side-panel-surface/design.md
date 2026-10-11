@@ -927,3 +927,113 @@ the moment the website depicts the panel — and `D9` commits `apps/web` to no c
 milestone, so a comment claiming this change made the list stale would itself be the claim that had to
 be withdrawn later. **Recording it is the honest alternative to silently editing a file the change
 promised not to touch.**
+
+### A20 — The red hunt: green 15 of 15, and the instrument that could not read five of them
+
+**The orchestrator ran this measurement, not the implementation agent.** It was launched twice and
+yielded on twice; it was then executed at the orchestrator's hand, and **every run in this section was
+produced there**. That is stated first because a reader counting 15 green runs would otherwise
+attribute them to the agent whose instrument is the subject of the second half of this section, and
+**an agent claiming runs it did not execute is the exact defect `build-and-verification` exists to
+prevent.** Task **11.9** was ticked for several turns while no such measurement existed — it claimed a
+rate with its denominator and there was no rate — and is kept ticked now **only because the
+measurement below exists.** The tick was *unticked in spirit* in the interim and the honest state was
+recorded rather than defended.
+
+**The measurement, on `a8fce77`, and its precondition first.** Source fingerprint **492 files, digest
+`f38e88c1e7fb0ec4aeb38d5f00ba47eab99b68d87a7f52f5d3062b5ddaa0b737`, identical before and after** — no
+source moved while the measurement ran, **and that is what makes these runs comparable to each other and
+to the fingerprint `e7d6c32` was accepted on.** Two earlier launches of this same instrument were killed
+part-way through (`browser-01`, `EXIT=-1`) precisely because they were measuring a tree that was about
+to change, and **a measurement taken while the tree is moving is not a weak measurement, it is not a
+measurement** — so those two partial runs are discarded rather than reconciled, and the fingerprint is
+recomputed per launch rather than carried forward.
+
+- **`pnpm test:browser` × 10 — 10 passed, 0 red**, `website=40` and `extension=78` on **every** run.
+- **`pnpm test` × 5 — 5 passed**, **61 files / 1187 tests** on every run.
+- **`pnpm verify` × 3, plus a fourth with `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory —
+  exit 0 each**, 61 files / 1187 tests and three Vite builds each.
+- **`--reporter=json` grouped by project:** `apps/extension` **424**, `apps/web` **125**,
+  `packages/ui` **38**, `tests/architecture` **53**, `core` **54**, `providers` **92**,
+  `mail-parser` **149**, `mailbox` **166**, `storage` **86** — **total 1187.**
+
+**So: 15 of 15 green, plus 4 of 4 `verify` green, on a tree whose source did not move.** The
+per-project figures are the confirmation of the arithmetic predicted from `e7d6c32`'s baseline of
+**1182 total / 419 extension** — `apps/extension` **419 + 5 = 424** and **1182 + 5 = 1187**, with the
+61-file count unmoved because no test file was added, only five cases appended to one. **The
+`1186` that appears in A18's account of the instrument's own first run is an earlier tree and is not a
+figure for this commit**; it is left in A18 because A18 is describing what the instrument printed on
+the day it was written, and it is named here so no reader carries it forward as a count.
+
+**Two findings are worth more than the tally, and both are about the instrument rather than about the
+product.**
+
+**The verdict was wrong and the capture was right, which is the shape the repair depends on.** The
+instrument's own tally printed **`{"passed":10,"harness-error":5}`**, and `hunt/runs` held five files it
+had reported as unreadable. **All five were green runs.** **Measured against the captured files rather
+than taken from the account of them, the mechanism is not the one first recorded, and the difference is
+in the bytes.** In `unit-01.txt` the word `Tests` is **contiguous and intact** — the six bytes are
+`54 65 73 74 73`, ASCII `Tests` — and the escape bytes sit **after** it, between the word and the count:
+`Tests <ESC> <ESC><ESC>1187 passed<ESC><ESC><ESC>`. So `\s+` cannot match across them, because an
+escape byte is not whitespace, and a detector anchoring on `Tests\s+1187` **fails on a line that is
+present and correct.**
+
+**Three details of the first account are contradicted by the files, and they are recorded because each
+one would have sent a reader to the wrong repair:**
+
+- **There are no carriage returns in the captures at all** — `0x0D` appears **zero** times in
+  `unit-01.txt`. The live progress output does overwrite with carriage returns, but **the redirection
+  did not preserve them**, so the file on disk carries no `CR` to explain anything.
+- **There are no CSI sequences either** — an `ESC` immediately followed by `[` occurs **zero** times,
+  across **968** escape bytes that are all bare and unpaired. So the line is not carrying
+  `[2m[1m[32m`-style colour runs at all.
+- **Therefore stripping "the CSI sequences themselves, `ESC [ … letter`" does not repair this file, and
+  that was measured rather than assumed**: applying exactly that stripper removes **0** sequences and
+  `Tests\s+1187` **still fails**. **What does work is stripping the bare `ESC` bytes themselves** —
+  sequence-form first, then every remaining `ESC` — after which all five runs recover
+  **`Test Files 61 passed` / `Tests 1187 passed`** and the tally's `harness-error: 5` becomes
+  **`passed: 15, harness-error: 0`**. **A repair prescribed from a summary of the failure rather than
+  from the failing bytes can be the wrong repair and still sound exactly right**, and this one was
+  caught only because the captured files were read before being deleted.
+
+**The measurement survives its own instrument's misreading because every run's full output was written
+to disk before anything was judged**, and that is the repair working as designed: **the defect was in
+the verdict, not in the capture.** Had the block kept only a summary — which is exactly what A15 records
+the earlier instrument doing, and the reason these five runs would have been lost **entirely** — then 15
+green runs would have been reported as 10 green and 5 unknown. **A measurement whose verdict is
+unreliable and whose capture is complete is recoverable; the reverse is not, and the distinction is what
+"capture the whole run" was for.** **And the exit code was already in the record and already said so** —
+all five `harness-error` entries carry **`"exit": 0`**, so the instrument held a green run's own verdict
+*in the same object* as its claim that the run was unreadable, and **reported the claim.**
+
+**And this is the sixth instance of this repository's most-recorded instrument defect, and it is the
+sharpest of the six — because it was predicted in the same report that shipped it.** A18 records my own
+conclusion: *"a detector that has to know about the reporter's colouring is a detector the reporter can
+defeat."* **The prediction was right, and the instrument contradicted it in the same sitting** — not
+merely by being defeated by the reporter's colouring this time, but by being defeated by the
+reporter's **cursor control**, which is the same category of problem wearing a different byte. **An
+instrument named for a failure mode does not thereby stop having it**, and a prediction recorded in an
+amendment is a claim about the world, not a fix.
+
+**And a second reader failed on these same files, for the same root cause and in a different way — which
+is recorded because two independently written readers failing on one cause is the finding, and because
+the second failure shows what the first one would have looked like if it had gone the other way.** A
+reader that strips **only the `ESC` byte**, leaving the parameter bytes behind, turns a colour run into
+the literal text `[22m`, so `Tests` is followed by `[2m[1m[32m` before the number and the extraction
+reports **no `Tests` line on a file that has one**. **Measured on these captures, the two readers differ
+in which half they keep: this one keeps the sequence and drops the escape, the instrument's keeps the
+escape and drops the sequence — and one root cause produces both, which is reading a reporter's output
+without handling its control bytes.** **The repair that satisfies both is to strip the bare `ESC` bytes
+last**, after the sequence form, **because a bare-`ESC` strip alone leaves parameter text behind and a
+CSI-only strip alone leaves the escapes.** **Neither reader was wrong about the product; both were wrong
+about the text, and a reader that reports a confident negative about a document it has not decoded is
+this repository's recorded defect in its purest form.**
+
+**What this section does not establish, unchanged from A15/A16.** **15 green runs on one machine is not
+a diagnosis.** The A15/A16 reds — 1 in 34 browser runs and 1 in 5 `pnpm verify` — are **still
+suspected rather than identified**, because **their failing titles were discarded by the runner** and
+this hunt caught none, which is consistent with either a rate below this block's resolution or with a
+cause this block never provoked. **Machine-load starvation remains an unmeasured hypothesis and is not
+recorded as an explanation.** No product code was changed to chase either red, and nothing in this
+section should be read as a claim that the reds are now closed — **it is a bound on this tree, over
+this window, on this machine.**
