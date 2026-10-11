@@ -1,0 +1,5 @@
+{
+  "_comment": "Merged over the base manifest by a shallow top-level assign. `null` DELETES the key rather than setting it, because an assign cannot remove what the base already declared and a control that still declared `side_panel` would not be a control. Only the driver materialises this file; it is never loaded by Chromium on its own.",
+  "permissions": ["storage"],
+  "side_panel": null
+}

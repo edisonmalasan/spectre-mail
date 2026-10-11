@@ -4017,6 +4017,26 @@ whether verification mail is pending
 
 No cloud account is required.
 
+**What `side-panel-runtime-facts` measured before any of this was designed (2026-10-11,
+`docs/PROVIDERS.md` §4.6).** "Current tab hostname" above is the one line in this section that
+**costs something**, and the cost is now measured rather than assumed:
+
+- **A panel can name the active tab and `sendMessage` it with no new permission** — `tabs.query`
+  names it, `sendMessage` reaches a content script, and **it follows a tab switch on its own**
+  without `tabs`.
+- **It cannot read `tab.url` without `tabs`.** `url` and `title` come back `undefined`, so the
+  host is not derivable for free. **The content script already knows its `location.hostname`**, and
+  §4.4 measured that the panel can ask it — so the free route exists and costs a round trip.
+- **`tabs` works and is one permission**, at the cost of being able to read across every window.
+- **A content script that answers nothing resolves, so only a *rejection* is detectable** — the
+  panel can tell "no script here", not "a script that will not answer".
+- **A docked panel is invisible to Playwright**, so M11's browser cases need the substitute named
+  in §4.6, which **cannot** test "which page am I beside".
+
+**Which route M11 slice 1 takes is that slice's decision, not this document's.** What changes here
+is that the choice is between two **measured** routes rather than an assumption that a panel sees
+everything a content script sees.
+
 ---
 
 # 18. M12 — Release Hardening

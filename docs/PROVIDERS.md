@@ -702,6 +702,84 @@ non-number renders absence in the same shape as presence. **The PNG arm's asset 
 staged copy of the fixture at run time** rather than committed — this repository owns no binary
 asset, and a generated file left in a source tree would be read as evidence about a later run.
 
+### 4.6 Side-panel facts, measured before the side panel was designed (2026-10-11)
+
+Measured while `side-panel-runtime-facts` was at apply stage, because M11's first slice has four
+branches and each turns on a fact this repository had never asked a panel. Chromium (Playwright
+1.63.0), **unpacked and headless**, against a throwaway probe with a **sibling control** differing
+from it in exactly the manifest entries under test — `control` declares neither the `sidePanel`
+permission nor a `side_panel` key, `tabs` adds one permission and nothing else.
+
+| Question | Measured answer | What it does **not** establish |
+|---|---|---|
+| Does `chrome.sidePanel` exist without declaring it? | **No.** `undefined` in the control; present in the probe. Those two manifest entries are the whole difference | Nothing about any other API, and nothing about a context other than a service worker. |
+| Is every method on it present? | **No.** `open` and `setPanelBehavior` are functions; **`getPanelState` is `undefined` in all three variants** | Nothing about other Chromium versions, where it may exist — and **it is the one method that would have confirmed the panel's own state**, so its absence is a finding about the substrate, not a missing feature. |
+| Can a panel be docked and opened headlessly from a real click? | **Yes.** `chrome.sidePanel.open()` resolved with no `lastError`, from a genuine `click()`, and the panel's document then ran and reported | Nothing about a **headed** desktop, and nothing about how it is **drawn** — see the limits. |
+| Does `open()` succeeding mean the panel ran? | **No — the two are separate, and the run records both.** `open()` resolved in an early run whose panel document had not executed at all | Nothing about how often the platform would do this again; see the instability below. |
+| What does a panel-hosted document see of the window? | `chrome.windows.getCurrent()` returns a real, focused, normal window | Nothing about a panel in a window that is not focused. |
+| What does `chrome.tabs.getCurrent()` return there? | **`null`** — a panel is not a tab | Nothing about other extension contexts, where it returns the tab. |
+| What does `chrome.tabs.query({active, currentWindow})` name? | **The page beside the panel.** One tab, the fixture page's id | Nothing about a window with no tabs. |
+| **What does it cost to learn the host?** `tab.url` **without `tabs`** | **Withheld.** `url` and `title` are `undefined`; hostname cannot be derived | Nothing about `tabs` itself — this is the *absence* reading, not the costed one. |
+| **…and with `tabs`?** | **Read.** `url`, `hostname` (`side-panel-fixture.invalid`) and `title` all readable | Nothing about `host_permissions`, which may grant the same URL for a narrower set — **the two were not compared.** |
+| Can the panel `chrome.tabs.sendMessage` the page beside it? | **Yes.** It reached the content script and got its reply, including the page's own `location` | Nothing about a page whose script replies and then misbehaves. |
+| What happens with **no content script** on that tab? | **It refused**, with `Could not establish connection. Receiving end does not exist.` — so a panel *can* detect "nothing here" | Nothing about a content script that **answers nothing**, which resolves and is indistinguishable; only a *rejection* is detectable. |
+| Does it follow a tab switch without `tabs`? | **Yes, on its own.** `chrome.tabs.onActivated` fired with no `tabs` permission and the panel re-reported with reason `activated` — a **new** report sequence, read against the sequence taken *before* the switch | Nothing about a window where the switch is caused by something other than `bringToFront`. |
+| Can an extension-hosted page fetch a provider origin directly? | **Yes.** `https://api.guerrillamail.com` answered **`200`**. The response **body was never read** | **Nothing about a provider serving a real mailbox request.** This arm is about whether the request was *allowed*, and it is the panel half of the question §4.4 answered for a content script — where the answer was no. |
+| What does Playwright see of a docked panel? | **No `Page` at all.** The page count rose only by the launcher's own page, and the panel still reported | Nothing about a docked popup either, and nothing about whether a `Page` could be had some other way. |
+| Does the `sidepanel.html`-as-a-tab substitute preserve it? | **Partly, and the run labels it a substitute in its own output.** The code ran and the readback worked — but `currentWindow` named **the substitute's own window and tab**, not a page beside anything | **Not "which page am I beside".** A tab-hosted panel document is its own active tab *by construction*, so this substitute cannot test route (b). |
+
+**The result that changes what M11 slice 1 has to decide.** Three routes to the page's host were
+priced and only one is free. **A panel can name the active tab and message it with zero new
+permissions** — `tabs.query` names it and `sendMessage` reaches it — but it **cannot read
+`tab.url`**, so it cannot learn *which* page it is beside. **The content script already knows
+`location.hostname`**, and the panel can ask it over the seam §4.4 measured. **The `tabs` permission
+works and is one entry** — and it is a *broadening* of what this extension can read across every
+window, which is why the free route is the one the measurement favours and the decision stays M11's.
+
+**Four limits, stated because the requirements lean on them.**
+
+- **A docked panel is not a rendered pixel.** Nothing here reads its appearance, its width, or how it
+  is drawn, and no test in this repository reads a rendered pixel's colour or position.
+- **This Chromium is headless, so whether a person would see a docked panel here is unmeasured.**
+  `open()` resolving and the document running are two smaller facts.
+- **One engine on one machine.** Nothing here says anything about Firefox, WebKit, or a packed
+  extension — the same limit §4.5 states.
+- **The arms are not independent.** One fixture is loaded per stage, so a platform that remembered
+  state across loads would not be distinguishable from one that did not.
+
+**And one instability, measured rather than explained away.** Across the runs taken while recording
+this section, **one run in six failed to dock the panel in either the base or the `tabs` stage**,
+while three consecutive re-runs produced four panel reports each. **The instrument reported it
+correctly** — `MISS` arms, `answerable: false`, exit `1` — which is D6 working rather than a flake
+being tolerated. **The cause was not diagnosed**, and this section does not claim one.
+
+**Instrument: `apps/extension/e2e/side-panel-runtime.mjs`**, quarantined with the three beside it.
+**Four deliberate violations were run against it and all four were caught**, with restoration verified
+by SHA-256 per file. **Three of its own defects are recorded because each produced a confident wrong
+answer rather than a failure**, and two of the three were found by the falsification rather than by
+reading:
+
+- **The panel's first version never loaded its script.** `sidepanel.html` had no `<script>` tag, so
+  **every arm that depends on the panel reported nothing while `open()` resolved and the launcher
+  said "opened"** — precisely the gap D4 exists to keep, demonstrated by this repository's own fixture
+  instead of by the platform. **"Cannot report" and "was never mounted" print identically.**
+- **The tab-switch arm's wait was already satisfied when it ran.** It read the panel's report
+  *after* the switch rather than before, so the report it compared was the one arm 5b's own question
+  had caused — it carried `reason: messageActiveTab`, which is not the switch — and nothing on the
+  page said so. **A wait whose precondition is already satisfied measures nothing and reports
+  success**, the same class as the recorded `motion.spec.ts` defect.
+- **The verdict reported `answerable: true` through a run in which every panel arm failed.** Both of
+  its refusals were read from the API-presence stage, which is a *different fixture load* from the
+  arms, so a failing arms stage left the verdict positive. **A verdict that survives a total
+  measurement failure is decoration**; the arms are now passed in and their observations counted.
+
+**One of its *claims* about the platform was also wrong before it was measured.** The no-content-script
+arm's output line read *"a refusal here is the answer"*, written when the fixture expected a rejection.
+The run then reported `delivered: true` beside an error message, because `delivered` meant two
+different things in one payload — *"the panel answered the worker"* beside *"the panel reached the
+tab"*. **Two different questions on one line of output**, which is why the field is now named
+`reached` and the shape is printed rather than asserted.
+
 ## 5. Real external delivery — **verified on both providers**
 
 Run `2026-10-01T18-08-41-251Z` (`spike:interactive --timeout-ms 600000`) observed
@@ -825,8 +903,17 @@ provider that has not been measured the same way.
 | **Live provider polling tolerance** | Nothing in this repository has watched a real provider respond to being polled every five seconds. Both browser tiers serve **recorded** responses, and the cadence assertions read the delay the scheduler was *asked* for — which proves this repository's arithmetic and nothing about a provider's patience. | Any background-polling decision; M9 |
 | **A stored mailbox reconciled against a live session** | Adoption was exercised against a recording, never against a real Guerrilla Mail session. | `use it externally`, in either client |
 | **Two concurrent `chrome.alarms`** | §4.1.1 measured that a 5 s alarm and a 30 s alarm armed together starve the slower one — it fired **nothing** in 120 s. What is unmeasured is whether starvation is permanent or recovers, and whether two *identical* periods starve each other; only a fast-vs-slow pair was tried. | Any design that arms more than one alarm period |
+| **A side panel on a headed desktop** | §4.6 measured that a panel **docks and runs headlessly** — `open()` resolved from a real click and the panel's document executed and reported. **What it did not measure is whether a person would see one**: the browser is headless, nothing reads a rendered pixel, and one run in six failed to dock at all with **no cause diagnosed**. | Any claim that the panel is *visible*; any choice in M11 slice 1 made on appearance grounds |
+| **Whether `tabs` and `host_permissions` cost the same** | §4.6 priced the `tabs` permission (it works, and `tab.url` becomes readable) and priced the **free** route (ask the content script, which already knows its host). **A `host_permissions` grant was never compared against either**, so the third route is unpriced rather than priced-and-rejected | Choosing between the two measured routes on grounds other than the measurements above |
 
 These are genuine gaps and must not be reported as successes.
+
+**Two rows joined this list on 2026-10-11 from §4.6**, and naming which arms closed the questions
+they replaced is the point rather than an aside: **the side-panel visibility row is not the closed
+row's restatement.** The measurement closed *"what can a panel context see, and at what permission
+cost"* — it did **not** close *"whether a person sees a docked panel"*, because the browser is
+headless. And the `tabs`-versus-`host_permissions` row exists because §4.6 priced **two** of the three
+routes and a reader should not read two measured routes as one chosen one.
 
 **One item left this list on 2026-10-10 and is now closed rather than moved
 elsewhere: the MV3 `chrome.alarms` packing interval.** §4.1 had measured only
@@ -890,4 +977,15 @@ decisions themselves belong to an OpenSpec change, not to this document.
    alarms starve one another and the slower one can stop firing outright. Any
    milestone that wants a notification *and* a poll must either schedule them
    inside one period or measure the pair first.
+9. **A side panel can exist without a new permission for the page beside it —
+   but it cannot learn *which* page that is, without one** (2026-10-11, §4.6).
+   The roadmap listed a side panel under M11 without a cost attached to it; the
+   measurement prices it. A panel **can** name the active tab and `sendMessage`
+   it, and **can follow a tab switch on its own** without `tabs`. But `tab.url`
+   **is withheld** without it, so the host is readable only by paying for the
+   `tabs` permission or by asking the content script that already knows its own
+   `location.hostname` over the seam §4.4 measured. **The decision belongs to
+   M11 slice 1**; what changes here is that the choice is now between two
+   *measured* routes rather than an assumption that a panel could see everything
+   a content script can.
 

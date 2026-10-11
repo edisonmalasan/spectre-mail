@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   cpSync,
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
@@ -131,6 +132,21 @@ const TOKEN_LAYER = "packages/ui/src/tokens.css";
 // `.git` and `.agents` matter because two rules below scan the whole repository
 // rather than only `packages/` and `apps/`. Walking either would be slow, and
 // `.agents` is generated content this repository must not edit anyway.
+//
+// **`test-results` was added by `side-panel-runtime-facts`, and it is the third recorded
+// instance of one defect: a scanner that cannot tell a source file from an artefact a
+// measurement itself creates.** Playwright writes that directory on every run of either
+// browser suite, and the quarantined probes stage their fixtures *into* it - so a
+// generated copy of a fixture, already exempt where the fixture lives, arrived at the
+// storage rule a second time from a directory nothing ships, and the rule reported it
+// for the forbidden identifier its own source was written with. The run before the entry
+// existed was green, and the run after it was red on a file no commit had written.
+//
+// **The definition is the same one `dist`, `build` and `coverage` already carry**: a
+// directory of generated output, gitignored, that the repository never ships from. It is
+// a whole-path-segment match in `collectSourceFiles`' walk rather than a substring test,
+// and the control below plants a probe in a directory whose *name contains* this one to
+// hold that down - a substring rule passes the first assertion and fails the second.
 const SKIP_DIRECTORIES = new Set([
   "node_modules",
   "dist",
@@ -139,6 +155,7 @@ const SKIP_DIRECTORIES = new Set([
   ".vite",
   ".git",
   ".agents",
+  "test-results",
 ]);
 
 /**
@@ -177,6 +194,12 @@ const QUARANTINED_PROBES = [
   "live-host-permission.mjs",
   "alarms-packing.mjs",
   "notification-display.mjs",
+  // §4.6's instrument. Quarantined for the reason the three above name, with one addition
+  // specific to it: it is the only probe that makes a live provider request, in an arm establishing
+  // that an extension-hosted document MAY reach a provider origin (the panel half of §4.4's
+  // content-script finding). That request's body is never read, but it leaves the machine, so the
+  // script cannot be a suite.
+  "side-panel-runtime.mjs",
 ] as const;
 
 /**
@@ -2728,6 +2751,54 @@ describe("architecture boundaries", () => {
           .sort(),
         "one directory above a suite's testDir is shipped client code, not its harness",
       ).toEqual([...parents].sort());
+
+      // **And the artefact-directory skip is asserted from both sides, because an
+      // exemption nobody has watched fire is a hole rather than an allowance.**
+      //
+      // A probe inside a Playwright output directory must go unreported - that is the
+      // staged fixture copy this entry was written for, and it is *load-bearing on the
+      // real artefact* rather than only on this probe: `side-panel-runtime.mjs` stages a
+      // copy of `e2e/fixtures/side-panel-probe/` into exactly that directory on every run,
+      // and the run before the entry existed was **red on the shipped tree**. A probe in a
+      // sibling directory whose *name contains* this one must still be reported: an
+      // exemption implemented as a substring match rather than a whole-path-segment match
+      // satisfies the first assertion and silently stops covering everything beside it.
+      //
+      // **`test-results-src`, not `testResults` or `test_results`.** A camelCase or
+      // underscore spelling would be satisfied by a normalising implementation, which is
+      // a different defect from the one being caught here and would pass for the right
+      // reason.
+      const artefactDir = "apps/extension/test-results";
+      const neighbourDir = "apps/extension/test-results-src";
+      planted.push(`${artefactDir}/__artefact-probe.ts`, `${neighbourDir}/__neighbour-probe.ts`);
+      mkdirSync(join(REPO_ROOT, artefactDir), { recursive: true });
+      mkdirSync(join(REPO_ROOT, neighbourDir), { recursive: true });
+      writeFileSync(
+        join(REPO_ROOT, artefactDir, "__artefact-probe.ts"),
+        CLIENT_STORAGE_PROBE,
+        "utf8",
+      );
+      writeFileSync(
+        join(REPO_ROOT, neighbourDir, "__neighbour-probe.ts"),
+        CLIENT_STORAGE_PROBE,
+        "utf8",
+      );
+
+      const skipReported = clientStorageApiViolations();
+      expect(
+        skipReported.filter((hit) => hit.includes("/__artefact-probe.ts")),
+        "a generated output directory is not a source file, and the rule would report the " +
+          "staged copy of a fixture the same rule already exempts where the fixture lives",
+      ).toEqual([]);
+      expect(
+        skipReported
+          .filter((hit) => hit.includes("/__neighbour-probe.ts"))
+          // Trimmed and de-slashed for the reason given on the assertion above: a violation
+          // is spelled `<repoPath> <hit> (<reason>)`, so the separator is a space. The claim
+          // is *which directory*, so both are stripped rather than compared as a prefix.
+          .map((hit) => (hit.split("__neighbour-probe")[0] ?? "").trim().replace(/\/$/, "")),
+        "the skip is a whole-path-segment match: a directory merely named after one is not skipped",
+      ).toEqual([neighbourDir]);
     } finally {
       for (const app of planted) {
         // **Two different roots, and the reason is that the two lists are two different
@@ -2740,6 +2811,17 @@ describe("architecture boundaries", () => {
         rmSync(join(APPS_DIR, app, `__exempt.test.ts`), { force: true });
         rmSync(join(REPO_ROOT, app), { force: true });
       }
+      // **The two probe directories are removed explicitly, and only the one this test
+      // created.** `test-results` is Playwright's own output directory and predates the
+      // probes, so it is emptied of the probe file rather than removed; `test-results-src`
+      // exists only to hold its probe, and removing the whole tree is what stops a later
+      // run's `git status` from reporting a directory nobody planted. **A leftover
+      // directory is inert for the rules and not inert for the reader.**
+      rmSync(join(REPO_ROOT, "apps/extension/test-results/__artefact-probe.ts"), { force: true });
+      rmSync(join(REPO_ROOT, "apps/extension/test-results-src"), {
+        force: true,
+        recursive: true,
+      });
     }
 
     // **The rule itself.** `apps/web/src/Address.tsx` copies a mailbox address through

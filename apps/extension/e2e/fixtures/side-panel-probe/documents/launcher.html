@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>SpectreMail side-panel launcher</title>
+  </head>
+  <body>
+    <!--
+      The gesture page, and nothing else.
+
+      **Why a page exists at all.** `chrome.sidePanel.open()` requires a user gesture, and a gesture
+      Playwright performs is a real `click()` on a real element - but the element has to be in a
+      document Playwright can reach, and the panel's own document is exactly the document Playwright
+      cannot reach. So the gesture happens here, in an extension page the driver can open as a tab.
+
+      **Why `openPanelOnActionClick` is not used instead.** It was considered and declined before the
+      probe was written, and recorded in `proposal.md`: the product's toolbar button stays with the
+      popup, so a mechanism that only the fixture declares would be measuring a design M11 is not
+      going to build. The side-panel *menu* is the gesture this probe uses, and a menu cannot be
+      pressed by Playwright, so the equivalent is a click on this page.
+
+      **What this page does NOT do is render the panel.** It opens one and reports what the call
+      said. The panel's own report arrives separately, from `sidepanel.js`.
+    -->
+    <button id="open" type="button">Open the side panel</button>
+    <p id="outcome" data-testid="outcome">not pressed</p>
+    <script type="module" src="launcher.js"></script>
+  </body>
+</html>

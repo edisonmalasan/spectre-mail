@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "SpectreMail side-panel probe",
+  "version": "0.0.0",
+  "description": "Throwaway fixture, not the product. Declares `sidePanel` so `chrome.sidePanel` exists at all, `storage` so a panel's report outlives the document that wrote it, a content script so the `sendMessage` arm has a page to reach, and the two provider origins because one arm asks whether an extension-hosted page can reach a provider directly. It deliberately does NOT declare `tabs` - that is the whole point of the `tabs` variant, and declaring it here would make the two routes indistinguishable. The three scripts that run in a document live in `documents/` rather than beside the service worker, because this fixture spans three contexts and `eslint.config.js` gives a file one: keeping them apart is what lets both environments be declared exactly instead of their union being declared for everything. Ships no user-facing surface, and no product manifest may copy `sidePanel` or `tabs` from here: the instrument that answers a question may need rights the product does not have yet.",
+
+  "permissions": ["sidePanel", "storage"],
+  "host_permissions": ["https://api.mail.tm/*", "https://api.guerrillamail.com/*"],
+
+  "side_panel": {
+    "default_path": "documents/sidepanel.html"
+  },
+
+  "background": {
+    "service_worker": "probe.js",
+    "type": "module"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["documents/content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
