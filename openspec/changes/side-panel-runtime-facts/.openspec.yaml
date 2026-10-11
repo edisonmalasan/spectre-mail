@@ -1,0 +1,33 @@
+schema: spec-driven
+created: 2026-10-11
+
+# Why there is no spec delta, recorded here because `skip_specs` is the one flag in this
+# repository that can be set for the wrong reason and still validate.
+#
+# This change measures a platform and records the answer in `docs/PROVIDERS.md`, which is where
+# §4 already holds every other browser-runtime fact this product has established. It changes no
+# product behaviour: no code under `apps/extension/src`, no change to `static/manifest.json`, no
+# permission, no message kind, no panel, and no decision about which context owns the session.
+#
+# Every requirement it bears on already exists and stays true --
+#
+#   * `extension-client`'s *"The extension declares its non-goals as requirements rather than
+#     leaving them absent"* continues to forbid a side panel in this milestone. Satisfying a
+#     measurement does not discharge a prohibition, and the milestone that owns the surface is
+#     still the only one that may add it.
+#   * `in-page-integration`'s *"A code reaches the page without a permission this extension does
+#     not already hold"* continues to forbid the manifest gaining a permission. The probe's
+#     fixture is not the product's manifest, and no permission is added to the shipped one.
+#   * `in-page-integration`'s *"The declared host reach is the reach the shipped surfaces use"*
+#     is untouched: the probe adds no host pattern to anything shipped.
+#
+# So a delta here would be a requirement describing Chromium's behaviour. That is the one thing
+# the requirement being satisfied exists to prevent, and the workflow's own guidance is explicit:
+# do not invent a requirement to satisfy validation.
+#
+# **What this change *does* move is a permission, and that is why the line above is load-bearing
+# rather than decorative.** The measurement may report that a side panel is unreachable without a
+# right this extension does not hold. That is a finding about Chromium, recorded in a document
+# that already records findings about Chromium; it is not a change to what the extension declares,
+# and no scenario in any promoted spec is made false by learning it.
+skip_specs: true
