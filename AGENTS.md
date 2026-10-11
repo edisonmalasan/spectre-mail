@@ -1,7 +1,33 @@
 # AGENTS.md
 
 > **Current milestone state (reconciled against Git and OpenSpec 2026-10-11): M0-M9 are complete
-> in scope, and the `alarms-packing-interval` spike that unblocked M10's remaining work is
+> in scope, M10 is complete in scope, and the `side-panel-runtime-facts` spike that unblocked
+> **M11** is **APPLIED, VERIFIED and ARCHIVED** at
+> `openspec/changes/archive/2026-10-11-side-panel-runtime-facts/` — proposal PR **#111** merged
+> `dd4fc3f`, apply PR **#112** merged `e2e1611`, **no sync stage because the change declares
+> `skip_specs` and promoted nothing** (the promoted counts stand at **163 requirements and 504
+> scenarios across the same 14 capabilities**, re-counted by heading *after* the archive rather
+> than carried forward, and **its archive moved 4 files every one byte-identical to its
+> pre-archive original with `.openspec.yaml` kept**). **The cursor therefore moves to M11** —
+> which owns the side panel, the surface `page-composition` has been declaring absent by
+> requirement rather than by omission — **and the roadmap's M11 section no longer lists
+> "current tab hostname" with no cost attached to it**, because the spike priced it: **a panel
+> can name the active tab and `sendMessage` it and follow a tab switch on its own with no new
+> permission, but `tab.url` is withheld without `tabs`.** M11 slice 1 chooses between two
+> *measured* routes rather than assuming a panel sees what a content script sees.
+> **The spike is also the third recorded instance of the "an artefact the measurement itself
+> creates" defect — and the first two instances were both in the *instrument*, so this one
+> being in the *rule* is the news**: its storage rule reported the probe's own staged copy in
+> `apps/extension/test-results/` for the `chrome.storage.local` calls its **exempt source** is
+> written with, so the same file was judged twice with only the directory differing. See the
+> change's `design.md` D10, and D11 for the second gate failure, where `eslint.config.js`
+> declares one environment per file and **declaring the union would have silenced both errors by
+> teaching three existing worker fixtures that `document` exists**. **Ten deliberate violations
+> were run against the instrument and the two new controls, all caught**, every file restored
+> byte-identical by SHA-256 — **and one of the ten first reported as a survivor because the
+> harness had the polarity backwards**, which is recorded because an arm written that way reports
+> a correct configuration as broken and the obvious repair is to delete the thing that was right.
+> **The `alarms-packing-interval` spike that unblocked M10's remaining work is
 > **APPLIED, VERIFIED and ARCHIVED** at
 > `openspec/changes/archive/2026-10-10-alarms-packing-interval/` — proposal PR **#104** merged
 > `de00857`, apply PR **#105** merged `716049f`, **no sync stage because the change declares

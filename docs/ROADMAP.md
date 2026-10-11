@@ -130,7 +130,37 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor: M10 - Verification Workflow. Slices 1 (`verification-actions`) and 2
+**Roadmap cursor: M11 - Side Panel + Mailbox Context.** M10 is complete in scope and the
+`side-panel-runtime-facts` spike that unblocked M11 is **APPLIED, VERIFIED and ARCHIVED** at
+`openspec/changes/archive/2026-10-11-side-panel-runtime-facts/` - proposal PR #111 merged `dd4fc3f`,
+apply PR #112 merged `e2e1611`, archive PR #113. **It declares `skip_specs` and promoted nothing, so
+the counts stand at 163 requirements and 504 scenarios across the same 14 capabilities - re-counted
+by heading after the archive rather than carried forward**, because archiving is a move and a move is
+the operation most likely to drop a file. **Its archive moved 4 files, every one byte-identical to
+its pre-archive original (checked against `git`'s blob at HEAD, not against a digest remembered from
+before the command), with `.openspec.yaml` kept.**
+
+**What it measured, and why M11 slice 1 is now a decision rather than a guess.** The roadmap's M11
+section listed *"current tab hostname"* under context behaviour with no cost attached to it.
+`docs/PROVIDERS.md` §4.6 prices it: **a panel can name the active tab and `sendMessage` it and
+follow a tab switch on its own with no new permission, but `tab.url` is withheld without `tabs`.**
+So the free route exists and costs a round trip to the content script that already knows its own
+`location.hostname`, and the paid route is one permission that broadens what this extension can read
+across every window. **M11 slice 1 chooses between two measured routes rather than assuming a panel
+sees what a content script sees.**
+
+**Three things the spike cost more than its finding, and they are recorded because a spike that looks
+cheap in its diff is not cheap in its blast radius.** It edited **two boundary rules and one eslint
+config**, and **both edits were found by a gate failing on a tree nobody had broken** - the storage
+rule reported the probe's own *staged artefact* in `test-results/` for the identifier its exempt
+source is written with, and the lint config declared a service-worker environment for three files
+that run in a document. **Ten deliberate violations were run against the instrument and the two new
+controls, all caught**, with every file restored byte-identical by SHA-256 - and **one of the ten
+first reported as a survivor because the harness had the polarity backwards**, which is recorded
+because an arm written that way reports a correct configuration as broken.
+
+**M10's own record, kept because the delta above is only readable against it.** Slices 1
+(`verification-actions`) and 2
 (`in-page-fill`) are both APPLIED, VERIFIED, SYNCED and ARCHIVED** at
 `openspec/changes/archive/2026-10-10-verification-actions/` and
 `openspec/changes/archive/2026-10-10-in-page-fill/`; the `alarms-packing-interval` spike that
