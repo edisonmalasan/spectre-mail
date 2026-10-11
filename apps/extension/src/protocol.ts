@@ -74,9 +74,38 @@ export const RECONCILE_ALARM_REQUEST_KIND = "spectre:reconcile-alarm";
  */
 export const FILL_CODE_REQUEST_KIND = "spectre:fill-code";
 
+/**
+ * Discriminates a request for the host of the page this script is beside.
+ *
+ * **A fourth kind on the same channel, and it travels the same seam as the fill does not.**
+ * `design.md` D4 measures it: the panel asks the page's own content script over
+ * `chrome.tabs.sendMessage`, because `tab.url` is withheld to a panel holding no `tabs` permission
+ * while the content script already has the answer in `location`. **So this request needs no payload
+ * and no new transport** - the requester names a tab by asking {@link
+ * ../extension-platform!findActiveTab}, and the message itself asks the same question every time.
+ *
+ * **It carries nothing, and that is the point rather than an omission.** A request carrying the tab
+ * it meant to ask about would be a second copy of a fact the caller already resolved, and the two
+ * could disagree - which is the reason `CREATE_MAILBOX_REQUEST` and `RECONCILE_ALARM_REQUEST` carry
+ * nothing either.
+ */
+export const HOST_CONTEXT_REQUEST_KIND = "spectre:host-context";
+
 /** A request for the background context to create a mailbox on this device's behalf. */
 export interface CreateMailboxRequest {
   readonly kind: typeof CREATE_MAILBOX_REQUEST_KIND;
+}
+
+/**
+ * A request for the host of the page the answering script is beside.
+ *
+ * **One discriminant and nothing else, for the same reason {@link ReconcileAlarmRequest} has one
+ * member:** the host is a fact about the document the script is already in, so asking a script to
+ * send it would be asking it to report something it was handed. `protocol.test.ts` reads this
+ * interface's keys rather than trusting this comment.
+ */
+export interface HostContextRequest {
+  readonly kind: typeof HOST_CONTEXT_REQUEST_KIND;
 }
 
 /** A request for the background context to reconcile the schedule it holds for this device. */
@@ -104,6 +133,15 @@ export const RECONCILE_ALARM_REQUEST: ReconcileAlarmRequest = {
  * `content-script/affordance.ts` rather than repeated in both tiers.
  */
 export const CREATE_MAILBOX_REQUEST: CreateMailboxRequest = { kind: CREATE_MAILBOX_REQUEST_KIND };
+
+/**
+ * The one value sent for a host request.
+ *
+ * **A constant, for the reason {@link CREATE_MAILBOX_REQUEST} is one and {@link fillCodeRequest} is
+ * a function:** this request carries no payload, so there is nothing for the two sides to disagree
+ * about but the spelling of the kind.
+ */
+export const HOST_CONTEXT_REQUEST: HostContextRequest = { kind: HOST_CONTEXT_REQUEST_KIND };
 
 /**
  * Everything the background context can answer, and nothing it cannot.
@@ -236,6 +274,23 @@ export function isReconcileAlarmRequest(value: unknown): value is ReconcileAlarm
 }
 
 /**
+ * Whether `value` is the host request this extension acts on.
+ *
+ * **The same question {@link isCreateMailboxRequest} and {@link isReconcileAlarmRequest} ask, of a
+ * third discriminant, and it is checked on the content script's own message channel.** That channel
+ * is reached by every extension message the browser routes here, so a guard that admitted anything
+ * wider than the discriminant would let an unrelated extension's word make this script report its
+ * host. **Three guards that are each one `readKind` comparison cannot overlap**, because `readKind`
+ * compares against a literal string - disjointness is structural here rather than a property of the
+ * order they are tried in.
+ *
+ * @param value - Whatever the message channel delivered. Untyped by construction.
+ */
+export function isHostContextRequest(value: unknown): value is HostContextRequest {
+  return readKind(value) === HOST_CONTEXT_REQUEST_KIND;
+}
+
+/**
  * Narrow an untrusted reply to an answer, or `null` where there is none to be had.
  *
  * **Every field is checked, not only the discriminant.** A reply of `{"kind":"created"}` with no
@@ -306,6 +361,79 @@ export function readFillCodeAnswer(value: unknown): FillCodeAnswer | null {
       // **Every other shape, including `undefined`, an exception, a string and a number.** A reply
       // this extension does not recognise is **no answer**, and the popup already has a named
       // report for no answer: it cannot confirm the code was filled.
+      return null;
+  }
+}
+
+/**
+ * Everything this extension's own script can say about the page it is beside, and nothing else.
+ *
+ * **Two variants, and the second one is not a failure - it is the answer.** `design.md` D4: a script
+ * that answers nothing **resolves**, and a resolution is indistinguishable from a script that is
+ * not there, so a caller that read an absent host as an empty one would offer the newest mailbox as
+ * though it were the page's. `unconfirmed` is what the script says when its own `location` gave it
+ * nothing usable, and it is deliberately **different from no answer at all** - which is what
+ * `readHostContextAnswer` returns for a reply that is not one of these.
+ *
+ * **`host` is a hostname and never a URL, and the type is where that is enforced.** `site-associations`
+ * keys its map by the exact hostname with no registrable-domain folding, and **a signup page's query
+ * string is where that page's tokens are** - so an answer carrying a path would hold a signup token
+ * for every page this extension has ever been beside. A union that could carry a path is a union a
+ * future edit would widen without noticing.
+ */
+export type HostContextAnswer =
+  /** The script read its own `location.hostname` and this is it, verbatim. */
+  | { readonly kind: "host"; readonly host: string }
+  /** The script is beside a page whose location gave it no host to name. Nothing was inferred. */
+  | { readonly kind: "unconfirmed" };
+
+/**
+ * The answer this extension's own script gives about the host it is beside.
+ *
+ * **A function, and the reason is that the refusal has to live beside the answer.** The alternative -
+ * a constant for the host case and a literal at the refusal site - is two spellings of a decision
+ * this repository has already recorded going wrong twice: the side panel naming a host it did not
+ * confirm is the one wrong answer this milestone must never give, and it would be reached by a call
+ * site that forgot the empty check rather than by a missing type.
+ *
+ * @param host - Whatever the browser's own `location.hostname` produced, including nothing at all.
+ * @returns The answer. **Never a host this function was not given**, so an absent or non-string
+ *   `location` becomes `unconfirmed` rather than an empty hostname dressed as a reading.
+ */
+export function hostContextAnswer(host: unknown): HostContextAnswer {
+  return typeof host === "string" && host.length > 0
+    ? { kind: "host", host }
+    : { kind: "unconfirmed" };
+}
+
+/**
+ * Narrow an untrusted reply about the host beside this panel, or `null` where there is none.
+ *
+ * **A reply carrying an empty `host` is refused rather than admitted**, and the reason is the same
+ * one {@link readCreateMailboxAnswer} gives for requiring both of `created`'s payloads: an answer
+ * this extension cannot use is not a worse answer, it is **no answer**, and `no answer` is a state
+ * the panel already has a named report for - *"it could not name that page"*. Admitting it would
+ * put a panel into a state where it had a host and nothing to say about it.
+ *
+ * @param value - Whatever the message channel delivered. Untyped by construction.
+ * @returns The answer, or `null` when the value is not one this extension can act on.
+ */
+export function readHostContextAnswer(value: unknown): HostContextAnswer | null {
+  const kind = readKind(value);
+
+  switch (kind) {
+    case "host": {
+      const host = readText(value, "host");
+      return host === null ? null : { kind: "host", host };
+    }
+    // **Payload-free, admitted on its discriminant alone**, for the reason the other narrowers give.
+    case "unconfirmed":
+      return { kind };
+    default:
+      // **Every other shape, including `undefined` - which is what a page with no script of this
+      // extension's produces.** `docs/PROVIDERS.md` §4.6 measured that reading, and collapsing it
+      // here is what lets the panel say it cannot name the page rather than naming the newest
+      // mailbox as though it belonged to it.
       return null;
   }
 }

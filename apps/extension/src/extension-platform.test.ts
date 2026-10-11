@@ -37,6 +37,7 @@ import {
   extensionAssetUrl,
   findActiveTab,
   onAlarmFired,
+  onTabActivated,
   onBrowserStart,
   onExtensionMessage,
   readAlarmPlatform,
@@ -850,5 +851,142 @@ describe("listening for the platform's own events", () => {
     removePlatform();
     expect(() => onBrowserStart(() => {})()).not.toThrow();
     expect(() => onAlarmFired(() => {})()).not.toThrow();
+  });
+});
+
+describe("following the tab a person switched to", () => {
+  /** A platform whose `tabs.onActivated` records what was registered, so a listener can be driven. */
+  function activationPlatform() {
+    const registered: Array<(activation: unknown) => void> = [];
+    const removed: unknown[] = [];
+    const onActivated = {
+      addListener(listener: unknown) {
+        registered.push(listener as (activation: unknown) => void);
+      },
+      removeListener(listener: unknown) {
+        removed.push(listener);
+      },
+    };
+
+    installPlatform({ tabs: { onActivated } });
+
+    return { registered, removed };
+  }
+
+  it("calls the subscriber with the activated tab's id", () => {
+    const { registered } = activationPlatform();
+    const activated: number[] = [];
+
+    onTabActivated((tabId) => {
+      activated.push(tabId);
+    });
+
+    registered[0]?.({ tabId: 41 });
+
+    // **An id and nothing else.** `tab.url` and `tab.title` are `undefined` without the `tabs`
+    // permission - measured, `docs/PROVIDERS.md` 4.6 - so this seam could not answer *which page*
+    // even if a caller wanted it to, and a test reading only the id is what holds that honest.
+    expect(activated).toEqual([41]);
+  });
+
+  it("never filters an activation this extension did not cause", () => {
+    // **The same reason `onAlarmFired`'s matching case gives.** Every tab the person switches to
+    // arrives here, including tabs this extension has nothing to do with. **A filter here would make
+    // the suite unfalsifiable about the product**: a seam that dropped an id could not be told apart
+    // from a page that had nothing to say.
+    const { registered } = activationPlatform();
+    const activated: number[] = [];
+
+    onTabActivated((tabId) => {
+      activated.push(tabId);
+    });
+
+    registered[0]?.({ tabId: 41 });
+    registered[0]?.({ tabId: 0 });
+    registered[0]?.({ tabId: 9999 });
+
+    expect(activated).toEqual([41, 0, 9999]);
+  });
+
+  it("ignores an activation it cannot name a tab in", () => {
+    // **For the reason `onAlarmFired`'s matching case gives:** this extension can only act on a tab it
+    // can name, and an activation carrying no readable id is not one it can act on.
+    const { registered } = activationPlatform();
+    const handle = vi.fn();
+
+    onTabActivated(handle);
+
+    registered[0]?.({ windowId: 7 });
+    registered[0]?.({ tabId: "41" });
+    registered[0]?.({ tabId: null });
+    registered[0]?.({});
+
+    expect(handle).not.toHaveBeenCalled();
+  });
+
+  it("stops calling the subscriber once the listener is removed", () => {
+    const { registered, removed } = activationPlatform();
+    const activated: number[] = [];
+
+    const stop = onTabActivated((tabId) => {
+      activated.push(tabId);
+    });
+
+    registered[0]?.({ tabId: 41 });
+
+    expect(registered).toHaveLength(1);
+
+    stop();
+
+    // **The removal is registered against the event, not merely returned** - a teardown that only
+    // flipped a local flag would leave the platform holding a listener this module can no longer
+    // reach, and the panel unsubscribing on unmount would leak one per mount.
+    expect(removed).toEqual(registered);
+    expect(() => stop()).not.toThrow();
+  });
+
+  it("returns an inert teardown where the platform offers no such event", () => {
+    // **Three absences, and the first is the one that happens in this extension's own contexts.**
+    // `tabs.onActivated` exists in the worker and in the panel; it does not exist in a content
+    // script, and evaluating this module there must answer with a teardown rather than throw - or
+    // loading `entry.ts` would take every page down.
+    installPlatform({ tabs: { onActivated: { addListener: "add" } } });
+    expect(() => onTabActivated(() => {})()).not.toThrow();
+
+    installPlatform({ tabs: {} });
+    expect(() => onTabActivated(() => {})()).not.toThrow();
+
+    removePlatform();
+    expect(() => onTabActivated(() => {})()).not.toThrow();
+  });
+
+  it("reports an event it can listen to but not remove, rather than throwing on teardown", () => {
+    // **The dangerous half of the absence, and the one a "did not throw" assertion alone would miss.**
+    // `onPlatformEvent` registers nothing unless **both** `addListener` and `removeListener` are
+    // functions - so a platform offering only the first is *not* listened to, and the teardown it
+    // returns is a no-op. **A teardown that called `removeListener` on the event here would throw
+    // for every caller that unsubscribes**, which for the panel is every unmount.
+    const registered: unknown[] = [];
+    const removed: unknown[] = [];
+
+    installPlatform({
+      tabs: {
+        onActivated: {
+          addListener(listener: unknown) {
+            registered.push(listener);
+          },
+          // **`removeListener` deliberately absent.**
+        },
+      },
+    });
+
+    const handle = vi.fn();
+    const stop = onTabActivated(handle);
+
+    // **Nothing was registered**, so nothing can be leaked and nothing can be removed.
+    expect(registered).toEqual([]);
+
+    expect(() => stop()).not.toThrow();
+    expect(removed).toEqual([]);
   });
 });

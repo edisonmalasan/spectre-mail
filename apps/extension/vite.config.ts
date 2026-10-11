@@ -45,6 +45,13 @@ import react from "@vitejs/plugin-react";
  * that resolves no module specifier — which `format: "es"` and `chunks/[name].js`, both used
  * below, are the opposite of. The sentence is now true, and `package.json`'s `build` runs both
  * so no command in this repository names only one of them.
+ *
+ * **And `sidepanel.html` is a fourth, beside `popup.html` and for the same reason the worker is
+ * separate: `manifest.json` names it by literal filename.** It is an ordinary ES-module document —
+ * not a content script — so it belongs in this config and needs no second one. **Its own name in
+ * `input` is what emits `dist/sidepanel.html`, and the non-goals requirement's scenario reads the
+ * built `dist` rather than this file**, so a manifest naming a document this build did not emit is
+ * reported by the test rather than by the build.
  */
 export default defineConfig({
   root: __dirname,
@@ -66,6 +73,7 @@ export default defineConfig({
       input: {
         "service-worker": "src/service-worker.ts",
         popup: "popup.html",
+        sidepanel: "sidepanel.html",
       },
       output: {
         format: "es",

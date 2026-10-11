@@ -432,6 +432,46 @@ export function sendToTab(tabId: number, request: unknown): Promise<unknown> {
 }
 
 /**
+ * Run `handle` with the id of a tab that became the active one.
+ *
+ * ## No `tabs` permission, and the measurement that is why this exists rather than a poll
+ *
+ * **`docs/PROVIDERS.md` §4.6 measured that `chrome.tabs.onActivated` fires to a context holding no
+ * `tabs` permission**, and that the panel re-reported with reason `activated` when it did. So the
+ * side panel subscribes on mount and re-reads the page beside it, **with no reload, no new
+ * permission, and no polling** — which is the point `design.md` D5 makes by rejecting the interval
+ * alternative: a context-dependent line that only refreshes on a poll is stale by up to a full poll
+ * interval at the exact moment a person switches tabs.
+ *
+ * **The event carries a tab id and nothing else this module can read.** `tab.url` and `tab.title`
+ * are `undefined` without the `tabs` permission, so there is no version of this seam that could
+ * answer *which page* — which is why the panel asks the content script instead, and why this module
+ * hands back an id and not a page.
+ *
+ * **An event carrying no readable tab id is ignored**, for the reason {@link onAlarmFired} gives:
+ * this extension can only act on a tab it can name, and an activation it cannot name is not one it
+ * can act on. **This module deliberately does not re-query the active tab on the caller's behalf** —
+ * {@link findActiveTab} already answers that, and a second spelling of *which tab is active* is
+ * exactly the duplication this module's own header says it exists to prevent.
+ *
+ * @returns A function that removes the listener. Idempotent, and safe where there was none.
+ */
+export function onTabActivated(handle: (tabId: number) => void): () => void {
+  return onPlatformEvent(
+    readMember(readMember(readPlatform(), "tabs"), "onActivated"),
+    (activation: unknown) => {
+      const tabId: unknown = readMember(activation, "tabId");
+
+      if (typeof tabId !== "number") {
+        return;
+      }
+
+      handle(tabId);
+    },
+  );
+}
+
+/**
  * What this platform can be asked to raise, and nothing else about it.
  *
  * ## The two members, and why the interface is this small

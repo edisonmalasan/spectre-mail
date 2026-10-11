@@ -234,12 +234,57 @@ readings.
 - **WHEN** no host is answered for the page beside the panel
 - **THEN** the panel SHALL say it cannot name that page
 - **AND** it SHALL offer no mailbox as being that page's
+- **AND** it SHALL offer to create a mailbox, because a mailbox created while the page is unnamed is recorded against no host at all
+- **AND** it SHALL NOT claim that this device holds no mailbox, because a device beside a page this panel cannot name may hold one, several, or none
+
+**Amendment, recorded during apply (2026-10-11).** This scenario and *"The panel is beside a page this
+extension does not reach"* **name one panel state and two reasons for reaching it**, and the
+implementation collapses them: `Panel.tsx`'s `shown` memo returns `{ kind: "unnamed" }` for **every**
+reading that is not `named`, so the page that answered nothing usable (`unanswered`) and the page with
+no script of this extension's (`refused`) are the same state as far as creation is concerned.
+
+**So the two scenarios specify creation identically, and that was a decision rather than an omission.**
+Left silent here, a promoted spec would permit an implementation that offers creation beside a refused
+page and withholds it beside an unanswered one — **and the panel cannot make that choice**, because
+both arms reach the same branch. **Silence is not prohibition, and a spec that leaves one arm of one
+state silent is the same hole the other scenario's *"the rest of the panel SHALL continue to work"*
+was**: it reads as a permission and permits a distinction the product does not have.
+
+**The two scenarios are still distinct, because the host *line* is distinct** — one says the page did
+not say which host it is on and the other says no script of this extension's runs here, and that
+difference is real, observable, and measured (§4.6 recorded that a content script answering nothing
+**resolves**, so "ran and had nothing to give" and "never answered at all" are genuinely different
+faults). **What does not differ is what the panel may offer beside either**, and the delta now says so
+in both places rather than in one.
 
 #### Scenario: The panel is beside a page this extension does not reach
 
 - **WHEN** the page beside the panel has no script of this extension's
 - **THEN** the panel SHALL say it cannot name that page
-- **AND** the rest of the panel SHALL continue to work
+- **AND** it SHALL offer no mailbox as being that page's
+- **AND** it SHALL offer to create a mailbox, because a mailbox created while the page is unnamed is recorded against no host at all
+- **AND** it SHALL NOT claim that this device holds no mailbox, because a device beside a page this panel cannot name may hold one, several, or none
+
+**Amendment, recorded during apply (2026-10-11).** The clause this scenario carried — *"the rest of the
+panel SHALL continue to work"* — **named nothing**, and it was the whole reason the panel needed a
+product decision rather than an implementation: a sentence that says everything else keeps working is
+satisfied by a panel that renders a heading, one line about not being able to name the page, and
+**nothing a person can act on**, which is the fake-UI defect this repository treats as structural on
+a surface the manifest points at.
+
+**The four clauses above are therefore the decision, stated as requirements rather than as prose.**
+The mailbox stays withheld and a create control is offered, because **a newly created mailbox belongs
+to no host**, and offering one is not the wrong-context hazard the requirement exists to prevent; and
+the "this device holds no address" sentence stays gated on the resolved-and-empty arm alone, because
+beside a page this panel cannot name **that sentence is false** — the device may hold any number, and
+the fault is that *this panel* cannot read which.
+
+**The option rejected, recorded because a reader should be able to disagree with the decision rather
+than re-derive it:** withholding creation beside an unnamed page, i.e. gating the control on `none`
+exactly as the neighbouring clause is gated. **The orchestrator decided against it.** The reason it
+was rejected is that the withholding produces a surface that can do nothing, and the reason it was
+considered at all is that it is the more conservative reading of a hazard-clause. `design.md` A17
+carries the same record with the decision attributed.
 
 #### Scenario: The manifest is read for the panel's host
 
