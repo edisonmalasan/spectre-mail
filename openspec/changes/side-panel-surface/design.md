@@ -762,3 +762,168 @@ tree should be captured with the whole run's output, not with a summary line**, 
 scripts under `%LOCALAPPDATA%\Temp\opencode\` are deleted with the rest of the instrument rather than
 kept for that purpose — **which is the recorded rule that a measuring instrument is not a shipped
 file, applied to the instrument that would have caught the next one.**
+
+### A17 — Creation beside a page the panel cannot name, and the option that was rejected
+
+**The orchestrator decided this, not the implementation.** I had left it open deliberately: the delta's
+clause was *"the rest of the panel SHALL continue to work"*, which names nothing, and a surface that
+renders nothing operable is the fake-UI defect this repository treats as structural — so it was a
+product decision rather than one to be taken silently beside the code.
+
+**What was implemented.** The create control is gated on `shown.kind !== "named"` rather than
+`=== "none"`, so it is offered in both unnamed-page arms; the mailbox itself stays withheld; and
+`PANEL_COPY.noMailboxHeld` **stays gated on `none`** and was deliberately not widened, because
+beside a page this panel cannot name *"this device has no address yet"* is **false** — the device may
+hold one, several, or none, and the fault is that *this panel* cannot read which. The `held` list at
+`held.length > 1` is independent of `shown.kind` and was left alone.
+
+**Why the control is offered there, and it is not the same claim as the hazard.** The requirement
+withholds a mailbox from being offered **as being that page's**. A mailbox created while the page is
+unnamed is **recorded against no host at all**, so offering one is not the wrong-context hazard the
+requirement guards against — and the panel is not going to guess a host for it later.
+
+**The option rejected, so a reviewer can disagree with the decision rather than re-derive it:**
+withholding creation beside an unnamed page — gating the control on `none` exactly as the
+neighbouring clause is gated. **It was considered because it is the more conservative reading of a
+hazard-clause**, and rejected because it produces a surface that can do nothing at all.
+
+**And one consequence recorded rather than left implicit.** Creating beside an unnamed page does not
+change `shown.kind`, so **the control stays offered afterwards** — a person may want a second address,
+and nothing about that page became knowable. **No requirement says whether it should**, so this is a
+statement of what the implementation does rather than a claim that it is right.
+
+**The copy is a separate string, and the reason is that the two are different claims.**
+`PANEL_COPY.createForHost` may leave the host unsaid because the host is named three lines above it.
+There is **no host to leave unsaid** beside an unnamed page, and a sentence reading as though there
+were would be the same defect in the other direction — a panel inventing a host for a page it just
+said it could not identify. So `createForUnnamedPage` says what the address *is* rather than what it
+is *for*: *"Create an address, not tied to that page."*
+
+**The sibling scenario was closed too, and that was the orchestrator's second decision.** The delta
+carried **two** unnamed-page scenarios — *"No answer arrives"* (`unanswered`) and *"The panel is beside
+a page this extension does not reach"* (`refused`) — and this repair amended **only the second**, the
+one the orchestrator named. **I reported the asymmetry rather than widening the edit**, and the
+orchestrator decided the second one closes as well.
+
+**Why it is the same hole rather than a stylistic preference.** `shown` returns
+`{ kind: "unnamed" }` for **every** reading that is not `named`, so both reasons reach **one branch**
+and creation is gated on `shown`. A promoted spec that mandates creation in one scenario and is silent
+in the other **permits an implementation that offers creation for a refused page and withholds it for
+an unanswered one — and the panel cannot make that choice.** **Silence is not prohibition**, so the
+spec would read as a permission, describing a distinction the product does not have. Both scenarios now
+say the same four things about creation.
+
+**The host *line* is where the distinction lives, and it is kept.** `cannotNameHost` and
+`noScriptHere` stay separate strings, because *"ran and had nothing usable"* and *"never answered at
+all"* are genuinely different faults — §4.6 measured that a content script answering nothing
+**resolves**, so a refused answer and no answer at all are not the same event. **What does not differ
+is what the panel may offer beside either**, and the two scenarios remain separate because what the
+panel *says* differs even though what it *offers* does not.
+
+**And one case holds both arms at once, because a case per arm would let one rot.** *"Offers creation
+beside either kind of page it cannot name"* mounts both readings in a single test and requires the two
+host lines to **differ**, so the loop cannot pass by running one fixture twice. Its falsifier is
+recorded in A18: reintroducing the distinction the amendment forbids — gating on
+`reading.kind !== "refused"` — is caught by that case **and by nothing else in the group**, because
+every other case in it mounts only the unanswered arm.
+
+### A17b — The two-arm case, and why its falsifier is the amendment's whole content
+
+**Gating the create control on `reading.kind !== "refused"` — reinstating exactly the distinction the
+amendment forbids, so a refused page loses the control while an unanswered one keeps it — is caught by
+*"offers creation beside either kind of page it cannot name"* and by nothing else in the group**,
+because every other case in it mounts only the unanswered arm. **A case per arm would have left that
+defect invisible**, which is why the delta hole and the case are closed in the same pass rather than
+the case being added after the amendment had been reviewed.
+
+**The case's own control is falsifiable too.** Making the page that answered nothing *report* as a
+page with no script collapses the two readings into one, and the case must fail — **on the per-arm
+wording**, which is the assertion saying the arms are genuinely different, rather than on the
+inequality alone. **That arm is not this case's sole holder**, though: it also fails a pre-existing
+case that names the distinction directly, so it is recorded as a second catcher rather than credited
+as the only one.
+
+**Two smaller findings from writing it, each recorded because it would have produced a confusing red
+rather than an honest one.** The two arms need `cleanup()` between them — **two `render` calls in one
+test leave two containers in the document**, `screen` queries across all of them, and the second
+`findByRole` fails with *"found multiple elements"* rather than with anything about the product;
+`afterEach(cleanup)` cannot help because it runs once at the end. And the fixtures differ only in
+whether `hostAnswer` is supplied at all, since **§4.6 measured that a page this extension does not
+reach produces a callback receiving `undefined`**, which `readHostContextAnswer` reads as a refusal
+rather than as an empty host — so the "refused" arm is produced by **omission**, and a reader has to
+be told that or the two rows look interchangeable.
+
+### A18 — What the falsification pass found in A17's cases, including one vacuous assertion
+
+**Nine arms: eight caught by the assertion each was aimed at, and one a logically identical
+rewrite recorded as evidence and not counted.** Every restoration was SHA-256 verified per file and
+the tree was green before the first arm ran — the recorded precondition, and the reason §7's first
+round filed two false catches. **One of the eight is caught by a control rather than by the assertion
+it was first declared against, and that is recorded below rather than filed as what it was.**
+
+**The finding that mattered: the absence assertion could not fail.** *"Still offers no mailbox as
+being that page's"* asserts `queryByTestId("panel-address")` is `null`, and **`queryByTestId` returns
+`null` when no element carries the id** — so a panel that rendered the section with the id deleted,
+with the section deleted, or that rendered nothing at all, satisfies it equally. Deleting
+`data-testid="panel-address"` left the whole suite green. That is this repository's recorded
+*narrower than its rule* shape and it was authored by this change. **The repair is a positive control
+in the arm where the section *is* shown** — and the re-run of that arm reports a `wrongcatch`, because
+it is caught by the control rather than by the absence case. **An arm naming an assertion the
+mutation cannot reach will one day report a green as a catch**, and the re-declaration is recorded
+rather than the run being filed as what it was.
+
+**A second arm proved the guard that case names is unreachable by mutation at all**, and green was the
+correct result: rewriting `{shown.kind === "named" && record !== undefined && (` to
+`{record !== undefined && (` changes nothing on any input, because `record` is `undefined` unless
+`shown.kind === "named"`. Recorded as evidence and **not counted**, which is the recorded rule applied
+to itself: a survivor means *"the assertion did not catch this"*, never *"the assertion is too
+weak"*, until the mutant has been read and shown to be the thing it claims.
+
+**So what actually holds the hazard closed was then measured rather than asserted.** The early return
+in the `shown` memo is the guard that matters, and removing it was predicted to be `nocompile`. **That
+prediction was wrong, and it is recorded as a prediction that was wrong rather than kept because it
+was newer:** the unit tier reported the mutation `caught`. The reason is that **`pnpm test` does not
+typecheck** — it transforms with esbuild, which strips types without checking them — so a `nocompile`
+outcome is one this instrument *cannot produce*, and the honest reading of that run is neither
+"the compiler holds this guard" nor "the compiler does not": **it is that the instrument was never
+asked the question.** Asked directly, `tsc --noEmit` over `apps/extension` **exits 1** on the
+mutation with `TS2339: Property 'host' does not exist on type 'HostReading'`, and the tree was
+restored byte-identical. So the guard is held by the **type**, which is the same category as
+`provider-config.ts`'s `primaryProviderName` and is stated here as a measured fact rather than an
+assertion that a case enforces something.
+
+**And a third arm's attribution was wrong in the ordinary way** — resolving a mailbox for an unnamed
+page is caught by the two `restore` cases, because `record` feeds `restore`, and not by the address
+section's guard. **A catcher naming an assertion about a different property is an attribution to
+fix**, and it is re-declared rather than credited to the case that happened to go red.
+
+**The instrument itself was wrong first, on its first run, and it is the recorded shape.** Its count
+detector was `/\b\d+\s+(passed|failed)\b/`, and **the character immediately before `1186` in Vitest's
+summary is the `m` of the escape sequence `[32m`** — so the `\b` between `m` and `1` is not a word
+boundary, the match failed, and a **perfectly green run of 1186 tests was filed `harness-error`**. It
+refused to proceed, which was safe; **it was safe for the wrong reason**, and a detector that has to
+know about the reporter's colouring is a detector the reporter can defeat. The repair strips ANSI and
+anchors on the summary line's own shape — and anchors on **`Tests`**, not either summary, because
+Vitest prints `Test Files 61 passed` immediately above `Tests 1186 passed` and a detector accepting
+either reads a *file* count as a *test* count, which is the earlier recorded defect reintroduced by
+the rewrite. **`AGENTS.md` already records that detector being fixed once; it was broken again here in
+the opposite direction, and the fix was applied to the pattern that had been fixed before.**
+
+### A19 — `apps/web/e2e/sections.spec.ts` still passes, and its comment is now false
+
+**Recorded, not fixed — `apps/web` is zero files in this change.** The comment at
+`sections.spec.ts:939-949` says that the sweep forbids words naming capabilities *that no side panel
+are built (M9 and M11 own them)*. **M11 is this change, so that clause is false as of this commit**,
+while the assertion it annotates is unaffected: the list at line 950 is about the **website** naming
+capabilities, and this change added a panel to the **extension**, so the sweep still passes and still
+guards the real defect — a label the website shows about a surface it does not have.
+
+**The precedent for leaving it is set once already.** `incoming-mail-notification` merged as `6b80914`
+and **never touched this file**, though `"notification"` is on the same forbidden list and the
+notification shipped — so a stale comment on that list is not a novel state for this repository.
+
+**It is retired by the website-preview change rather than here**, because the list becomes true again
+the moment the website depicts the panel — and `D9` commits `apps/web` to no change at all for this
+milestone, so a comment claiming this change made the list stale would itself be the claim that had to
+be withdrawn later. **Recording it is the honest alternative to silently editing a file the change
+promised not to touch.**

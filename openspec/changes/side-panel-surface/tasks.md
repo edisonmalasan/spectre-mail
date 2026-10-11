@@ -236,6 +236,58 @@
       absence of a human.**
 ## Amendments recorded at apply (2026-10-11)
 
+### Verification-pass repairs
+
+**Three bounded repairs requested after `e7d6c32` was accepted. `proposal.md` was not edited.**
+
+- [x] 11.1 Gate the create control on `shown.kind !== "named"` rather than `=== "none"`, so creation
+      is offered beside a page this panel cannot name (**the orchestrator's decision**, recorded with
+      the option rejected in `design.md` A17).
+- [x] 11.2 Give the unnamed page its own copy variant, so no host-specific word is rendered beside a
+      page whose host is unknown. `PANEL_COPY.createForHost` is unchanged and still used beside a
+      named host.
+- [x] 11.3 **Not widen `PANEL_COPY.noMailboxHeld`**, which stays gated on `none`, and say why in the
+      code: beside an unnamed page *"this device has no address yet"* is false. Left the `held` list
+      at `held.length > 1` alone, as instructed.
+- [x] 11.4 Five cases in `Panel.test.tsx` (**24 → 29**): creation offered and delegated to the
+      background context; no mailbox offered as being that page's; no claim that this device holds
+      nothing; the copy names no host; and **both unnamed arms in one case** — the fifth was added
+      with 11.11 and is the only one that holds both `unanswered` and `refused`.
+- [x] 11.5 Amend the delta at `specs/extension-client/spec.md` in *"beside a page this extension does
+      not reach"* so it **names** creation rather than saying only *"the rest of the panel SHALL
+      continue to work"*.
+- [x] 11.6 Falsify every new assertion. **Nine arms: eight caught by the assertion aimed at, one a
+      logically identical rewrite recorded as evidence and not counted** — and of the eight, one is
+      caught by a positive control rather than by the assertion it was first declared against.
+      Restorations SHA-256 verified; the instrument outside the repository and deleted.
+- [x] 11.7 **Repair a vacuous absence assertion this repair authored** — `queryByTestId` returns
+      `null` when no element carries the id, so *"no address section"* was satisfied by the section
+      having no id. Positive control added in the arm where the section *is* shown.
+- [x] 11.8 **Measure what holds the guard the case names**, rather than assert it: `tsc --noEmit` exits
+      `1` with `TS2339` when the `shown` memo's early return is removed, while the unit tier reports
+      the same mutation `caught` — because `pnpm test` does not typecheck. `design.md` A18.
+- [x] 11.9 One bounded attempt at the two unreproduced reds in A15/A16: **10 × `pnpm test:browser` and
+      5 × `pnpm test`** through a capturing instrument that records the full output, the **name** of
+      any failing case, and the exit code, with `apps/extension/test-results/` excluded from the
+      source fingerprint. Result recorded as a rate with its denominator.
+- [x] 11.10 Record — **not fix** — that `apps/web/e2e/sections.spec.ts:939-949`'s comment is false in
+      its clause *"no side panel are built (M9 and M11 own them)"* while the assertion still passes.
+      `apps/web` is zero files in this change. `design.md` A19.
+- [x] 11.11 Close the **sibling** unnamed scenario too — **the orchestrator's second decision**. I
+      amended only the scenario named in repair 1 and reported that leaving `"No answer arrives"`
+      silent would permit an implementation offering creation for a refused page and withholding it
+      for an unanswered one, which `Panel.tsx:276`'s single `{ kind: "unnamed" }` makes impossible.
+      Both scenarios now say the same four things about creation; **the two host-line wordings stay
+      distinct**, and `design.md` A17 records why that distinction lives in the copy and not in what
+      the panel offers.
+
+**No task in this pass is left unticked.** The four unticked boxes are unchanged: **2.2**, whose
+condition never fired (its prediction held, so nothing it asks for was done), and **10.1, 10.2,
+10.3**, which are struck through because a human judgement and two platform handles are what they ask
+for and no agent run supplies either.
+
+### The apply-stage amendments
+
 **Section 1 was measured before the first file was written**, so a red run later is attributable to
 this change rather than to a tree that was already broken. The figures: **1093 unit tests across 58
 files** from a `--reporter=json` run grouped by project — `apps/extension` 330, `apps/web` 125,

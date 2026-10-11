@@ -475,25 +475,65 @@ export function Panel({ session, records, primaryProviderName }: PanelProps) {
         <p data-testid="panel-host">{hostSentence()}</p>
       </section>
 
+      {/*
+       * **`data-testid` on this section, for the reason `panel-message` carries one.** The guard that
+       * withholds it is `shown.kind === "named"`, and the addresses this device holds are rendered
+       * *anyway* under "Addresses on this device" — so an assertion that the address text is absent
+       * from the page cannot hold beside a device holding two mailboxes, and would be satisfied by a
+       * panel that hid its own inventory. **The section is the claim; the text is not.**
+       */}
       {shown.kind === "named" && record !== undefined && (
-        <section aria-labelledby="panel-address-heading">
+        <section aria-labelledby="panel-address-heading" data-testid="panel-address">
           <h2 id="panel-address-heading">{PANEL_COPY.addressHeading(record.provider)}</h2>
           <p className="panel__address">{record.address}</p>
         </section>
       )}
 
+      {/**
+       * **Still gated on `none`, and this line was deliberately NOT widened when the create control
+       * beside it was.**
+       *
+       * "This device has no address yet" is **false beside a page this panel cannot name.** The
+       * device may hold one mailbox, several, or none — the fault is that *this panel* cannot read
+       * which, and a sentence claiming the device is empty would be a claim about storage this
+       * surface has just admitted it cannot see. **Only `none` proves it, and `none` is the one arm
+       * where the panel resolved a host and found this device had used no address on it.**
+       *
+       * **If you are reading this wanting to show it for `unnamed`, that is the bug, not the fix.**
+       */}
       {shown.kind === "none" && <p>{PANEL_COPY.noMailboxHeld}</p>}
 
       {createRefusal !== null && <p role="alert">{createRefusal}</p>}
 
-      {shown.kind === "none" && (
+      {/**
+       * **Not gated on `none` — gated on the host being unnameable.**
+       *
+       * **`shown.kind !== "named"` rather than `=== "none"`, and this is the orchestrator's
+       * decision** rather than mine, because it is a product decision and `design.md` A17 records it
+       * with the option that was rejected. In short: **a newly created mailbox belongs to no host**,
+       * so creating one beside a page this panel cannot name is not the hazard the requirement
+       * guards against — and withholding the control there left the panel rendering a heading, a
+       * sentence about not being able to name the page, and **nothing a person could act on**, which
+       * is the fake-UI defect this repository treats as structural on a surface with a manifest
+       * entry pointing at it.
+       *
+       * **What deliberately did NOT move with it.** The mailbox itself stays withheld (the section
+       * above), and `PANEL_COPY.noMailboxHeld` stays gated on `none` — **because beside an unnamed
+       * page that sentence is false**: this device may hold one mailbox, several, or none, and the
+       * fault is that *this panel* cannot tell which. Only `none` proves it.
+       */}
+      {shown.kind !== "named" && (
         <button
           type="button"
           className="control control--primary"
           disabled={creating}
           onClick={() => void create()}
         >
-          {creating ? PANEL_COPY.creating : PANEL_COPY.createForHost}
+          {creating
+            ? PANEL_COPY.creating
+            : shown.kind === "none"
+              ? PANEL_COPY.createForHost
+              : PANEL_COPY.createForUnnamedPage}
         </button>
       )}
 

@@ -65,7 +65,6 @@ export const PANEL_COPY = {
   hostHeading: "Page beside this panel",
 
   /**
-   /**
    * **Claim two, first refusal: an answer arrived carrying nothing usable.**
    *
    * **It says it cannot name the page rather than showing a blank line**, and it offers no mailbox
@@ -164,8 +163,30 @@ export const PANEL_COPY = {
   /** The heading above the mailboxes this device holds. */
   heldHeading: "Addresses on this device",
 
-  /** Offering a new address, when this device holds none for the host beside it. */
+  /**
+   * Offering a new address, when a host beside the panel **was named** and this device holds none
+   * for it.
+   *
+   * **The address is implicitly for that host**, and that is what the sentence may leave unsaid here
+   * because the host is on screen three lines above in the same section.
+   */
   createForHost: "Create an address",
+
+  /**
+   * Offering a new address beside a page this panel **cannot name**.
+   *
+   * **A separate string rather than a parameter, and the reason is that the two are different
+   * claims.** {@link PANEL_COPY.createForHost} may leave the host unsaid because the host is named
+   * beside it; here there is **no host to leave unsaid**, and a sentence that reads as though
+   * there were would be the same defect in the other direction — a panel inventing a host for a
+   * page it just said it could not identify.
+   *
+   * **So this says what the address is instead of what it is for**: it is tied to nothing, because
+   * a mailbox created while the page is unnamed is recorded against no host at all — and the panel
+   * is not going to guess one later. **That is also the reason the control is offered here rather
+   * than withheld, and it is the orchestrator's decision** — see `design.md` A17.
+   */
+  createForUnnamedPage: "Create an address, not tied to that page",
 
   /** While an address is being asked for. */
   creating: "Asking for an address",

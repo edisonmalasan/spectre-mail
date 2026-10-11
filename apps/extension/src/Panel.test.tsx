@@ -41,6 +41,7 @@ import type { MailboxSession, SessionState } from "@spectre-mail/mailbox";
 import { Panel } from "./Panel";
 import type { PanelRecords } from "./Panel";
 import { HOST_CONTEXT_REQUEST, fillCodeRequest, hostContextAnswer } from "./protocol";
+import { PANEL_COPY } from "./panel-copy";
 
 /** The mailbox a host resolves to in most of these cases. */
 const MAILBOX: Mailbox = createMailbox({
@@ -355,6 +356,21 @@ describe("the panel renders the mailbox beside the page", () => {
     expect(await screen.findByRole("heading", { name: "guerrilla" })).toBeDefined();
     expect(screen.queryByText("Mail.tm")).toBeNull();
     expect(screen.getByText(MAILBOX.address)).toBeDefined();
+
+    /**
+     * **The positive control for the `panel-address` absence assertion in the case below**, and it
+     * is here rather than there because this is the arm where the section is supposed to be on
+     * screen.
+     *
+     * **Without it that absence assertion is satisfied by anything.** `queryByTestId` returns
+     * `null` when *no element carries the id* — so a panel that rendered the section with the id
+     * deleted from it, or with the section deleted from it, or a panel that rendered nothing at
+     * all, would all satisfy *"still offers no mailbox as being that page's"*. **A falsification
+     * arm caught exactly that**: removing `data-testid="panel-address"` left the whole suite green.
+     * That is this repository's recorded *narrower than its rule* shape, and the repair is a case
+     * that fails when the id is absent from a panel that **should** be showing the section.
+     */
+    expect(screen.getByTestId("panel-address").textContent).toContain(MAILBOX.address);
   });
 
   it("lists what the last check found and opens the one that is pressed", async () => {
@@ -850,6 +866,177 @@ describe("the panel names the page beside it", () => {
     // **A page this extension does not reach is not a fault in the panel**, so the rest of it keeps
     // working: the mailboxes this device holds are still named, in full.
     expect(screen.getByTestId("panel-held").textContent).toContain(OLDER.address);
+  });
+
+  /**
+   * **The create control beside a page this panel cannot name.**
+   *
+   * **Four cases because the decision has four parts, and one assertion each would let three of them
+   * rot independently.** They were added together with the code they hold (`design.md` A17), and the
+   * whole group is the orchestrator's decision rather than a reading of the delta — the delta said
+   * only that *"the rest of the panel SHALL continue to work"*, which names nothing and is why a
+   * product decision was needed at all.
+   */
+  describe("offering creation beside a page this panel cannot name", () => {
+    /** A page that ran and had nothing usable, beside a device holding two addresses. */
+    async function mountUnnamed() {
+      return mount(
+        { hostAnswer: hostContextAnswer(undefined) },
+        stubRecords({ held: [MAILBOX, OLDER], association: MAILBOX.id }),
+      );
+    }
+
+    it("offers creation, and a press asks the background context to create", async () => {
+      const platform = installPlatform({ hostAnswer: hostContextAnswer(undefined) });
+
+      render(
+        <Panel
+          session={readySession()}
+          records={stubRecords({ held: [MAILBOX, OLDER], association: MAILBOX.id })}
+          primaryProviderName="Mail.tm"
+        />,
+      );
+
+      const control = await screen.findByRole("button", {
+        name: PANEL_COPY.createForUnnamedPage,
+      });
+
+      expect(control).toBeDefined();
+
+      fireEvent.click(control);
+
+      // **Spelled as the message kind rather than as `CREATE_MAILBOX_REQUEST`**, because an
+      // assertion built from the constant under test moves with it — `protocol.test.ts` holds this
+      // rule for every kind it narrows.
+      await waitFor(() => {
+        expect(platform.created).toEqual([{ kind: "spectre:create-mailbox" }]);
+      });
+    });
+
+    it("still offers no mailbox as being that page's", async () => {
+      await mountUnnamed();
+
+      /**
+       * **The hazard the requirement exists to prevent, and the reason creation was offered rather
+       * than *showing* a mailbox.** A newly created mailbox belongs to no host, which is not the same
+       * fact as a mailbox being offered as this page's.
+       *
+       * **The first version of this case asserted the addresses were absent from the page, and was
+       * wrong in the direction that hides a defect**: this device holds two mailboxes and the held
+       * list renders both under "Addresses on this device" — which is `held.length > 1`, independent
+       * of `shown.kind`, and which this repair deliberately left alone. **The claim is that no
+       * mailbox is offered *as being that page's*, and that is the address section**, so the section
+       * is what is asserted.
+       */
+      expect(screen.queryByTestId("panel-address")).toBeNull();
+      expect(screen.queryByTestId("panel-message")).toBeNull();
+      expect(screen.queryByTestId("message-list")).toBeNull();
+
+      /**
+       * **And the inventory this device does hold is still shown**, under its own heading — the
+       * positive control. Without it, "no mailbox offered" would be satisfied by a panel that had
+       * simply rendered nothing, which is the fake-UI defect this whole repair exists to remove.
+       */
+      const heldList = screen.getByTestId("panel-held");
+
+      expect(heldList.textContent).toContain(MAILBOX.address);
+      expect(heldList.textContent).toContain(OLDER.address);
+    });
+
+    it("does not claim this device holds nothing", async () => {
+      // **This device holds two**, which is what makes the claim checkable: the sentence would be
+      // true for the wrong reason on an empty device, and false here.
+      await mountUnnamed();
+
+      expect(screen.queryByText(PANEL_COPY.noMailboxHeld)).toBeNull();
+    });
+
+    it("names no host in the copy it offers", async () => {
+      await mountUnnamed();
+
+      const control = await screen.findByRole("button", {
+        name: PANEL_COPY.createForUnnamedPage,
+      });
+
+      /**
+       * **The rendered control's own words, asserted here rather than only through the query above.**
+       *
+       * `findByRole({ name })` failing is a catch by *absence*, and its attribution is then every
+       * case that queried by name at once. **This assertion reads what is on screen**, so this case
+       * fails on its own when the panel renders the host-specific variant — which is the defect this
+       * case names.
+       */
+      expect(control.textContent).toBe(PANEL_COPY.createForUnnamedPage);
+
+      // **Spelled out rather than imported as the host-specific string's absence**, because the
+      // claim is that these particular words say nothing about a host — which is what
+      // `createForHost` beside a named host says by leaving the host out. **The host itself is
+      // checked by name as well**, so a sentence naming *some* host fails rather than satisfying a
+      // sweep for the word "host".
+      expect(control.textContent).not.toMatch(/host|site|domain/i);
+      expect(control.textContent).not.toContain("signup.example.test");
+      // **And it is a different string from the named-host variant**, so a reader pointed at the
+      // wrong constant cannot satisfy this by rendering the host-specific words.
+      expect(PANEL_COPY.createForUnnamedPage).not.toBe(PANEL_COPY.createForHost);
+    });
+
+    /**
+     * **Both unnamed arms in one case, so neither can rot apart from the other.**
+     *
+     * `unanswered` and `refused` are **two reasons for reaching one panel state** — `Panel.tsx`'s
+     * `shown` memo returns `{ kind: "unnamed" }` for every reading that is not `named` — so creation
+     * is gated on `shown` and both arms get it identically. **A case per arm would let one rot**: a
+     * future change could distinguish them and half the suite would stay green.
+     *
+     * **The two fixtures below are the whole risk this case carries, and the last assertion is what
+     * discharges it.** If both arms somehow produced the *same* reading, the loop would pass while
+     * proving nothing — so the case requires the two host lines to differ, and matches each against
+     * the wording that belongs to its own reason. **`mountUnnamed` covers only the unanswered arm**,
+     * which is why this case exists rather than extending that helper.
+     */
+    it("offers creation beside either kind of page it cannot name", async () => {
+      const arms = [
+        {
+          options: { hostAnswer: hostContextAnswer(undefined) },
+          hostLine: /did not say which host/i,
+        },
+        {
+          /** **No `hostAnswer` at all**, so the callback receives `undefined` — which §4.6 measured. */
+          options: {},
+          hostLine: /not one SpectreMail runs on/i,
+        },
+      ] as const;
+
+      const offered: (string | null)[] = [];
+      const hostLines: (string | null)[] = [];
+
+      for (const [index, arm] of arms.entries()) {
+        /**
+         * **Cleanup between the arms, explicitly.** Two `render` calls in one test leave two
+         * containers in the document, and `screen` queries across all of them — so the second
+         * `findByRole` would fail with *found multiple elements* rather than with anything about the
+         * product. `afterEach(cleanup)` cannot help, because it runs once at the end.
+         */
+        if (index > 0) cleanup();
+
+        await mount(arm.options, stubRecords({ held: [MAILBOX, OLDER], association: MAILBOX.id }));
+
+        offered.push(
+          (await screen.findByRole("button", { name: PANEL_COPY.createForUnnamedPage }))
+            .textContent,
+        );
+        hostLines.push(screen.getByTestId("panel-host").textContent);
+      }
+
+      expect(offered).toEqual([PANEL_COPY.createForUnnamedPage, PANEL_COPY.createForUnnamedPage]);
+
+      for (const [index, arm] of arms.entries()) {
+        expect(hostLines[index]).toMatch(arm.hostLine);
+      }
+
+      /** **The two arms are genuinely two readings, not one fixture run twice.** */
+      expect(hostLines[0]).not.toBe(hostLines[1]);
+    });
   });
 
   it("never asks the page for a host before it knows what this device holds", async () => {
