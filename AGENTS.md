@@ -44,8 +44,18 @@
 > **The promoted counts move at the sync stage and not before, and the distinction is recorded
 > here because "applied and verified" and "synced" are not the same claim.**
 >
-> **`verification-actions`' sync has now run and its archive has too, and
-> `openspec validate --specs --strict` is
+> **`incoming-mail-notification`'s sync promoted eight blocks and the promoted counts are now
+> **163 requirements and 504 scenarios** across the same 14 capabilities**, up from **157 and 478**:
+> `extension-client` **6 → 10 requirements and 24 → 40 scenarios**, `mailbox-session` **23 → 24** and
+> **61 → 65**, `spectre-storage` **15 → 16** and **51 → 57**. **Eight blocks promoted and six
+> requirements added is the arithmetic working, not a discrepancy** — a `REMOVED` block subtracts and
+> two `MODIFIED` blocks each *replace* rather than add, so `+5 +1 +1 − 1 = +6`. **That is the third
+> milestone to produce this shape**, which is why the rule is stated here rather than left as a
+> surprise: *a count of promoted blocks is not a count of added requirements*, and a reader expecting
+> eight would be right about the blocks and wrong about the total. See the change's `design.md` D17.
+>
+> **`verification-actions`' sync ran and its archive ran, and before this one
+> `openspec validate --specs --strict` stood at
 > **14 passed, 0 failed, 157 requirements and 478 scenarios** across 14 capabilities** — measured
 > by counting `### Requirement:` and `#### Scenario:` across `openspec/specs/` after the
 > promotion, not transcribed, and **re-counted after the archive** because archiving is a move and
