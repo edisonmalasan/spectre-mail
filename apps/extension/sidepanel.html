@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SpectreMail</title>
+    <!--
+      The side panel's document, and what makes it a *different document* rather than a
+      second copy of the popup.
+
+      `manifest.json`'s `side_panel.default_path` names this file by literal name, exactly as
+      `action.default_popup` names `popup.html`, so both documents are rollup inputs of the
+      same build and neither is generated. A hand-edit that broke the agreement would fail
+      `e2e/side-panel.spec.ts`, which reads the built manifest and the built `dist`.
+
+      **This is a panel document, and the manifest does not say otherwise.** A side panel is an
+      extension page: it may reach the provider origins directly (`docs/PROVIDERS.md` §4.6
+      measured that an extension-hosted page can), and `docs/PROVIDERS.md` §4.4 measured that
+      a *content script* may not - which is why §4.4's finding does not transfer here and why
+      `Panel.tsx` delegates mailbox creation to the worker anyway, for the reason its own module
+      note gives.
+
+      **The document carries no panel-specific chrome.** A side panel's width, its docking and
+      its own scrolling are the platform's, and this repository has no measurement of any of
+      them: §4.6 recorded that Playwright adds no `Page` for a docked panel at all, so the
+      browser tier drives this document as a tab - which is a substitute and is recorded as one.
+
+      **Both stylesheets are imported by the entry module rather than linked here**, in that
+      order, for the reason `main.tsx` gives: the app stylesheet is written in terms of the
+      tokens and must be parsed after they are declared.
+    -->
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/panel-main.tsx"></script>
+  </body>
+</html>

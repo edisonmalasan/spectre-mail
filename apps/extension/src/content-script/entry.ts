@@ -48,6 +48,8 @@ import { createExtensionStorage, loadInsertableMailboxes } from "../storage";
 import { onExtensionMessage, readChromeLocalArea, sendToBackground } from "../extension-platform";
 import { startInPageIntegration } from "./controller";
 import { startInPageFill } from "./fill";
+import { startInPageHostContext } from "./host-context";
+import { composeMessageHandlers } from "./handlers";
 
 /**
  * Run `run` once the document has a body to put a control into.
@@ -73,7 +75,19 @@ whenDomReady(() => {
   // the device that cannot hold an address — is still a device whose popup can hand a code to a
   // signup form. **Refusing the fill because a store is blocked would tie one product feature to a
   // failure of an unrelated one.**
-  onExtensionMessage(startInPageFill({ document, view: window }).handle);
+  //
+  // **One listener for both handlers, and that is load-bearing rather than tidiness.** Chromium takes
+  // the FIRST listener to respond and closes the channel for the rest, and the fill handler answers
+  // `notActedOn` to every kind it does not recognise — so a second `onExtensionMessage` registration
+  // would have answered every host request with `notActedOn`, deterministically, with a green suite
+  // throughout. `composeMessageHandlers` is where that decision table lives, and there is one of it.
+  onExtensionMessage(
+    composeMessageHandlers(
+      // **Fill first,** so a fill request narrows in the fill handler and never reads `location`.
+      startInPageFill({ document, view: window }).handle,
+      startInPageHostContext({ pageLocation: window.location }).handle,
+    ),
+  );
 
   const area = readChromeLocalArea();
 

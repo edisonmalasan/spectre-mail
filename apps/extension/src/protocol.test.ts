@@ -36,11 +36,16 @@ import {
   CREATE_MAILBOX_REQUEST_KIND,
   fillCodeRequest,
   FILL_CODE_REQUEST_KIND,
+  HOST_CONTEXT_REQUEST,
+  HOST_CONTEXT_REQUEST_KIND,
+  hostContextAnswer,
   isCreateMailboxRequest,
   isFillCodeRequest,
+  isHostContextRequest,
   isReconcileAlarmRequest,
   readCreateMailboxAnswer,
   readFillCodeAnswer,
+  readHostContextAnswer,
   RECONCILE_ALARM_REQUEST,
   RECONCILE_ALARM_REQUEST_KIND,
 } from "./protocol";
@@ -125,7 +130,7 @@ describe("the request the popup sends to have the worker reconcile its own stora
     // rows are pinned to the constant the *sending* side imports, and this pins that constant to a
     // string neither side may spell differently, and to a value none of its siblings already holds.
     //
-    // **`toBe(true)` on a `every` over three kinds reads as a strange assertion**, so the reason is
+    // **`toBe(true)` on a `every` over four kinds reads as a strange assertion**, so the reason is
     // written here: two kinds sharing a string would make both guards accept each other's messages,
     // and a third arm of the worker's own dispatch would become reachable from the wrong request.
     expect(RECONCILE_ALARM_REQUEST_KIND).toBe("spectre:reconcile-alarm");
@@ -133,9 +138,14 @@ describe("the request the popup sends to have the worker reconcile its own stora
       CREATE_MAILBOX_REQUEST_KIND,
       RECONCILE_ALARM_REQUEST_KIND,
       FILL_CODE_REQUEST_KIND,
+      // **The fourth kind, and this list is the instrument that keeps all four disjoint.** It was
+      // three for four milestones, and adding a kind without adding it here would leave the property
+      // it exists for — that no two guards accept each other's messages — asserted over three of
+      // four kinds, which is the shape of a check that reads as general and is not.
+      HOST_CONTEXT_REQUEST_KIND,
     ];
-    expect(kinds).toHaveLength(3);
-    expect(new Set(kinds).size).toBe(3);
+    expect(kinds).toHaveLength(4);
+    expect(new Set(kinds).size).toBe(4);
   });
 });
 
@@ -339,5 +349,139 @@ describe("narrowing what a page answered about a code", () => {
     ["an array carrying a discriminant", [{ kind: "filled" }]],
   ])("reports no answer for %s", (_label, value) => {
     expect(readFillCodeAnswer(value)).toBeNull();
+  });
+});
+
+/**
+ * The host request and its answer — the pair `design.md` D4 built the free route out of.
+ *
+ * **Every case in this block is written against a property rather than against a spelling**, because
+ * the two failures this milestone must never produce are both invisible in a diff: naming a host
+ * nobody read, and naming a host that is not a hostname.
+ */
+describe("the host request the panel sends to the page beside it", () => {
+  it("is a payload-free literal, so nothing can ride on it by accident", () => {
+    // **The keys are read rather than the string.** A request carrying a tab id or a URL would make
+    // this test the place a second copy of a resolved fact is checked — and a request whose payload
+    // disagreed with the tab the caller actually asked would report the wrong page's host.
+    expect(HOST_CONTEXT_REQUEST).toEqual({ kind: "spectre:host-context" });
+    expect(HOST_CONTEXT_REQUEST.kind).toBe(HOST_CONTEXT_REQUEST_KIND);
+    expect(Object.keys(HOST_CONTEXT_REQUEST)).toEqual(["kind"]);
+  });
+
+  it.each([
+    ["the request this module exports", HOST_CONTEXT_REQUEST, true],
+    ["the same shape spelled by hand", { kind: "spectre:host-context" }, true],
+    ["the same discriminant carrying more fields", { kind: "spectre:host-context", tab: 9 }, true],
+    ["the create request", CREATE_MAILBOX_REQUEST, false],
+    ["the reconcile request", RECONCILE_ALARM_REQUEST, false],
+    ["the fill request", { kind: FILL_CODE_REQUEST_KIND }, false],
+    ["a fill request carrying a code", fillCodeRequest("493028"), false],
+    ["another extension's request", { kind: "someone-else:something" }, false],
+    ["no discriminant at all", { tab: 9 }, false],
+    ["a string", "spectre:host-context", false],
+    ["nothing at all", undefined, false],
+    ["null", null, false],
+  ])("is recognised in %s: %s", (_label, value, expected) => {
+    expect(isHostContextRequest(value)).toBe(expected);
+  });
+
+  /**
+   * The cross-guard table, and the reason it exists rather than three assertions that already pass.
+   *
+   * **Each guard already has a table above, and those tables are not enough.** Every one of them
+   * feeds values to the guard it is about, so a guard widened to admit any value carrying a
+   * discriminant would pass all three — while the content script answered a fill request with a
+   * hostname and a creation request with a hostname. **This table drives every guard over every
+   * kind**, so the property asserted is the one that actually matters: *no two guards accept each
+   * other's messages.*
+   *
+   * **And it needs no table of expected answers**, because the expectation is derived from the
+   * value's own discriminant — so a guard and this table cannot both be wrong in a way that agrees.
+   */
+  it.each([
+    ["create", isCreateMailboxRequest, CREATE_MAILBOX_REQUEST_KIND],
+    ["reconcile", isReconcileAlarmRequest, RECONCILE_ALARM_REQUEST_KIND],
+    ["fill", isFillCodeRequest, FILL_CODE_REQUEST_KIND],
+    ["host", isHostContextRequest, HOST_CONTEXT_REQUEST_KIND],
+  ] as const)("the %s guard admits only its own kind", (_name, guard, ownKind) => {
+    for (const value of [
+      HOST_CONTEXT_REQUEST,
+      CREATE_MAILBOX_REQUEST,
+      RECONCILE_ALARM_REQUEST,
+      fillCodeRequest("493028"),
+      { kind: "someone-else:something" },
+    ] as const) {
+      const kindOf = (value as { readonly kind: string }).kind;
+      expect(`${ownKind} admits ${kindOf}: ${guard(value)}`).toBe(
+        `${ownKind} admits ${kindOf}: ${kindOf === ownKind}`,
+      );
+    }
+  });
+});
+
+describe("the answer this extension's own script gives about the page it is beside", () => {
+  it.each([
+    [
+      "a hostname the browser produced",
+      "signup.example.test",
+      { kind: "host", host: "signup.example.test" },
+    ],
+    // **The whole point of this case, and the reason the answer is built by a function.** A `document
+    // with no host` — `about:blank`, a `file://` page — gives an empty `location.hostname`, and an
+    // answer carrying `""` would be a panel that had named a page and had nothing to show for it.
+    ["an empty hostname", "", { kind: "unconfirmed" }],
+    ["nothing at all", undefined, { kind: "unconfirmed" }],
+    ["null", null, { kind: "unconfirmed" }],
+    ["a non-string", 42, { kind: "unconfirmed" }],
+  ])("answers %s", (_label, host, expected) => {
+    expect(hostContextAnswer(host)).toEqual(expected);
+  });
+
+  it("admits every variant the script writes", () => {
+    expect(readHostContextAnswer({ kind: "host", host: "signup.example.test" })).toEqual({
+      kind: "host",
+      host: "signup.example.test",
+    });
+    expect(readHostContextAnswer({ kind: "unconfirmed" })).toEqual({ kind: "unconfirmed" });
+  });
+
+  /**
+   * The permissive control, for the reason the fill narrower's carries: **a narrower answering
+   * `null` for everything would pass every refusal row below** and this file would be green.
+   */
+  it("admits a well-formed answer carrying more than the union declares", () => {
+    expect(readHostContextAnswer({ kind: "host", host: "a.example.test", tab: 9 })).toEqual({
+      kind: "host",
+      host: "a.example.test",
+    });
+  });
+
+  it("hands back a hostname verbatim, so no folding, trimming or lowercasing is applied", () => {
+    // **The exact string, and why a normalising narrower would be a defect.** `site-associations`
+    // keys its map by the exact hostname with no registrable-domain folding, so `a.example.com` and
+    // `b.example.com` stay apart — and a reader that lower-cased or trimmed would report a host the
+    // association map has no record of, which is the "no mailbox was last used here" branch of a
+    // host that *was*.
+    const host = "Signup.Example.TEST";
+    expect(readHostContextAnswer(hostContextAnswer(host))).toEqual({ kind: "host", host });
+  });
+
+  it.each([
+    // **The one this milestone must never produce: an answer claiming a host it did not read.**
+    ["a host answer with no host", { kind: "host" }],
+    ["a host answer with an empty host", { kind: "host", host: "" }],
+    ["a host answer whose host is not a string", { kind: "host", host: 42 }],
+    ["a fill answer", { kind: "filled" }],
+    ["a creation answer", { kind: "created", address: "a@b.test", mailboxId: "m" }],
+    ["an answer with no discriminant", { host: "a.example.test" }],
+    ["a bare string", "host"],
+    ["undefined — which is what a page with no script of this extension's produces", undefined],
+    ["null", null],
+    ["a number", 0],
+    ["a boolean", true],
+    ["an array carrying a discriminant", [{ kind: "host", host: "a" }]],
+  ])("reports no answer for %s", (_label, value) => {
+    expect(readHostContextAnswer(value)).toBeNull();
   });
 });

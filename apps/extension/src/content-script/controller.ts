@@ -101,6 +101,8 @@ import type { Affordance } from "./affordance";
 import { IN_PAGE_CREATE_CEILING_MS } from "./create-wait";
 import { holdsText, isEmailField } from "./email-field";
 import { insertValue } from "./insert";
+import { resolveForHost } from "../resolve-for-host";
+import type { ResolvedMailbox } from "../resolve-for-host";
 
 /**
  * The three records this page is allowed to ask about, and the one thing it may write.
@@ -132,16 +134,16 @@ export interface InPageRecords {
 /**
  * The one thing a press can do: put this address in the field, and remember it under this host.
  *
- * **Both halves travel together, and the id is the reason.** An address is not an id — the same
- * address can be reached through two providers' records — and a site association keyed on an address
- * would not survive a second build that stored the same address twice. So the address the person
- * sees and the id the device remembers are carried as one value, and there is no code path that has
- * one without the other.
+ * **An alias of {@link ResolvedMailbox} rather than a second interface carrying the same two
+ * fields.** Both halves travel together, and the id is the reason: an address is not an id - the
+ * same address can be reached through two providers' records - and a site association keyed on an
+ * address would not survive a second build that stored the same address twice.
+ *
+ * **Two identical shapes declared separately would be two shapes to widen**, and a record written
+ * with one read as the other - which is the drift `design.md` D2's extraction is for, in a place
+ * where the two shapes are three lines from each other.
  */
-interface Insertable {
-  readonly address: string;
-  readonly mailboxId: string;
-}
+type Insertable = ResolvedMailbox;
 
 /** What this controller needs, and nothing more. */
 export interface InPageOptions {
@@ -312,22 +314,15 @@ export function startInPageIntegration(options: InPageOptions): () => void {
           options.records.loadSiteMailboxId(host).catch(() => null),
     ]);
 
-    const newest = held[0] ?? null;
-
-    if (newest === null) {
-      return null;
-    }
-
-    // **No host, no association, and the newest is the answer.** A document with no host is not a
-    // site, so there is nothing to prefer and nothing to record; see `host`'s own note.
-    if (recorded === null) {
-      return { address: newest.address, mailboxId: newest.id };
-    }
-
-    const associated = held.find((mailbox) => mailbox.id === recorded);
-    return associated === undefined
-      ? { address: newest.address, mailboxId: newest.id }
-      : { address: associated.address, mailboxId: associated.id };
+    // **The rule that picks the mailbox now lives in one module, and this is the call into it.**
+    //
+    // It was the twenty lines below, private to this file - and `design.md` D3 asks for it to be
+    // "stated once ... and both callers use it", with the panel as the second caller. **A second
+    // copy inside `Panel.tsx` would have satisfied nothing**: the two are the same rule, and two
+    // rules drift exactly where a diff shows nothing. The reads stay here, because which read is
+    // remembered and which is absorbed is a decision about storage rather than about selection;
+    // see that module's own note for the split.
+    return resolveForHost(held, host, recorded);
   }
 
   /**

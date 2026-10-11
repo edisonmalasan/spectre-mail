@@ -44,7 +44,6 @@
 
 body {
   margin: 0;
-  width: 22rem;
   background: var(--surface-page);
   color: var(--ink-primary);
   font-family: var(--font-sans);
@@ -52,14 +51,33 @@ body {
   line-height: var(--leading-normal);
 }
 
+/*
+ * **The width moved from `body` to `.popup` when the side panel arrived, and the reason is that the
+ * two surfaces are sized by different things.**
+ *
+ * A popup is a floating window of *this extension's* choosing, so 22rem is its own decision. A side
+ * panel is docked beside somebody else's page and **its width is the platform's** — `docs/PROVIDERS.md`
+ * §4.6 recorded that this repository has measured nothing about a docked panel's width, and a rule
+ * fixing one here would be an invented measurement presented as a layout. So the panel fills whatever
+ * it is given and the popup keeps exactly the size it had.
+ *
+ * **The popup's rendering is unchanged by the move**: `body` is a block box, its only child is
+ * `.popup`, and a fixed width on the child is what a fixed width on the parent computed to.
+ */
 .popup {
+  width: 22rem;
+}
+
+.popup,
+.panel {
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
   padding: var(--space-5);
 }
 
-.popup__heading {
+.popup__heading,
+.panel__heading {
   margin: 0;
   font-size: var(--type-xl);
   font-weight: var(--weight-bold);
@@ -75,7 +93,8 @@ body {
  * monospace is for addresses, codes, provider state and technical metadata, and this is
  * all four.
  */
-.popup__address {
+.popup__address,
+.panel__address {
   margin: 0;
   font-family: var(--font-mono);
   font-size: var(--type-base);
@@ -85,7 +104,24 @@ body {
   user-select: all;
 }
 
-.popup section {
+/*
+ * An address in the list of addresses this device holds.
+ *
+ * **Monospace and one step down, and both because of what the token layer says monospace is for.**
+ * These are addresses, so they are compared rather than read; the list is a reference the user
+ * consults rather than the value they are acting on, which is what `.panel__address` above is for.
+ * `--type-xs` and `--ink-secondary` are both already used below, so this rule adds no token.
+ */
+.panel__held-address {
+  font-family: var(--font-mono);
+  font-size: var(--type-xs);
+  color: var(--ink-secondary);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.popup section,
+.panel section {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -97,7 +133,8 @@ body {
   width: 100%;
 }
 
-.popup h2 {
+.popup h2,
+.panel h2 {
   margin: 0;
   font-size: var(--type-xs);
   font-weight: var(--weight-medium);
@@ -106,7 +143,8 @@ body {
   color: var(--ink-muted);
 }
 
-.popup p {
+.popup p,
+.panel p {
   margin: 0;
   color: var(--ink-secondary);
 }
@@ -133,6 +171,29 @@ body {
 .message__subject {
   display: block;
   color: var(--ink-primary);
+}
+
+/*
+ * The host a verification link points at, shown beside the control that opens it.
+ *
+ * **Monospace, because a host is the token layer's own "technical metadata", and the same reason
+ * `.message__from` above is monospace: it is a value a person checks against a service's own page,
+ * character by character, before trusting a link delivered to a disposable inbox.**
+ *
+ * **`--type-xs` with `--ink-muted` — the same pair `.message__from` already declares on this
+ * surface**, so this rule introduces no token (`design.md` D8) and no new contrast pair for
+ * `packages/ui`'s arithmetic to account for.
+ *
+ * **It is a separate node from the control beside it, and that is the requirement rather than a
+ * styling preference:** a destination's host must be legible on its own, so `LinkCopyLabels` keeps
+ * the control's name independent of the host instead of templating the host into it.
+ */
+.message__link-host {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: var(--type-xs);
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
 }
 
 .control {

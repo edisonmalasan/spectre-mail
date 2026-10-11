@@ -45,12 +45,43 @@ const manifest = JSON.parse(readFileSync(MANIFEST_PATH, "utf8")) as {
   manifest_version: number;
   permissions?: string[];
   host_permissions?: string[];
-  content_scripts?: unknown;
-  side_panel?: unknown;
+  /**
+   * **Both keys, and this is a repair rather than a convenience.**
+   *
+   * The type read `[{ js: string[] }]` — a one-element tuple — and the `matches` reader cast to
+   * `[{ matches: string[] }]`. A second reader needed `js` at the same time, so the element was
+   * widened to an array, **and the cast at line 165 stopped compiling while every test in the file
+   * still passed** — which is the recorded shape of a `tsc` failure a browser run cannot see.
+   *
+   * **The array and the cast are both gone.** The element now carries the two properties this file
+   * actually reads, so there is one description of the shape rather than two that disagree and one
+   * assertion that has to cast to reach the truth.
+   */
+  content_scripts?: { js: string[]; matches: string[] }[];
+  side_panel?: { default_path?: unknown };
   icons?: unknown;
   background: { service_worker: string; type: string };
   action: { default_popup: string; default_icon?: unknown };
 };
+
+/**
+ * The first content script the built manifest declares.
+ *
+ * **`noUncheckedIndexedAccess` means a destructure is `| undefined`, and an `expect(...).toBeDefined()`
+ * does not narrow it** — so the first version of this helper returned the destructure and `tsc`
+ * reported three errors that no test could see. **It throws instead**, which is also the right shape
+ * for a reader: a manifest that declares no content script is a property to fail on, not a value to
+ * carry onwards as possibly-absent.
+ */
+function firstContentScript(): { js: string[]; matches: string[] } {
+  const [script] = manifest.content_scripts ?? [];
+
+  if (script === undefined) {
+    throw new Error("the built manifest declares no content script at all");
+  }
+
+  return script;
+}
 
 /**
  * Whether a Chromium match pattern can match an origin.
@@ -162,7 +193,7 @@ test.describe("the built extension's manifest", () => {
     // script matches. The wildcard makes that true for the shipped declaration; a
     // declaration narrowed to a provider origin would fail here, which is the correct
     // answer for a content script that would stop running on every ordinary page.
-    const [script] = manifest.content_scripts as [{ matches: string[] }];
+    const script = firstContentScript();
     const servesPages = [FIXTURE_ORIGIN, FIXTURE_HTTP_ORIGIN];
 
     for (const origin of servesPages) {
@@ -194,12 +225,25 @@ test.describe("the built extension's manifest", () => {
     // content script added a **surface** and no **permission**, and this assertion is what
     // says so.
     //
-    // **`alarms` and `notifications` arrived with this change, and the reason the requirement is
-    // unchanged is the point.** It forbids a permission no shipped surface uses; this change ships
-    // two surfaces that need them, so the clause does its work rather than being amended. **The two
-    // were measured to be granted at install with no prompt** (`docs/PROVIDERS.md` §4.5), which is
-    // a claim about *this* permission kind and not about an optional one, which prompts by design.
-    expect(manifest.permissions ?? []).toEqual(["storage", "alarms", "notifications"]);
+    // **`alarms` and `notifications` arrived with `incoming-mail-notification`, and the reason the
+    // requirement is unchanged is the point.** It forbids a permission no shipped surface uses;
+    // that change ships two surfaces that need them, so the clause does its work rather than
+    // being amended. **The two were measured to be granted at install with no prompt**
+    // (`docs/PROVIDERS.md` §4.5), which is a claim about *this* permission kind and not about an
+    // optional one, which prompts by design.
+    //
+    // **`sidePanel` arrived with this change, and it is the fourth of the same shape.** The panel
+    // is a shipped surface and `chrome.sidePanel` is `undefined` without the permission — measured,
+    // `docs/PROVIDERS.md` §4.6, on a control differing in exactly that permission and the
+    // `side_panel` key. **And the entry is traceable to a requirement that cannot be met without
+    // it**, which is what the requirement's own *"traceable to a requirement"* wording asks for.
+    //
+    // **`tabs` is still absent, and that is the entry this milestone is actually about.**
+    // `tab.url` is withheld without it, so the panel asks the page's own content script instead —
+    // §4.6 measured both readings, and `tabs` costs the ability to read across every window for
+    // ever. The separate case *"requests no permission in order to name the page beside the
+    // panel"* names it, because this one would not distinguish it from any other omission.
+    expect(manifest.permissions ?? []).toEqual(["storage", "alarms", "notifications", "sidePanel"]);
   });
 
   test("ships the icon a notification names, and declares it nowhere else", () => {
@@ -287,7 +331,7 @@ test.describe("the built extension's manifest", () => {
     // **Read from `dist`, and named from the manifest** — so this case and the case above are
     // one chain: the manifest names a file, the build emits it, and the emitted file is a
     // single self-contained script.
-    const [script] = manifest.content_scripts as [{ js: string[] }];
+    const script = firstContentScript();
     const emitted = script.js.map((name) => join(EXTENSION_DIST_PATH, name));
 
     for (const path of emitted) {
@@ -311,22 +355,103 @@ test.describe("the built extension's manifest", () => {
 
     // **And one file, not a bundle graph.** A chunked content script would have emitted
     // siblings under a hashed name, and Chromium loads exactly the one file the manifest names.
+    //
+    // **The list is pinned rather than filtered**, because a filter is a sweep that matches
+    // nothing when the shape it watches moves — the defect `apps/web/e2e/sections.spec.ts` had
+    // to be given a negative control for. `sidepanel.js` came with the panel; leaving it out
+    // here would have made this case red for the wrong reason and taught nobody anything, and
+    // leaving it in by pattern would have let a content script chunked into three files pass.
     const emittedJs = readdirSync(EXTENSION_DIST_PATH).filter((name) => name.endsWith(".js"));
-    expect(emittedJs.sort()).toEqual(["content-script.js", "popup.js", "service-worker.js"]);
+    expect(emittedJs.sort()).toEqual([
+      "content-script.js",
+      "popup.js",
+      "service-worker.js",
+      "sidepanel.js",
+    ]);
   });
 
-  test("declares no side panel", () => {
-    // **Still an absence, and it is the half of the old case that has not changed.**
+  test("names a side panel, and the document that build emits", () => {
     //
-    // M11 owns the side panel. A side panel that renders nothing is fake UI, and the same
-    // treatment M7 slice 3 gave the website's deferred `Extension preview` section applies
-    // here: the absence is a **requirement**, so the milestone that owns the surface is the
-    // only one that may add it.
+    // **This case was an absence, and M11 is the milestone the absence was waiting for.**
     //
-    // `toBeUndefined` rather than `toHaveLength(0)`: `"side_panel": {}` is not an absence, it
-    // is a declaration of a surface with nothing in it, and it would change how a future
-    // reader reads the file.
-    expect(manifest.side_panel).toBeUndefined();
+    // The old wording said a side panel is forbidden here because *"M11 owns the side panel.
+    // A side panel that renders nothing is fake UI, and the same treatment M7 slice 3 gave the
+    // website's deferred `Extension preview` section applies here: the absence is a
+    // **requirement**, so the milestone that owns the surface is the only one that may add
+    // it."* That was not a decoration — it was the rule this file was enforcing, and it was
+    // right for four milestones.
+    //
+    // **`extension-client`'s delta rewrites the same claim into a form that holds either way**:
+    // the extension SHALL NOT declare a surface it does not ship, rather than SHALL NOT declare
+    // *a side panel*. So this case is now the **positive** half of the rewritten requirement,
+    // and it is a stronger assertion than the absence was in the direction that matters —
+    // `side_panel: {}` was explicitly called out by the old comment as *"not an absence, it is
+    // a declaration of a surface with nothing in it"*, and only a positive assertion can catch
+    // that shape now that the key is expected.
+    expect(manifest.side_panel).toEqual({ default_path: "sidepanel.html" });
+
+    // **And the document it names is one this build emitted**, read against `dist` rather
+    // than against the source tree — a rule reading source passes a build that emitted nothing,
+    // which is the defect `tasks.md` 6.3 names.
+    expect(existsSync(join(EXTENSION_DIST_PATH, "sidepanel.html"))).toBe(true);
+  });
+
+  test("every document path the manifest names is a file this build emitted", () => {
+    //
+    // **`extension-client`'s *"a declared path resolves to nothing"* scenario, and it is read
+    // against the built `dist` for the reason the scenario itself says: WHEN the built
+    // extension is listed.** A rule reading `static/manifest.json` against `sidepanel.html` in
+    // the source tree would pass a build that emitted neither — and `sidepanel.html` living in
+    // `apps/extension/` is exactly the file a broken rollup input list would leave behind.
+    //
+    // **The paths are collected from the manifest rather than retyped here.** A list written out
+    // in this file is a second spelling of the manifest, and it is a spelling that goes stale
+    // silently: adding a fourth surface to the manifest would not add it to this list, so the
+    // case would keep passing while covering less. Deriving it means a new surface is covered
+    // by being declared, which is the same "roots come from what is on disk" rule
+    // `tests/architecture/boundaries.test.ts` applies to its package lists.
+    const declared = [
+      manifest.action.default_popup,
+      manifest.side_panel?.default_path,
+      manifest.background.service_worker,
+      ...(manifest.content_scripts ?? []).flatMap((entry) => entry.js),
+    ].filter((path): path is string => typeof path === "string");
+
+    // **Non-vacuous: the list is the manifest's own four, not an empty array matching an
+    // empty expectation.** A filter that collected nothing would satisfy the assertion below
+    // for ever.
+    expect(declared.length).toBe(4);
+
+    // **AND reported by name, which is the scenario's second clause.** An `every(...)` returning
+    // a boolean says a path is missing without saying which, and a reader repairing the build
+    // has to re-derive it. This names them.
+    const missing = declared.filter((path) => !existsSync(join(EXTENSION_DIST_PATH, path)));
+    expect(missing).toEqual([]);
+  });
+
+  test("requests no permission in order to name the page beside the panel", () => {
+    //
+    // **The manifest clause of `extension-client`'s host requirement, and it is the same clause
+    // as `in-page-integration`'s — stated twice in two capabilities because a panel and a
+    // content script reach a host by different means and a reader must not have to know that
+    // to find the rule.**
+    //
+    // **What is asserted is the absence of `tabs`, by name.** `tab.url` and `tab.title` are
+    // withheld to an extension holding no `tabs` permission, and `docs/PROVIDERS.md` §4.6
+    // measured both readings. So the panel's route — asking the content script beside the page
+    // over `chrome.tabs.sendMessage` — is the free half, and `tabs` is the one permission that
+    // would make the host readable directly and would cost the ability to read across every
+    // window for ever.
+    //
+    // **Named rather than counted**, for the reason this file has recorded elsewhere: a count
+    // says how many and not which, so a manifest that grew a fourth permission would pass a
+    // length assertion and fail this one.
+    expect(manifest.permissions).not.toContain("tabs");
+
+    // **And the permission the side panel *does* need is declared, so the case is not satisfied
+    // by a manifest that dropped it.** `chrome.sidePanel` is `undefined` without it — measured,
+    // §4.6 — so a panel whose permission was removed would still pass the line above.
+    expect(manifest.permissions).toContain("sidePanel");
   });
 
   test("names a service worker and a popup that the build emits", () => {
