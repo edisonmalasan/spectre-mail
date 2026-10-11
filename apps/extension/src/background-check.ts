@@ -8,10 +8,14 @@
  * `docs/PROVIDERS.md` records as **measured unauthenticated only**. The shared session's cadence is
  * read from `packages/mailbox` rather than restated, for the reason `alarms.ts` records.
  *
- * **A wake takes one listing and never opens a message.** Opening one is a second request per
- * notification to obtain a body this slice has no use for, and it is what would put a one-time code
- * in front of a lock screen - see `notification.ts` for why the exclusion is structural rather than
- * a filter.
+ * **A wake takes one listing and reads no message body at all.** A wake renders nothing, so it has no
+ * row to carry a verdict, and a verdict is the only reason anything here would want a body. **That
+ * sentence is narrower than the one this file used to carry, and the difference is a measured repair
+ * rather than a tightening of prose**: it read *"A wake takes one listing and never opens a message"*,
+ * which was true of `openMessage` and silent about everything else, and the browser tier then counted
+ * **two** requests for a wake over a mailbox holding one message and the same **two** for the next
+ * wake — the verdict pass in `packages/mailbox` had read the body on the way past. So the wake now
+ * lists through `restoreSummaries`, and this line states what was measured. See `design.md` D15.
  *
  * ## The session is built per wake and released, never held
  *
@@ -154,11 +158,21 @@ function listingFromState(state: SessionState): MailboxListingOutcome {
  * The two things a wake's session is asked to do, and nothing else.
  *
  * **Narrower than `MailboxSession` on purpose.** It is what makes "never `openMessage`, never
- * `analyseMessage`" a property of the *type* a wake is built from rather than a promise about the
- * code: a module holding this cannot reach the other members even by accident, and a test can pass a
- * session that has only these two.
+ * `analyseMessage`, never `checkInbox`" a property of the *type* a wake is built from rather than a
+ * promise about the code: a module holding this cannot reach the other members even by accident, and a
+ * test can pass a session that has only these two.
+ *
+ * **`restoreSummaries` rather than `restore`, and this is a repair rather than a preference.** The
+ * browser tier counted what a wake costs on the wire and found **two** requests for a mailbox holding
+ * one message — the listing, and a read of that message's body — with a **second** wake costing the
+ * same two. `restore` lists through the tracker's verdict pass, which reads each body it has not
+ * already read; the tracker remembers that only for the life of its session, and a wake builds a fresh
+ * one, so **every wake re-read every body the mailbox held**. Against a `GET /messages` budget of
+ * `30; w=60` that is twenty-four requests a minute at one message and over the whole budget at two, for
+ * a verdict **this extension has no consumer for**: `apps/web` is the only caller in this repository
+ * that reads one. See `design.md` D15.
  */
-export type WakeSession = Pick<MailboxSession, "restore" | "destroy">;
+export type WakeSession = Pick<MailboxSession, "restoreSummaries" | "destroy">;
 
 /**
  * Builds one wake's session from a provider manager.
@@ -190,10 +204,11 @@ export function createExtensionListingReader(
     const session = buildSession(manager);
 
     try {
-      // **`restore`, never `open`.** `open` asks a provider for an address to create, and this wake
-      // has been given the address already; `restore` reconciles a stored mailbox through the
-      // provider that owns it and returns the listing as the inbox's own first listing.
-      return listingFromState(await session.restore(mailbox));
+      // **`restoreSummaries`, never `open`.** `open` asks a provider for an address to create, and this
+      // wake has been given the address already; `restoreSummaries` reconciles a stored mailbox through
+      // the provider that owns it and returns the listing as the inbox's own first listing —
+      // **without reading a body**, which is the whole of what distinguishes it from `restore` here.
+      return listingFromState(await session.restoreSummaries(mailbox));
     } finally {
       session.destroy();
     }

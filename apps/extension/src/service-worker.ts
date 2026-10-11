@@ -23,12 +23,21 @@
  * matching reason: the measurement that established that a *record* survives a restart (§4.4)
  * established nothing about a *schedule*.
  *
- * **The alarm is armed where a mailbox is written and nowhere else.** The only place this product
- * writes a mailbox record is `handleCreateMailbox`'s `addMailbox`, so arming on that answer covers
- * every path this build has. **The limit is stated rather than closed**: a mailbox that reached
- * storage some other way — a record written by a build that predates this one, or a future path that
- * writes the area directly — is armed on the next browser start rather than at once, because
- * watching the area would add a platform seam for a case this repository cannot name.
+ * **The alarm is armed where a mailbox is written, and this note previously named the wrong place.**
+ * It said the only write was `handleCreateMailbox`'s `addMailbox`, so arming on that answer covered
+ * every path this build had. **That was false, and the browser tier found it by asking the platform
+ * what was armed after a person created an address through the popup**: the popup creates a mailbox
+ * in its *own* context and writes the collection itself (`Popup.tsx`), so the delegated path's
+ * arming never ran, and a device that had just made an address sat with **no alarm at all** until the
+ * next browser start. The popup now sends `RECONCILE_ALARM_REQUEST` after its own write, which
+ * reaches the branch below — one mechanism, one decision, still made here rather than in the popup.
+ *
+ * **The limit is stated rather than closed, and it is a narrower limit than it was.** A mailbox that
+ * reached storage some other way — a record written by a build that predates this one, or a future
+ * path that writes the area directly — is armed on the next browser start rather than at once,
+ * because watching the area would add a platform seam. **The reason that limit was recorded at all is
+ * now weaker than it was**: the case it said this repository could not name — a path this build
+ * already had, writing the record itself — is the one the browser tier named.
  *
  * ## Why creation is here, and why that is a measurement rather than a choice
  *
@@ -50,11 +59,7 @@
  * @module
  */
 
-import {
-  BACKGROUND_ALARM_NAME,
-  clearBackgroundAlarm,
-  reconcileBackgroundAlarm,
-} from "./alarms";
+import { BACKGROUND_ALARM_NAME, clearBackgroundAlarm, reconcileBackgroundAlarm } from "./alarms";
 import { createBackgroundCheck } from "./background-check";
 import { createExtensionMailboxOpener, handleCreateMailbox } from "./create-mailbox";
 import {
@@ -67,6 +72,7 @@ import {
   readNotificationPlatform,
 } from "./extension-platform";
 import { NOTIFICATION_ICON_FILE, raiseNotification } from "./notification";
+import { isReconcileAlarmRequest } from "./protocol";
 import { createExtensionStorage, loadInsertableMailboxes } from "./storage";
 import type { ExtensionRecords } from "./storage";
 import { extensionTransport } from "./transport";
@@ -109,14 +115,43 @@ function holdsMailbox(records: ExtensionRecords): Promise<boolean> {
 /**
  * Arm or withhold the background alarm for a context that has just read its storage.
  *
- * **Named for the question rather than for the work**, because the same function is reached from two
- * places that have nothing else in common: a browser starting, and a mailbox having just been written.
+ * **Named for the question rather than for the work**, because the same function is reached from three
+ * places that have nothing else in common: a browser starting, a mailbox having just been written by a
+ * delegated creation, and a mailbox having just been written by the popup.
+ *
+ * **The records are read by the caller and passed in rather than read here**, because a context that
+ * read its storage *before* the write it is arming for would answer "this device holds nothing" about
+ * a device that now holds something. Every caller therefore reads after its write, and the browser
+ * case that found the popup's path missing is what makes "every caller" checkable rather than
+ * asserted.
  */
 function reconcileAlarmFor(records: ExtensionRecords): Promise<boolean> {
   return reconcileBackgroundAlarm({
     platform: readAlarmPlatform(),
     holdsMailbox: () => holdsMailbox(records),
   });
+}
+
+/**
+ * Answer a context that has written a mailbox of its own and is asking this worker to look again.
+ *
+ * **The storage is read here, in the answering context, rather than taken from the request**, for the
+ * reason the request carries no payload: the question is *what this device holds*, and the asking
+ * context's answer to that would be a second copy of a fact that could be a round trip out of date.
+ *
+ * **A device whose storage cannot be read arms nothing and is told so.** `notStored` is the same
+ * answer the creation path gives for the same condition, and it is the honest one: this worker could
+ * not learn whether there is anything to watch, and arming against an unreadable record would spend
+ * provider budget on a device that may hold nothing.
+ */
+function answerReconcileAlarm(): Promise<{ readonly kind: "reconciled" | "notStored" }> {
+  const extensionStorage = createExtensionStorage(readChromeLocalArea());
+
+  if (extensionStorage.kind === "blocked") {
+    return Promise.resolve({ kind: "notStored" });
+  }
+
+  return reconcileAlarmFor(extensionStorage.records).then(() => ({ kind: "reconciled" as const }));
 }
 
 /**
@@ -219,6 +254,18 @@ onAlarmFired((alarmName) => {
  * than reusing anything the earlier request left.
  */
 onExtensionMessage((request) => {
+  /**
+   * **Checked before anything is read, and before creation is offered.** A reconcile request carries
+   * no payload and asks this worker to look at its own storage, so handling it costs a read rather
+   * than a provider round trip — but it has to be *recognised*, because falling through to
+   * `handleCreateMailbox` would answer a request about this device's schedule with a mailbox
+   * question, and a person watching the popup would see a new address created by asking for a
+   * notification.
+   */
+  if (isReconcileAlarmRequest(request)) {
+    return answerReconcileAlarm();
+  }
+
   const extensionStorage = createExtensionStorage(readChromeLocalArea());
 
   if (extensionStorage.kind === "blocked") {

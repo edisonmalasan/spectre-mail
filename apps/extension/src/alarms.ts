@@ -64,9 +64,7 @@ export interface BackgroundAlarmDependencies {
 }
 
 /** Arm the background alarm. Resolves once the platform has taken the request. */
-export async function armBackgroundAlarm(
-  platform: AlarmPlatform | undefined,
-): Promise<void> {
+export async function armBackgroundAlarm(platform: AlarmPlatform | undefined): Promise<void> {
   await platform?.create(BACKGROUND_ALARM_NAME, {
     periodInMinutes: BACKGROUND_ALARM_PERIOD_MINUTES,
   });
@@ -79,9 +77,7 @@ export async function armBackgroundAlarm(
  * for a check that merely failed, because a provider that could not be reached will be reachable
  * again and this device is the thing that decides whether it hears about what arrives meanwhile.
  */
-export async function clearBackgroundAlarm(
-  platform: AlarmPlatform | undefined,
-): Promise<boolean> {
+export async function clearBackgroundAlarm(platform: AlarmPlatform | undefined): Promise<boolean> {
   return (await platform?.clear(BACKGROUND_ALARM_NAME)) ?? false;
 }
 

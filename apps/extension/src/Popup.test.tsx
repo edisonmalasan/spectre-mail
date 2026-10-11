@@ -115,6 +115,21 @@ function storageReading(outcome: Mailbox | null | Error): PopupStorage & {
   };
 }
 
+/**
+ * The popup's request that the background context arm its schedule.
+ *
+ * **One spelling for every case in this file, because a component that cannot be built without the
+ * seam should not be built by nine copies of a decision.** The requirement on `PopupProps` is what
+ * makes this a shared helper rather than an argument each site remembered: `tsc` named all nine sites
+ * on the render that first made it required.
+ *
+ * **It resolves, and the answer is discarded by the component** — see `PopupProps`. A stub that
+ * rejected would make this file measure an error path no requirement names.
+ */
+function armingAlarm(): () => Promise<unknown> {
+  return vi.fn(async () => ({ kind: "reconciled" }));
+}
+
 describe("the popup", () => {
   /**
    * Unmount between tests.
@@ -132,7 +147,12 @@ describe("the popup", () => {
   it("offers a create action once storage has answered, and only then", async () => {
     const session = stubSession({ kind: "idle", opened: null } as unknown as SessionState);
     render(
-      <Popup session={session} storage={storageReading(null)} primaryProviderName="Mail.tm" />,
+      <Popup
+        session={session}
+        storage={storageReading(null)}
+        primaryProviderName="Mail.tm"
+        requestBackgroundAlarm={armingAlarm()}
+      />,
     );
 
     // **The boot read gates the action.** A popup offering "Create an address" before it
@@ -145,7 +165,12 @@ describe("the popup", () => {
   it("adopts a stored mailbox instead of offering to create one", async () => {
     const session = stubSession({ kind: "idle", opened: null } as unknown as SessionState);
     render(
-      <Popup session={session} storage={storageReading(MAILBOX)} primaryProviderName="Mail.tm" />,
+      <Popup
+        session={session}
+        storage={storageReading(MAILBOX)}
+        primaryProviderName="Mail.tm"
+        requestBackgroundAlarm={armingAlarm()}
+      />,
     );
 
     // **`restore` is called with the stored mailbox** — and the create action is not
@@ -163,6 +188,7 @@ describe("the popup", () => {
         session={session}
         storage={storageReading(new Error("storage unavailable"))}
         primaryProviderName="Mail.tm"
+        requestBackgroundAlarm={armingAlarm()}
       />,
     );
 
@@ -183,7 +209,14 @@ describe("the popup", () => {
   it("saves a mailbox only after the session confirms one", async () => {
     const session = stubSession({ kind: "idle", opened: null } as unknown as SessionState);
     const storage = storageReading(null);
-    render(<Popup session={session} storage={storage} primaryProviderName="Mail.tm" />);
+    render(
+      <Popup
+        session={session}
+        storage={storage}
+        primaryProviderName="Mail.tm"
+        requestBackgroundAlarm={armingAlarm()}
+      />,
+    );
 
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Create an address" })).toBeDefined(),
@@ -197,6 +230,42 @@ describe("the popup", () => {
     // mailbox stored before the provider confirmed it would be offered back as though it
     // worked — and this is the assertion that the order is the safe one.
     await waitFor(() => expect(storage.addMailbox).toHaveBeenCalledWith(MAILBOX));
+  });
+
+  it("asks the background context to arm its schedule after storing a mailbox", async () => {
+    const session = stubSession({ kind: "idle", opened: null } as unknown as SessionState);
+    const storage = storageReading(null);
+    const requestBackgroundAlarm = armingAlarm();
+    render(
+      <Popup
+        session={session}
+        storage={storage}
+        primaryProviderName="Mail.tm"
+        requestBackgroundAlarm={requestBackgroundAlarm}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Create an address" })).toBeDefined(),
+    );
+    expect(requestBackgroundAlarm).not.toHaveBeenCalled();
+
+    screen.getByRole("button", { name: "Create an address" }).click();
+
+    /**
+     * **The order is the claim, and it is asserted as order rather than as a second count.**
+     *
+     * This popup creates a mailbox in its own context, so the background worker's alarm — which is
+     * reconciled wherever a mailbox is written — reaches it only if this component asks. The browser
+     * tier found the gap by reading the platform; this half asserts the same property where it can be
+     * observed directly, and it asserts that the request follows the write rather than racing it,
+     * because a request sent first would have the worker read a device that holds nothing.
+     */
+    await waitFor(() => expect(requestBackgroundAlarm).toHaveBeenCalledTimes(1));
+
+    const wroteAt = storage.addMailbox.mock.invocationCallOrder[0] ?? 0;
+    const askedAt = vi.mocked(requestBackgroundAlarm).mock.invocationCallOrder[0] ?? 0;
+    expect(askedAt).toBeGreaterThan(wroteAt);
   });
 
   it("reports a refused clipboard and leaves the address on screen", async () => {
@@ -215,7 +284,12 @@ describe("the popup", () => {
     });
 
     render(
-      <Popup session={session} storage={storageReading(null)} primaryProviderName="Mail.tm" />,
+      <Popup
+        session={session}
+        storage={storageReading(null)}
+        primaryProviderName="Mail.tm"
+        requestBackgroundAlarm={armingAlarm()}
+      />,
     );
 
     // **The boot read gates every control**, so waiting for the control is waiting for
@@ -248,7 +322,12 @@ describe("the popup", () => {
     } as unknown as SessionState);
 
     render(
-      <Popup session={session} storage={storageReading(null)} primaryProviderName="Mail.tm" />,
+      <Popup
+        session={session}
+        storage={storageReading(null)}
+        primaryProviderName="Mail.tm"
+        requestBackgroundAlarm={armingAlarm()}
+      />,
     );
 
     // **Awaited, because the boot read gates every control.** A synchronous query reads
@@ -275,7 +354,12 @@ describe("the popup", () => {
     } as unknown as SessionState);
 
     render(
-      <Popup session={session} storage={storageReading(null)} primaryProviderName="Mail.tm" />,
+      <Popup
+        session={session}
+        storage={storageReading(null)}
+        primaryProviderName="Mail.tm"
+        requestBackgroundAlarm={armingAlarm()}
+      />,
     );
 
     // **`primaryProviderName` is not on screen once a mailbox exists.** The heading names
@@ -293,7 +377,12 @@ describe("the popup", () => {
     } as unknown as SessionState);
 
     render(
-      <Popup session={session} storage={storageReading(null)} primaryProviderName="Mail.tm" />,
+      <Popup
+        session={session}
+        storage={storageReading(null)}
+        primaryProviderName="Mail.tm"
+        requestBackgroundAlarm={armingAlarm()}
+      />,
     );
 
     // **An `expired` state carries no inbox at all**, by design. Rendering "no messages"
@@ -400,7 +489,12 @@ describe("the popup's delivery controls", () => {
     } as unknown as SessionState);
 
     render(
-      <Popup session={session} storage={storageReading(null)} primaryProviderName="Mail.tm" />,
+      <Popup
+        session={session}
+        storage={storageReading(null)}
+        primaryProviderName="Mail.tm"
+        requestBackgroundAlarm={armingAlarm()}
+      />,
     );
 
     return session;

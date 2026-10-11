@@ -3,13 +3,22 @@
  *
  * ## The session this file can build cannot open a message
  *
- * `extension-client` requires the check to **never open a message**, and that the exclusion of a
+ * `extension-client` requires the check to **read no message body**, and that the exclusion of a
  * one-time code from a notification be structural rather than a filter. Both are properties of what
  * the wake is *given*, so {@link createExtensionListingReader} accepts a session factory and the type
- * it accepts is `Pick<MailboxSession, "restore" | "destroy">`. **A fake built here cannot be asked to
- * open anything** — the members do not exist on it — so the strongest form of the claim is checked
- * by the compiler rather than by an assertion, and the case below that passes one only proves the
- * wiring.
+ * it accepts is `Pick<MailboxSession, "restoreSummaries" | "destroy">`. **A fake built here cannot be
+ * asked to open anything** — the members do not exist on it — so the strongest form of the claim is
+ * checked by the compiler rather than by an assertion, and the case below that passes one only proves
+ * the wiring.
+ *
+ * ## `restoreSummaries`, not `restore`, and this file is why
+ *
+ * The type gained `restoreSummaries` rather than keeping `restore` for a measured reason: listing
+ * through `restore` reads a body per message, and the browser tier counted **two** requests for a wake
+ * over a mailbox holding **one** message, with the next wake costing the same two. A fake typed
+ * `Pick<MailboxSession, "restoreSummaries" | "destroy">` would have passed every case in this file
+ * while that was true, so the member's name is what carries the claim — and `MailboxSession`'s own
+ * cases are what carry its cost.
  *
  * ## The falsification the arms are shaped for
  *
@@ -107,9 +116,11 @@ function seams(
 
 describe("listing the watched mailbox", () => {
   it("takes one listing through one session, and releases that session", async () => {
-    // **`(Mailbox | null)[]`, because that is what the real signature accepts.** Narrowing the
-    // record instead would make this case unable to say what it was handed.
-    const restores: (Mailbox | null)[] = [];
+    // **`Mailbox[]`, because that is what the real signature accepts and it is not a
+    // `Mailbox | null`.** Narrowing the record instead would make this case unable to say what it was
+    // handed — and the nullability is itself part of the claim, since `restoreSummaries` is
+    // non-nullable precisely because a wake has a mailbox already.
+    const restores: Mailbox[] = [];
     const destroys: number[] = [];
     const sessions: WakeSession[] = [];
 
@@ -118,10 +129,7 @@ describe("listing the watched mailbox", () => {
       () => {
         const index = sessions.length;
         sessions.push({
-          // **`Mailbox | null`, and that is the real signature.** `MailboxSession.restore` is
-          // typed to accept a null for the first-visit path, so narrowing the fake's parameter
-          // here would be a type error rather than a stricter fake.
-          restore: async (mailbox: Mailbox | null) => {
+          restoreSummaries: async (mailbox: Mailbox) => {
             restores.push(mailbox);
             return readyWith([message("m1")]);
           },
@@ -134,9 +142,11 @@ describe("listing the watched mailbox", () => {
     const outcome = await reader(WATCHED);
 
     expect(outcome).toEqual({ kind: "listed" as const, listing: listing([message("m1")]) });
-    // **One restore and one destroy, counted.** This is the unit half of the one-request-per-wake
+    // **One listing and one destroy, counted.** This is the unit half of the one-request-per-wake
     // claim; the browser tier measures the requests themselves, because a session could restore once
-    // and poll.
+    // and poll. **`restoreSummaries` is named rather than counted**, because what it costs is not
+    // visible here at all — the fakes below never contact a provider, and the reading that made this
+    // member necessary was a request count taken in a real Chromium.
     expect(restores).toEqual([WATCHED]);
     expect(destroys).toEqual([0]);
   });
@@ -147,7 +157,7 @@ describe("listing the watched mailbox", () => {
     const reader = createExtensionListingReader(
       { send: vi.fn(), headers: vi.fn() } as unknown as Transport,
       () => ({
-        restore: async () => {
+        restoreSummaries: async () => {
           throw new Error("the provider could not be reached");
         },
         destroy: destroys,
@@ -165,7 +175,7 @@ describe("listing the watched mailbox", () => {
     const stateFor = (state: SessionState): ReturnType<typeof createExtensionListingReader> =>
       createExtensionListingReader(
         { send: vi.fn(), headers: vi.fn() } as unknown as Transport,
-        () => ({ restore: async () => state, destroy: () => {} }),
+        () => ({ restoreSummaries: async () => state, destroy: () => {} }),
       );
 
     await expect(

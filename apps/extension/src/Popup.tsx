@@ -105,6 +105,22 @@ export interface PopupProps {
    * make a new one, overwriting the one they came back for.
    */
   readonly onBooted?: (stored: Mailbox | null, blocked: boolean) => void;
+  /**
+   * Asked to arm the background schedule once this component has stored a mailbox of its own.
+   *
+   * **Required rather than optional, and the reason is a browser case.** This popup creates a mailbox
+   * in its own context — it is not the delegated path the worker arms on — so a composition that
+   * omitted this prop would silently ship a device that is told about nothing until the next browser
+   * start. An optional seam would make that state reachable by forgetting an argument, and a
+   * requirement that is only met when someone remembers is not a requirement.
+   *
+   * **Returns whatever the background context answered, and this component reads none of it.** The
+   * arming is a side effect that follows a write that has already succeeded; making the create
+   * control wait on it, or report it, would put a schedule into the answer of a request about a
+   * mailbox. The value is returned rather than dropped at the call site so the signature can say what
+   * it is without this component having to know that nothing reads it.
+   */
+  readonly requestBackgroundAlarm: () => Promise<unknown>;
 }
 
 /**
@@ -117,7 +133,13 @@ export interface PopupProps {
  */
 const COPY = POPUP_COPY;
 
-export function Popup({ session, storage, primaryProviderName, onBooted }: PopupProps) {
+export function Popup({
+  session,
+  storage,
+  primaryProviderName,
+  onBooted,
+  requestBackgroundAlarm,
+}: PopupProps) {
   const [state, setState] = useState<SessionState>(() => session.current());
   const [copy, setCopy] = useState<CopyState>("idle");
   const [health, setHealth] = useState<ProviderHealth | null>(null);
@@ -173,8 +195,24 @@ export function Popup({ session, storage, primaryProviderName, onBooted }: Popup
       // mailbox stored before the provider confirmed it would be offered back as though
       // it worked.
       await storage.addMailbox(next.mailbox);
+      /**
+       * **And the schedule is asked for here, after the write, and this line is the whole of a
+       * defect a browser case found.**
+       *
+       * The background worker's alarm is reconciled wherever a mailbox is written. **This component
+       * writes one itself**, so before this line existed the device that had just created an address
+       * through the popup — the path a person takes — was left with **no alarm at all** until the next
+       * browser start, and `e2e/background-check.spec.ts` reads exactly that from the platform.
+       *
+       * **Awaited, and nothing is done with the answer.** Awaiting is what keeps a refused channel
+       * from becoming an unhandled rejection; the reply is unread because arming is a side effect that
+       * follows a write which has already succeeded, and a create control that reported a schedule
+       * failure would be reporting something the person cannot act on. `sendToBackground` resolves
+       * `undefined` rather than rejecting, so there is no error here to swallow.
+       */
+      await requestBackgroundAlarm();
     }
-  }, [session, storage]);
+  }, [requestBackgroundAlarm, session, storage]);
 
   const copyAddress = useCallback(async () => {
     if (mailbox === null) return;

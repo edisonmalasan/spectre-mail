@@ -59,7 +59,12 @@ function summary(overrides: Partial<MessageSummary> = {}): MessageSummary {
  */
 function platformThat(answered: string | null | (() => never)): NotificationPlatform {
   return {
-    create: vi.fn(async (_id: string, _options: unknown) => {
+    // **The two parameters are not written, and that is deliberate rather than an oversight.**
+    // `vi.fn` records every call's arguments whatever the body names, and the case that reads them
+    // (`toHaveBeenCalledWith`, below) is what says the request carried the sender line, the subject
+    // and the icon. **A parameter named `_id` would have read as "the id does not matter"**, and
+    // this repository has a long record of a check narrower than the rule beside it.
+    create: vi.fn(async () => {
       // **Two branches and one return type**, because `never` is only reachable through the call
       // above - the throw is the point of the arm, and returning it would widen the seam's own
       // signature to something no platform can answer.
@@ -92,7 +97,13 @@ describe("what a notification says", () => {
     // **`exactOptionalPropertyTypes` is on, so the key is removed rather than set to undefined.**
     // A summary carrying `fromName: undefined` is a different value from one carrying no display
     // name, and only the second is what a provider reports.
-    const { fromName: _reported, ...withoutName } = summary();
+    const { fromName, ...withoutName } = summary();
+
+    // **The omitted binding is asserted rather than discarded.** Naming it `_reported` would have
+    // silenced `no-unused-vars` while leaving this case resting on a fixture it never checked: if
+    // `summary()` stopped carrying a display name, every case above would go quietly meaningless and
+    // this one would still pass. **A fixture's premise is part of what a case establishes.**
+    expect(fromName).toBe("Sender Service");
 
     const request = buildNotificationRequest(withoutName, ICON_URL);
 

@@ -90,7 +90,10 @@ function senderLine(message: MessageSummary): string {
  * Build the request for one message. Exported so the boundary between *what is said* and *what is
  * asked of the platform* is a thing a test can name.
  */
-export function buildNotificationRequest(message: MessageSummary, iconUrl: string): NotificationRequest {
+export function buildNotificationRequest(
+  message: MessageSummary,
+  iconUrl: string,
+): NotificationRequest {
   return {
     title: senderLine(message),
     // **The subject, verbatim, and never a fallback the module invented.** A provider that reports

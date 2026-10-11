@@ -39,8 +39,10 @@ import { useState } from "react";
 import { createMailboxSession } from "@spectre-mail/mailbox";
 import type { MailboxSession } from "@spectre-mail/mailbox";
 
+import { sendToBackground } from "./extension-platform";
 import { Popup } from "./Popup";
 import type { PopupProps, PopupStorage } from "./Popup";
+import { RECONCILE_ALARM_REQUEST } from "./protocol";
 import {
   createExtensionProviderManager,
   EXTENSION_PROVIDER_IDS,
@@ -48,6 +50,21 @@ import {
 } from "./provider-config";
 import { extensionScheduler } from "./scheduler";
 import { extensionTransport } from "./transport";
+
+/**
+ * Ask the background worker to look at its own storage and arm or withhold its schedule.
+ *
+ * **A named function rather than an inline arrow in the render**, so the seam has one definition this
+ * module can talk about, and so a test that wants to observe the request has a value to replace
+ * rather than a closure it has to rebuild.
+ *
+ * **`sendToBackground` resolves `undefined` on every refusal and never rejects** — its own note says
+ * so — so this function has no error path to handle. That is what lets the popup `await` it without
+ * a `catch`, and the reason the popup's own note can say there is nothing to swallow.
+ */
+function askBackgroundToReconcileAlarm(): Promise<unknown> {
+  return sendToBackground(RECONCILE_ALARM_REQUEST);
+}
 
 export interface AppProps {
   /**
@@ -62,9 +79,24 @@ export interface AppProps {
   readonly session?: MailboxSession;
   /** Told when the boot read finishes, for a test to observe. */
   readonly onBooted?: PopupProps["onBooted"];
+  /**
+   * Overrides how the popup asks the background context to arm its schedule.
+   *
+   * **Optional here and required on {@link PopupProps}, and the asymmetry is the point.** This is the
+   * composition root, so the real seam is bound here once and every shipped popup gets it; the popup
+   * itself demands one so that no *other* composition can be built without it. A test that renders
+   * `App` in jsdom inherits `sendToBackground`, which resolves `undefined` against a platform that is
+   * not there — an arming that does nothing, in a test that is not about arming.
+   */
+  readonly requestBackgroundAlarm?: PopupProps["requestBackgroundAlarm"];
 }
 
-export function App({ storage, session: injected, onBooted }: AppProps) {
+export function App({
+  storage,
+  session: injected,
+  onBooted,
+  requestBackgroundAlarm: armAlarm,
+}: AppProps) {
   /**
    * Built once, by the lazy initialiser.
    *
@@ -90,12 +122,16 @@ export function App({ storage, session: injected, onBooted }: AppProps) {
       session={built.session}
       storage={storage}
       primaryProviderName={built.providerName}
-      // **Spread rather than `onBooted={onBooted}`**, because the shared config sets
+      // **Spread rather than a straight pass-through**, because the shared config sets
       // `exactOptionalPropertyTypes`, under which an optional property may be *absent*
       // but may not be present-and-`undefined`. Passing it straight through is the
       // difference between the callback existing and not existing, as far as the type is
       // concerned — and the popup's own effect depends on that identity being stable.
+      // **The alarm seam is defaulted rather than spread for the opposite reason**: it is
+      // required below, so the one value this composition always has has to reach it
+      // whether or not a caller supplied an override.
       {...(onBooted === undefined ? {} : { onBooted })}
+      requestBackgroundAlarm={armAlarm ?? askBackgroundToReconcileAlarm}
     />
   );
 }

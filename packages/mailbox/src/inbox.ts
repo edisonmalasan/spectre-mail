@@ -94,6 +94,28 @@ export interface InboxTracker {
   check(mailbox: Mailbox | undefined): Promise<InboxState>;
 
   /**
+   * Ask the owning provider for its messages now, **reading no body**.
+   *
+   * **This exists for a caller that displays nothing**, and the difference it makes is
+   * measured rather than assumed: a wake that listed through {@link InboxTracker.check}
+   * cost one request for the listing **plus one read per message**, and re-read them on
+   * every wake, because this tracker remembers which bodies it has read only for its own
+   * lifetime and each wake built a fresh one. Against a `GET /messages` budget of
+   * `30; w=60` that is twenty-four requests a minute at one message and over the whole
+   * budget at two, and `apps/web/src/Inbox.tsx` is the only caller in this repository
+   * that reads a verdict at all.
+   *
+   * **It reports the same `InboxState` union, with an empty verdict map.** That is not a
+   * missing value standing in for one: `checking` already publishes a listing with no
+   * verdicts, and a caller that asked for no verdicts is not being refused one.
+   *
+   * **It neither reschedules nor lifts a halt**, because a caller that displays nothing
+   * has no loop to resume — unlike `check`, where a caller-initiated check is the
+   * visible retry a throttle requires.
+   */
+  listSummaries(mailbox: Mailbox | undefined): Promise<InboxState>;
+
+  /**
    * Forget everything about the previous mailbox.
    *
    * Verdicts are keyed by message id and message ids are provider-scoped, so carrying
@@ -194,7 +216,10 @@ export function createInboxTracker(options: InboxTrackerOptions): InboxTracker {
     });
   }
 
-  async function check(mailbox: Mailbox | undefined): Promise<InboxState> {
+  async function takeListing(
+    mailbox: Mailbox | undefined,
+    readVerdicts: boolean,
+  ): Promise<InboxState> {
     if (mailbox === undefined) {
       // Nothing to list, and nothing is contacted to find that out.
       halted = false;
@@ -239,12 +264,22 @@ export function createInboxTracker(options: InboxTrackerOptions): InboxTracker {
     // than what the mailbox has accumulated. The map is copied once and filled, not
     // rebuilt per message: a fresh inbox of fifty messages would otherwise rebuild a
     // fifty-entry map fifty times.
-    const next = new Map(verdicts);
-    for (const summary of summaries) {
-      if (next.has(summary.id)) continue;
-      next.set(summary.id, await determine(provider, mailbox, summary));
+    //
+    // **The whole block is conditional, and the condition is the other reason this
+    // tracker has two entry points rather than one with a flag.** A caller that
+    // displays nothing cannot act on a verdict, so the reads would be requests whose
+    // results it discards - and since this tracker remembers what it has read only for
+    // its own lifetime, a caller building a tracker per check would pay for them
+    // again on every check, for the life of the installation. That was measured in a
+    // real Chromium and is recorded in `design.md` D15 of the change that fixed it.
+    if (readVerdicts) {
+      const next = new Map(verdicts);
+      for (const summary of summaries) {
+        if (next.has(summary.id)) continue;
+        next.set(summary.id, await determine(provider, mailbox, summary));
+      }
+      verdicts = next;
     }
-    verdicts = next;
 
     const listing: InboxListing = { messages: summaries, verdicts: new Map(verdicts) };
     lastListing = listing;
@@ -369,6 +404,16 @@ export function createInboxTracker(options: InboxTrackerOptions): InboxTracker {
     };
   }
 
+  /**
+   * A check that renders: read what each new message carries, so a row can carry a word.
+   *
+   * **The internal `check` every other entry point and the scheduler use**, so the
+   * verdict pass has exactly one spelling and `listSummaries` cannot drift from it.
+   */
+  function check(mailbox: Mailbox | undefined): Promise<InboxState> {
+    return takeListing(mailbox, true);
+  }
+
   return {
     get state() {
       return state;
@@ -409,6 +454,8 @@ export function createInboxTracker(options: InboxTrackerOptions): InboxTracker {
         return next;
       });
     },
+
+    listSummaries: (mailbox) => takeListing(mailbox, false),
 
     reset() {
       clearPending();

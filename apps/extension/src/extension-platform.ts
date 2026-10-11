@@ -605,10 +605,7 @@ export function readAlarmPlatform(): AlarmPlatform | undefined {
  * @param object - The event object to listen on, or `undefined` where the platform offers none.
  * @returns A function that removes the listener. Idempotent, and safe where there was none.
  */
-function onPlatformEvent(
-  object: unknown,
-  handle: (payload: unknown) => void,
-): () => void {
+function onPlatformEvent(object: unknown, handle: (payload: unknown) => void): () => void {
   const add = readMember(object, "addListener");
   const remove = readMember(object, "removeListener");
 
@@ -637,12 +634,9 @@ function onPlatformEvent(
  * @returns A function that removes the listener. Idempotent, and safe where the platform offers none.
  */
 export function onBrowserStart(handle: () => void): () => void {
-  return onPlatformEvent(
-    readMember(readMember(readPlatform(), "runtime"), "onStartup"),
-    () => {
-      handle();
-    },
-  );
+  return onPlatformEvent(readMember(readMember(readPlatform(), "runtime"), "onStartup"), () => {
+    handle();
+  });
 }
 
 /**

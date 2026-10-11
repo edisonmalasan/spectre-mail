@@ -349,6 +349,75 @@ describe("the inbox", () => {
     });
   });
 
+  /**
+   * The listing for a caller that displays nothing, at the tracker's own level.
+   *
+   * **The pair is the assertion.** Every case in this block states what the listing that
+   * renders costs over the *same* provider and the *same* tracker, because "reads no
+   * body" on its own is also true of a tracker that lists nothing at all, and a reader
+   * has no way to tell those apart. `adoption.test.ts` carries the same property one
+   * layer up, over the real adapter and a request count on the wire.
+   */
+  describe("a listing for a caller that displays nothing", () => {
+    it("reads no body, where the listing that renders reads one", async () => {
+      await start(holding([makeSummary("m1")], { m1: CODE_BODY }));
+
+      await session.checkInbox();
+      expect(provider.reads).toEqual(["m1"]);
+
+      // **A second tracker over a second provider holding the same mailbox.** Two
+      // trackers cannot be run over one stub without the first's readings answering for
+      // the second, which is the very thing being separated here.
+      const other = holding([makeSummary("m1")], { m1: CODE_BODY });
+      const quiet = createMailboxSession(createProviderManager([other]), scheduler);
+      await quiet.open();
+
+      await quiet.restoreSummaries(mailboxOf(quiet));
+
+      expect(other.listCalls).toBe(1);
+      expect(other.reads).toEqual([]);
+    });
+
+    it("leaves a message it had already read read, so a later listing still shows it", async () => {
+      await start(holding([makeSummary("m1")], { m1: CODE_BODY }));
+      await session.checkInbox();
+
+      await session.restoreSummaries(mailboxOf(session));
+
+      // **The empty-map reading would be the defect**, and it is the one this case is
+      // shaped to catch: a listing that clears the tracker's readings would satisfy
+      // "reads no body" perfectly while making the next row undetermined.
+      expect(verdictFor(verdictsOf(await session.checkInbox()), "m1").kind).toBe("carriesCode");
+    });
+
+    it("neither reschedules nor lifts a throttle, where a caller-initiated check does both", async () => {
+      // **One tracker, one throttled provider, one mailbox, and three listings in a row**
+      // — so the only thing that differs between them is which entry point was called.
+      await start(
+        stubProvider("guerrilla", { messages: { listFailsWith: [throttled(), undefined] } }),
+      );
+
+      // The throttle, which halts the loop: the check that hits it schedules nothing.
+      await session.checkInbox();
+      expect(scheduler.pending).toBe(0);
+
+      // **A wake's listing, on the same halted tracker.** Rescheduling here would start
+      // a loop nobody asked for and lift a halt nobody was shown; and the assertion is
+      // `pending` rather than a delay, because `pending` is the half that was once
+      // wrong on its own — a `check` that omitted its own `scheduleNext` left nothing
+      // queued, and a caller asking after a throttle stopped the loop for good.
+      await session.restoreSummaries(mailboxOf(session));
+      expect(scheduler.pending).toBe(0);
+
+      // **The positive control, and it is the only thing that makes the line above a
+      // measurement rather than an absence.** If `checkInbox` did not resume either,
+      // this would be a suite asserting that two entry points behave the same, which is
+      // the opposite of the requirement.
+      await session.checkInbox();
+      expect(scheduler.pending).toBe(1);
+    });
+  });
+
   describe("the cadence", () => {
     it("schedules the first check at the prompt interval", async () => {
       await start(stubProvider("guerrilla"));

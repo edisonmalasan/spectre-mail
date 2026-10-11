@@ -67,6 +67,28 @@ export interface MailboxSession {
   restore(stored: Mailbox | null): Promise<SessionState>;
 
   /**
+   * Adopt a stored mailbox and list it, **reading no message body**.
+   *
+   * **The path for a caller that displays nothing**, and it is a second entry point
+   * rather than an option on {@link MailboxSession.restore} because a boolean at a call
+   * site says nothing about which of the two is wanted, and because the shared
+   * reconciliation should be *reached* rather than reimplemented.
+   *
+   * **The cost is measured rather than argued.** Listing through `restore` costs one
+   * request for the listing **plus one read per message**, and because the tracker
+   * remembers which bodies it has read only for the life of the session that read them,
+   * a caller building a session per check pays for them again on every check. That was
+   * measured in a real Chromium — two requests per wake over a mailbox holding one
+   * message, on every wake — against a `GET /messages` budget of `30; w=60` that
+   * `docs/PROVIDERS.md` records as **measured unauthenticated only**. `apps/web` is the
+   * only caller in this repository that reads a verdict at all.
+   *
+   * **It reconciles identically.** A mailbox the provider reports gone is reported
+   * `expired`, and a throttle is reported as a refusal — never as a gone mailbox.
+   */
+  restoreSummaries(stored: Mailbox): Promise<SessionState>;
+
+  /**
    * Discard the current mailbox and create another.
    *
    * The previous state is **not** mutated. A client holding the old value keeps a
@@ -309,6 +331,116 @@ export function createMailboxSession(
     return setState(current.kind === "failed" ? current : { ...current, opened: next });
   }
 
+  /**
+   * Everything adopting a stored mailbox does, with the listing step as the one thing
+   * that differs.
+   *
+   * **Named for the act rather than for either listing**, because this is the body the
+   * two entry points share and a third spelling of it is what the two delegations above
+   * exist to prevent.
+   */
+  async function adopt(
+    stored: Mailbox | null,
+    takeListing: (mailbox: Mailbox) => Promise<InboxState>,
+  ): Promise<SessionState> {
+    // Nothing stored is the first-visit path, and it is the *same* path rather than
+    // a parallel one. A second implementation of "create a mailbox" would be free
+    // to drift — different states, different order — and the drift would show up as
+    // a first visit behaving differently from a retry, which is the one pair of
+    // paths a user cannot tell apart and must not be able to.
+    if (stored === null) return session.open();
+
+    // Both trackers forget the previous mailbox first, on the same grounds `open`
+    // gives: an opened message is a provider-scoped id, and message ids are
+    // provider-scoped too, so carrying either across a mailbox change would be a
+    // claim about a mailbox this session has not reached yet.
+    inbox.reset();
+    opened.reset();
+
+    // **Published before the provider is asked.** A page that cannot say it is
+    // checking looks broken, and this request is the slowest thing a returning
+    // visitor waits through — it is the one moment `adopting` is worth a variant
+    // of its own rather than reusing `creating`, whose copy would say the page is
+    // asking for a *new* address.
+    withInbox({ kind: "adopting", opened: opened.state });
+
+    // **One request, and it is the inbox's first listing.** Reusing the tracker
+    // rather than calling the provider directly means a restored mailbox arrives
+    // already analysed: the tracker reads each new arrival to decide its verdict
+    // and hands the reading to the opened-message tracker, which is what lets a
+    // message be opened later without a second request. It also means a separate
+    // "is this mailbox alive" probe would be a second request against a provider
+    // that publishes no limit for this path, answering a weaker question.
+    //
+    // **Which listing is taken is the only thing the two entry points differ on**, and
+    // it arrives as a parameter rather than an `if`, so that `inbox.check` and
+    // `inbox.listSummaries` cannot drift apart in everything they share: the throttle
+    // handling, the `checking` publish, the refusal mapping and the `MAILBOX_EXPIRED`
+    // answer below are one implementation, not two.
+    const listing = await takeListing(stored);
+
+    if (listing.kind === "checked") {
+      // The reconciliation listing *is* the inbox state, and it arrives already
+      // analysed.
+      //
+      // **`listing` is passed and then replaced, and the falsification pass is why
+      // that is written down rather than tidied away.** `withInbox` reads
+      // `inbox.state` for the `ready` branch, so whatever arrives in this field is
+      // discarded — the tracker is the single source of truth, which is the better
+      // design. A mutation that replaced `inbox: listing` with `notStarted` left the
+      // whole suite **green**, because it changes nothing.
+      //
+      // So the earlier comment here — "carried as `listing` rather than `inbox.state`
+      // because they are the same value here" — described a choice that had no
+      // effect, and implied a guarantee the line did not provide. The field exists
+      // only because `SessionReady` requires one. What actually guarantees the
+      // restored mailbox arrives with its messages read is that the listing came
+      // from `inbox.check(stored)` rather than from a second request, and that is
+      // what `makes one request to reconcile` asserts.
+      return withInbox({ kind: "ready", mailbox: stored, inbox: listing, opened: opened.state });
+    }
+
+    if (listing.kind !== "checkFailed") {
+      // **Unreachable, and reported rather than cast away.**
+      //
+      // `check` returns `notStarted` only when handed no mailbox, and returns
+      // `checking` only as a transitional publish it has already moved past by the
+      // time its promise resolves. This call passed a mailbox, so the answer is
+      // `checked` or `checkFailed`. The compiler cannot see that — `InboxState` has
+      // four variants and the two it cannot rule out are real variants a client
+      // handles elsewhere — so a cast here would be hiding a possibility from the
+      // next reader rather than documenting it.
+      //
+      // Reporting it means that if the tracker's contract ever changes to make this
+      // reachable, a page finds out at runtime instead of rendering an address on
+      // the strength of an inbox that is still being fetched.
+      throw new Error(
+        `The inbox tracker reported "${listing.kind}" instead of a listing, so a stored mailbox was neither confirmed nor refused.`,
+      );
+    }
+
+    // **Stop the loop on both failure paths, and the reason is not tidiness.**
+    // `check` reschedules, so without this the session would go on listing the very
+    // mailbox it is about to report as gone — a request the provider has already
+    // refused, repeating forever, for a state nothing reads. `reset` publishes
+    // nothing, so no inbox transition is announced that the session cannot honour.
+    inbox.reset();
+
+    if (listing.failure.code === NormalizedErrorCode.MAILBOX_EXPIRED) {
+      return withInbox({ kind: "expired", mailbox: stored, opened: opened.state });
+    }
+
+    // Everything else is "could not tell", including a throttle. Reporting a
+    // throttled check as `expired` would tell a user their address is gone on the
+    // strength of a provider asking us to slow down.
+    return withInbox({
+      kind: "restoreFailed",
+      mailbox: stored,
+      failure: listing.failure,
+      opened: opened.state,
+    });
+  }
+
   const session: MailboxSession = {
     providers: manager.available,
 
@@ -340,97 +472,34 @@ export function createMailboxSession(
       return withInbox(await createOnce(manager));
     },
 
+    /**
+     * Adopt a stored mailbox and list it, reading what each message carries.
+     *
+     * **Delegates rather than implementing, for the reason the comment inside
+     * {@link MailboxSession.restore} gives**: two implementations of one adoption drift
+     * into the two paths behaving differently, and a caller cannot tell which it is on.
+     */
     async restore(stored) {
-      // Nothing stored is the first-visit path, and it is the *same* path rather than
-      // a parallel one. A second implementation of "create a mailbox" would be free
-      // to drift — different states, different order — and the drift would show up as
-      // a first visit behaving differently from a retry, which is the one pair of
-      // paths a user cannot tell apart and must not be able to.
-      if (stored === null) return session.open();
+      return adopt(stored, inbox.check);
+    },
 
-      // Both trackers forget the previous mailbox first, on the same grounds `open`
-      // gives: an opened message is a provider-scoped id, and message ids are
-      // provider-scoped too, so carrying either across a mailbox change would be a
-      // claim about a mailbox this session has not reached yet.
-      inbox.reset();
-      opened.reset();
-
-      // **Published before the provider is asked.** A page that cannot say it is
-      // checking looks broken, and this request is the slowest thing a returning
-      // visitor waits through — it is the one moment `adopting` is worth a variant
-      // of its own rather than reusing `creating`, whose copy would say the page is
-      // asking for a *new* address.
-      withInbox({ kind: "adopting", opened: opened.state });
-
-      // **One request, and it is the inbox's first listing.** Reusing the tracker
-      // rather than calling the provider directly means a restored mailbox arrives
-      // already analysed: the tracker reads each new arrival to decide its verdict
-      // and hands the reading to the opened-message tracker, which is what lets a
-      // message be opened later without a second request. It also means a separate
-      // "is this mailbox alive" probe would be a second request against a provider
-      // that publishes no limit for this path, answering a weaker question.
-      const listing = await inbox.check(stored);
-
-      if (listing.kind === "checked") {
-        // The reconciliation listing *is* the inbox state, and it arrives already
-        // analysed.
-        //
-        // **`listing` is passed and then replaced, and the falsification pass is why
-        // that is written down rather than tidied away.** `withInbox` reads
-        // `inbox.state` for the `ready` branch, so whatever arrives in this field is
-        // discarded — the tracker is the single source of truth, which is the better
-        // design. A mutation that replaced `inbox: listing` with `notStarted` left the
-        // whole suite **green**, because it changes nothing.
-        //
-        // So the earlier comment here — "carried as `listing` rather than `inbox.state`
-        // because they are the same value here" — described a choice that had no
-        // effect, and implied a guarantee the line did not provide. The field exists
-        // only because `SessionReady` requires one. What actually guarantees the
-        // restored mailbox arrives with its messages read is that the listing came
-        // from `inbox.check(stored)` rather than from a second request, and that is
-        // what `makes one request to reconcile` asserts.
-        return withInbox({ kind: "ready", mailbox: stored, inbox: listing, opened: opened.state });
-      }
-
-      if (listing.kind !== "checkFailed") {
-        // **Unreachable, and reported rather than cast away.**
-        //
-        // `check` returns `notStarted` only when handed no mailbox, and returns
-        // `checking` only as a transitional publish it has already moved past by the
-        // time its promise resolves. This call passed a mailbox, so the answer is
-        // `checked` or `checkFailed`. The compiler cannot see that — `InboxState` has
-        // four variants and the two it cannot rule out are real variants a client
-        // handles elsewhere — so a cast here would be hiding a possibility from the
-        // next reader rather than documenting it.
-        //
-        // Reporting it means that if the tracker's contract ever changes to make this
-        // reachable, a page finds out at runtime instead of rendering an address on
-        // the strength of an inbox that is still being fetched.
-        throw new Error(
-          `The inbox tracker reported "${listing.kind}" instead of a listing, so a stored mailbox was neither confirmed nor refused.`,
-        );
-      }
-
-      // **Stop the loop on both failure paths, and the reason is not tidiness.**
-      // `check` reschedules, so without this the session would go on listing the very
-      // mailbox it is about to report as gone — a request the provider has already
-      // refused, repeating forever, for a state nothing reads. `reset` publishes
-      // nothing, so no inbox transition is announced that the session cannot honour.
-      inbox.reset();
-
-      if (listing.failure.code === NormalizedErrorCode.MAILBOX_EXPIRED) {
-        return withInbox({ kind: "expired", mailbox: stored, opened: opened.state });
-      }
-
-      // Everything else is "could not tell", including a throttle. Reporting a
-      // throttled check as `expired` would tell a user their address is gone on the
-      // strength of a provider asking us to slow down.
-      return withInbox({
-        kind: "restoreFailed",
-        mailbox: stored,
-        failure: listing.failure,
-        opened: opened.state,
-      });
+    /**
+     * Adopt a stored mailbox and list it, **reading no message body**.
+     *
+     * **The same reconciliation as {@link MailboxSession.restore}, reached through the
+     * same implementation** — so a mailbox the provider reports gone is still reported
+     * `expired` rather than as an empty inbox, and a throttle is still reported as a
+     * refusal rather than as a gone mailbox. What differs is the one thing a caller
+     * that displays nothing cannot use: a verdict, and the body it would have to be read
+     * from.
+     *
+     * **Non-nullable, and that is the other difference.** `restore(null)` is the
+     * first-visit path and delegates to `open()`; a caller asking for summaries has a
+     * mailbox already — it was told which — so accepting `null` here would invite
+     * exactly the behaviour `restore` refuses to grow a second copy of.
+     */
+    async restoreSummaries(stored: Mailbox) {
+      return adopt(stored, inbox.listSummaries);
     },
 
     async replace() {
