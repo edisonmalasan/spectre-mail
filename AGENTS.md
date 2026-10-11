@@ -6,8 +6,12 @@
 > `openspec/changes/archive/2026-10-10-alarms-packing-interval/` — proposal PR **#104** merged
 > `de00857`, apply PR **#105** merged `716049f`, **no sync stage because the change declares
 > `skip_specs` and promoted nothing**. **M10 slice 4, the incoming-mail
-> notification** (`incoming-mail-notification`), is **APPLIED and VERIFIED** on
-> `feat/incoming-mail-notification` — proposal PR **#107** merged `788d742`.
+> notification** (`incoming-mail-notification`), is **APPLIED, VERIFIED, SYNCED and ARCHIVED** at
+> `openspec/changes/archive/2026-10-11-incoming-mail-notification/` — proposal PR **#107** merged
+> `788d742`, apply PR **#108** merged `6b80914`, sync PR **#109** merged `1b9da50`.
+> **Which makes M10 complete in scope, so `docs/ROADMAP.md`'s M10 has no slice left open and the
+> cursor moves to M11** — which owns the side panel, the surface `page-composition` has been
+> declaring absent by requirement rather than by omission.
 > **It was the first change in this repository to remove a permission-carrying requirement on
 > measurement, and the removal is recorded rather than implied**: `extension-client`'s
 > *"The background service worker carries no polling until its lifetime is measured"* is **REMOVED

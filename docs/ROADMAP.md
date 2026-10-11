@@ -25,7 +25,7 @@
 > `spectre-storage` (M6 slice 1), `browser-verification`, `visual-system` (M7 slice
 > 1), `page-composition` (M7 slice 3), `extension-client` (M8) and
 > `in-page-integration` (M9 slice 1). Counted mechanically at each sync and again
-> after each archive, they hold **157 requirements and 478 scenarios** in total.
+> after each archive, they hold **163 requirements and 504 scenarios** in total.
 >
 > **The `alarms-packing-interval` spike declared `skip_specs` and promoted nothing, and
 > that was verified rather than assumed**: immediately after the archive the totals were
@@ -36,13 +36,39 @@
 > records its answer in `docs/PROVIDERS.md`, and a requirement restating Chromium's
 > behaviour is the one thing `extension-client`'s no-polling requirement exists to prevent.
 >
-> **The per-capability figures, re-counted on 2026-10-10 at `in-page-fill`'s sync
-> stage and not transcribed:** `browser-verification` 5/12,
-> `build-and-verification` 10/28, `extension-client` **6/24**,
-> `in-page-integration` **16/63**, `mail-parsing` 9/31, `mailbox-session` 23/61,
+> **The per-capability figures, re-counted on 2026-10-11 at `incoming-mail-notification`'s
+> archive stage and not transcribed:** `browser-verification` 5/12,
+> `build-and-verification` 10/28, `extension-client` **10/40**,
+> `in-page-integration` **16/63**, `mail-parsing` 9/31, `mailbox-session` **24/65**,
 > `monorepo-foundation` 5/12, `page-composition` 6/20, `provider-abstraction` 9/20,
-> `provider-adapters` 12/30, `shared-domain-model` 9/23, `spectre-storage` 15/51,
-> `visual-system` 9/28, `website-client` 23/75.
+> `provider-adapters` 12/30, `shared-domain-model` 9/23, `spectre-storage` **16/57**,
+> `visual-system` 9/28, `website-client` 23/75. **Only three moved**, which is how the
+> sync shows it touched three capabilities; the other eleven figures are identical to the
+> ones measured at `in-page-fill`'s sync, and **that is the measurement the count exists
+> for.**
+>
+> **This sync moved the total by six requirements and twenty-six scenarios from eight promoted
+> blocks, and the arithmetic is checkable rather than asserted**: `+5 +1 +1 − 1 = +6`, because a
+> `REMOVED` block subtracts and two `MODIFIED` blocks each *replace* rather than add — **the third
+> milestone to produce this shape.** **The promoter was rehearsed in full on a throwaway copy of
+> `openspec/` before it touched the real tree, and the rehearsal caught a defect that would have
+> shipped silently**: it computed a removal span from the **delta block's** line count rather than
+> from the **main spec's own** next boundary, so removing the retired requirement ran past the end
+> of it and took the following one as well — **and the run then failed at the *next* operation,
+> naming the requirement the removal had eaten rather than the deletion that ate it.** Repaired,
+> re-run, and the real tree's promoted specs are **SHA-256 identical to the rehearsal copy verified
+> first**, so what shipped is the bytes that were checked. **The verifier was wrong before it
+> reported anything** — reading requirement headings regardless of section, it answered *"no, all
+> seven are present"* when asked whether the `REMOVED` block was absent — **which is a failure
+> `AGENTS.md` records from an earlier milestone, and a lesson written down is not a lesson held.**
+> **And all three of its negative controls were defective before they controlled anything**: they
+> never ran at all (`Set-Content -NoNewline` does not exist in this PowerShell and failed
+> **non-terminating**, so the verifier reported three unmodified copies as correct), one mutated a
+> different requirement that happens to contain the phrase while naming the one under test, and one
+> mutated the block's heading rather than its body. **And the digest comparison reported agreement
+> from having no readings at all** — `Get-FileHash` does not exist in this shell, so every
+> comparison was `$null -eq $null`, which is *true*, and the run printed *"identical"* for three files
+> it had never opened. All of it recorded at the change's `design.md` D17.
 >
 > **This sync moved the total by four requirements and twenty-six scenarios, and only two
 > of the capabilities moved at all** — `extension-client` 6 → 6 requirements and 20 → 24
@@ -110,16 +136,26 @@
 `openspec/changes/archive/2026-10-10-in-page-fill/`; the `alarms-packing-interval` spike that
 unblocked the notification is APPLIED, VERIFIED and ARCHIVED** at
 `openspec/changes/archive/2026-10-10-alarms-packing-interval/` - proposal PR #104 merged `de00857`,
-apply PR #105 merged `716049f`, archive PR #106; and **slice 4 (`incoming-mail-notification`) is
-APPLIED and VERIFIED on `feat/incoming-mail-notification`** - proposal PR #107 merged `788d742`, and
-**what the proposal's measurement already changed is recorded rather than merely noted**: the roadmap's
-own depiction of the notification carried a one-time code in the body, and the shipped requirement
-forbids it, because a code lives in a message body and a listing carries none - see the M10 section
-below. **Two shipped defects were found by its own verification and are recorded in `tasks.md` rather
-than folded into the plan**: the popup's mailbox write never reached an arming, so a device that had
-just created an address sat with **no alarm at all** (`design.md` D14), and a wake re-read every
-message body on every wake (`design.md` D15, and `docs/PROVIDERS.md` §4.1.2 for what one firing costs
-against the only measured budget). Slice 2's four stages were proposal PR #100
+apply PR #105 merged `716049f`, archive PR #106; and **slice 4 (`incoming-mail-notification`) is now
+APPLIED, VERIFIED, SYNCED and ARCHIVED** at
+`openspec/changes/archive/2026-10-11-incoming-mail-notification/` - proposal PR #107 merged `788d742`,
+apply PR #108 merged `6b80914`, sync PR #109 merged `1b9da50`. **Its sync promoted eight blocks -
+one `REMOVED`, two `MODIFIED`, five `ADDED` in `extension-client` and one `ADDED` each in
+`mailbox-session` and `spectre-storage` - taking the promoted specs to 163 requirements and 504
+scenarios across the same 14 capabilities**, and **its archive moved 7 files, every one SHA-256
+identical to the digest taken before the command ran, with `.openspec.yaml` kept and all 8 promoted
+blocks byte-identical again afterwards, checked against the ARCHIVED copies rather than the originals
+because archiving is a move.** **What the proposal's measurement already changed is recorded rather
+than merely noted**: the roadmap's own depiction of the notification carried a one-time code in the
+body, and the shipped requirement forbids it, because a code lives in a message body and a listing
+carries none - see the M10 section below. **Three shipped defects were found by its own verification
+and are recorded in `tasks.md` rather than folded into the plan**: the popup's mailbox write never
+reached an arming, so a device that had just created an address sat with **no alarm at all**
+(`design.md` D14); a wake re-read every message body on every wake (`design.md` D15, and
+`docs/PROVIDERS.md` §4.1.2 for what one firing costs against the only measured budget); and **the
+isolation that repaired the second one's blast radius was itself a race**, disarming while the arming
+was still travelling to the worker, which the block of thirty meant to confirm it found - 18 green and
+12 red - and which the positive control caught on its first block (`design.md` D16 and its amendment). Slice 2's four stages were proposal PR #100
 merged `11c28fa`, apply PR #101 merged `99bc35c`, sync PR #102, archive PR #103 — **and its
 archive moved 6 files, every one SHA-256 identical to the digest taken before the command ran, with
 `.openspec.yaml` kept and all 8 promoted blocks byte-identical again afterwards, checked against
@@ -132,7 +168,8 @@ archived, slice 3 at `openspec/changes/archive/2026-10-09-site-associations/` wi
 lifecycle: proposal PR #96 merged `421d56f` (artifacts commit `e196b8d`), apply PR #97 merged
 `bdd13b6`, sync PR #98 merged `550741f`, archive PR #99.
 
-**M10 is four slices; two are complete through their full lifecycle and a third is at apply.** The roadmap's M10 lists four user actions -
+**M10 is four slices, and all four are complete through their full lifecycle, so M10 is closed in
+scope.** The roadmap's M10 lists four user actions -
 *copy code*, *open SpectreMail*, *fill code*, *open verification link* - plus an incoming-mail
 notification, and slice 1 takes the two that are website actions and **no** notification, **no** fill
 and **no** `chrome` permission of any kind. `design.md` D1 records why the old prohibition was

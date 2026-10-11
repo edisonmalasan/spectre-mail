@@ -462,7 +462,7 @@
   the wake listing through `restore` — is now a line `tsc` refuses, because `WakeSession` has no such
   member. **The body-read exclusion moved from a browser case that has to be kept in step with the code
   to `pnpm typecheck`, which runs on every gate.**
-- [ ] 9.10 **This change's own alarm broke a browser-tier assertion, and the repair is an isolation
+- [x] 9.10 **This change's own alarm broke a browser-tier assertion, and the repair is an isolation
   rather than a threshold.** Recorded at `design.md` D16.
   > **Found by the block of thirty, once, and the tally is reported with the red rather than rounded
   > away**: blocks 1 and 2 were 10/10, block 3 was **9 passed and 1 failed**, and the failure is
