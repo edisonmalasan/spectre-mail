@@ -675,3 +675,104 @@ thirty are on the tree this change ships. **38 consecutive green measurements in
 is reported as measured rather than rounded, because the block that failed is the reason this
 amendment exists.
 
+### D17 - The sync was rehearsed on a throwaway copy, and the rehearsal caught a promoter that deleted past the end of what it was removing
+
+**The promotion was rehearsed in full on a copy of `openspec/` before it touched the real tree**, and
+the rehearsal is what caught a defect that would otherwise have shipped silently. This repository has
+now recorded the rehearsal earning its place three times, and this is the third.
+
+**The promoter computed a removal span from the DELTA block's line count rather than from the main
+spec's own boundaries.** `start + deltaLines - 1` looks right — it is the block's first line plus its
+length — and it works while the two texts happen to be the same length. Here they are not: the delta's
+REMOVED block is a fuller piece of prose than the requirement sitting in the promoted spec, so the span
+ran past the end of the requirement being removed and took the next one with it.
+
+**And it failed at the step AFTER the one that caused it.** The promoter's own log said nothing useful;
+the run died on the following operation, reporting *"could not locate block 'The extension's popup
+performs its first milestone's actions over the shared session'"* — which it named because the removal
+had eaten it. **The message pointed at the victim rather than at the deletion**, and a reader who
+trusted it would have gone looking for a missing MODIFIED requirement in the delta.
+
+**This is the recorded defect wearing a new hat.** `AGENTS.md` records a promoter that "logged a
+deletion of the removed requirement and never performed it — the span was computed, the three additions
+were inserted in its place, the file grew, and the log line still read `deleted lines 498..599`". There,
+the log claimed a removal that did not happen; here, the removal happened and the log named a location
+that was not where it was. **Both are a tool reporting what it intended rather than what it did**, and
+both are invisible to anything that reads the file afterwards.
+
+**The repair derives the span from the file being edited**, scanning forward from the located heading
+to that file's own next `### Requirement:` or `## `, and trimming the trailing blank lines because they
+separate blocks and belong to neither. **A span computed from the wrong side of the comparison is the
+whole defect**, and the direction that matters is the same in both: the promoter is asked to remove
+something and instead removes more.
+
+#### The verifier was wrong before it reported anything, and so was the digest comparison
+
+**It read every `### Requirement:` in the delta regardless of section**, so asking whether the REMOVED
+block was absent also asked whether seven ADDED and MODIFIED blocks were absent, and it answered *"no,
+all seven are present"* — a confident, correct-looking report about a promotion that was in fact
+correct. `AGENTS.md` records this exact failure already, from an earlier milestone: *"a verifier that
+reports a difference for the wrong reason is worse than no verifier."* **It is recorded, and it happened
+again, which is the useful part: a lesson written down is not a lesson held.**
+
+It now carries the section each block was found under and selects only the blocks the caller asked
+about. **The independence between promoter and verifier is structural and is preserved** — neither file
+requires the other, they share no reader, and the verifier locates blocks by a different strategy rather
+than by a different spelling of the same one.
+
+**The digest comparison was worse, because it reported agreement from having no readings at all.**
+`Get-FileHash` **does not exist in this PowerShell**, so every one of its comparisons was
+`$null -eq $null`, which is **true** — and the run printed *"identical"* for three files it had never
+opened. **That is the whole risk in one line**: the instrument was unavailable, the comparison therefore
+compared nothing, and nothing in the output distinguished that from a pass. It is the same defect this
+repository records about a fingerprint that cannot tell a source file from an artefact the measurement
+itself creates, and about a harness that reported eighteen measured outcomes it had not measured.
+
+The digest is now taken in node, exits non-zero on a difference **and on a missing file** — so *"could
+not read"* is a failure rather than a match — and was falsified in both directions before it was
+trusted: two specs that must differ report `DIFFER`, and a path that does not exist reports `MISSING`.
+
+#### All three negative controls were defective, and one of them reported a green it never earned
+
+The verifier is only worth what its controls establish, and every control here had to be repaired
+before it established anything.
+
+1. **They never ran.** The first attempt used `Set-Content -NoNewline`, which this PowerShell does not
+   have; it rejected the parameter as a **non-terminating** error and the script carried on, so the
+   verifier reported three unmodified copies as correct. **A control that never ran is not a control
+   that passed**, and the failure printed nothing.
+2. **One mutated the wrong block.** Replacing a phrase across the whole file hit a *different*
+   requirement that happens to contain it, while naming the one under test. The verifier said
+   *identical* and was **right** — the block under test was untouched. **A probe planted somewhere other
+   than the rule it exercises**, and the green it produced was evidence about a block nobody changed.
+3. **One mutated the heading instead of the body.** Scoped to the block, the replacement still hit the
+   block's own first line, so the title stopped resolving and the verifier reported MISSING rather than
+   DIFFERS. Again the verifier was right and the control was wrong.
+
+Each replacement is now scoped to the named block's own span, chosen to be a phrase occurring **only in
+a body line**, and re-read from disk before the script exits — so a control that failed to make its edit
+throws rather than letting the verifier report a pass it never earned. **All three then fired in the
+direction they were built for**: a deleted block reports `MISSING`, a one-word body change reports
+`DIFFERS` with both texts at 70 lines, and a revived retired requirement reports
+`REMOVED-BUT-PRESENT`.
+
+#### What was promoted, and the arithmetic is checkable rather than asserted
+
+**Eight blocks across three capabilities** — one `REMOVED`, two `MODIFIED` and five `ADDED` in
+`extension-client`, one `ADDED` each in `mailbox-session` and `spectre-storage`.
+
+**`extension-client` 6 requirements / 24 scenarios → 10 / 40**, `mailbox-session` **23 / 61 → 24 /
+65**, `spectre-storage` **15 / 51 → 16 / 57**. Across all fourteen capabilities: **157 requirements /
+478 scenarios → 163 / 504**, counted by heading across `openspec/specs/` and not transcribed.
+
+**Eight blocks promoted and six requirements added is the arithmetic working, not a discrepancy.** A
+`REMOVED` block subtracts, and two `MODIFIED` blocks each **replace rather than add**, so
+`+5 +1 +1 − 1 = +6`. **This is the third milestone to produce this shape**, and the rule is stated in
+`AGENTS.md` rather than left as a surprise: a count of promoted blocks is not a count of added
+requirements, and a reader expecting eight would be right about the blocks and wrong about the total.
+
+**Every promoted block is byte-identical to the delta it came from**, verified by the independent reader
+across the three capabilities and both operations, **and each promoted spec is SHA-256 identical to the
+rehearsal copy that was verified first** — so the real tree carries the bytes that were checked, rather
+than a second execution's output.
+
