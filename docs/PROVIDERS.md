@@ -489,6 +489,40 @@ the slower one can stop firing outright. Whoever schedules background polling no
 inherits a *measured* permission and a *measured* prohibition, and both are in
 §4.1.1 rather than in a comment.
 
+### 4.1.2 What one firing costs, measured on the day the feature shipped (2026-10-11)
+
+The record above establishes **that** a background alarm may fire every 5 000 ms. It says nothing
+about **what a firing spends**, and the notification slice found that gap by tripping over it.
+
+**Measured, with a request count taken in the interceptor and now asserted by
+`apps/extension/e2e/background-check.spec.ts`:** a wake over a mailbox holding **one** message cost
+**two** provider requests — the listing, and a read of that message's body — and a **second** wake
+over the same mailbox cost **the same two**. The cost is therefore `1 + N` where `N` is the length
+of the listing, and it does **not** fall on a later wake: each wake builds a fresh session, and the
+tracker's memory of what it has already read dies with it.
+
+**Against the only measured budget that is now exceeded.** §1 records Mail.tm at `30; w=60`.
+`1 + N` at twelve firings a minute is `12 + 12N` requests a minute: **24 at one message and 36 at
+two**, so the budget is passed at the second message in a mailbox. **That figure is measured
+unauthenticated only**, and the extension's own provider path authenticates — so this is not a claim
+that the limit is exceeded in production, it is a claim that **the slice could not have justified
+itself arithmetically without the repair**, and that is why the repair landed rather than a note.
+
+**What fixed it, and what the fix cost to reason about.** `packages/mailbox` gained a second named
+listing, `MailboxSession.restoreSummaries`, for a caller that renders nothing — and the wake's cost
+is now **one request**, asserted over two firings. The reasoning cost is the part worth keeping:
+the wake was described as *"never opens a message"* for the whole of proposal and most of apply, and
+that sentence is true of `openMessage`, true of `analyseMessage`, and **silent about the third thing
+that reads a body** — the verdict pass behind the listing, which exists for a caller that renders
+rows. **This repository had no caller that renders nothing**, so a claim written for the only caller
+present read as a claim about the method.
+
+**What this does not establish.** Every response is recorded, so nothing here is about what a real
+Mail.tm does when a real extension polls it every five seconds — the same limit `use it externally`
+carries. The gap between two firings is asserted only as being *large enough that two requests
+cannot belong to one firing*; it is not a measurement of the period, and §4.1.1's mean spacing is the
+record for that.
+
 ### 4.2 Content-script facts, measured before the in-page milestone was built (2026-10-07)
 
 Measured while `in-page-address` (M9 slice 1) was still at proposal stage, because two of its

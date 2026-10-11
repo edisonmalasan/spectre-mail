@@ -245,7 +245,7 @@ assume it survived. Its period SHALL be the shared session's prompt delay, **tak
 for the number to live.
 
 The worker SHALL hold nothing between wakes. Each wake SHALL build its own session, take one listing,
-and release that session before the wake ends.
+**read no message body**, and release that session before the wake ends.
 
 **"Exactly one" is a measurement, and it is why this is a requirement rather than a preference.**
 Armed together on Chromium `153.0.8010.12`, a 5 000 ms and a 30 000 ms alarm produced **24 and 0
@@ -255,11 +255,29 @@ is the only way this extension could stop notifying at all.
 
 **The period was reconciled against the shared cadence by taking it from there, which is what
 "reconciled explicitly" means here.** A literal would be a silent divergence waiting for the cadence
-to change. The cost is stated rather than assumed: one listing per wake at that period is **twelve
-provider requests a minute**, against a `GET /messages` budget of `30; w=60` which
-`docs/PROVIDERS.md` records as **measured unauthenticated only, with the authenticated policy never
-separately measured**. Twelve is inside the only budget this repository has evidence for; that is a
-statement about a number, not a demonstration that a provider tolerates it.
+to change.
+
+**The cost is measured rather than assumed, and the first version of this paragraph was wrong in the
+direction that matters.** It read *"one listing per wake at that period is twelve provider requests a
+minute"*. Measured in Chromium on 2026-10-11 by counting what one wake costs on the wire: **two**
+requests, for a mailbox holding **one** message — the listing, and a read of that message's body — and
+**a second wake over the same mailbox cost the same two**, so the figure was not converging. The
+listing went through the shared session's verdict pass, which reads each body it has not already read;
+the wake builds a fresh session, the tracker remembers what it has read only for the life of that
+session, and so **every wake re-read every body the mailbox held, for as long as the extension was
+installed**.
+
+**Against a `GET /messages` budget of `30; w=60` — which `docs/PROVIDERS.md` records as measured
+unauthenticated only, with the authenticated policy never separately measured — twenty-four a minute
+is inside the only budget this repository has evidence for and thirty-six is not**, and the general
+shape was one listing plus one body read per message in the listing. That is a background loop paying
+for a verdict every five seconds that **the extension has no consumer for**: `apps/web` is the only
+caller in this repository that reads a verdict map.
+
+**So the wake lists without reading bodies**, and the cost stated here is **one provider request per
+wake whatever the mailbox holds** — twelve a minute, inside the only budget this repository has
+evidence for. That remains a statement about a number, not a demonstration that a provider tolerates
+it.
 
 **Re-checking on start is not belt-and-braces, and the difference is which thing was measured.** The
 measurement that discharged the removed requirement's gate established that a *record* in
@@ -294,6 +312,21 @@ worker being alive, and nothing here may rely on an alarm outliving a reboot.
 - **THEN** that cadence SHALL be one this repository has observed `chrome.alarms` firing at
 - **AND** no document SHALL state a floor for `chrome.alarms` that this repository has not measured
 
+#### Scenario: A wake is measured
+
+- **WHEN** a wake is run in a real Chromium and the provider requests it costs are counted
+- **THEN** it SHALL cost one request, whether or not the listing it returned held messages
+- **AND** a later wake over the same mailbox SHALL cost one request as well, so the cost is a
+  per-wake constant rather than something the first wake pays and the rest avoid
+- **AND** the count SHALL name the request it counted rather than assert only a total
+
+**And this scenario is the reason the cost paragraph above can say what it says.** It was written
+after the measurement that contradicted that paragraph, and its third clause is the one a count of a
+single wake would have missed — **the first run of its case read the count as soon as it went above
+zero and failed with two requests where one was expected**, which is a figure a reader could easily
+call "the first wake pays for the analysis". Counting across **two** wakes is what turned that into
+"the cost does not fall", which is the defect.
+
 ### Requirement: A message that arrives raises a notification naming its sender and its subject
 
 The extension SHALL raise one notification for each message in the watched mailbox whose id this
@@ -305,7 +338,15 @@ notification is readable on a lock screen, in an operating system's notification
 device pairing — every one of them outside the browser, and therefore outside every privacy control
 this product enforces. A `MessageSummary` carries no body at all, by product principle
 (`packages/core`: *"listing a mailbox must not require fetching bodies"*), so a notification built
-from a summary **cannot** contain a code, and the check that raises it **never opens a message**.
+from a summary **cannot** contain a code, and the check that raises it **reads no message body at
+all**.
+
+**And that half was measured, because the first version of it was a promise about intentions rather
+than about requests.** It read *"the check that raises it never opens a message"*, which was true of
+`openMessage` and silent about everything else: the wake's listing went through the shared session's
+verdict pass, which reads each body it has not already read, so a wake had already fetched the very
+body whose code it was declining to put on a lock screen. `mailbox-session`'s listing-without-bodies
+requirement is what closes it, and the browser case that counts a wake's requests is what found it.
 
 **Every notification SHALL carry the shipped raster icon, and that is load-bearing rather than
 decorative.** Measured on 2026-10-11 against this Chromium, unpacked and headless: a notification

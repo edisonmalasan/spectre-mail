@@ -28,15 +28,25 @@ this repository can enforce, for a glance that the popup already offers one clic
 That decision has a consequence worth stating because it is what makes the slice small: **a
 notification needs no message body.** `MessageSummary` carries no body at all, by design
 (`packages/core`: *"listing a mailbox must not require fetching bodies"*), so the check this change
-adds **never opens a message, never runs detection, and never sees a code** — not because it refuses
-to show one, but because the one request it makes cannot return one.
+adds **reads no message body at all** — it never opens a message, never runs detection, and never
+determines a verdict — so it never sees a code, not because it refuses to show one but because the one
+request it makes cannot return one.
+
+> **Amended during apply (2026-10-11): the sentence above read "never opens a message, never runs
+> detection, and never sees a code."** That was true of `openMessage` and of `analyseMessage` and silent
+> about the third thing that reads a body — the listing's verdict pass, which `packages/mailbox` runs for
+> a caller that renders rows. A browser request count found a wake costing **two** requests rather than
+> one, and costing the same two on **every** wake. The claim is now stated over all three.
 
 ## What Changes
 
 - **The background service worker creates exactly one `chrome.alarms` alarm**, armed when this device
   first holds a mailbox and re-checked on every browser startup rather than assumed to have survived.
-- **Each wake restores the watched mailbox from stored credentials, takes one listing, and releases
-  everything.** One provider request per wake. Nothing is retained in a context whose lifetime this
+- **Each wake adopts the watched mailbox from stored credentials, lists it without reading a message
+  body, and releases everything.** One provider request per wake.
+  > **Amended during apply (2026-10-11):** "restores" is now `restoreSummaries` rather than `restore`, and
+  > "One provider request per wake" is a **measurement** rather than an arithmetic — the first version of
+  > that arithmetic was `1 + N` and wrong. See `design.md` D5 (amended) and D15. Nothing is retained in a context whose lifetime this
   repository has measured as a **bound** and not a figure.
 - **A message id this device has not seen before raises one notification** carrying the sender and
   the subject, and nothing else.
@@ -109,12 +119,28 @@ already has; `apps/extension/src` gains a notification module and an alarm-lifec
 `service-worker.ts`, and `service-worker.ts` gains the two listeners that are currently
 **intentionally empty**; `protocol.ts` is untouched, because nothing here is a message between
 contexts.
+> **Amended during apply (2026-10-11): `protocol.ts` is no longer untouched, and the sentence above is
+> left in place rather than corrected, because it was the reason a shipped defect shipped.** It said a
+> background wake creates its mailbox in its own context and arms itself — so it never considered the
+> *other* path that writes a mailbox: the popup's own control, which creates in the **popup's** context.
+> That path was therefore never reconciled, and a person who made an address in the popup was told
+> about nothing until the next browser start. `protocol.ts` now carries one request — payload-free, with
+> the worker reading its own storage — and the amendment is recorded here rather than as a rewrite
+> because **a proposal corrected in place is a record that reads as though it was right the first
+> time**. See `design.md` D14.
 
 **Unchanged, and named because each was the obvious place to look.** `packages/mailbox` is not
 touched: `restore()` already performs one listing through the provider that owns a mailbox and hands
 the listing back in its state, so the one request this slice needs is a call the shared layer already
-makes. `packages/ui` is untouched — no new token and no new motion, so its count must not move.
-`apps/web` is untouched. `docs/PROVIDERS.md` §4.1.1 gains the **notification-icon** measurement this
+makes.
+> **Amended during apply (2026-10-11): `packages/mailbox` **is** touched, and this is the most
+> consequential way in which the proposal was wrong.** `restore()` does perform one listing — that half
+> is true — but it also reads a body per message to fill a verdict map a wake has no use for, so the
+> "one request this slice needs" was `1 + N`. The extension turned out to be the **first caller in this
+> repository that lists a mailbox and renders nothing**, and a shared layer whose cost assumes a display
+> is a layer whose cost nobody has measured in the one context where it runs unattended. See
+> `design.md` D15 and the `mailbox-session` delta this change adds. `packages/ui` is untouched — no new token and no new motion, so its count must not move.
+`apps/web` is untouched. `docs/PROVIDERS.md` gains the **notification** measurement this
 slice has to take, because no icon ships today and whether Chromium accepts a notification without one
 is not something this repository has observed.
 

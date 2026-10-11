@@ -73,10 +73,16 @@
 - [x] 3.1 `background-check.ts`: build a provider manager and a session per wake, `restore()` the
   watched mailbox, take the listing from the returned state, and `destroy()` in a `finally` — the
   shape `create-mailbox.ts` already establishes. **Never `openMessage`, never `analyseMessage`.**
-  > **Done, and "never opens a message" is a type property rather than a reviewer's promise.** The
-  > session the wake holds is typed `Pick<MailboxSession, "restore" | "destroy">`, so a call to
+  > **Done, and "reads no body" is a type property rather than a reviewer's promise.** The session the
+  > wake holds is typed `Pick<MailboxSession, "restoreSummaries" | "destroy">`, so a call to
   > `openMessage` does not fail a test — it fails to compile. **A requirement that can only be checked
   > by reading is a requirement that will eventually be read wrongly.**
+  > **Amended during apply (2026-10-11):** the member was `restore` when this was first ticked, and the
+  > type carried only the *first two thirds* of the claim. A browser request count found the third —
+  > a wake reads a body per message through the listing's verdict pass — so the type now names the
+  > listing that reads none, and `packages/mailbox` grew one. **A type can carry a claim its text never
+  > made**, and only this was true: the wake's unit cases never contacted a provider, so nothing above a
+  > browser could have said. See `design.md` D15 and task 9.3.
 - [x] 3.2 `notification.ts`: build the notification from `MessageSummary` fields only, and report a
   creation the platform refused. **The record advances only on a notification actually created**
   (`design.md` D12).
@@ -209,6 +215,25 @@
   > still absent because no shipped surface needs them. **A requirement that forbids an unused
   > permission is only a rule if something reads the list**, and this was the one place that does.
   >
+  > **The sentence above was false by the time it was written, and it is corrected rather than kept.**
+  > It said `manifest.spec.ts` was *the* place that reads the list. There were **two**, and they read
+  > **two different things on purpose**: `manifest.spec.ts` reads the **built file**, while
+  > `in-page-fill.spec.ts` reads `chrome.runtime.getManifest()` from the **running extension** - and
+  > that file's own header says the two are deliberately different instruments, because the source
+  > file is what was written and the parsed manifest is what Chromium granted. So this was **not** a
+  > duplicate; it was a second copy of one *assertion* on a second *instrument*, and only the first
+  > was reached. **The second was found by the browser tier and not by reading the code** (§7.4),
+  > which is the one place a latent disagreement of this kind can surface.
+  >
+  > **What it is repaired to matters more than the repair.** It no longer asserts an exact list - it
+  > asserts `toContain("storage")` and the **three** absent permissions, because **the exact list is
+  > now a property of the milestone in progress rather than of the fill path**, and
+  > `manifest.spec.ts` holds it. **Narrowing an assertion is not the same as weakening it**: the case
+  > before could not tell an unused permission from a milestone that had not yet added one, and the
+  > case after can. **Nothing was inverted, and the supersession is recorded in the case's own
+  > header** - a case that flips direction with no note attached is the defect `in-page-fill`
+  > recorded once already.
+  >
   > **The new case is the icon, and it exists because the failure it catches is silent by
   > measurement**: a notification naming an icon the build did not carry **resolves its callback and
   > registers nothing** (§4.5), so no callback, no build and no assertion would ever notice. It
@@ -219,21 +244,158 @@
 
 ## 7. Verification
 
-- [ ] 7.1 **Falsification pass.** Prove each new assertion can fail, and prove the conforming case
+- [x] 7.1 **Falsification pass.** Prove each new assertion can fail, and prove the conforming case
   still passes. Record `wrongcatch`, `green`, `noop`, `nocompile` and `harness-error` separately.
   **The harness lives outside the repository tree**, and restoration is verified by SHA-256 per
   mutated file, with `dist/` rebuilt from the restored source.
-- [ ] 7.2 **A notification that could not be created advances nothing** — the mutation is a `create`
+
+  > **34 arms: 30 caught, 3 `nocompile`, 1 `green`, with `wrongcatch`, `noop` and `harness-error`
+  > all zero.** Restoration verified by SHA-256 per mutated file and the final rebuild from restored
+  > source reported `ok`. The three non-caught arms are recorded as evidence rather than counted, and
+  > each is recorded with what it actually established:
+  >
+  > - **`U14` — `nocompile`.** `NotificationRequest` has no index signature, so a fourth key is
+  >   TS2353. **A mutation that cannot compile is not evidence about an assertion**: the exact-key
+  >   assertion in `notification.test.ts` is the second line behind a type, not the first.
+  > - **`W05` — `nocompile`.** The shipped defect verbatim — a wake listing through `restore` — and
+  >   `tsc` refuses it because `WakeSession` is `Pick<MailboxSession, "restoreSummaries" | "destroy">`.
+  >   **The body-read exclusion is now checked by `pnpm typecheck` on every run**, rather than by a
+  >   browser case that has to be kept in step with the code.
+  > - **`P06` — `nocompile`, and its note predicted the opposite.** The arm added a field to the
+  >   payload-free `RECONCILE_ALARM_REQUEST` and the note claimed `tsc` would accept it, on the
+  >   reasoning that excess-property checking fires only at a direct assignment. It does fire at one,
+  >   because the constant is annotated. **A prediction about what the compiler will do is recorded
+  >   as a prediction and corrected when it is wrong**, not kept because it is the newer claim.
+  > - **`W04b` — `green`, and green was correct.** The first spelling of `W04` chained a second
+  >   listing off the returned value; the reader's `finally` calls `destroy()` *before* the promise
+  >   `return` names adopts its value, so the chained call ran against a destroyed session and its
+  >   listing was suppressed. A direct instrumented run showed the interceptor seeing two requests
+  >   **4 989 ms apart** — one wake each, which is the repaired behaviour. **A survivor is not an
+  >   assertion that is too weak until the mutant has been read**, and an arm that was *wrong* rather
+  >   than one that survived is the one most likely to be mistaken for coverage, so it stays in the
+  >   table with its reason attached.
+  >
+  > **And the harness itself was wrong three more times, all repaired rather than explained.**
+  >
+  > - **A `-t` filter that matched nothing was filed as a pass.** `P07` came back `green` with
+  >   **0 passed**. Vitest's `-t` takes a **regex**, and the catcher had been composed from an
+  >   `it.each` *template*: the second `%s` is filled with the row's **value**, not its expected
+  >   boolean, so `: false` matched no rendered title. All **64** tests came back `pending`, exit 0 —
+  >   and the guard tested `numTotalTests === 0`, which a *skipped* test satisfies because a skipped
+  >   test is still a collected test. **That is this repository's own `passWithNoTests` lesson in the
+  >   one direction that manufactures a survivor**, and the test now reads
+  >   `numPassedTests + numFailedTests === 0`.
+  > - **An arm that measured nothing looked exactly like an arm that measured a survivor**, which is
+  >   why the two are separated above rather than merged into one "not caught" bucket.
+  > - **The `P04` spelling measured the compiler.** `adopt(null, …)` leaves `stored` unread and
+  >   `noUnusedParameters` refuses it, so the first run was `nocompile`. `P02` and `P04` use
+  >   always-true expressions for the same reason.
+
+- [x] 7.2 **A notification that could not be created advances nothing** — the mutation is a `create`
   that reports failure, and its catcher is the record.
-- [ ] 7.3 **A wake makes exactly one provider request.** The instrument is a request count, which is
+
+  > `U01` (a `create` answering `false`) and `U02` (a `create` that **throws**) both caught by
+  > *"does not record a message whose notification the platform refused"*, and `U03` caught by
+  > *"establishes a baseline on the first check and announces nothing"*. **Both refusals are arms
+  > because `docs/PROVIDERS.md` §4.5 measured that `chrome.notifications.onError` does not exist on
+  > the Chromium measured** — so a throw and a `null` answer are the only two refusals a caller can
+  > observe, and treating one differently would give the record two rules where the platform offers
+  > one.
+
+- [x] 7.3 **A wake makes exactly one provider request.** The instrument is a request count, which is
   what caught `in-page-fill`'s `close()` defect.
-- [ ] 7.4 **`static/manifest.json` is byte-identical apart from the two permissions.**
-- [ ] 7.5 `pnpm verify` three times with `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory, and
+
+  > **The browser count could not measure this at all when it was first written, and the arm table
+  > is why.** `W04` — a wake listing twice — came back `green`, because **two wakes listing once and
+  > one wake listing twice produce the same log of URLs**: a case written to measure a *per-wake* cost
+  > was measuring a *total*, and it had a name and a comment saying otherwise. `recorded-provider.ts`
+  > now records `requestedAt` beside `requested`, and the case asserts the two requests are
+  > `INBOX_POLL_PROMPT_MS / 5` apart — a **derived** threshold, because a number picked there would
+  > be a number picked to be large enough. `W06` deletes the timestamp push and is caught, so the gap
+  > is measured rather than defaulted into passing. `P01`/`P05` are the same property one layer down,
+  > counting `restoreSummaries` against `restore` and against a listing that renders.
+
+- [x] 7.4 **`static/manifest.json` is byte-identical apart from the two permissions.**
+
+  > Checked by inspection and by arm: `permissions` went from `["storage"]` to
+  > `["storage", "alarms", "notifications"]` and nothing else in the file moved. `W01` makes the
+  > manifest request a permission no shipped surface uses; `W02` makes it declare the shipped icon
+  > anywhere at all; `W03` deletes `icon.png` — which is `nocompile`-free only because the harness
+  > removes `dist/` before building, since `vite.config.ts` sets `emptyOutDir: false` and the
+  > **previous build's `dist/icon.png` survived the deletion** and was read as evidence about a
+  > mutation long after it was built.
+  >
+  > **A second copy of the same assertion existed and was not reached by task 6.2.**
+  > `in-page-fill.spec.ts` held `expect(manifest.permissions).toEqual(["storage"])` against the
+  > **parsed** manifest, and `manifest.spec.ts` holds the list against the **built file** — two
+  > deliberately different instruments, and only the first was updated. It is repaired to assert
+  > `toContain("storage")` plus the three absent permissions, with the supersession recorded in the
+  > case's own header: **a case that flips direction with no note attached is the defect
+  > `in-page-fill` already recorded once.**
+
+- [x] 7.5 `pnpm verify` three times with `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory, and
   `pnpm test:browser` at least thirty consecutive times.
-- [ ] 7.6 Counts taken from `--reporter=json` grouped by project, never transcribed. **Predicted
+
+  > **`pnpm verify` exited `0` three times, with no browser installed** — `PLAYWRIGHT_BROWSERS_PATH`
+  > pointed at an empty directory — and **58 test files** each run. **The first of the three was
+  > red, on two gates, and neither was a flake**: `lint` reported three
+  > `@typescript-eslint/no-unused-vars` errors in `notification.test.ts`, and `format:check` rejected
+  > ten files. The lint errors are the recorded shape — **the count of files Prettier rejects is a
+  > count of edits made since Prettier last ran**, not a fixed property of the change.
+  >
+  > **The lint errors are worth their own sentence, because the fix was not suppression.** The
+  > repository's ESLint config sets no `argsIgnorePattern`, so a `_`-prefix silences nothing; the
+  > `_id`/`_options` on the fake's `create` and the `_reported` in a rest destructure were three real
+  > bindings nothing read. The parameters are now simply not written — **`vi.fn` records every call's
+  > arguments whatever the body names**, and `toHaveBeenCalledWith` is the case that reads them — and
+  > the omitted `fromName` is now **asserted** rather than discarded, because a case resting on a
+  > fixture it never checked passes just as happily when the fixture stops meaning what it did.
+  >
+  > **And my own reading of that red was wrong first, which is the part worth recording.** The
+  > harness line was `$LASTEXITCODE` **after a pipeline**, which reports the last command in the pipe
+  > rather than `pnpm` — so the three "red" runs and the three green ones came off the same
+  > instrument. **A number produced by a pipeline's last stage is not the number the command exited
+  > with**, and the repaired form captures the output first and reads the exit code from the command.
+
+- [x] 7.6 Counts taken from `--reporter=json` grouped by project, never transcribed. **Predicted
   movements: `packages/storage` 78 → more, `apps/extension` 262 → more, `packages/ui` 38 unmoved,
   `apps/web` 125 unmoved, `architecture` 53 unmoved.** A movement in `apps/web` means this slice
   touched the website and that has to be explained before anything else is looked at.
+
+  > **Measured: `1093` tests across `58` files, `0` failed**, grouped by project from the JSON
+  > reporter rather than read off a summary line.
+  >
+  > | Project | Was | Now |
+  > |---|---|---|
+  > | `apps/extension` | 262 | **330** |
+  > | `packages/mailbox` | 158 | **166** |
+  > | `packages/storage` | 78 | **86** |
+  > | `apps/web` | 125 | **125** |
+  > | `packages/providers` | 92 | **92** |
+  > | `packages/ui` | 38 | **38** |
+  > | architecture (boundary assertions) | 53 | **53** |
+  > | `packages/mail-parser` | 149 | 149 |
+  > | `packages/core` | 54 | 54 |
+  > | **Total** | **1009 / 54 files** | **1093 / 58 files** |
+  >
+  > **All three unmoved numbers moved for the reason they were checked.** `apps/web` is the evidence
+  > this slice touched no website, `packages/ui` the evidence it added no token and no motion, and the
+  > boundary count the evidence task 6.1's decision to add **no** rule was right — every property
+  > already had an instrument.
+  >
+  > **`apps/extension`'s +68 is fully accounted, and the arithmetic is the check that the movement
+  > was accounted for**: three new files (`alarms.test.ts` 7, `notification.test.ts` 11,
+  > `background-check.test.ts` 17 = 35), `extension-platform.test.ts` 47 → 64 (+17),
+  > `service-worker.test.ts` 5 → 8 (+3), `Popup.test.tsx` 24 → 25 (+1), `protocol.test.ts` 52 → 64
+  > (+12). 35 + 17 + 3 + 1 + 12 = **68**.
+  >
+  > **And one movement in that arithmetic was the count reporting a gap.** `protocol.test.ts` held
+  > **52 before and after** a change that added a third message kind to the module — and the
+  > unmoved number was what gave it away: `RECONCILE_ALARM_REQUEST`, `RECONCILE_ALARM_REQUEST_KIND`
+  > and `isReconcileAlarmRequest` were read by **no case**, while every other kind in the file has
+  > its own narrowing table. **A count says how many and not which**, so a moved count would not have
+  > reported it either; it took the arithmetic across two changes to see a number that should have
+  > moved and did not. Twelve cases now cover it, and `P06`/`P07`/`P08` are the arms.
 
 ## 8. Deliberately left unticked
 
@@ -242,3 +404,153 @@
   agent reading a string is not the judgement the task asks for. **Recorded rather than skipped.**
 - [ ] ~~**Whether 5 000 ms is tolerable to a real provider.**~~ `use it externally` remains unverified
   and this slice has no way to close it; the only budget measured is `30; w=60`, unauthenticated only.
+---
+
+## 9. Repairs found while running task 7
+
+> **Found by the verification pass, and recorded here rather than folded into the tasks above.**
+> Task 7.3's own instrument — a request count taken in a real Chromium — is what found both of these,
+> and both were shipped defects rather than gaps in the tests. They are numbered after the sections
+> above because that is the order they were found in, not because they belong last.
+
+- [x] 9.1 **The alarm was armed on one of the two paths that write a mailbox.** The popup creates a
+  mailbox in its own context and writes the collection itself, so the worker's arming — which hung off
+  the answer to a *delegated* creation — never ran for the path a person takes. Measured: the mailbox
+  present in the collection, `chrome.alarms.getAll()` answering `[]` across eight polls over two
+  seconds. **The platform accepts the period** — a direct `create` with `periodInMinutes: 1/12` was
+  accepted and appeared in `getAll()` — so this is the product never calling `create`, and the
+  measurement is what distinguishes those two. Fixed per `design.md` D14.
+- [x] 9.2 **`service-worker.ts`'s module note made a false claim**, and its *reason* for a narrower
+  design was refuted by the same measurement: it said watching the storage area was unnecessary *"for
+  a case this repository cannot name"*, and the popup is the case a person uses. The note is rewritten,
+  not reworded.
+- [x] 9.3 **The delta's cost paragraph was false, and so was the "never opens a message" sentence.**
+  A wake costs one listing **plus one body read per message in the listing**, and it re-reads them on
+  *every* wake, because the wake builds a fresh session and the verdict tracker remembers what it has
+  read only for that session's life. Measured, not read: two requests for wake one, two for wake two,
+  on a mailbox holding one message. Both paragraphs are amended **in the delta**, with the measurement
+  attached, because `openspec/specs/` is the source of truth and a gap between the archived delta and
+  the promoted spec means an amendment was recorded in the wrong artifact.
+- [x] 9.4 **A `mailbox-session` delta is added**, so the repair has somewhere to live. `MailboxTracker`
+  gains a second named listing, `MailboxSession` gains the session-level entry point that shares
+  `restore`'s reconciliation, and `background-check.ts`'s `WakeSession` narrows from `restore` to it —
+  which keeps *"never `openMessage`, never `analyseMessage`, and reads no body"* a property of the type
+  rather than a promise. **The shared body is `adopt()`, not a second adoption**, for the reason
+  `restore` already gives about the first visit: two implementations of one adoption drift into the two
+  paths behaving differently, and the drift shows up exactly where nobody can tell them apart.
+- [x] 9.5 **The extension has no consumer for a verdict.** `apps/web/src/Inbox.tsx` is the only caller
+  in this repository that reads a verdict map, which is the fact that makes the repair a repair rather
+  than a trade.
+- [x] 9.6 **`packages/mailbox` implements it**, as a second named entry point rather than an option on
+  the one that renders. `takeListing(mailbox, readVerdicts)` holds the shared skeleton — the `checking`
+  publish, the throttle, the refusal mapping, the `MAILBOX_EXPIRED` answer — and the two entry points
+  are one line each. **A boolean every future call site has to know the meaning of was the alternative,
+  and two names say which is wanted at the point of use.** `listSummaries` neither reschedules nor lifts
+  a halt, because a caller that displays nothing has no loop to resume.
+- [x] 9.7 **The browser case is corrected to measure a constant rather than a first wake**, which is
+  what turned *"reads a body"* into *"re-reads it every wake"*. It now waits for a **second** wake
+  before counting, so the claim is `2` over two wakes rather than `1` over one. **The count polls for
+  `toBeGreaterThan(1)` and asserts the exact number on the next line**, because a wake costing two
+  requests each would carry the count past `2` and a poll waiting for `toBe(2)` would fail naming a
+  *timeout* rather than the count it wanted. **What the count cannot tell is written into the case**: two
+  listings from one wake satisfy it as well, the log carries no timestamps, and what closes that is the
+  unit tier counting one call per wake plus `packages/mailbox` counting one request per adoption.
+- [x] 9.8 **Seven arms were added for the repair, and one of them failed as a broken mutation first.**
+  `P04` was written `adopt(null, inbox.listSummaries)` and came back `nocompile` — `noUnusedParameters`
+  refused it, so the arm measured the compiler rather than the case. It is now an always-null ternary
+  and is caught. `W05` is **expected to be `nocompile`**, and that is its finding: the shipped defect —
+  the wake listing through `restore` — is now a line `tsc` refuses, because `WakeSession` has no such
+  member. **The body-read exclusion moved from a browser case that has to be kept in step with the code
+  to `pnpm typecheck`, which runs on every gate.**
+- [ ] 9.10 **This change's own alarm broke a browser-tier assertion, and the repair is an isolation
+  rather than a threshold.** Recorded at `design.md` D16.
+  > **Found by the block of thirty, once, and the tally is reported with the red rather than rounded
+  > away**: blocks 1 and 2 were 10/10, block 3 was **9 passed and 1 failed**, and the failure is
+  > `in-page-fill.spec.ts` *"reads a message it has already opened for no second request"* on
+  > **`Expected: 1, Received: 3`** - one staging listing and **two** background wakes.
+  >
+  > **Two explanations were tried and the first was false.** The obvious one is a wake leaking in from a
+  > neighbouring spec, since Playwright runs spec files in parallel within one process and
+  > `background-check.spec.ts` is *designed* to leave a periodic alarm armed. **It does not**:
+  > `launch-extension.ts` gives every launch its own profile directory - which that file's own comment
+  > records as the fix for an earlier shared-profile defect - so each spec has its own storage and its
+  > own alarms. **Twenty runs of the failing spec alone were all green**, which is what refuted it.
+  >
+  > **What settled it was the failing case's own reported duration: 12.5 s against a 5 000 ms period.**
+  > It was never a race; it is **deterministic once the case outruns one period**, and a loaded machine
+  > is what makes it. **46 attempts in all - 31 full-suite and 15 extension-tier - produced exactly one
+  > red**, and it needed the load.
+  >
+  > **The threshold repair was rejected before it was written, and the rejection is the finding.**
+  > Raising the window, or relaxing `toBe(1)`, is **the recorded defect with a larger constant**: a wake
+  > polluting the count reads green under it. **What ships is `clearArmedAlarms` in the three specs
+  > that create a mailbox** - `in-page-fill.spec.ts`'s `stage()` (because that press is what arms the
+  > alarm), `popup.spec.ts`'s negative-window case, and `in-page-create.spec.ts`'s `afterEach`
+  > (delegated creation arms too, at `service-worker.ts`). D16 has the per-spec reasoning.
+  >
+  > **And the precondition is falsifiable, which a disarm alone would not be.** A disarm that is only
+  > ever *cleared* can be deleted and nothing fails - the count stays right on every run short enough
+  > for the alarm not to fire. So `in-page-fill.spec.ts` gains a first case that **requires no alarm to
+  > be armed**, then **arms one deliberately, reads it back**, and **requires a listing nobody asked
+  > for**. The first assertion is the load-bearing one: it fails **in under a second, every run, on any
+  > machine**, which an arm pointed at the count could never do because it would inherit the same
+  > dependence on case duration. **Measured**: removing the disarm reported
+  > `Received: ["spectre-background-check"]` against an assertion requiring none, naming the line.
+  >
+  > ### Amendment, 2026-10-11 — the disarm shipped as a race, and the control caught it on its first block
+  >
+  > **The block of thirty meant to confirm this decision came back `passed=18 failed=12`,
+  > `harness-error=0`, and every one of the twelve reds was that same new control failing on its own
+  > `toEqual([])` with an alarm armed.** The direction is the finding, not the count: the pre-repair
+  > baseline was **one red in forty-six attempts**, so the repair made the suite substantially worse
+  > rather than merely failing to hold.
+  >
+  > **The mechanism is this repository's recorded lesson one door over.** `Popup.tsx` renders the
+  > address when `session.open()` publishes `ready`, which is **before** the press reaches
+  > `await requestBackgroundAlarm()`. So waiting for the address releases the spec **while the arming
+  > is still travelling to the worker**; the clear then clears nothing and the worker arms afterwards.
+  > The recorded lesson was *"waiting for the address to appear on the popup does not wait for the
+  > `saveMailbox` write"* — **here it is worse, because what goes unwaited is the arming that *follows*
+  > the write, and the popup never states on screen whether it has happened**, so no screen assertion
+  > can stand in for it.
+  >
+  > **A race is decided by which side is slower, so a race is decided by machine load.** That is why it
+  > presented as a *rate* rather than as a failure, and why **counting runs found it when no single run
+  > would have.**
+  >
+  > **The repair is the order, not a threshold and not an abandonment:
+  > `waitForTheArmingThenDisarm`** reads the alarm back until it is armed and *then* clears — and
+  > reading the arming **is** observing that the popup's request has been answered, because the arming
+  > is the last thing that request does. Applied in `in-page-fill.spec.ts`'s `stage()` and in
+  > `popup.spec.ts`'s negative-window case, which had the identical race; `in-page-create.spec.ts` needs
+  > only `clearArmedAlarms`, because delegated creation arms **before** it answers.
+  >
+  > **Measured after the repair: eight consecutive extension-tier runs, then thirty consecutive
+  > full-suite runs in three blocks of ten - `passed=30 failed=0 harness-error=0`, at `website=40` and
+  > `extension=67` on every run**, and **zero source files changed while the block ran** (the latest
+  > write anywhere in the scanned tree was sixteen seconds before it opened), so the thirty are on the
+  > tree this change ships. **38 consecutive green measurements in all.** The tally is reported as
+  > measured rather than rounded, because **the block that failed is the reason this amendment
+  > exists**.
+- [x] 9.9 **The counter-shape of every cost claim in this change was checked before it was written.**
+  `packages/ui` 38, `apps/web` 125 and the boundary count 53 must be unmoved, `packages/storage` and
+  `apps/extension` must have moved, and a movement in `apps/web` would mean this slice touched the
+  website and would have to be explained before anything else was looked at.
+
+  > **All three unmoved numbers are unmoved, measured from `--reporter=json` grouped by project:**
+  > `packages/ui` **38**, `apps/web` **125**, `architecture` **53** — and the two that had to move did,
+  > `packages/storage` **78 → 86** and `apps/extension` **262 → 330**, with `packages/mailbox`
+  > **158 → 166**. Total **1009 across 54 files → 1093 across 58**, 0 failed. Full table under 7.6.
+  >
+  > **The boundary count is the number that says task 6.1 was right.** It is unmoved *because* no
+  > rule was added: every property this change introduced already had an instrument — the alarm
+  > period is asserted against `packages/mailbox`'s exported constant, the platform seam is inside the
+  > module the M9 rule already confines, and `spectre-storage`'s new record kind is exercised through
+  > its own adapter. **A rule added where an instrument already exists is not coverage, it is a
+  > second opinion nobody asked for** — and 53 staying at 53 is the measurement that says none was.
+  >
+  > **And one movement in the arithmetic was itself a finding**, recorded under 7.6: `protocol.test.ts`
+  > held 52 before *and* after a change that added a third message kind to the module, and it took the
+  > arithmetic across two changes to notice a count that should have moved and did not. **A count says
+  > how many and not which**, so the prediction above — "must have moved" — is one this change did not
+  > make about `protocol.test.ts` and would not have caught on its own.

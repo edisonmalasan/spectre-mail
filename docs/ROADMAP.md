@@ -110,12 +110,16 @@
 `openspec/changes/archive/2026-10-10-in-page-fill/`; the `alarms-packing-interval` spike that
 unblocked the notification is APPLIED, VERIFIED and ARCHIVED** at
 `openspec/changes/archive/2026-10-10-alarms-packing-interval/` - proposal PR #104 merged `de00857`,
-apply PR #105 merged `716049f`, archive PR #106; and **slice 4 (`incoming-mail-notification`) is at
-its APPLY stage on `feat/incoming-mail-notification`** - proposal PR #107 merged `788d742`, and
+apply PR #105 merged `716049f`, archive PR #106; and **slice 4 (`incoming-mail-notification`) is
+APPLIED and VERIFIED on `feat/incoming-mail-notification`** - proposal PR #107 merged `788d742`, and
 **what the proposal's measurement already changed is recorded rather than merely noted**: the roadmap's
 own depiction of the notification carried a one-time code in the body, and the shipped requirement
 forbids it, because a code lives in a message body and a listing carries none - see the M10 section
-below. Slice 2's four stages were proposal PR #100
+below. **Two shipped defects were found by its own verification and are recorded in `tasks.md` rather
+than folded into the plan**: the popup's mailbox write never reached an arming, so a device that had
+just created an address sat with **no alarm at all** (`design.md` D14), and a wake re-read every
+message body on every wake (`design.md` D15, and `docs/PROVIDERS.md` §4.1.2 for what one firing costs
+against the only measured budget). Slice 2's four stages were proposal PR #100
 merged `11c28fa`, apply PR #101 merged `99bc35c`, sync PR #102, archive PR #103 — **and its
 archive moved 6 files, every one SHA-256 identical to the digest taken before the command ran, with
 `.openspec.yaml` kept and all 8 promoted blocks byte-identical again afterwards, checked against

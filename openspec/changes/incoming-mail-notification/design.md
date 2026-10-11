@@ -68,11 +68,19 @@ reached from a click that Chromium does not route here — which is D13.
 **The consequence is the reason this slice is as small as it is.** `MessageSummary` carries no body,
 by product principle — `packages/core` states that codes and links are absent from a summary *"on
 purpose: listing a mailbox must not require fetching bodies"*. So a notification built from a summary
-**cannot** contain a code, and the check that raises it **never opens a message and never runs
-detection**. This is not a filter applied to a body nobody fetched. The property is structural, and it
-is the reason the "what it never carries" requirement can be falsifiable at all: there is a mutation
-that breaks it — call `openMessage` and build the body from the analysis — and it is caught by
-asserting the request count.
+**cannot** contain a code, and the check that raises it **reads no message body at all** — it
+never opens a message, never runs detection, and never determines a verdict. This is not a filter
+applied to a body nobody fetched. The property is structural, and it is the reason the "what it never
+carries" requirement can be falsifiable at all: there is a mutation that breaks it — call `openMessage`
+and build the body from the analysis — and it is caught by asserting the request count.
+
+> **The middle clause of that sentence was false for one commit's worth of reasoning, and the request
+> count caught it.** It read *"never opens a message and never runs detection"* — true of
+> `openMessage`, true of `analyseMessage`, and **silent about the listing's verdict pass**, which reads
+> each body it has not already read and which a wake paid for on every wake. So a wake had already
+> fetched the very body whose code it was declining to put on a lock screen. `mailbox-session`'s new
+> requirement is what closes the gap, and `design.md` D15 records why the repair landed there and not in
+> the extension.
 
 ### D2 — The gate is discharged, and what the measurement does *not* give us
 
@@ -139,6 +147,29 @@ that listing and then needs to stop, and `destroy()` releases the scheduler, so 
 would otherwise schedule is cancelled before the wake ends. One wake, one request — and the assertion
 for it is a **request count**, which is the instrument that already caught `in-page-fill`'s
 `close()` defect.
+
+> ### D5 (amended during apply, 2026-10-11) — two of that paragraph's four sentences
+> were false
+>
+> **`packages/mailbox` is changed, and "one wake, one request" was wrong.** The request count this
+> decision named as its own proof is what found it: a wake over a mailbox holding **one** message cost
+> **two** requests, and a **second** wake over the same mailbox cost the same two. So the cost did not
+> fall, and the shape is `1 + N` where `N` is the length of the listing — **twenty-four a minute at
+> one message against Mail.tm's `30; w=60`, and over the whole budget at two**, on a budget
+> `docs/PROVIDERS.md` records as **measured unauthenticated only**.
+>
+> **What was missed is a distinction this decision did not think to draw.** `restore()` does *one*
+> listing, which is what the sentence above said and what is true; the request it did not account for
+> was the **body read per message** behind the listing's verdict map, which `restore()` reads because
+> a caller that renders rows needs one. This repository had no caller that renders nothing — and a
+> claim written for the only caller present reads as a claim about the method rather than about the
+> callers it has.
+>
+> **`restoreSummaries` is what closes it, and D15 records where the change went and why the shared
+> package is where it went.** The paragraph above is left in place rather than rewritten, because a
+> decision corrected in place reads as though it was right the first time, and this repository's rule
+> is the opposite: **what was wrong is recorded, with the measurement, at the place where the claim
+> was made.**
 
 **Rejected: a session held in the worker between wakes.** It would make the 120 000 ms bound load-
 bearing, and it is the one number here that is explicitly not a figure. It would also break the
@@ -452,3 +483,195 @@ already live on, and it is honest about what a notification can do.
 - **Nothing here is a claim about how the notification looks.** No test in this repository reads a
   rendered pixel, and a system notification is rendered by the operating system rather than by this
   product at all.
+---
+
+### D14 - The popup asks the worker to reconcile, rather than arming the alarm itself
+
+**Two paths write a mailbox, and the note said there was one.** `service-worker.ts` documented its own
+arming as covering *"every path this build has"*, because the only write it could see was
+`handleCreateMailbox`'s `addMailbox`. **That was false, and a browser case found it by asking the
+platform what was armed**: the popup creates a mailbox in its *own* context and writes the collection
+itself, so the delegated path's arming never ran, and `chrome.alarms.getAll()` answered `[]` across
+eight polls over two seconds on a device holding a freshly created address. A person who made an
+address in the popup was told about nothing until the next browser start.
+
+**The note also named the reason it had not looked, and the reason was refuted by the same
+measurement.** It said a mailbox reaching storage *"some other way"* would wait for the next browser
+start, *"because watching the area would add a platform seam for a case this repository cannot
+name"*. The popup is not a case this repository could not name; it is the case a person uses.
+
+**Three shapes were considered and the third is the one taken.**
+
+- **The popup arms the alarm itself**, through the seam `alarms.ts` already has. The smallest diff by
+  any measure — and it puts the decision to arm in two contexts, which is the property the *original
+  note* was reaching for. `chrome.alarms` is a flat per-extension namespace, so there would still be
+  one alarm; what there would no longer be is one place that decides there is one.
+- **The worker watches `chrome.storage.onChanged`.** The most general, and it has a footgun this
+  repository would have shipped: a wake writes the seen record, `onChanged` fires, and a reconcile
+  that called `chrome.alarms.create` again would **restart the alarm's own schedule** — so the first
+  wake would silence every wake after it. Avoiding that needs a filter on the changed keys, and the
+  reconciliation that is safe under it is the one that asks whether an alarm already exists, which
+  `alarms.ts` deliberately has no member for.
+- **The popup sends a request and the worker reconciles** — chosen. It keeps the decision where D3
+  and D10 already put it, adds no platform seam (`sendToBackground` exists), adds no new storage
+  listener, and cannot loop.
+
+**The request carries no payload, and the worker reads its own storage.** The question is *what this
+device holds*, and the asking context's answer to that would be a second copy of a fact a round trip
+could have made stale. This is the same reasoning `CreateMailboxRequest` carries nothing for.
+
+**The seam is required on `PopupProps` and defaulted on `AppProps`, and the asymmetry is deliberate.**
+The composition root binds the real one once, so every shipped popup has it; the popup itself demands
+one, so **no other composition can be built without it**. `tsc` named all nine render sites in
+`Popup.test.tsx` on the change that made it required, which is the argument for requiring it rather
+than the argument for it.
+
+### D15 - The fix for a wake's cost lives in `packages/mailbox`, because the extension is its first caller that displays nothing
+
+**The measurement, which is a shape and not a figure.** A wake over a mailbox holding **one** message
+cost **two** provider requests, and a **second** wake over the same mailbox cost the same two. The
+listing went through the shared session, whose inbox tracker reads each body it has not already read
+so a rendered row can carry a verdict — and a wake builds a fresh session, so the tracker's memory of
+what it has read starts empty **every wake**. Against `30; w=60` that is twenty-four a minute at one
+message and over the whole budget at two, on a budget `docs/PROVIDERS.md` records as **measured
+unauthenticated only**.
+
+**And the extension has no use for any of it.** `apps/web/src/Inbox.tsx` is the only caller in this
+repository that reads a verdict map. Every one of those requests bought the extension nothing, in a
+loop with no person in front of it to see a throttle.
+
+**Three places could have carried the repair, and the shared package is where it goes.**
+
+- **In the extension**, by taking a listing straight through the provider manager. That reaches for a
+  mailbox the provider reports gone, which is what lets a wake clear its alarm — so the extension
+  would reimplement `restore`'s reconciliation and its normalisation of a refusal, in the one context
+  that has no test tier for that kind of code.
+- **As an option on the listing that renders** — `check(mailbox, { readVerdicts: false })`. One
+  implementation, and every future call site carries a boolean whose meaning is a paragraph away.
+- **As a second named listing that shares `restore`'s reconciliation** — chosen. Two names say which
+  one is wanted at the point of use, and the reconciliation is *delegated* rather than reimplemented:
+  the same reasoning `restore` already gives for delegating the first visit to `open` rather than
+  running a parallel create, because two implementations of one thing drift into the two paths
+  behaving differently and the drift shows up exactly where nobody can tell the paths apart.
+
+**This widens the change onto `mailbox-session`, and the widening is the point rather than an
+accommodation.** The extension is the first caller in this repository that lists a mailbox **and
+renders nothing**, and a shared layer whose cost assumes a display is a layer whose cost nobody has
+measured in the one context where it runs unattended. Recording the figure instead of fixing it would
+have shipped a background loop re-reading bodies it never reads, against a limit whose authenticated
+form was never measured — which is a defect to fix, not a cost to document.
+
+### D16 — The specs that are not about the background check disarm it, because a periodic alarm outlives the case that armed it
+
+**What went wrong, and it is the recorded precondition shape.** D14 made the popup ask the worker to
+reconcile after its own write, so **creating a mailbox arms a 5 000 ms alarm**. Three specs in the
+browser tier create a mailbox, and two of them assert on an **exact count** of provider requests. A
+wake landing inside a case adds a listing to that log, and the count stops being the count the case
+meant.
+
+**Measured, and the measurement corrected my first reading twice.**
+
+- A full-suite run failed `in-page-fill.spec.ts`'s *"reads a message it has already opened for no
+  second request"* with **`Expected: 1, Received: 3`** — one staging listing plus **two** wakes.
+- **Twenty runs of that spec alone were green.** The first explanation — a wake leaking in from a
+  neighbouring spec, since Playwright runs files in parallel within one process — was **false**:
+  `launch-extension.ts` gives every launch its own profile directory, precisely because an earlier
+  version shared one. Each spec file has its own extension, its own storage and its own alarms.
+- **The failing case's own duration is the answer: 12.5 s against a 5 000 ms period.** It was never a
+  race. It is **deterministic once the case runs longer than one period**, and a loaded machine is
+  what makes it run that long. **46 attempts in total: one red, and it needed the machine loaded.**
+
+**So the first fix considered was wrong in the direction this repository keeps recording.** The
+obvious repairs — lengthen the window, or relax `toBe(1)` to `toBeGreaterThanOrEqual(1)` — would be
+**the recorded defect with a larger constant**: a wake polluting the count would still read green, and
+the suite would be measuring something it no longer claims to measure. **A threshold raised until a
+race stops appearing is not a fix; it is the race recorded as a pass.**
+
+**What ships instead is an isolation, not a threshold.** `background-check.spec.ts` is where the alarm
+is the subject. Everywhere else, no alarm is armed:
+
+- **`in-page-fill.spec.ts`** — `stage()` disarms immediately after the address appears, **because that
+  press is the thing that arms it**, and `afterEach` disarms so a deliberate arming cannot leak into
+  the next case. Every case in the file goes through `stage()`, so one call covers all of them.
+- **`popup.spec.ts`** — the case *"answers a user-asked inbox check, and only when asked"* disarms,
+  because its claim is a **negative assertion over a fixed 1 500 ms window** and the alarm's 5 000 ms
+  period left a 3.5 s margin on a clock the product owns. The other cases there assert nothing a wake
+  could change — a wake requests `api.mail.tm`, which that tier scripts — so this is the only place in
+  the file the disarm belongs.
+- **`in-page-create.spec.ts`** — disarms in `afterEach`. Creation there is **delegated**, and the
+  worker arms on a mailbox it actually recorded, so the alarm outlives the document exactly as the
+  recorded late-answer rule says the worker does. **This file's assertions are already tolerant of a
+  wake**, so the disarm repairs no observed failure: it states a precondition **before** an assertion
+  needs it, which is the cheap direction. Every recorded case of this defect went the other way.
+
+**And the precondition is paired with its positive control, which is the part that makes it
+falsifiable.** A disarm that is only ever cleared **can be deleted by accident and nothing will fail**
+— the count stays right on every run short enough for the alarm not to fire, which is exactly how the
+defect presented. So `in-page-fill.spec.ts` gains a first case that:
+
+1. **requires no alarm to be armed** — `readArmedAlarms` must answer `[]`. This is what makes the
+   repair falsifiable, and it has **no dependence on machine load**: `chrome.alarms.clearAll` either
+   cleared this extension's alarm or it did not, and the platform answers immediately. A `stage()`
+   without the disarm fails here in under a second, every run, on any machine.
+2. **arms the alarm deliberately and reads it back** — `chrome.alarms.create` reports no error for a
+   period it will not accept, so a control that could pass with the alarm never armed would leave the
+   premise unmeasured.
+3. **requires a listing nobody asked for to appear**, on the cadence's own ceiling.
+
+**Point 3 is what a mutation arm could not have done, and the reason is worth recording.** An arm that
+removed the disarm and waited for the count to break would inherit the *same* dependence on how long
+the case happens to take that made the defect hard to see — green on a fast machine with the repair
+silently absent. **The repaired file carries a case that fails in under a second when the disarm is
+removed**, and that was measured: the mutation reported
+`Received: ["spectre-background-check"]` where the assertion required none, naming the line.
+
+**What this costs, stated rather than hidden.** Three specs now carry a `chrome.alarms` call, so the
+tier's relationship to the product's schedule is a thing each of them states. **That is the correct
+cost**: the alternative was three specs whose counts are only valid on a fast machine, which is a
+suite that verifies something nobody can rely on.
+
+#### Amendment recorded during apply, 2026-10-11 — the disarm shipped as a race, and the control caught it on its first block
+
+**The thirty-run block meant to confirm this decision came back `passed=18 failed=12`, `harness-error=0`,
+and every one of the twelve reds was the same single case** — the new control, failing on its **own**
+`toEqual([])`, reading an armed alarm back. **The count is not the finding; the direction is.** The
+pre-repair baseline was **one red in forty-six attempts**, so the repair did not merely fail to hold,
+it made the suite substantially worse.
+
+**The mechanism, and it is the recorded lesson one door over.** `Popup.tsx` renders the address the
+moment `session.open()` publishes `ready`, and the arming is asked for *after* that — `await
+storage.addMailbox(...)` and then `await requestBackgroundAlarm()`. So a spec waiting for the address
+to appear is **released while the arming request is still travelling to the worker**. A
+`clearArmedAlarms` issued at that point clears nothing, and the worker arms a moment later.
+
+**This repository has already recorded the shape twice**: *"waiting for the address to appear on the
+popup does not wait for the `saveMailbox` write"*. **Here it is worse, and the difference matters** —
+what goes unwaited is the *arming that follows* the write, and **the popup never states on screen
+whether the arming has happened**, so no screen assertion can stand in for it. The signal exists; it is
+in the platform, and the only reader of it is a spec.
+
+**A race is decided by which side is slower, so a race is decided by machine load** — which is why
+this presented as a rate rather than as a failure, and why *counting* runs is what found it and no
+single run would have.
+
+**So the order is inverted rather than the repair abandoned: `waitForTheArmingThenDisarm`** reads the
+alarm back until it is armed and *then* clears. Reading the arming is **observing that the popup's
+request has been answered** — the arming is the last thing that request does — so a clear issued after
+it cannot lose at any load. **The ceiling is the cadence's, passed in by the caller**, on the same
+grounds as every other wait in this tier.
+
+**And the control is what makes this a story rather than a repair nobody would have found.** Point 1
+above was written to fail *when the disarm is removed*. It failed instead when **the disarm raced the
+arming** — a different defect, in the same line, and one that only a repeated measurement could reach
+because a race is not a failure, it is a rate. **A control that catches a defect in its own repair on
+its first block has earned more than a control that never fires.**
+
+**Measured after the repair: eight consecutive extension-tier runs, then thirty consecutive
+full-suite runs in three blocks of ten — `passed=30 failed=0 harness-error=0`, at `website=40` and
+`extension=67` on every run.** Against the ~40% red rate that preceded it, thirty clean runs are not
+a reasonable chance result. **Zero source files changed while the block ran** — the latest write under
+`apps/`, `packages/`, `tests/`, `openspec/` and `docs/` was sixteen seconds before it opened — so the
+thirty are on the tree this change ships. **38 consecutive green measurements in all**, and the count
+is reported as measured rather than rounded, because the block that failed is the reason this
+amendment exists.
+
