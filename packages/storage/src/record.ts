@@ -90,6 +90,23 @@ export interface StoredSiteAssociations {
 }
 
 /**
+ * Which messages have been reported for which mailbox, as written down.
+ *
+ * A map from mailbox id to that mailbox's reported message ids, under a version. **The same wrapper
+ * as {@link StoredSiteAssociations} for the same reason**: without it, a map written before the
+ * values were id lists could not be told apart from corruption.
+ *
+ * **The values are `unknown` rather than `readonly string[]`, and that is deliberate.** A value this
+ * build cannot narrow must be *left in place by a write* as well as skipped by a read, and a type
+ * that already promised strings would make that impossible to express — the record as stored is the
+ * thing a new one is built from, and it holds entries this build may not understand.
+ */
+export interface StoredSeenMessages {
+  readonly version: number;
+  readonly seen: Readonly<Record<string, unknown>>;
+}
+
+/**
  * The record to write for `mailbox`.
  *
  * Adds no field and completes no missing one. In particular it does **not** add
@@ -323,4 +340,128 @@ export function readStoredSiteAssociations(value: unknown): Record<string, strin
   }
 
   return read;
+}
+
+/**
+ * The record to write for `seen`, whose keys are mailbox ids.
+ *
+ * **A copy, for the reason {@link toStoredSiteAssociations} gives** - so the object written shares no
+ * reference with the one that was read, and a caller mutating what it passed in cannot reach into
+ * what was stored.
+ */
+export function toStoredSeenMessages(seen: Readonly<Record<string, unknown>>): StoredSeenMessages {
+  return { version: SPECTRE_ENVELOPE_VERSION, seen: { ...seen } };
+}
+
+/**
+ * What one read of the reported-message record found.
+ *
+ * ## Why this is a union and not `readonly string[] | null`
+ *
+ * **Because the first version of this reader returned `| null` for two unrelated answers, and the
+ * adapter passed it straight through — so a record this build could not read at all was reported to
+ * the caller as "this mailbox has nothing recorded".** That is precisely the confusion the contract
+ * exists to prevent: a background check told *nothing is known* would treat it as a first wake,
+ * establish a baseline, and announce nothing, which is safe; told *this mailbox is empty* it would do
+ * the same, but a caller keying on `null` for a different reason would not. **Two different `null`s
+ * in one return type is the defect, and it was caught by the test written for it rather than by
+ * reading this file.**
+ *
+ * - `record-unreadable` - the envelope is not one this build can use. **The caller must refuse**,
+ *   never answer: a record this build does not understand is never treated as though it were absent.
+ * - `nothing-recorded` - the record is fine and names no entry for this mailbox. **This is the only
+ *   answer that means `null`**, because it is the only one that is really an absence.
+ * - `ids` - the ids for that mailbox. Ids this build could not narrow are dropped from it, for the
+ *   reason {@link readStoredSiteAssociations} gives: one unreadable entry costs one id, and the
+ *   alternative is refusing a read because of data this build did not write.
+ */
+export type StoredSeenRead =
+  | { readonly kind: "record-unreadable" }
+  | { readonly kind: "nothing-recorded" }
+  | { readonly kind: "ids"; readonly ids: readonly string[] };
+
+/**
+ * What `value` says about `mailboxId` — the ids recorded for it, its absence, or a refusal.
+ *
+ * ## Why it takes the mailbox id rather than reading the whole map
+ *
+ * **Because "what did I already report in *this* mailbox" is the only question a caller has**, and a
+ * function returning every mailbox's history would be a second thing to get right at the call site.
+ * The key's shape is not validated for the reason {@link readStoredSiteAssociations} gives about
+ * hosts: this product cannot write a correct rule for what an id looks like across providers, and a
+ * rule that guessed wrong would drop a real mailbox's history while looking like the narrowing that
+ * protects one.
+ */
+export function readStoredSeenMessageIds(value: unknown, mailboxId: string): StoredSeenRead {
+  if (typeof value !== "object" || value === null) {
+    return { kind: "record-unreadable" };
+  }
+
+  const candidate = value as Partial<StoredSeenMessages>;
+
+  if (candidate.version !== SPECTRE_ENVELOPE_VERSION) {
+    return { kind: "record-unreadable" };
+  }
+
+  const seen = candidate.seen;
+  if (typeof seen !== "object" || seen === null || Array.isArray(seen)) {
+    return { kind: "record-unreadable" };
+  }
+
+  const ids = (seen as Record<string, unknown>)[mailboxId];
+
+  if (ids === undefined) {
+    return { kind: "nothing-recorded" };
+  }
+
+  if (!Array.isArray(ids)) {
+    return { kind: "nothing-recorded" };
+  }
+
+  const read: string[] = [];
+  for (const id of ids) {
+    if (typeof id === "string" && id.length > 0) {
+      read.push(id);
+    }
+  }
+
+  return { kind: "ids", ids: read };
+}
+
+/**
+ * The record to write when `ids` are the ones reported for `mailboxId`.
+ *
+ * ## What it does with each stored mailbox
+ *
+ * - **the one being written** - replaced, because the caller's list is the whole answer;
+ * - **any other mailbox, readable or not** - kept **verbatim**. Keeping them is the whole point of
+ *   building from the record as stored rather than from the narrowed map: rebuilding from what could
+ *   be read would delete exactly what the narrowing went to the trouble of preserving.
+ *
+ * @returns The record to write, or `null` when `record` is not an envelope this build can use - in
+ *   which case the caller must refuse the write rather than replace the record.
+ */
+export function withStoredSeenMessageIds(
+  record: unknown,
+  mailboxId: string,
+  ids: readonly string[],
+): StoredSeenMessages | null {
+  if (typeof record !== "object" || record === null) {
+    return null;
+  }
+
+  const candidate = record as Partial<StoredSeenMessages>;
+  if (candidate.version !== SPECTRE_ENVELOPE_VERSION) {
+    return null;
+  }
+
+  const seen = candidate.seen;
+  if (typeof seen !== "object" || seen === null || Array.isArray(seen)) {
+    return null;
+  }
+
+  return {
+    version: SPECTRE_ENVELOPE_VERSION,
+    seen: { ...(seen as Record<string, unknown>), [mailboxId]: [...ids] },
+  };
 }

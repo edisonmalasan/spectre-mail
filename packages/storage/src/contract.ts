@@ -18,6 +18,15 @@ import type { Mailbox } from "@spectre-mail/core";
  * `SpectreSiteAssociations`, and **a site association was not one of the five**, which
  * is why the scope statement above had to be answered rather than stretched.
  *
+ * **`incoming-mail-notification` added a third such contract, `SpectreSeenMessages`,
+ * so the layer now serves four record kinds.** The same answer applies and it is not
+ * stretched either: a *reported message id* is not one of the five either, it is not a
+ * message-metadata cache (which would hold senders and subjects), and the website has
+ * no consumer for it. The count in this heading is **three contracts for this
+ * interface's siblings plus itself, written out rather than left to be recounted**,
+ * because a note that says the wrong number is the stale claim this repository keeps
+ * finding in a second file.
+ *
  * They are separate interfaces rather than members here because they have different
  * consumers and different platforms: this one has two adapters, each new one has one,
  * and widening this contract would have made the website's IndexedDB adapter implement

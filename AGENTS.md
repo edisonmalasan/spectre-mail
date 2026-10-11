@@ -1,13 +1,22 @@
 # AGENTS.md
 
-> **Current milestone state (reconciled against Git and OpenSpec 2026-10-10): M0-M9 are complete
+> **Current milestone state (reconciled against Git and OpenSpec 2026-10-11): M0-M9 are complete
 > in scope, and the `alarms-packing-interval` spike that unblocked M10's remaining work is
 > **APPLIED, VERIFIED and ARCHIVED** at
 > `openspec/changes/archive/2026-10-10-alarms-packing-interval/` — proposal PR **#104** merged
 > `de00857`, apply PR **#105** merged `716049f`, **no sync stage because the change declares
-> `skip_specs` and promoted nothing**. **The next milestone is M10 slice 4, the incoming-mail
-> notification**, which that measurement unblocked and simultaneously constrained: see
-> `docs/PROVIDERS.md` §4.1.1. M10 slice 1 (`verification-actions`) is **APPLIED, VERIFIED, SYNCED and ARCHIVED**
+> `skip_specs` and promoted nothing**. **M10 slice 4, the incoming-mail
+> notification** (`incoming-mail-notification`), is **APPLIED and VERIFIED** on
+> `feat/incoming-mail-notification` — proposal PR **#107** merged `788d742`.
+> **It was the first change in this repository to remove a permission-carrying requirement on
+> measurement, and the removal is recorded rather than implied**: `extension-client`'s
+> *"The background service worker carries no polling until its lifetime is measured"* is **REMOVED
+> and re-ADDED**, because two of its three clauses still bind once the measurement that gated it
+> exists — see `docs/PROVIDERS.md` §4.1.1 for the gate, §4.5 for the notification measurement
+> that rewrote a clause before any implementation was written, and **§4.1.2 for what one firing
+> costs**, which the first version of the delta stated as *one listing* and a browser case measured
+> as **one listing plus one body read per message, re-read on every wake**. M10 slice 1
+> (`verification-actions`) is **APPLIED, VERIFIED, SYNCED and ARCHIVED**
 > at `openspec/changes/archive/2026-10-10-verification-actions/`** — proposal PR **#96** merged
 > `421d56f`, apply PR **#97** merged `bdd13b6`, sync PR **#98** merged `550741f`, archive PR
 > **#99** — and **M10 slice 2 (`in-page-fill`) is APPLIED, VERIFIED, SYNCED and ARCHIVED**
@@ -353,6 +362,17 @@ The current state, in dependency order:
   declared it. **Preferring is not a licence to fill**, so the declaration only orders the list.
   **Nothing is submitted and no control in the form is pressed**, which is the whole difference
   between filling a field and completing a form on somebody's behalf.
+  **And since M10 slice 4 the extension announces mail that arrives while nothing is open**, which
+  is the capability the whole product exists for and the first thing it does that the website does
+  not. It is an **alarm in the service worker**, not a timer in a page: the wake lists the head of
+  the mailboxes this device would hand a visitor, compares the ids against a stored seen-record,
+  and raises **one notification per new message, naming the sender and the subject and nothing
+  else**. **A one-time code is not filtered out of those two lines - `MessageSummary` carries no
+  body, so a code was never in the value**, and the wake's own session exposes only
+  `restoreSummaries` and `destroy`, which is what makes *"reads no body"* a property of its type
+  rather than a promise. **The record is only advanced once the platform has answered with an id**,
+  because a wake that remembered a message it could not announce would never announce it at all.
+  **And nothing about a notification being *seen* has been measured** - see the limit below.
   **Still no polling in-page, no copy control and no side panel** — and the *copy* control in the
   popup is deliberately still absent: this slice fills, it does not put anything on the clipboard,
   and a capability that offers a control a person cannot use from the page they are looking at is
@@ -625,9 +645,16 @@ Pin versions when exact versions matter.
   and the second change is why the section is here:** it was first blocked on an unbuilt client,
   then **unbuilt work on a client that existed**, and now it is built. **The section describes the
   popup and acts on nothing** - seven labels the popup itself renders, no interactive element of
-  any kind, no provider named, and no capability the extension has declared absent (no content
-  script, no side panel, no notification, no code copy or fill) and no polling interval, since the
-  popup's count comes from a check somebody asked for.
+  any kind, no provider named, and no polling interval, since the popup's count comes from a check
+  somebody asked for. **The parenthetical this replaces listed "no content script, no side panel, no
+  notification, no code copy or fill" as capabilities the extension has declared absent, and three of
+  the five stopped being absent long before this change** - the content script landed at M9 slice 1,
+  the fill at M10 slice 2 and the notification at M10 slice 4. **Only the side panel is still
+  declared absent**, so the list is deleted rather than trimmed: a list of absences is a claim about
+  the extension's whole surface, and half of it had gone false without anybody re-reading it. **The
+  browser case that holds this is the one that matters** - every label the built preview shows is
+  required to be a string the popup itself renders, which is a check that stays true however the
+  extension's surface moves.
   **Opening a message displays what it found and acts on it only when the user asks.**
   `MessageView` renders the sender, subject, arrival time, readable text, the codes in
   the parser's rank order, and each link with its host visible. **Since M10 slice 1 every
@@ -810,21 +837,43 @@ Pin versions when exact versions matter.
   no extension build step — that is M8" became false at M8 and is deleted rather than
   reworded.**
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running **1009 tests across
-  54 files** via `pnpm test` (2026-10-10, at `in-page-fill`'s apply stage, with
+- Testing: Vitest `3.2.7` at the workspace root, verified running **1093 tests across
+  58 files** via `pnpm test` (2026-10-11, at `incoming-mail-notification`'s apply stage, with
   `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory), counted from a
   JSON reporter **grouped by project** rather than read off a summary line:
   54 in `packages/core`, 92 in `packages/providers`, **149 in `packages/mail-parser`**,
-  **158 in `packages/mailbox`**, **125 in `apps/web`**,
-  **78 in `packages/storage`** (7 stored record, **11 mailbox collection**, 30 IndexedDB adapter,
-  **11 site associations**, 7 browser entry point, **12 `chrome.storage` adapter**),
-  **262 in `apps/extension`** (**25** in `content-script.test.ts`, **52** in `protocol.test.ts`,
-  **47** in `extension-platform.test.ts`, **23** in `content-script-fill.test.ts`, **22** in
-  `code-field.test.ts`, **24** in `Popup.test.tsx`, **17** in `content-script-create.test.ts`,
+  **166 in `packages/mailbox`**, **125 in `apps/web`**,
+  **86 in `packages/storage`** (7 stored record, 11 mailbox collection, 30 IndexedDB adapter,
+  11 site associations, 7 browser entry point, 12 `chrome.storage` adapter,
+  **8 seen-message record**),
+  **330 in `apps/extension`** (**25** in `content-script.test.ts`, **64** in `protocol.test.ts`,
+  **64** in `extension-platform.test.ts`, **23** in `content-script-fill.test.ts`, **22** in
+  `code-field.test.ts`, **25** in `Popup.test.tsx`, **17** in `content-script-create.test.ts`,
   **9** in `content-script-associations.test.ts`, **11** in `create-mailbox.test.ts`, **9** in
-  `storage.test.ts`, **9** in `provider-config.test.ts`,
-  **5** in `popup-copy.test.ts`, **5** in `service-worker.test.ts`, **4** in `scheduler.test.ts`),
+  `storage.test.ts`, **9** in `provider-config.test.ts`, **17** in `background-check.test.ts`,
+  **11** in `notification.test.ts`, **7** in `alarms.test.ts`,
+  **5** in `popup-copy.test.ts`, **8** in `service-worker.test.ts`, **4** in `scheduler.test.ts`),
   **38 in `packages/ui`**, and **53 architecture boundary assertions**.
+  **`incoming-mail-notification` moved `apps/extension` 262 → 330, `packages/storage` 78 → 86,
+  `packages/mailbox` 158 → 166, and moved nothing else - and the four numbers that did not move are
+  the measurement this change's plan turned on.** `apps/web` is still **125**, which is how the
+  change shows it touched no website at all; `packages/providers` is still **92**; **`packages/ui` is
+  still 38 for the ninth time**, because `design.md` D8 commits this change to **no new token and no
+  new motion**, and a rise would have meant visual surface no capability describes; and **the
+  boundary count is still 53**, which is task 6.1's claim made by the suite rather than by a note:
+  every property this change introduced already had an instrument, so **no rule was added, and 53
+  staying at 53 is the measurement that says the decision was right.** A rule added where an
+  instrument already exists is not coverage.
+  **The arithmetic is the check that the movement is accounted for**: `apps/extension` 262 + 7
+  (`alarms.test.ts`, new) + 11 (`notification.test.ts`, new) + 17 (`background-check.test.ts`, new) +
+  17 (`extension-platform`, the alarm and notification seams) + 3 (`service-worker`, the third
+  listener and the reconcile answer) + 1 (`Popup`, the alarm request) + 12 (`protocol`, the third
+  message kind) = **330**; `packages/mailbox` 158 + 5 (`adoption`) + 3 (`inbox`) = **166**.
+  **And one number in that arithmetic was itself the finding.** `protocol.test.ts` held **52 before
+  and after** a change that added a third message kind to the module - so `RECONCILE_ALARM_REQUEST`,
+  `RECONCILE_ALARM_REQUEST_KIND` and `isReconcileAlarmRequest` were read by **no case**, while every
+  other kind in the file has its own narrowing table. **A count says how many and not which**, so
+  the arithmetic across two changes, not the moved count, is what reported it; it is now **64**.
   **`in-page-fill` moved `apps/extension` 151 → 262, `packages/mailbox` 155 → 158, and moved
   nothing else — and the three numbers that did not move are the measurement this slice's plan
   turned on.** `apps/web` is still **125** and `packages/providers` still **92**, which is how the
@@ -1623,9 +1672,9 @@ pnpm test:browser
 
 ```
 
-Playwright `1.63.0`, **two configurations, 13 spec files and 103 test cases** - **Chromium
+Playwright `1.63.0`, **two configurations, 14 spec files and 107 test cases** - **Chromium
 only**. The command builds **both** clients, then the in-page fixture, and then runs the two
-suites in order: the website's **40** in `apps/web/e2e/`, and the extension's **63** in
+suites in order: the website's **40** in `apps/web/e2e/`, and the extension's **67** in
 `apps/extension/e2e/`.
 
 **The website's 5 spec files and 40 cases** - `storage.spec.ts`
@@ -1679,16 +1728,69 @@ depends on **did not work as first written**: with the destination as plain text
 the page said *"No verification link was found in this message"* on a message whose readable
 text plainly contained the URL.
 
-**The extension's 8 spec files and 63 cases** - `manifest.spec.ts` (**9**; **6** added by M8 and
-**three** by `in-page-address`), `popup.spec.ts` (**8**), `in-page.spec.ts` (**17**, added by
-`in-page-address`), `in-page-create.spec.ts` (**8**, added by `in-page-mailbox`),
+**The extension's 9 spec files and 67 cases** - `manifest.spec.ts` (**10**; **6** added by M8,
+**three** by `in-page-address` and **one** by `incoming-mail-notification`),
+`popup.spec.ts` (**8**), `in-page.spec.ts` (**17**, added by `in-page-address`),
+`in-page-create.spec.ts` (**8**, added by `in-page-mailbox`),
 **`in-page-associations.spec.ts` (**12**, added by `site-associations`)**,
-**`in-page-fill.spec.ts` (**7**, added by `in-page-fill`)**,
-`measurement.spec.ts` (**1**) and `alarm-floor.spec.ts` (**1**) - **63 in 8 files, against the
-extension's 56 in 7 that `verification-actions` recorded, the 36 in 5 at slice 1, and the 16 in 4
-that `extension-preview` recorded**.
+**`in-page-fill.spec.ts` (**8**; **seven** added by `in-page-fill` and **one** by
+`incoming-mail-notification`)**,
+**`background-check.spec.ts` (**2**, added by `incoming-mail-notification`)**,
+`measurement.spec.ts` (**1**) and `alarm-floor.spec.ts` (**1**) - **67 in 9 files, against the
+extension's 63 in 8 that `in-page-fill` recorded, the 56 in 7 that `verification-actions` recorded,
+the 36 in 5 at slice 1, and the 16 in 4 that `extension-preview` recorded**.
 
-**`in-page-fill.spec.ts`'s seven are the only cases in this repository that drive the popup, and
+**`background-check.spec.ts`'s two are the first cases that observe a wake, and the second one
+existed because the first could not measure what it claimed.** The first waits for **two** wakes and
+counts provider requests across them, which is what turned *"reads no body"* into *"re-reads it
+every wake"* - a shipped defect rather than a test gap. **The repair changed the instrument rather
+than the threshold**: `recorded-provider.ts` now records `requestedAt` beside `requested`, and the
+case requires the two requests to be **`INBOX_POLL_PROMPT_MS / 5`** apart. **A count cannot tell two
+wakes listing once from one wake listing twice** - both produce the same log of URLs - so a case
+named for a *per-wake* cost was measuring a *total*, and the gap is what makes the two
+distinguishable. **The threshold is derived from the shared cadence rather than chosen here**, for
+the reason this file has recorded about every hand-picked constant: a number picked in a spec is a
+number picked to be large enough.
+
+**And the eighth is the positive control for a precondition, and it earned its place on its first
+block by catching a defect in the repair it was written to falsify.** `incoming-mail-notification`
+made creating an address arm a 5 000 ms alarm, so a wake could add a listing to a case asserting an
+**exact count** of provider requests. The repair was an isolation rather than a threshold -
+`background-check.spec.ts` is where the alarm is the subject, so the other specs disarm it - because
+raising a ceiling or relaxing an assertion is the recorded defect with a larger constant. **A disarm
+that is only ever cleared can be deleted and nothing fails**, so this file gained a first case that
+requires no alarm armed, arms one deliberately, reads it back, and requires a listing nobody asked
+for.
+
+**The thirty-run block meant to confirm that decision came back `passed=18 failed=12`,
+`harness-error=0`, and every one of the twelve reds was that same case failing on its own
+`toEqual([])` with an alarm armed** - against a pre-repair baseline of **one red in forty-six
+attempts**, so the repair made the suite substantially worse rather than merely failing to hold.
+
+**The mechanism is this file's own recorded lesson, one door over.** `Popup.tsx` renders the address
+when `session.open()` publishes `ready`, which is **before** the press reaches `await
+requestBackgroundAlarm()`. Waiting for the address therefore released the spec **while the arming was
+still travelling to the worker**; the clear cleared nothing, and the worker armed a moment later. The
+recorded lesson was *"waiting for the address to appear on the popup does not wait for the
+`saveMailbox` write"* - **here it is worse, because what goes unwaited is the arming that *follows* the
+write, and the popup never states on screen whether it has happened**, so no screen assertion can stand
+in for it. The signal exists; it is in the platform, and only a spec reads it.
+
+**A race is decided by which side is slower, so a race is decided by machine load.** That is why it
+presented as a *rate* rather than as a failure, and why **counting runs found it where no single run
+would have**. The repair is the **order**, not a threshold and not an abandonment:
+`waitForTheArmingThenDisarm` reads the alarm back until it is armed and *then* clears, and reading the
+arming **is** observing that the popup's request has been answered, because the arming is the last
+thing that request does. `popup.spec.ts`'s negative-window case had the identical race and the same
+repair; `in-page-create.spec.ts` needs only `clearArmedAlarms`, because delegated creation arms
+**before** it answers.
+
+**Measured after it: eight consecutive extension-tier runs and then thirty consecutive full-suite runs
+- 38 green, 0 red, 0 harness-error**, at `website=40` and `extension=67` on every run, against the ~40%
+red rate that preceded it. **Zero source files changed during the thirty**, so they are on the tree this
+commit ships. See the change's `design.md` D16 and `tasks.md` 9.10.
+
+**`in-page-fill.spec.ts`'s eight are the only cases in this repository that drive the popup, and
 the way they do it was measured rather than chosen.** A real popup is a `chrome-extension://`
 document in a surface Playwright has no `Page` for: `chrome.action.openPopup()` **adds no Page**
 (measured), and a popup opened *as a tab* **is** its own active tab. So the file opens the built
@@ -1699,7 +1801,7 @@ docked popup and is recorded as one in `design.md` D10** - what it holds is the 
 the report and the page's own React state; what it does not hold is anything about how a real popup
 window is presented, which no case in either tier could measure.
 
-**And the seven include a request-count readback, because that is how `design.md` D9's defect was
+**And the eight include a request-count readback, because that is how `design.md` D9's defect was
 found.** Reading a message, closing it, and reading it again must cost **one** provider request in
 total; the case asserts the count across the close and the re-open, so a `close()` that shed the
 reading would be caught here and not only in the unit tier.
@@ -2050,15 +2152,31 @@ it or inherit the previous one's mailbox.
   starvation is permanent.** The instrument is `apps/extension/e2e/alarms-packing.mjs`,
   quarantined, run once per alarm via `--only`; `docs/PROVIDERS.md` §4.1.1 carries the full
   record and §5.2 carries what it still does not establish.
+- **Nothing about a notification being *seen*, and the three ways this is narrower than "a
+  notification appeared".** §4.5 measured the API and nothing past it: **the Chromium that
+  measured it is headless and has no notification centre**, so `getAll()` holding an id is
+  **registration** — which is exactly what separated the measurement's arms, and is a smaller
+  fact than a person seeing one. **Nothing here is about a headed desktop**, where focus
+  settings or a missing notification service could suppress a request this run accepted; and
+  **nothing covers a platform that accepts a request and shows nothing**, which is the one case
+  where a `null` callback would be the only available signal and this measurement cannot
+  produce it. **So a wake can advance its seen-record on a notification nobody saw**, and that
+  residual is named in the change's `design.md` rather than closed. The instrument is
+  `apps/extension/e2e/notification-display.mjs`, quarantined beside the other two.
+  **A consequence worth stating where a reader will meet it: `chrome.notifications.onError`
+  does not exist on the Chromium measured** — a listener added to it throws before creating
+  anything — so the only observed refusal is a `create` callback resolving `null`, **and a
+  throw is treated identically**. That is a property of *this* Chromium and may not be cited
+  as though the event does not exist everywhere.
 - **Nothing about a live provider — in either tier.** Every provider response is a
   **recorded** one, imported by name from `packages/providers`, and any other origin is
   aborted **and reported by name**; the extension's tier additionally asserts that it
   **requests no origin it did not script**. `use it externally` remains unverified, and a
   stored mailbox has still never been reconciled against a live Guerrilla Mail session. The
   one live call in this repository is `apps/extension/e2e/live-host-permission.mjs`, which is
-  **quarantined from all three suites** and enforced by a boundary assertion. **There are now two
+  **quarantined from all three suites** and enforced by a boundary assertion. **There are now three
   quarantined probes and the assertion covering them is a list, not a per-probe rule** — that is
-  what makes opting a third one out a matter of adding a name rather than writing a new test. **The
+  what makes opting a fourth one out a matter of adding a name rather than writing a new test. **The
   same assertion now also checks that every probe's spelled `--load-extension` /
   `--disable-extensions-except` flags agree with `extensionFlags()`**, because a plain `.mjs`
   cannot import the TypeScript helper; **that duplication already existed and was unasserted before

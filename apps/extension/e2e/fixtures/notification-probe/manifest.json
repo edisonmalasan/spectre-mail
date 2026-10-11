@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "SpectreMail notification probe",
+  "version": "0.0.0",
+  "description": "Throwaway fixture, not the product. Declares `notifications` so `chrome.notifications` exists at all, and `storage` so a record outlives the worker that wrote it. Ships no user-facing surface, and no product manifest may copy `notifications` from here: the instrument that answers a question may need rights the product does not have yet.",
+
+  "permissions": ["notifications", "storage"],
+
+  "background": {
+    "service_worker": "probe.js",
+    "type": "module"
+  }
+}

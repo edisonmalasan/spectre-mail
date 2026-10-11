@@ -49,6 +49,22 @@
 export const CREATE_MAILBOX_REQUEST_KIND = "spectre:create-mailbox";
 
 /**
+ * Discriminates a request for the background context to reconcile its schedule.
+ *
+ * **A second kind between the popup and the worker, and it exists because a browser case found that
+ * the popup's own mailbox write reached no arming.** The popup creates a mailbox in its own context
+ * and writes the collection itself (`Popup.tsx`), so the worker's arming — which hangs off the answer
+ * to a *delegated* creation — never ran for the path a person actually uses. A device that had just
+ * created an address sat with **no alarm at all** until the next browser start.
+ *
+ * **The request carries nothing**, for the same reason `CreateMailboxRequest` carries nothing: the
+ * answering context reads its own storage rather than being told what the asking context believed.
+ * A payload here would be a second copy of a fact the worker is about to look up, and the two could
+ * disagree.
+ */
+export const RECONCILE_ALARM_REQUEST_KIND = "spectre:reconcile-alarm";
+
+/**
  * Discriminates a request for a one-time code to be put into a page's own field.
  *
  * **A second kind on the same channel rather than a second channel**, because `design.md` D4
@@ -62,6 +78,23 @@ export const FILL_CODE_REQUEST_KIND = "spectre:fill-code";
 export interface CreateMailboxRequest {
   readonly kind: typeof CREATE_MAILBOX_REQUEST_KIND;
 }
+
+/** A request for the background context to reconcile the schedule it holds for this device. */
+export interface ReconcileAlarmRequest {
+  readonly kind: typeof RECONCILE_ALARM_REQUEST_KIND;
+}
+
+/**
+ * The one value sent for a reconciliation request.
+ *
+ * **A constant rather than a literal at each call site**, for the reason
+ * {@link CREATE_MAILBOX_REQUEST} gives: the two sides cannot disagree by one of them being edited.
+ * **Its having no other field is the point**, and `protocol.test.ts` reads its keys rather than
+ * trusting this comment.
+ */
+export const RECONCILE_ALARM_REQUEST: ReconcileAlarmRequest = {
+  kind: RECONCILE_ALARM_REQUEST_KIND,
+};
 
 /**
  * The one value sent for a creation request.
@@ -178,6 +211,28 @@ export type FillCodeAnswer =
  */
 export function isCreateMailboxRequest(value: unknown): value is CreateMailboxRequest {
   return readKind(value) === CREATE_MAILBOX_REQUEST_KIND;
+}
+
+/**
+ * Whether `value` is the reconciliation request this extension acts on.
+ *
+ * **The same question as {@link isCreateMailboxRequest}, asked of a second discriminant, and the
+ * two guards must not overlap.** The worker's own dispatch reaches every one of this file's guards,
+ * so a message that satisfied two of them would be taken by whichever branch it reached first — and
+ * a create request that also armed the alarm would put a second copy of the same mailbox in
+ * front of a person who asked for one.
+ *
+ * **Only `kind` is checked, and the reason is that there is nothing else to check.** The request
+ * carries no payload, so a stricter guard would be guarding a shape that cannot yet exist, and a
+ * looser one would admit every extension message the browser itself routes here — an unrelated
+ * extension's word arming this one's schedule. Checking a discriminant cannot misread a different
+ * kind: `readKind` compares against a literal, so the two guards are disjoint by construction
+ * rather than by ordering.
+ *
+ * @param value - Whatever the message channel delivered. Untyped by construction.
+ */
+export function isReconcileAlarmRequest(value: unknown): value is ReconcileAlarmRequest {
+  return readKind(value) === RECONCILE_ALARM_REQUEST_KIND;
 }
 
 /**

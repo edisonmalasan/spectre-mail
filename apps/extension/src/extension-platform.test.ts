@@ -34,9 +34,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChromeStorageArea } from "@spectre-mail/storage";
 
 import {
+  extensionAssetUrl,
   findActiveTab,
+  onAlarmFired,
+  onBrowserStart,
   onExtensionMessage,
+  readAlarmPlatform,
   readChromeLocalArea,
+  readNotificationPlatform,
   sendToBackground,
   sendToTab,
 } from "./extension-platform";
@@ -555,5 +560,295 @@ describe("answering requests from this context", () => {
     installPlatform({ runtime: { onMessage: { addListener: "add" }, sendMessage: vi.fn() } });
 
     expect(() => onExtensionMessage(async () => undefined)).not.toThrow();
+  });
+});
+
+describe("reading the notification platform", () => {
+  /** A notifications member of exactly the given shape, on a platform that otherwise looks real. */
+  function withNotifications(shape: unknown): void {
+    installPlatform({ runtime: { sendMessage: vi.fn() }, notifications: shape });
+  }
+
+  it("returns the platform where it offers both members the seam names", () => {
+    const clear = vi.fn(async () => true);
+    withNotifications({ create: vi.fn(async () => "an id"), clear, onError: undefined });
+
+    const platform = readNotificationPlatform();
+
+    expect(platform).toBeDefined();
+    // **The very object, not a wrapper.** A notification request is passed straight through, because
+    // the platform's own `create` is the thing the measurement was taken against; wrapping it would
+    // mean the measured shape and the used shape were two different shapes.
+    expect(platform?.clear).toBe(clear);
+  });
+
+  it("reports no platform where this context has none", () => {
+    // **The absence a real Chromium never demonstrates**, which is the reason this file exists at
+    // all: a content script context has no notifications member, and asking must answer rather than
+    // throw - a notification raised inside a listener that cannot listen is a fault nobody can catch.
+    removePlatform();
+
+    expect(readNotificationPlatform()).toBeUndefined();
+  });
+
+  it('reports no platform where it offers "create" alone', () => {
+    // **Stricter than the product needs, and deliberately.** `create` is the only member anything
+    // calls, so a check naming only that would pass on a platform that had lost `clear` - and the
+    // whole reason for reading the platform reflectively is that the shape is checked *here*, at the
+    // boundary, rather than discovered by a caller that expected a member and found nothing.
+    withNotifications({ create: vi.fn(async () => "an id") });
+
+    expect(readNotificationPlatform()).toBeUndefined();
+  });
+
+  it("reports no platform where a member is not callable", () => {
+    // **The narrow form of the same claim, in the other direction: a member present but not a
+    // function is not a member.** A platform whose `clear` is a string satisfies a "is it defined"
+    // reading, and the seam would hand a caller a value it cannot call.
+    withNotifications({ create: "create", clear: vi.fn(async () => true) });
+
+    expect(readNotificationPlatform()).toBeUndefined();
+  });
+});
+
+describe("resolving the address of a file this extension ships", () => {
+  it("asks the runtime for that exact file and returns what it answers", () => {
+    const seen: string[] = [];
+    installPlatform({
+      runtime: {
+        getURL(file: string) {
+          // **The receiver is checked here, not by the test**, because a reflective read of a method
+          // invites detaching it: a detached `getURL` sees `this` as `undefined` and the file name
+          // as its first argument, which on some platforms throws and on others answers with a URL
+          // relative to nothing. This is the same trap `sendToTab` records.
+          if (this === undefined) {
+            throw new Error("detached");
+          }
+          seen.push(file);
+          return `chrome-extension://measured/${file}`;
+        },
+      },
+    });
+
+    expect(extensionAssetUrl("icon.png")).toBe("chrome-extension://measured/icon.png");
+    expect(seen).toEqual(["icon.png"]);
+  });
+
+  it("names no address where the runtime offers no way to build one", () => {
+    installPlatform({ runtime: { sendMessage: vi.fn() } });
+
+    expect(extensionAssetUrl("icon.png")).toBeUndefined();
+  });
+
+  it("names no address where the runtime refuses the file", () => {
+    // **A thrown `getURL` is absence, not a fault.** This runs inside a notification request, and a
+    // worker that raised here would answer nothing at all - losing the refusal the product would
+    // otherwise report, which is the same information a `null` from `create` carries.
+    installPlatform({
+      runtime: {
+        getURL: () => {
+          throw new Error("no such file");
+        },
+      },
+    });
+
+    expect(extensionAssetUrl("icon.png")).toBeUndefined();
+  });
+
+  it("names no address where the runtime answers with something that is not a URL", () => {
+    // **A value of the wrong type is absence too**, because a caller would otherwise put it in an
+    // `iconUrl` the platform then refuses - and the refusal would be recorded against the product
+    // rather than against the platform that answered wrongly.
+    installPlatform({ runtime: { getURL: () => 42 } });
+
+    expect(extensionAssetUrl("icon.png")).toBeUndefined();
+  });
+});
+
+describe("reading the alarm platform", () => {
+  it("passes the name and the schedule through, called on the platform's own member", async () => {
+    const asks: Array<{ name: string; schedule: unknown }> = [];
+    const alarms = {
+      create(name: string, schedule: unknown) {
+        // **The receiver, asserted from inside the member rather than from outside it.** A detached
+        // call is invisible on a platform that ignores `this` and fatal on one that reads a private
+        // field, so the case checks it at the point where detaching would show.
+        if (this !== alarms) {
+          throw new Error("detached");
+        }
+        asks.push({ name, schedule });
+      },
+      clear: async () => true,
+    };
+    installPlatform({ alarms });
+
+    const platform = readAlarmPlatform();
+    await platform?.create("spectre:inbox", { periodInMinutes: 5 });
+
+    expect(asks).toEqual([{ name: "spectre:inbox", schedule: { periodInMinutes: 5 } }]);
+  });
+
+  it("resolves rather than rejecting where the platform refuses to schedule", async () => {
+    installPlatform({
+      alarms: {
+        create: () => {
+          throw new Error("quota");
+        },
+        clear: async () => true,
+      },
+    });
+
+    const platform = readAlarmPlatform();
+
+    // **The throw is swallowed, and the reason is stated beside it: an alarm this platform refused is
+    // a check this device is not running, and the only listener that could report it is the timer
+    // that never fired.** So there is no channel to report through, and a rejection here would
+    // escape into the worker as an unhandled rejection.
+    await expect(
+      platform?.create("spectre:inbox", { periodInMinutes: 5 }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('answers whether there was an alarm, and answers "no" for every non-true answer', async () => {
+    // **Three answers in a row through one reader**, because `clear` decides whether an alarm needs
+    // clearing at all, and a platform answering `undefined` must not read as "there was one". Each
+    // iteration reinstalls the platform rather than reusing it, so a reader that cached the platform
+    // on first use would be caught by the second.
+    const answers: Array<() => Promise<unknown>> = [
+      async () => true,
+      async () => false,
+      async () => undefined,
+    ];
+
+    for (const answer of answers) {
+      installPlatform({ alarms: { create: async () => {}, clear: answer } });
+      const expected = await answer();
+      await expect(readAlarmPlatform()?.clear("spectre:inbox")).resolves.toBe(expected === true);
+    }
+
+    installPlatform({
+      alarms: {
+        create: async () => {},
+        clear: () => {
+          throw new Error("gone");
+        },
+      },
+    });
+    await expect(readAlarmPlatform()?.clear("spectre:inbox")).resolves.toBe(false);
+  });
+
+  it("reports no platform where either member is missing", () => {
+    // **Both directions, because "either" is only a claim if both halves are exercised** - and a
+    // check demanding only `create` would pass the second and the third of these, which is why they
+    // are here rather than the first case alone.
+    installPlatform({ alarms: { clear: async () => true } });
+    expect(readAlarmPlatform()).toBeUndefined();
+
+    installPlatform({ alarms: { create: async () => {} } });
+    expect(readAlarmPlatform()).toBeUndefined();
+
+    installPlatform({ alarms: { create: "create", clear: async () => true } });
+    expect(readAlarmPlatform()).toBeUndefined();
+  });
+
+  it("reports no platform where this context has none", () => {
+    removePlatform();
+
+    expect(readAlarmPlatform()).toBeUndefined();
+  });
+});
+
+describe("listening for the platform's own events", () => {
+  /** A platform whose two events record what was registered, so a listener can be driven. */
+  function listeningPlatform() {
+    const started: Array<() => void> = [];
+    const fired: Array<(alarm: unknown) => void> = [];
+    const removed: unknown[] = [];
+
+    installPlatform({
+      runtime: {
+        onStartup: {
+          addListener(listener: () => void) {
+            started.push(listener);
+          },
+          removeListener(listener: unknown) {
+            removed.push(listener);
+          },
+        },
+      },
+      alarms: {
+        onAlarm: {
+          addListener(listener: (alarm: unknown) => void) {
+            fired.push(listener);
+          },
+          removeListener(listener: unknown) {
+            removed.push(listener);
+          },
+        },
+      },
+    });
+
+    return { started, fired, removed };
+  }
+
+  it("runs the handler when the browser starts, and stops when the teardown is called", () => {
+    const { started, removed } = listeningPlatform();
+    const handle = vi.fn();
+
+    const stop = onBrowserStart(handle);
+
+    expect(started).toHaveLength(1);
+    started[0]?.();
+    // **No payload, because the platform sends none.** A handler declaring an argument here would be
+    // accepting a fact the platform does not offer, and the type is what stops it.
+    expect(handle).toHaveBeenCalledWith();
+
+    stop();
+    expect(removed).toEqual(started);
+    expect(() => stop()).not.toThrow();
+  });
+
+  it("passes every alarm name through, and never filters one", () => {
+    const { fired } = listeningPlatform();
+    const seen: string[] = [];
+
+    onAlarmFired((name) => {
+      seen.push(name);
+    });
+
+    fired[0]?.({ name: "spectre:inbox" });
+    // **A name this extension did not create reaches the handler, and that is the design.** "Exactly
+    // one alarm" is a property of what this code *creates*, and a filter here would make it
+    // unfalsifiable: a second alarm would simply never arrive, so the suite could not catch one and
+    // the claim would be a claim about a listener rather than about the product.
+    fired[0]?.({ name: "something-else" });
+
+    expect(seen).toEqual(["spectre:inbox", "something-else"]);
+  });
+
+  it("ignores a fired alarm this extension cannot name", () => {
+    const { fired } = listeningPlatform();
+    const handle = vi.fn();
+
+    onAlarmFired(handle);
+    fired[0]?.({ periodInMinutes: 5 });
+    fired[0]?.({ name: 42 });
+
+    expect(handle).not.toHaveBeenCalled();
+  });
+
+  it("returns an inert teardown where the platform offers no such event", () => {
+    // **Two absences, both of which happen in a real context.** `runtime.onStartup` exists in the
+    // worker and in the popup; `alarms.onAlarm` exists in the worker. Asking in the wrong one must
+    // answer with a teardown rather than throw, or evaluating this module in a context that cannot
+    // listen would take the whole page down.
+    installPlatform({ runtime: {}, alarms: { onAlarm: { addListener: "add" } } });
+
+    expect(() => onBrowserStart(() => {})()).not.toThrow();
+    expect(() => onAlarmFired(() => {})()).not.toThrow();
+
+    removePlatform();
+    expect(() => onBrowserStart(() => {})()).not.toThrow();
+    expect(() => onAlarmFired(() => {})()).not.toThrow();
   });
 });

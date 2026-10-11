@@ -41,12 +41,15 @@ import {
 } from "@spectre-mail/storage";
 import type { Page } from "@playwright/test";
 
+import { INBOX_POLL_CEILING_MS } from "@spectre-mail/mailbox";
+
 import { launchExtension } from "./launch-extension";
 import type { LaunchedExtension } from "./launch-extension";
 import { recordProviderTraffic, FIXTURE_IDS } from "./recorded-provider";
 import type { ProviderTraffic } from "./recorded-provider";
 import { servedStylesheet, stripGeneratedTokenBlocks } from "./served-stylesheet";
 import { clearStoredMailbox, readSingularRecord } from "./helpers/stored-mailbox";
+import { waitForTheArmingThenDisarm } from "./helpers/background-state";
 
 let extension: LaunchedExtension;
 let traffic: ProviderTraffic;
@@ -234,13 +237,38 @@ test.describe("the popup as an extension page", () => {
     await page.getByRole("button", { name: "Create an address" }).click();
     await expect(page.locator(".popup__address")).toHaveText(/@uberip\.com$/);
 
+    /**
+     * **The background check is disarmed here, and the claim below is about the popup's own
+     * cadence rather than about the extension having no schedule.**
+     *
+     * **The press above is what arms it.** `incoming-mail-notification` made the popup ask the worker
+     * to reconcile after its own write (`design.md` D14), so this case arms a 5 000 ms alarm and then
+     * measured a fixed 1 500 ms window for the absence of any request — **a 3.5 s margin on a negative
+     * assertion whose clock the product owns.** That is the recorded weak precondition, and
+     * `in-page-fill.spec.ts` has already been caught by its weaker form of it: a full-suite run
+     * failed there with `Expected: 1, Received: 3`, and the failing case's own **12.5 s** duration
+     * against a 5 000 ms period is what identified the cause.
+     *
+     * **So the window is not lengthened; the subject is isolated.** `background-check.spec.ts` is
+     * where the alarm is what is under test, and disarming here says *which* poll this case is about
+     * rather than making the window large enough to hide the other one. The other cases in this file
+     * assert nothing a wake could change — a wake requests `api.mail.tm`, which is scripted here —
+     * so this is the only place in the file the disarm belongs.
+     *
+     * **And the disarm waits for the arming rather than racing it**, for the reason
+     * `helpers/background-state.ts` records at length and at the cost of a thirty-run block. The
+     * address on screen means `session.open()` published `ready`, which is *before* this press asks
+     * the worker to arm; a clear issued now clears nothing and the worker arms afterwards.
+     */
+    await waitForTheArmingThenDisarm(extension, INBOX_POLL_CEILING_MS);
+
     // **Before any check, the count is an answer about nothing and says so.**
     await expect(page.getByText("No mail has arrived.")).toBeVisible();
     const requestsBefore = traffic.requested.length;
 
-    // **Nothing polled on its own while the popup sat open.** This is D1's requirement,
-    // asserted in the place it matters: a background check would have shown up here as a
-    // provider request nobody asked for.
+    // **Nothing polled on its own while the popup sat open**, with no alarm armed to do it. This is
+    // D1's requirement, asserted in the place it matters: a background check would have shown up here
+    // as a provider request nobody asked for.
     await page.waitForTimeout(1_500);
     expect(traffic.requested.length).toBe(requestsBefore);
 

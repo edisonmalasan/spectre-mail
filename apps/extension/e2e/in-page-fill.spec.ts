@@ -50,6 +50,14 @@ import {
 } from "../src/content-script/affordance";
 import { clearStoredMailbox } from "./helpers/stored-mailbox";
 import {
+  armBackgroundAlarm,
+  clearArmedAlarms,
+  readArmedAlarms,
+  waitForTheArmingThenDisarm,
+} from "./helpers/background-state";
+import { BACKGROUND_ALARM_NAME } from "../src/alarms";
+import { INBOX_POLL_CEILING_MS, INBOX_POLL_PROMPT_MS } from "@spectre-mail/mailbox";
+import {
   openFixturePage,
   plantSecondCodeField,
   reactState,
@@ -81,6 +89,16 @@ test.afterEach(async () => {
   for (const page of opened.splice(0)) {
     await page.close().catch(() => undefined);
   }
+
+  /**
+   * **The alarm is cleared after every case, and this file now has a case that arms one on purpose.**
+   *
+   * `stage()` disarms it because creating an address arms it, but a *deliberate* arming outlives the
+   * case that asked for it in exactly the way the recorded late-answer rule describes: the worker
+   * outlives the document. Without this line the control below would keep listing into the next case's
+   * log, and the next case would fail for a reason that has nothing to do with what it is about.
+   */
+  await clearArmedAlarms(extension);
 });
 
 /** One delivery, staged but not performed. */
@@ -131,10 +149,48 @@ async function stage(): Promise<Staged> {
   await popup.getByRole("button", { name: "Create an address" }).click();
   await expect(popup.locator(".popup__address")).toHaveText(/@uberip\.com$/);
 
-  // **A check the user asked for, and the honest limitation this file is named for.** Nothing
-  // polls on its own — `extension-client` forbids it — so a code is available only after someone
-  // pressed this. The press is here rather than assumed so that the whole chain is a delivery a
-  // person started.
+  /**
+   * **The background check is disarmed here, and this line is the repair for a defect this milestone
+   * authored.**
+   *
+   * **The press above is what arms the alarm.** `incoming-mail-notification` made the popup ask the
+   * worker to reconcile after its own write (`design.md` D14), so creating an address now schedules a
+   * 5 000 ms wake — and this file's cases assert on an **exact count** of provider requests. A wake
+   * landing inside a case adds a listing to the log, and the count stops being the count the case
+   * meant.
+   *
+   * **It was measured rather than reasoned, and the measurement changed the shape of the defect.**
+   * A full-suite run failed `reads a message it has already opened for no second request` with
+   * `Expected: 1, Received: 3` — three listings, which is one plus two wakes. **Twenty runs of this
+   * spec alone were green**, so the first reading — a background wake from another spec, since specs
+   * share a process — was wrong: each launch takes its own profile directory. The failing case's own
+   * **duration** is the answer: **12.5 s against a 5 000 ms period**, so it was never a race. It is
+   * **deterministic once the case runs longer than one period**, and a loaded machine is what makes
+   * it run that long. **An assertion whose validity depends on the case finishing faster than a
+   * period is a precondition the product controls and the spec did not.**
+   *
+   * **So the count is made independent of the machine rather than the window made longer.** Raising the
+   * ceiling, or relaxing `toBe(1)`, would be the recorded defect with a larger constant: a wake
+   * polluting the count would still read green. **Disarming removes the wake from the subject**, and
+   * `background-check.spec.ts` is where the alarm is the subject.
+   *
+   * **And the first version of that line was a race, which the thirty-run block below found.** It
+   * called `clearArmedAlarms` as soon as the address appeared — and the address appears when
+   * `session.open()` publishes `ready`, which is *before* the press reaches
+   * `await requestBackgroundAlarm()`. So the clear was issued while the arming was still travelling
+   * to the worker, and the worker armed a moment afterwards. **Thirty consecutive runs came back 18
+   * green and 12 red**, every red the same single case failing on its own assertion that nothing was
+   * armed: the control was reporting that the repair was a race, not that the product was broken.
+   * **A race is decided by which side is slower, so it is decided by machine load** — and the
+   * pre-repair baseline was one red in forty-six attempts. The wait is `waitForTheArmingThenDisarm`,
+   * which reads the alarm back until it is armed *and then* clears, so the clear cannot lose at any
+   * load. See `helpers/background-state.ts` for why the popup's screen state cannot stand in for it.
+   */
+  await waitForTheArmingThenDisarm(extension, INBOX_POLL_CEILING_MS);
+  // **A check the user asked for, and the honest limitation this file is named for.** Nothing polls
+  // on its own — with the background check disarmed above, the only provider requests in this file are
+  // the ones a case asked for — so a code is available only after someone pressed this. The press is
+  // here rather than assumed so that the whole chain is a delivery a person started.
   await popup.getByRole("button", { name: "Check for mail" }).click();
   await expect(popup.locator('[data-testid="message-list"]')).toBeVisible();
 
@@ -174,13 +230,80 @@ async function stage(): Promise<Staged> {
 
 test.describe("a code reaches a page, and only because a person pressed something", () => {
   /**
-   * **The positive control this file's zero depends on, and it is the first case.**
+   * **The positive control for the disarm every other case in this file depends on, and it is first
+   * so the count below is read against a file that has just proved it can be wrong.**
+   *
+   * **What it establishes.** Arm the alarm the way the product arms it, confirm the platform accepted
+   * it, and require a listing that nobody asked for to appear in this file's own request log. **That
+   * listing is the thing `reads a message it has already opened for no second request` counts against**
+   * — and the run that found the defect saw three where it expected one.
+   *
+   * **Why it is here and not a mutation arm.** The defect presented as *one red in thirty-one*: green
+   * in twenty isolated runs of this spec, red once under a loaded machine, with the failing case's own
+   * duration - **12.5 s against a 5 000 ms period** - naming the cause. **No repetition can settle
+   * that**, and a mutation arm pointed at the same count would inherit the same dependence on how long
+   * the case happens to take. Arming the alarm deliberately removes the dependence: the wait below is
+   * a full ceiling, so the wake is *certain* rather than *likely*.
+   *
+   * **And it cannot pass vacuously.** `armBackgroundAlarm` only calls `chrome.alarms.create`, which
+   * reports no error for a period it will not accept, so the next line reads the alarm back through
+   * the platform before anything is waited for. **A control that could be satisfied by the alarm never
+   * being armed would leave the disarm unfalsified, which is the state this case exists to prevent.**
+   *
+   * **The ceiling is the cadence's, not a number chosen to be large enough** - `INBOX_POLL_CEILING_MS`
+   * is the same six periods `background-check.spec.ts` waits for a wake to be *askable*, so this case
+   * and that file are waiting for the same thing by the same derivation.
+   */
+  test("counts a listing nobody asked for, once the background check is armed", async () => {
+    const { traffic } = await stage();
+
+    const listings = () =>
+      traffic.requested.filter((url) => url.includes("/messages?page=1")).length;
+    const asked = listings();
+
+    /**
+     * **The disarm itself, asserted rather than assumed - and this line is what makes the repair
+     * falsifiable at all.**
+     *
+     * Arming the alarm below proves a wake *would* pollute this log. It says nothing about whether
+     * `stage()`'s disarm works, and the defect it repairs appeared **once in thirty-one runs** - so an
+     * arm that removed the disarm and waited for the count to break would inherit exactly the
+     * dependence on machine load that made the defect hard to see in the first place, and would read
+     * green on a fast machine while the repair was silently absent.
+     *
+     * **This assertion has no such dependence.** `chrome.alarms.clearAll` either cleared this
+     * extension's alarm or it did not, and the platform answers immediately. A `stage()` without the
+     * disarm leaves the alarm armed, this reads one name where it requires none, and the case fails on
+     * that line - **in under a second, every run, on any machine.** A disarm that had been deleted, or
+     * written against the wrong name, cannot survive this.
+     */
+    expect(await readArmedAlarms(extension)).toEqual([]);
+
+    await armBackgroundAlarm(extension, BACKGROUND_ALARM_NAME, INBOX_POLL_PROMPT_MS / 60_000);
+
+    /** **Read back before waiting**, so a refusal cannot be waited out and reported as a wake. */
+    expect(await readArmedAlarms(extension)).toEqual([BACKGROUND_ALARM_NAME]);
+
+    await expect.poll(listings, { timeout: INBOX_POLL_CEILING_MS }).toBeGreaterThan(asked);
+  });
+
+  /**
+   * **The positive control for this file's zero, and the second of the file's two controls.**
+   *
+   * **"Second", and that is a correction rather than a decoration.** This case said *it is the first
+   * case* for as long as it existed, and it stopped being true when the disarm control above was
+   * added. Two blocks each claiming to be first is a contradiction a reader hits immediately, and a
+   * case that has quietly stopped being where its comment says it is is the recorded supersession
+   * defect wearing a different hat.
+   *
+   * **The two controls are not the same claim, which is why there are two.** The one above says *the
+   * alarm can pollute this log* — the wake is real and this file must not have one. This one says
+   * *this file's zero is a measurement* — a zero that nothing else makes non-zero is not one, and the
+   * non-zero here is already in the record, because staging the delivery required opening the
+   * message once.
    *
    * `packages/mailbox` retains an analysis it has already paid for, so reading the same message
-   * twice costs one request rather than two. **A zero that nothing else makes non-zero is not a
-   * measurement** — and here the non-zero is *already in the record*, because staging the delivery
-   * required opening the message once, so the case below can count the fetches that had happened
-   * before it pressed anything.
+   * twice costs one request rather than two.
    */
   test("reads a message it has already opened for no second request", async () => {
     const { popup, traffic } = await stage();
@@ -354,6 +477,23 @@ test.describe("a code reaches a page, and only because a person pressed somethin
  * module would move when the manifest moved. These two lines are the requirement: the delivery
  * works on `storage` alone, and the only host permissions are the two provider origins this
  * extension already reached before this milestone.
+ *
+ * ## Amended during `incoming-mail-notification`, and the amendment is a narrower claim rather than
+ * a flipped one
+ *
+ * **This case asserted `permissions` equalled `["storage"]` exactly, and that assertion became
+ * false** — the notification slice added `alarms` and `notifications`. It is the **second** place
+ * holding the exact list, and `incoming-mail-notification`'s task 6.2 updated the first
+ * (`manifest.spec.ts`, which reads the *built file*) without reaching this one.
+ *
+ * **The direction of this repair matters, because a case that flips with no note attached is the
+ * recorded `in-page-fill` supersession defect.** Nothing was inverted: the claim this case exists to
+ * make is about *the fill path*, not about the manifest being frozen, and that claim is unchanged —
+ * the delivery still works on `storage` alone, and it still reaches no host this milestone did not
+ * already reach. What is removed is the **exact-list** assertion, because **the exact list is now a
+ * property of the milestone in progress rather than of this feature**, and `manifest.spec.ts` holds
+ * it. **`storage` is now required to be present rather than to be alone**, which is strictly what
+ * this case can honestly say.
  */
 test("added no permission, in the manifest the browser actually parsed", async () => {
   const manifest = await extension.worker.evaluate(() =>
@@ -366,7 +506,11 @@ test("added no permission, in the manifest the browser actually parsed", async (
     ).chrome.runtime.getManifest(),
   );
 
-  expect(manifest.permissions).toEqual(["storage"]);
+  // **`toContain("storage")` rather than an equality, and the header above says why.** The
+  // permissions this manifest carries are the union of every milestone's, and `manifest.spec.ts`
+  // holds that list; what this case can honestly say is that the in-page delivery's own permission
+  // is still there and nothing below was taken with it.
+  expect(manifest.permissions).toContain("storage");
   expect(manifest.host_permissions).toEqual([
     "https://api.mail.tm/*",
     "https://api.guerrillamail.com/*",
@@ -376,4 +520,10 @@ test("added no permission, in the manifest the browser actually parsed", async (
   // extension's own tabs, and a milestone that had added it would have bought a capability nobody
   // here asked for.
   expect(manifest.permissions).not.toContain("tabs");
+  // **`scripting` and `activeTab` are named beside it, for the reason `manifest.spec.ts` gives**
+  // and not for this file's own: both would have let the popup reach a page it is not injected into,
+  // which the D1 measurement rejected for this extension's whole design. **A case that checks one
+  // absent permission reads as a check of absence**, and the three are one claim.
+  expect(manifest.permissions).not.toContain("scripting");
+  expect(manifest.permissions).not.toContain("activeTab");
 });

@@ -376,6 +376,137 @@ describe("adopting a stored mailbox", () => {
     });
   });
 
+  /**
+   * `restoreSummaries`: the same adoption, for a caller that renders nothing.
+   *
+   * **These cases are here rather than in `session.test.ts` because of what they measure.**
+   * Every other assertion in this file is a stub's opinion about a value it was handed;
+   * this one is a **request count taken through the real adapter**, which is the only
+   * instrument that can tell a body read from a listing read. The browser tier found the
+   * cost this member removes, and it counted on the wire rather than against a fake.
+   *
+   * **Each case states the pair, not one arm of it.** "Reads no body" on its own is
+   * satisfied by a session that lists nothing at all, so every case that counts one
+   * request also shows what `restore` costs over the same fixture and the same recorder.
+   */
+  describe("adopting a stored mailbox for a caller that displays nothing", () => {
+    /** A mailbox holding one message carrying a code, with a body to read. */
+    function inboxWithCode(url: string): Answer {
+      return url.includes("f=fetch_email") ? messageBody() : liveInboxWithOneMessage();
+    }
+
+    it("reconciles in one request and reads no body, where restore reads one", async () => {
+      // **The pair, over the same responder and the same recorder.** Two sessions, two
+      // counts, one fixture — so the difference cannot be the fixture, the provider, or
+      // the recorder, and can only be which listing was taken.
+      const withVerdicts = await guerrillaMail(inboxWithCode);
+      await createMailboxSession(
+        createProviderManager([withVerdicts.adapter]),
+        manualScheduler(),
+      ).restore(withVerdicts.stored);
+      const costOfRestore = withVerdicts.recorder.requests.length;
+
+      const withoutVerdicts = await guerrillaMail(inboxWithCode);
+      const state = await createMailboxSession(
+        createProviderManager([withoutVerdicts.adapter]),
+        manualScheduler(),
+      ).restoreSummaries(withoutVerdicts.stored);
+      const costOfSummaries = withoutVerdicts.recorder.requests.length;
+
+      expect(costOfSummaries).toBe(1);
+      // **The positive control, in the direction that matters.** `restore` reading a body
+      // is what makes the count above a measurement of the difference rather than of two
+      // sessions that never read anything. If `restore` ever stopped reading bodies, this
+      // would equal 1 and the pair would stop carrying a claim — which is the correct
+      // way for it to fail.
+      expect(costOfRestore).toBe(2);
+
+      // **And the listing is still reported in full**, because a caller that displays
+      // nothing still has to be told what arrived.
+      if (!isReady(state)) throw new Error(`expected a ready state, got ${state.kind}`);
+      if (state.inbox.kind !== "checked") throw new Error("expected a checked inbox");
+      expect(state.inbox.listing.messages).toHaveLength(1);
+      // **No verdict, and that is not a missing value standing in for one.** A caller
+      // that asked for none is not being refused one, and the map being empty is how
+      // this says so — the same way `checking` publishes a listing with no verdicts.
+      expect(state.inbox.listing.verdicts.size).toBe(0);
+    });
+
+    it("costs the same on every adoption, which is the whole reason it exists", async () => {
+      // **A fresh session per adoption, because that is what a wake does.** The measured
+      // defect was not "a wake reads a body" — it was "a wake reads it again on every
+      // wake", because the tracker remembers what it has read only for the life of the
+      // session that read it. A single session would hold that memory and pass while the
+      // real caller never gets one.
+      const { adapter, recorder, stored } = await guerrillaMail(inboxWithCode);
+
+      for (let wake = 0; wake < 3; wake += 1) {
+        recorder.reset();
+        const session = createMailboxSession(createProviderManager([adapter]), manualScheduler());
+        await session.restoreSummaries(stored);
+        expect(recorder.requests).toHaveLength(1);
+      }
+
+      // **The same loop through `restore`, so the shape is what the reader sees.** This
+      // is the recorded measurement: two requests, then two again.
+      const twice = await guerrillaMail(inboxWithCode);
+      for (let wake = 0; wake < 2; wake += 1) {
+        twice.recorder.reset();
+        const session = createMailboxSession(
+          createProviderManager([twice.adapter]),
+          manualScheduler(),
+        );
+        await session.restore(twice.stored);
+        expect(twice.recorder.requests).toHaveLength(2);
+      }
+    });
+
+    it("reports a mailbox the provider has called gone as gone, not as an empty inbox", async () => {
+      // **The whole point of sharing `restore`'s reconciliation.** A listing that skipped
+      // it would report this mailbox as `ready` with nothing in it — which is precisely
+      // the dead-session response `docs/PROVIDERS.md` §3 records, read as life.
+      const { adapter, stored } = await guerrillaMail(deadSession);
+      const session = createMailboxSession(createProviderManager([adapter]), manualScheduler());
+
+      const state = await session.restoreSummaries(stored);
+
+      expect(isExpired(state)).toBe(true);
+    });
+
+    it("reports a refused listing as a refusal, and never as a gone mailbox", async () => {
+      // **A throttle is not a death**, and the half that is easy to get wrong is the one
+      // after a shared implementation: if this path mapped failures its own way, the
+      // shared `adopt` would be carrying two error vocabularies at once.
+      for (const refusal of [refusesListing, throttled] as const) {
+        const { adapter, stored } = await guerrillaMail(refusal);
+        const session = createMailboxSession(createProviderManager([adapter]), manualScheduler());
+
+        const state = await session.restoreSummaries(stored);
+
+        expect(isRestoreFailed(state)).toBe(true);
+        expect(isExpired(state)).toBe(false);
+      }
+    });
+
+    it("asks for no creation, so it is an adoption and not a first visit", async () => {
+      // **`restore` accepts `null` and this does not, so the check is partly the
+      // compiler's.** What the compiler cannot say is that a wake holding a mailbox
+      // would reach for creation anyway; the negative control on `restore(null)` shows
+      // the recorder does report a creation when one happens.
+      const { adapter, recorder, stored } = await guerrillaMail(liveEmptyInbox);
+
+      await createMailboxSession(
+        createProviderManager([adapter]),
+        manualScheduler(),
+      ).restoreSummaries(stored);
+
+      expect(recorder.requests.some((request) => request.includes("get_email_address"))).toBe(
+        false,
+      );
+      expect(recorder.requests).toHaveLength(1);
+    });
+  });
+
   describe("when the provider will not answer", () => {
     it("reports that it could not tell when the listing was refused", async () => {
       // **The real adapter, a bare `503`, and no specific code asserted.** What this

@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "A disposable email address you can read without leaving the page you are on.",
 
-  "permissions": ["storage"],
+  "permissions": ["storage", "alarms", "notifications"],
   "host_permissions": ["https://api.mail.tm/*", "https://api.guerrillamail.com/*"],
 
   "background": {

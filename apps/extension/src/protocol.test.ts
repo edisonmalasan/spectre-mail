@@ -38,8 +38,11 @@ import {
   FILL_CODE_REQUEST_KIND,
   isCreateMailboxRequest,
   isFillCodeRequest,
+  isReconcileAlarmRequest,
   readCreateMailboxAnswer,
   readFillCodeAnswer,
+  RECONCILE_ALARM_REQUEST,
+  RECONCILE_ALARM_REQUEST_KIND,
 } from "./protocol";
 
 describe("the request both contexts agree on", () => {
@@ -66,6 +69,73 @@ describe("the request both contexts agree on", () => {
     ["null", null, false],
   ])("is recognised in %s: %s", (_label, value, expected) => {
     expect(isCreateMailboxRequest(value)).toBe(expected);
+  });
+});
+
+/**
+ * The request the popup sends when it wants the worker to reconcile its own storage.
+ *
+ * **This block is here because the count said it was missing.** `protocol.test.ts` held **52** cases
+ * before and after the notification slice added a third message kind — and the arithmetic gave the
+ * reason away: `protocol.ts` gained `RECONCILE_ALARM_REQUEST`, `RECONCILE_ALARM_REQUEST_KIND` and
+ * `isReconcileAlarmRequest`, and none of the three was read by a case. **Every other kind in this
+ * file has its own narrowing table**, so the omission was not a decision — and a **moved count could
+ * not have reported it**, because a count says how many and not which.
+ *
+ * **Why this guard earns the same table as the other two.** It is the one that decides whether the
+ * worker reconciles on a message the channel delivered, and the channel is shared with every
+ * extension the browser has. A guard returning `true` for any object would let an unrelated
+ * extension's message arm this one's alarm.
+ */
+describe("the request the popup sends to have the worker reconcile its own storage", () => {
+  it("is a payload-free literal, so nothing can ride on it by accident", () => {
+    // **`toEqual` against an object with no fields, rather than `toMatchObject`.** A wake
+    // reconciles *this device's* stored mailbox and is told nothing about which; a payload here
+    // would be a mailbox id travelling from the popup into the worker, and this assertion is the
+    // one that says it cannot.
+    expect(RECONCILE_ALARM_REQUEST).toEqual({ kind: "spectre:reconcile-alarm" });
+    expect(RECONCILE_ALARM_REQUEST.kind).toBe(RECONCILE_ALARM_REQUEST_KIND);
+    expect(Object.keys(RECONCILE_ALARM_REQUEST)).toEqual(["kind"]);
+  });
+
+  it.each([
+    ["the request this module exports", RECONCILE_ALARM_REQUEST, true],
+    ["the same shape spelled by hand", { kind: "spectre:reconcile-alarm" }, true],
+    // **Extra fields are still this request**, for the reason the create case above gives — and here
+    // it is more than a convention, because the worker's own answer reads no field but `kind`.
+    [
+      "the same discriminant carrying more fields",
+      { kind: "spectre:reconcile-alarm", page: 1 },
+      true,
+    ],
+    ["the create request, which is a different kind", CREATE_MAILBOX_REQUEST, false],
+    ["the fill request, which is a different kind", { kind: FILL_CODE_REQUEST_KIND }, false],
+    ["another extension's request", { kind: "someone-else:something" }, false],
+    ["no discriminant at all", { page: 1 }, false],
+    ["a string", "spectre:reconcile-alarm", false],
+    ["nothing at all", undefined, false],
+    ["null", null, false],
+  ])("is recognised in %s: %s", (_label, value, expected) => {
+    expect(isReconcileAlarmRequest(value)).toBe(expected);
+  });
+
+  it("names a kind no other request in this module names", () => {
+    // **The negative half, and the reason the table above can be read at all.** A guard matching
+    // nothing would answer `false` for every row and this file would be green — so the positive
+    // rows are pinned to the constant the *sending* side imports, and this pins that constant to a
+    // string neither side may spell differently, and to a value none of its siblings already holds.
+    //
+    // **`toBe(true)` on a `every` over three kinds reads as a strange assertion**, so the reason is
+    // written here: two kinds sharing a string would make both guards accept each other's messages,
+    // and a third arm of the worker's own dispatch would become reachable from the wrong request.
+    expect(RECONCILE_ALARM_REQUEST_KIND).toBe("spectre:reconcile-alarm");
+    const kinds = [
+      CREATE_MAILBOX_REQUEST_KIND,
+      RECONCILE_ALARM_REQUEST_KIND,
+      FILL_CODE_REQUEST_KIND,
+    ];
+    expect(kinds).toHaveLength(3);
+    expect(new Set(kinds).size).toBe(3);
   });
 });
 

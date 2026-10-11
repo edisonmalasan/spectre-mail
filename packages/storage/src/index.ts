@@ -71,6 +71,7 @@ export type { SpectreStorage } from "./contract";
 
 export type { SpectreMailboxes } from "./mailboxes";
 export type { SpectreSiteAssociations } from "./site-associations";
+export type { SpectreSeenMessages } from "./seen-messages";
 
 export { createBrowserStorage } from "./browser";
 
@@ -78,9 +79,11 @@ export {
   createChromeStorage,
   createChromeMailboxes,
   createChromeSiteAssociations,
+  createChromeSeenMessages,
   EXTENSION_MAILBOX_KEY,
   EXTENSION_MAILBOXES_KEY,
   EXTENSION_SITE_MAILBOXES_KEY,
+  EXTENSION_SEEN_MESSAGES_KEY,
 } from "./chrome";
 export type { ChromeStorageOptions } from "./chrome";
 export type { ChromeStorageArea } from "./chrome-api";
@@ -95,11 +98,16 @@ export {
   toStoredMailboxCollection,
   readStoredSiteAssociations,
   toStoredSiteAssociations,
+  readStoredSeenMessageIds,
+  toStoredSeenMessages,
+  withStoredSeenMessageIds,
 } from "./record";
 export type {
   StoredMailboxRecord,
   StoredMailboxCollection,
   StoredSiteAssociations,
+  StoredSeenMessages,
+  StoredSeenRead,
 } from "./record";
 
 export { createIndexedDbStorage, CURRENT_MAILBOX_KEY, SPECTRE_DATABASE_VERSION } from "./indexeddb";
