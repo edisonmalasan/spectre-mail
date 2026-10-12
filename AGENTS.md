@@ -43,8 +43,22 @@
 > switch, and it does so over the route the spike priced as free: **the content-script round
 > trip and not the `tabs` permission**, so `tab.url` stays withheld and no permission was added
 > to read it. **The answer is a hostname and nothing else**, because a signup page's query
-> string is where its tokens are. **The cursor moves to M11 slice 2, APPLIED, VERIFIED and SYNCED
-> as `panel-mailbox-choice`** — and it is **one item, not the two `docs/ROADMAP.md`'s Project Status
+> string is where its tokens are. **The cursor moves to M11 slice 2, APPLIED, VERIFIED, SYNCED
+> and now ARCHIVED as `panel-mailbox-choice`** — archived on 2026-10-12 to
+> `openspec/changes/archive/2026-10-12-panel-mailbox-choice/`, with all **6** of its files moved
+> SHA-256 byte-identical including **`.openspec.yaml`**, all **15** files under `openspec/specs/`
+> byte-identical throughout, and the counts **re-counted after the move rather than carried
+> forward** at **166 requirements and 527 scenarios across 14 capabilities** — unmoved by the
+> archive, which is what a move should show. **All three archived delta blocks were then re-read
+> from their archived copies and compared as whole blocks against the promoted specs, and each is
+> byte-identical** — and **this change's own deltas could not exercise the block reader's end
+> condition**, since each carries exactly one section heading placed *before* the first
+> requirement; a requirement-only reader returns the same 2 and 1 blocks here. The condition was
+> exercised against a real archived delta that does carry sections after requirements
+> (`incoming-mail-notification`'s `extension-client`, 8 blocks), where the faulty reader absorbs
+> `## MODIFIED Requirements` and `## ADDED Requirements` **while returning the same block count of
+> 8** — so a count-based check can never catch it and only a whole-block content comparison does.
+> And it is **one item, not the two `docs/ROADMAP.md`'s Project Status
 > block names.** Exploration split them, because **both amend the same `extension-client`
 > requirement heading**, and two unrelated amendments to one heading in one delta is the shape
 > this repository records as where an amendment gets attributed to the wrong assertion. Slice 2
@@ -2482,14 +2496,24 @@ openspec validate --specs --strict                             # all promoted sp
 This window is expected rather than a fault; `openspec archive` closes it. Do not
 respond by deleting the promoted spec to make the bare name resolve again.
 
-**After archiving, `openspec validate <change> --type change --strict` fails — and the
-message reads like data loss.** Verified 2026-10-05 at M6 slice 3: it reports
-*"Change must have at least one delta. No deltas found."* on an archived change whose
-deltas are present, complete, and byte-identical to the promoted specs. **Measured, not
-inferred:** the identical error appears for `mailbox-adoption`, archived in an earlier
-session, so it is OpenSpec 1.13.2's behaviour for a change that is no longer active.
-`openspec list` and `openspec status` both report no active changes, which is the correct
-end state.
+**After archiving, `openspec validate <change> --type change --strict` fails — and the message
+does not identify what went wrong.** Verified 2026-10-05 at M6 slice 3: it reported
+*"Change must have at least one delta. No deltas found."* on an archived change whose deltas were
+present, complete, and byte-identical to the promoted specs. **Measured 2026-10-12 at
+`panel-mailbox-choice`'s archive on the same OpenSpec `1.13.2`, that message did not reproduce.**
+The bare name now reports ***"Unknown item '<change>'. Did you mean: …"*** and exits `1`.
+
+**The recorded reason for the older message is therefore no longer a claim about this CLI, and the
+new message is a worse instrument than the old one — so it is stated as a measurement rather than
+reworded.** Measured across six names on that date: `panel-mailbox-choice` and **every other
+archived change tried** — `mailbox-adoption` (the very name the older claim was generalised from),
+`side-panel-surface`, `incoming-mail-notification` — return *"Unknown item"*, and so does a name
+that **never existed at all**. **An archived change name and a name that was never a change are
+indistinguishable to this command**, which means **`openspec validate <archived-change>` cannot
+verify an archive and must not be cited as evidence that one is intact.** It is a spelling check
+that happens to fail. `openspec list` and `openspec status` both report no active changes, which
+is the correct end state and **is** worth something — unlike the per-change validate, they read
+the active set rather than guessing at a name's kind.
 
 The checks that still mean something **after** an archive are `openspec validate --specs
 --strict` and a **byte-for-byte** comparison of each archived delta block against the
