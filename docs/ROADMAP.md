@@ -158,7 +158,10 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor: M11 - Side Panel + Mailbox Context, slice 2 COMPLETE** as
+**Roadmap cursor: M11 - Side Panel + Mailbox Context, slice 3 PROPOSED** as
+`panel-verification-state` — proposal artifacts written locally on `main` and **not yet pushed, and
+no PR is open**, so no PR number is quoted here: this paragraph is written by the proposal stage and
+filled by whoever opens it. **Slice 2 is COMPLETE** as
 `panel-mailbox-choice` — proposal PR #118, apply PR #119 merged `67439da`, sync PR #120 merged
 `47132ae`, archive PR #121 merged `560410f`, archived at
 `openspec/changes/archive/2026-10-12-panel-mailbox-choice/`. **M11 now has one item left, its
@@ -240,6 +243,43 @@ that ships the indicator **carries a positive clause saying the panel states it*
 inferring that it may — and **that clause is what makes the comment correction safe rather than
 load-bearing.** The correction belongs to that slice, which this cursor now names:
 `panel-verification-state`.
+
+**What that change proposes, and the three judgement calls in it are recorded here because all three
+were arguable and one was wrong before it was written.** It carries **one `ADDED` requirement** to
+`extension-client` and **modifies nothing** — the panel requirement is 141 lines and was amended the
+previous day, so a `MODIFIED` block would carry all of it verbatim and this change's own sentence
+would have to be found by diffing two long blocks by eye. **The block count and the requirement delta
+therefore coincide here, which is not true of the last three syncs and is stated so a reader does
+not import that expectation.**
+
+**The scheme is not this change's, and that is the finding that strengthened it most.**
+`apps/web/src/InboxRow.tsx` **already renders this union** — a closed set of the three verdicts where
+a detection is known, an exhaustive marking record including its empty case, and a message it could
+not read **marked in words on its own row** while being withheld the visual claim reserved for the
+positives. **So the panel ports a decided thing, and `apps/web` stays at 125 untouched.** The first
+draft of that change's design record put `undetermined` in a **count** instead, arguing that a marker
+means *"something is in this row"* and therefore cannot also mean *"nobody looked"* — **that argument
+described the code correctly and missed that the website separates the row's words from the row's
+accent rule.** The design record now carries the reversal rather than the edited-away version.
+
+**The constraint that actually shapes the implementation is that the panel and the popup render one
+component.** `MessageSurface.tsx` exists because both need the same list and **both import the same
+`MessageList`** — so a marking implemented in it **reaches the popup**, where *The popup SHALL NOT
+indicate that a message carries a verification* is a live promoted clause whose own scenario, *"A
+check has listed messages"*, **is the state the panel is in**. **That is why the requirement is
+positive and not merely unprohibited**, and it is a stronger reason than the one the first draft gave:
+this is not about silence in a spec, it is about a prohibition that exists and a component that
+crosses it. **The mechanism is one optional prop whose default is off**, so the popup gains the
+capacity and does not exercise it, and a browser case stages the same mailbox on both surfaces.
+
+**Nothing is persisted** (`packages/storage` held at 86) and **no confidence is rendered** — the
+parser caps a code at `0.85` by construction and a reducing shape is a penalty rather than an
+exclusion, so no wording may certify what a message contains. **No token, no class hook and no
+stylesheet rule are added**: the marking is words, which is what keeps `packages/ui` at 38.
+**`mailbox-session` is untouched, which is this change's strongest held property — the work is to
+surface a fact it already produces.** **The `MessageSurface.tsx:128-134` comment correction that
+`panel-mailbox-choice` deferred to this slice is carried as a task in it, with its own Verify
+clause.**
 
 M10 is complete in scope
 and the `side-panel-runtime-facts` spike that unblocked M11 is **APPLIED, VERIFIED and ARCHIVED** at
