@@ -1,6 +1,6 @@
 # AGENTS.md
 
-> **Current milestone state (reconciled against Git and OpenSpec 2026-10-11): M0-M9 are complete
+> **Current milestone state (reconciled against Git and OpenSpec 2026-10-12): M0-M9 are complete
 > in scope, M10 is complete in scope, and the `side-panel-runtime-facts` spike that unblocked
 > **M11** is **APPLIED, VERIFIED and ARCHIVED** at
 > `openspec/changes/archive/2026-10-11-side-panel-runtime-facts/` — proposal PR **#111** merged
@@ -8,13 +8,38 @@
 > `skip_specs` and promoted nothing** (the promoted counts stand at **163 requirements and 504
 > scenarios across the same 14 capabilities**, re-counted by heading *after* the archive rather
 > than carried forward, and **its archive moved 4 files every one byte-identical to its
-> pre-archive original with `.openspec.yaml` kept**). **The cursor therefore moves to M11** —
-> which owns the side panel, the surface `page-composition` has been declaring absent by
-> requirement rather than by omission — **and the roadmap's M11 section no longer lists
-> "current tab hostname" with no cost attached to it**, because the spike priced it: **a panel
-> can name the active tab and `sendMessage` it and follow a tab switch on its own with no new
-> permission, but `tab.url` is withheld without `tabs`.** M11 slice 1 chooses between two
-> *measured* routes rather than assuming a panel sees what a content script sees.
+> pre-archive original with `.openspec.yaml` kept**). **M11 slice 1 has since run its whole
+> lifecycle as `side-panel-surface` and is APPLIED, VERIFIED, SYNCED and ARCHIVED** at
+> `openspec/changes/archive/2026-10-12-side-panel-surface/` — apply PR **#115** merged
+> `11a415c`, sync PR **#116** merged `4c93975`, archive PR **#117**. **The archive PR number
+> was left unfilled by the archive stage rather than guessed, because that stage was told not to
+> open the PR and a predicted PR number in a document other stages cite by name is a figure
+> nobody counted** — `gh pr view` filled it in one command afterwards, which is the honest
+> order. **Unlike the spike it declares no `skip_specs`, so it had a real sync
+> stage and the promoted counts are now 166 requirements and 520 scenarios across the same
+> 14 capabilities** — `extension-client` 10 → 12 and `in-page-integration` 16 → 17, **three
+> requirements rather than five because two of its five blocks are `MODIFIED` and each
+> replaces rather than adds, the fourth milestone to produce that arithmetic.** Re-counted by
+> heading *after* the archive rather than carried forward: **166/520, unmoved**, with
+> `openspec validate --specs --strict` at **14 passed, 0 failed**, the archive having moved **6
+> files every one byte-identical to its pre-archive original with `.openspec.yaml` kept**,
+> `openspec/specs/` byte-identical throughout, and all **5 promoted blocks byte-identical to
+> the archived deltas** against a freshly written reader.
+>
+> **The side panel is therefore no longer a surface `page-composition` declares absent by
+> requirement — it ships.** It names the host of the page beside it and re-asks on a tab
+> switch, and it does so over the route the spike priced as free: **the content-script round
+> trip and not the `tabs` permission**, so `tab.url` stays withheld and no permission was added
+> to read it. **The answer is a hostname and nothing else**, because a signup page's query
+> string is where its tokens are. **The cursor moves to M11 slice 2, which is not yet
+> proposed**, and its scope is named in `docs/ROADMAP.md`'s Project Status block: **"recent
+> mailboxes" is displayed and not offered** — the panel renders every held mailbox as inert
+> `<span>` text with no control on any of them — **and "whether verification mail is pending"
+> has no representation at all**, which is the one item on either of the M11 section's two
+> lists this slice did not touch. **What none of this measured is whether a person can reach
+> the panel**: with `openPanelOnActionClick` unset, the panel is reachable only through
+> Chromium's own side-panel entry point, and no instrument in this repository reads a browser's
+> own UI.
 > **The spike is also the third recorded instance of the "an artefact the measurement itself
 > creates" defect — and the first two instances were both in the *instrument*, so this one
 > being in the *rule* is the news**: its storage rule reported the probe's own staged copy in

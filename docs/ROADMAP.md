@@ -25,7 +25,7 @@
 > `spectre-storage` (M6 slice 1), `browser-verification`, `visual-system` (M7 slice
 > 1), `page-composition` (M7 slice 3), `extension-client` (M8) and
 > `in-page-integration` (M9 slice 1). Counted mechanically at each sync and again
-> after each archive, they hold **163 requirements and 504 scenarios** in total.
+> after each archive, they hold **166 requirements and 520 scenarios** in total.
 >
 > **The `alarms-packing-interval` spike declared `skip_specs` and promoted nothing, and
 > that was verified rather than assumed**: immediately after the archive the totals were
@@ -46,6 +46,22 @@
 > sync shows it touched three capabilities; the other eleven figures are identical to the
 > ones measured at `in-page-fill`'s sync, and **that is the measurement the count exists
 > for.**
+>
+> **Re-counted after `side-panel-surface`'s archive on 2026-10-12, by heading and not
+> transcribed:** `browser-verification` 5/12, `build-and-verification` 10/28,
+> `extension-client` **12/52**, `in-page-integration` **17/67**, `mail-parsing` 9/31,
+> `mailbox-session` 24/65, `monorepo-foundation` 5/12, `page-composition` 6/20,
+> `provider-abstraction` 9/20, `provider-adapters` 12/30, `shared-domain-model` 9/23,
+> `spectre-storage` 16/57, `visual-system` 9/28, `website-client` 23/75 — **166
+> requirements and 520 scenarios across the same fourteen capabilities**, and
+> `openspec validate --specs --strict` reports **14 passed, 0 failed**.
+> **Only two capabilities moved, and that is the count this change's five blocks predict:**
+> `extension-client` **10 → 12** and `in-page-integration` **16 → 17**, which is `+3
+> requirements` — **three rather than five because two of the five blocks are `MODIFIED`
+> and each replaces a requirement rather than adding one, the fourth milestone to produce
+> that arithmetic.** The eleven unmoved figures are identical to the ones measured at
+> `incoming-mail-notification`'s archive, and **a sync that had moved a third capability
+> would have meant the archive touched something the change did not name.**
 >
 > **This sync moved the total by six requirements and twenty-six scenarios from eight promoted
 > blocks, and the arithmetic is checkable rather than asserted**: `+5 +1 +1 − 1 = +6`, because a
@@ -130,8 +146,10 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor: M11 - Side Panel + Mailbox Context.** M10 is complete in scope and the
-`side-panel-runtime-facts` spike that unblocked M11 is **APPLIED, VERIFIED and ARCHIVED** at
+**Roadmap cursor: M11 - Side Panel + Mailbox Context, slice 2, not yet proposed** — its scope is
+named below under *What M11 has left after this slice*, and the two items there are the ones the
+M11 section's own `Display:` and `Context behavior` lists still carry. M10 is complete in scope
+and the `side-panel-runtime-facts` spike that unblocked M11 is **APPLIED, VERIFIED and ARCHIVED** at
 `openspec/changes/archive/2026-10-11-side-panel-runtime-facts/` - proposal PR #111 merged `dd4fc3f`,
 apply PR #112 merged `e2e1611`, archive PR #113. **It declares `skip_specs` and promoted nothing, so
 the counts stand at 163 requirements and 504 scenarios across the same 14 capabilities - re-counted
@@ -140,17 +158,66 @@ the operation most likely to drop a file. **Its archive moved 4 files, every one
 its pre-archive original (checked against `git`'s blob at HEAD, not against a digest remembered from
 before the command), with `.openspec.yaml` kept.**
 
+**M11 slice 1 is now APPLIED, VERIFIED, SYNCED and ARCHIVED** at
+`openspec/changes/archive/2026-10-12-side-panel-surface/` — apply PR **#115** merged `11a415c`,
+sync PR **#116** merged `4c93975`, archive PR **#117**. **The number was deliberately left
+unfilled by the archive stage rather than guessed**: that stage was told not to open the PR, so
+the next number would have been a prediction, and **a predicted PR number in a ledger that other
+stages cite by name is a figure nobody counted** — `gh pr view` filled it in one command
+afterwards, which is the honest order. **Unlike the
+spike it does NOT declare
+`skip_specs`, and that difference is the whole reason the sync stage existed**: it ships a surface,
+so the archive **must** be run `openspec archive side-panel-surface --skip-specs --yes`, because the
+sync had already promoted the delta and archiving without the flag would apply the requirements a
+second time.
+
+**What this stage measured, all of it re-measured here rather than carried forward.**
+
+- **The archive moved 6 files and every one is byte-identical to its pre-archive original by
+  SHA-256** — digests taken *before* the command ran and compared after, with `.openspec.yaml`
+  **kept**. It moved nothing else: `git status` shows exactly six deletions under
+  `openspec/changes/side-panel-surface/` and one new archive directory, and **all fifteen files
+  under `openspec/specs/` are byte-identical to their pre-archive digests**, which is the direct
+  check that `--skip-specs` did not re-apply anything.
+- **The promoted counts did not move**, re-counted by heading *after* the archive: **166
+  requirements / 520 scenarios across 14 capabilities**, and `openspec validate --specs --strict`
+  reads **14 passed, 0 failed**. Archiving is a move and not a promotion, so a change in either
+  figure would have meant the archive did something it does not do.
+- **All 5 promoted blocks are byte-identical to the archived deltas**, compared as **whole
+  blocks** and with a reader written fresh for this stage, sharing no code with the promoter or
+  the verifier that ran at sync. That reader closes a block at the next `### Requirement:` **or**
+  the next `## ` heading, because `AGENTS.md` records the shipped bug that the second boundary
+  exists for.
+- **`openspec validate side-panel-surface --type change --strict` fails after the archive** with
+  *"Change must have at least one delta. No deltas found."* — **that is OpenSpec 1.13.2's
+  behaviour for a change that is no longer active and it is not data loss.** It was not taken at
+  face value: the archived delta files were read directly and hold **5 requirement blocks and 21
+  scenarios** (`extension-client` 3/14, `in-page-integration` 2/7).
+- **`pnpm test` is 1187 tests across 61 files**, measured on this branch rather than read from
+  the change's own record, and it agrees with what `design.md` A20 recorded at apply.
+
+**A control in this stage's own verification was defective before it controlled anything, and
+the shape is the one `AGENTS.md` has recorded repeatedly.** The block comparator's second negative
+control was written to show that a reader which fails to close blocks at section headings absorbs
+a `## ADDED Requirements` line into the block above it — and it tested only the **last** block in
+the delta file. **That block has no section heading after it**, so the control reported `n/a` on a
+tree where the defect was live: a control that reports "not applicable" cannot fail, and a control
+that cannot fail is not a control. Rewritten to assert over **every** block, it now reproduces the
+defect (the broken reader absorbs a heading in 1 block, this one in 0) — **which is what makes the
+5-of-5 result worth anything**, because the comparator is then known to report a difference when
+there is one rather than agreeing with everything put in front of it.
+
 **What it measured, and why M11 slice 1 is now a decision rather than a guess.** The roadmap's M11
 section listed *"current tab hostname"* under context behaviour with no cost attached to it.
 `docs/PROVIDERS.md` §4.6 prices it: **a panel can name the active tab and `sendMessage` it and
 follow a tab switch on its own with no new permission, but `tab.url` is withheld without `tabs`.**
 So the free route exists and costs a round trip to the content script that already knows its own
 `location.hostname`, and the paid route is one permission that broadens what this extension can read
-across every window. **M11 slice 1 chooses between two measured routes rather than assuming a panel
+across every window. **M11 slice 1 chose between two measured routes rather than assuming a panel
 sees what a content script sees.**
 
-**M11 slice 1 is now PROPOSED as `side-panel-surface`.** The route was chosen by the maintainer
-after §4.6 was recorded: **the content-script round trip, and not the `tabs` permission** — the
+**M11 slice 1 shipped as `side-panel-surface`, and the route was chosen by the maintainer
+after §4.6 was recorded:** **the content-script round trip, and not the `tabs` permission** — the
 free route exists, and `in-page-integration` carries a promoted requirement whose generalised
 manifest clause makes every permission this extension requests traceable to a shipped surface,
 so `tabs` would be a permission declared for a convenience on one page. The slice also makes
@@ -158,15 +225,49 @@ so `tabs` would be a permission declared for a convenience on one page. The slic
 page's query string is where its tokens are, and a panel reporting `location.href` would hold one
 for every page it had been docked beside.
 
-**Two facts about the slice are recorded now rather than discovered later.** One is a
-**prediction, not a measurement**: §4.6 measured the panel document as an *active* tab and found
-that it cannot answer "which page am I beside", but `in-page-fill.spec.ts` already backgrounds
-the same kind of substitute to get the popup's query to name the fixture page — and whether that
-arrangement works for a panel is measured in `tasks.md` §2 before any case depends on it. The
-other is a **premise nothing in this repository can verify**: with `openPanelOnActionClick` left
-unset, the panel is reachable only through Chromium's own side-panel entry point, and no
-instrument here reads a browser's own UI. Both are in `design.md` D6 and D7 rather than left for
-the first person to open a panel and find out.
+**One of the two facts recorded about this slice has since been measured, and the sentence above
+called it a prediction while it was still one.** §4.6 measured the panel document as an *active*
+tab and found that it cannot answer "which page am I beside", while `in-page-fill.spec.ts`
+backgrounds the same kind of substitute to get the popup's query to name the fixture page — so
+whether that arrangement survives for a panel was a **prediction** when this slice was proposed,
+and `design.md` **A1** records the measurement: **it held.** The panel-as-a-background-tab
+substitute names the fixture page, and the extension's browser tier carries **8 cases** in
+`side-panel.spec.ts` riding it, including one that requires the newly active tab to be asked again
+on a tab change with no reload. **A prediction that was measured is no longer carried as a
+prediction**, which is the direction of the correction that is easy to skip.
+
+**The other is still a premise nothing in this repository can verify, and it survives the slice
+intact**: with `openPanelOnActionClick` left unset, the panel is reachable only through Chromium's
+own side-panel entry point, and no instrument here reads a browser's own UI. **Whether a person can
+reach the panel at all is the one claim `side-panel-surface` could not close**, and it is recorded
+in the change's `tasks.md` §10 as deliberately unticked alongside the two visual judgements. **A
+milestone that ships a surface whose reach is unmeasured is not a milestone whose risk is zero**,
+and the slice's own proposal says so rather than leaving it to the first person to open a panel.
+
+**What M11 has left after this slice, read against the two lists in the M11 section below rather
+than from a summary.** The `Display:` list is **largely delivered**: current mailbox, site
+association, inbox, OTP with copy and fill, verification links with open and copy, and provider
+state (named in the address heading and attributed per failure) are all in the shipped panel, and
+new mail arrives because the panel holds its own `MailboxSession` on the extension scheduler.
+**Two items are not delivered, and both are named here rather than left to be discovered.**
+
+- **"Recent mailboxes" is displayed and not offered.** The panel renders `panel-held` — every
+  mailbox this device holds, newest first — as a plain `<ul>` of `<span>` addresses, **with no
+  control on any of them**. It is therefore a list a person can read and not one they can choose
+  from, so **the panel always shows the host's association or the newest address**, and D3's rule
+  that a panel showing "simply the newest" would name the wrong mailbox for a page applies to
+  every page. That is a **real decision left open for a later slice**, and it is not fake UI —
+  the elements are inert text, which is what `extension-client`'s non-goals requirement requires.
+- **"Whether verification mail is pending" has no representation at all.** Nothing in
+  `apps/extension/src` models a pending verification message: there is no `pending` concept in the
+  panel, in `panel-copy.ts`, or in the shared session it drives. **The roadmap lists it under
+  context behaviour and it is owed**, and it is the one item on either list that the slice did not
+  touch at all rather than partly deliver.
+
+The browser tier is **website 40 / extension 78** (`side-panel.spec.ts` adds eight), which is the
+change's own recorded measurement at `design.md` A20 — **not re-run at this archive stage**, and
+labelled as such rather than presented as a figure taken here. `pnpm test` **1187 across 61 files**
+**was** re-run on this branch, and agrees.
 
 **Three things the spike cost more than its finding, and they are recorded because a spike that looks
 cheap in its diff is not cheap in its blast radius.** It edited **two boundary rules and one eslint
