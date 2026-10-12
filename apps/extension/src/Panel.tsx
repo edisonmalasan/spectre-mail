@@ -34,6 +34,21 @@
  *
  * **No provider selector, for the popup's reason:** a control over one reachable option cannot act.
  *
+ * ## What it added once: a mailbox chooser, and the two things it deliberately is not
+ *
+ * **The held list is a `radiogroup` of one control per mailbox (D6),** because `extension-client`
+ * now says *offers* rather than *names* — **and *names* was true of an inert list, so nothing
+ * shipped broken and this is an amendment rather than a repair.**
+ *
+ * **It is not a second spelling of the host rule (D3).** {@link resolveForHost} is still the only
+ * thing that decides what a host means, and it is called exactly where it always was; the choice is
+ * applied **on top of** its result, in one memo, and only for the host currently named.
+ *
+ * **It is not a durable preference (D2).** The selection is component state keyed by the host it was
+ * made for, so *resets when the page changes* is a **derivation** rather than an effect somebody has
+ * to remember to write, and **nothing is written anywhere** — see the note on
+ * {@link PanelRecords.loadSiteMailboxId}, which is a read for that reason and stays one.
+ *
  * @module
  */
 
@@ -192,6 +207,26 @@ export function Panel({ session, records, primaryProviderName }: PanelProps) {
   const [fill, setFill] = useState<FillReport>({ kind: "idle" });
   const [copies, setCopies] = useState<ReadonlyMap<string, CopyOutcome>>(() => new Map());
 
+  /**
+   * The mailbox a person chose for the host beside the panel, and **the host it was chosen for**.
+   *
+   * **Keyed by host rather than a bare id, and that is the whole of D2's transient decision.**
+   * "A choice dies when the page changes" then needs no effect, no timer and no comparison: a
+   * choice whose key is not the host currently named is simply not read, and the panel is asking
+   * about the host beside it right now.
+   *
+   * **One entry rather than a map, because this panel shows one page at a time** — a map would be
+   * storage for a history this surface has no way to revisit.
+   *
+   * **Nothing here is written anywhere**, and the requirement's *"SHALL NOT be recorded"* is
+   * discharged by the *type* having no outlet: this state is never handed to a seam, never given a
+   * mailbox id for a host, and `PanelRecords` has no write member at all.
+   */
+  const [chosen, setChosen] = useState<{
+    readonly host: string;
+    readonly mailboxId: string;
+  } | null>(null);
+
   useEffect(() => session.subscribe(setState), [session]);
 
   /**
@@ -266,32 +301,84 @@ export function Panel({ session, records, primaryProviderName }: PanelProps) {
   }, [boot.blocked, boot.done, resolveThePage]);
 
   /**
+   * The host this panel is resolving, as a value rather than a reading.
+   *
+   * **`""` for every reading that named no host, and that is `resolve-for-host.ts:90`'s own
+   * vocabulary** — *"no host, no association"* — so the chooser's key and the rule's key are the same
+   * key. A panel beside a page it cannot name resolves against no host, exactly as the in-page
+   * affordance's controller does for a document with none.
+   */
+  const hostKey = reading.kind === "named" ? reading.host : "";
+
+  /**
+   * The mailbox this panel view is about, and the one decision this memo makes (D3).
+   *
+   * **The rule is asked first, and the choice replaces its answer rather than competing with it.**
+   * `resolveForHost` is called with the same three arguments, at the same point in the same pipeline,
+   * and its result is the answer whenever no choice applies — so a chooser that nobody uses is
+   * byte-for-byte the panel that shipped before it.
+   *
+   * **A choice is read only when it was made for the host currently named**, which is the derivation
+   * D2 asks for rather than an effect: there is nothing to reset, and nothing to forget to reset.
+   *
+   * **A choice naming a mailbox this device no longer holds falls back to the rule's answer**, for
+   * the reason `resolveForHost` falls back to the newest for a stale association: offering to read
+   * something that does not exist here is the hazard, and a chooser that could select an absent
+   * mailbox would offer it.
+   */
+  const resolution = useMemo((): ResolvedMailbox | null => {
+    const byRule = hostKey.length === 0 ? null : resolveForHost(held, hostKey, associated);
+    const chosenId = chosen !== null && chosen.host === hostKey ? chosen.mailboxId : null;
+    const chosenMailbox = chosenId === null ? undefined : held.find((each) => each.id === chosenId);
+
+    return chosenMailbox === undefined
+      ? byRule
+      : { address: chosenMailbox.address, mailboxId: chosenMailbox.id };
+  }, [associated, chosen, held, hostKey]);
+
+  /**
    * The mailbox this panel is showing, and the reason it may be nothing at all.
    *
    * **`null` when no host was named is the requirement, not a limitation.** `design.md` D4: only an
    * answered host may offer a mailbox as being that page's, and a panel showing its newest address
    * beside an unnamed page is a panel inviting somebody to type another site's address into a form.
+   *
+   * **A choice does not move that guard (D4), and the guard is read from the *reading* rather than
+   * from {@link resolution}.** A person who has chosen a different mailbox is still beside a page
+   * this panel may name; a person beside a page it may not is still beside a page it may not, and
+   * their pick does not make the panel able to say which mailbox belongs to it.
    */
   const shown = useMemo((): PanelMailbox => {
     if (reading.kind !== "named") {
       return { kind: "unnamed" };
     }
 
-    const resolved = resolveForHost(held, reading.host, associated);
-
-    return resolved === null ? { kind: "none" } : { kind: "named", mailbox: resolved };
-  }, [associated, held, reading]);
+    return resolution === null ? { kind: "none" } : { kind: "named", mailbox: resolution };
+  }, [reading, resolution]);
 
   /**
    * The whole record for the resolved id, which `resolveForHost` does not carry.
    *
    * **`undefined` is unreachable while the type is `named` and is treated as unreachable rather
-   * than defaulted**, because the id came out of `held` on the line above and cannot name a
-   * mailbox that is not in it. Two consumers need the record rather than the id: `restore`, which
-   * takes a `Mailbox`, and the provider name the address section's heading carries.
+   * than defaulted**, because the id came out of `held` above and cannot name a mailbox that is not
+   * in it. Two consumers need the record rather than the id: `restore`, which takes a `Mailbox`,
+   * and the provider name the address section's heading carries.
    */
   const record =
     shown.kind === "named" ? held.find((each) => each.id === shown.mailbox.mailboxId) : undefined;
+
+  /**
+   * The mailbox this host was last used with, read **directly** and not through {@link record}.
+   *
+   * **This is D4's "two sentences, two facts", and reading it through the view would break it.**
+   * After a choice the two differ by design: the host sentence says what the host was *last used*
+   * with, which is a fact about storage, while the address section says what this view is *about*,
+   * which is a fact about the moment. **So this finds the associated id in `held` itself** — a choice
+   * of the older mailbox would otherwise flip the host line to `hostAssociationGone` and tell a
+   * person that the address they used on this site is no longer on their device, which is false.
+   */
+  const associatedRecord =
+    associated === null ? undefined : held.find((each) => each.id === associated);
 
   /**
    * Which mailbox the session should be showing, which is the resolved one — and never opened.
@@ -306,6 +393,11 @@ export function Panel({ session, records, primaryProviderName }: PanelProps) {
    * pages that resolve to the same mailbox from costing a provider listing: `restore` reconciles by
    * asking the provider, and the requirement's "re-read both" is a statement about *this device's
    * records*, not about a request per tab switch.
+   *
+   * **A chosen mailbox arrives here through the same door, and needs no arming of its own (D3).**
+   * `record` is read from `shown`, which is read from `resolution`, so a press moves this effect's
+   * input rather than adding a second effect that would race it. **The effect's own comparison is
+   * what stops a press costing nothing** when the chosen mailbox is already the session's.
    */
   useEffect(() => {
     if (record === undefined) return;
@@ -313,6 +405,25 @@ export function Panel({ session, records, primaryProviderName }: PanelProps) {
     if (holdsMailbox(current) && current.mailbox.id === record.id) return;
     void session.restore(record);
   }, [record, session]);
+
+  /**
+   * Make one of the offered mailboxes the mailbox this view is about.
+   *
+   * **The host is captured into the choice rather than read at render time**, and that is what makes
+   * the reset a derivation: the key travels with the choice, so {@link resolution} can compare it
+   * against the host beside the panel and read a choice that was not made for this page as though it
+   * had not been made.
+   *
+   * **It writes nothing.** There is no seam here, no message and no storage call — which is the
+   * requirement's *"SHALL NOT be recorded anywhere"* discharged structurally rather than by a rule
+   * that scans for the absence of one.
+   */
+  const choose = useCallback(
+    (mailboxId: string) => {
+      setChosen({ host: hostKey, mailboxId });
+    },
+    [hostKey],
+  );
 
   /**
    * Create a mailbox, **by asking the background context to do it**.
@@ -445,6 +556,13 @@ export function Panel({ session, records, primaryProviderName }: PanelProps) {
    * never used with. `PANEL_COPY.hostAssociationGone` says the host and refuses the association,
    * which is the requirement's "SHALL offer no mailbox as being that page's" without pretending
    * the record is absent.
+   *
+   * **The `named` arm reads {@link associatedRecord} and not {@link record}, and that is D4's whole
+   * point.** Those two differ by design once a choice exists: `record` is what this view is *about*
+   * and `associatedRecord` is what the host was *last used with*. **Reading the host sentence
+   * through the view would let a person's choice rewrite a fact about storage** — telling them the
+   * address they used on this site is no longer on their device because they picked a different one
+   * to read.
    */
   const hostSentence = (): string => {
     switch (reading.kind) {
@@ -459,9 +577,9 @@ export function Panel({ session, records, primaryProviderName }: PanelProps) {
           return PANEL_COPY.hostHasNoMailbox(reading.host);
         }
 
-        return record !== undefined && record.id === associated
-          ? PANEL_COPY.hostHasMailbox(reading.host, record.address)
-          : PANEL_COPY.hostAssociationGone(reading.host);
+        return associatedRecord === undefined
+          ? PANEL_COPY.hostAssociationGone(reading.host)
+          : PANEL_COPY.hostHasMailbox(reading.host, associatedRecord.address);
       }
     }
   };
@@ -540,13 +658,64 @@ export function Panel({ session, records, primaryProviderName }: PanelProps) {
       {held.length > 1 && (
         <section aria-labelledby="panel-held-heading">
           <h2 id="panel-held-heading">{PANEL_COPY.heldHeading}</h2>
-          <ul aria-label={PANEL_COPY.heldHeading} data-testid="panel-held">
+
+          {/**
+           * **A `radiogroup` and not a `<ul>`, and the reason is a rule rather than a preference.**
+           * `role="radio"` has one permitted parent, and it is not `listitem` — so the list items
+           * that used to be here would have made every entry an orphan of the group the requirement
+           * asks for. **The section's own `<h2>` still names the list**; the group carries its own
+           * `aria-label` naming what the list is *for*, so the two sentences do different work
+           * (`panel-copy.ts` says why).
+           *
+           * **The gate above is unchanged, and it is a product decision rather than an
+           * optimisation** (`design.md` D9): a device holding one mailbox is not given a chooser,
+           * because a group of one offers no choice and would be a control set that cannot act on
+           * anything.
+           */}
+          <div
+            className="panel__held"
+            role="radiogroup"
+            aria-label={PANEL_COPY.heldGroup}
+            data-testid="panel-held"
+          >
             {held.map((each) => (
-              <li key={each.id}>
-                <span className="panel__held-address">{each.address}</span>
-              </li>
+              /**
+               * **One target per entry, `aria-checked` on it, and a visible difference besides
+               * (D6).** `aria-checked` alone reads as correct to assistive technology and as *which
+               * one?* to a person, which is why the class carries a `[aria-checked="true"]` rule as
+               * well and why `showingMailbox` says it in words underneath.
+               *
+               * **The newest-first order is `loadMailboxes`' contract and is not re-sorted here** —
+               * a chooser ordering by recency of use would be a second order for one list, and this
+               * is the order the background wake lists too.
+               */
+              <button
+                key={each.id}
+                type="button"
+                role="radio"
+                aria-checked={resolution !== null && resolution.mailboxId === each.id}
+                className="control panel__held-choice"
+                onClick={() => choose(each.id)}
+              >
+                {PANEL_COPY.chooseMailbox(each.address)}
+              </button>
             ))}
-          </ul>
+          </div>
+
+          {/**
+           * **Which mailbox this view is about, in words, and it renders whether or not anybody has
+           * pressed anything.** D6's cost is that a person must be able to tell which entry is
+           * current without a press, and this sentence plus the entry's own styling are the two
+           * visible halves of that; `aria-checked` is the third and invisible one.
+           *
+           * **It sits inside the chooser rather than beside the address section**, because the
+           * address section is not always rendered — beside a page this panel cannot name it is
+           * withheld — and there this is the only sentence saying what the view is about.
+           *
+           * **A bare `<p>` and no new class hook**, because `.panel p` already styles it and a hook
+           * nothing selects differently would be a rule added for its own sake.
+           */}
+          {resolution !== null && <p>{PANEL_COPY.showingMailbox(resolution.address)}</p>}
         </section>
       )}
 

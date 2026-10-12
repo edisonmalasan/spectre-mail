@@ -105,19 +105,23 @@ body {
 }
 
 /*
- * An address in the list of addresses this device holds.
+ * The chooser's own container: every address this device holds, stacked, each a control.
  *
- * **Monospace and one step down, and both because of what the token layer says monospace is for.**
- * These are addresses, so they are compared rather than read; the list is a reference the user
- * consults rather than the value they are acting on, which is what `.panel__address` above is for.
- * `--type-xs` and `--ink-secondary` are both already used below, so this rule adds no token.
+ * **It replaced `.panel__held-address`, and the replacement is not cosmetic.** The old hook styled a
+ * `<span>` inside a `<li>`; those are gone, and a rule for a hook nothing renders is dead code that
+ * the next reader has to work out is dead. **The container needs its own rule** because
+ * `.panel section` sets `align-items: flex-start`, which would otherwise shrink every control to
+ * the width of its own text — and a list of addresses of differing lengths, each button narrower
+ * than the last, is not a chooser anybody can scan.
+ *
+ * **No new token: `display`, `flex-direction` and `width` are in no swept category at all**, and the
+ * one that is — `gap` — is `--space-2`, which this file already resolves.
  */
-.panel__held-address {
-  font-family: var(--font-mono);
-  font-size: var(--type-xs);
-  color: var(--ink-secondary);
-  overflow-wrap: anywhere;
-  user-select: all;
+.panel__held {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
 }
 
 .popup section,
@@ -221,6 +225,53 @@ body {
   color: var(--ink-on-accent);
   background: var(--accent);
   border-color: var(--accent);
+}
+
+/*
+ * One entry of the mailbox chooser, and the one that is current.
+ *
+ * **These two rules sit after `.control` on purpose, and not by accident of ordering.** They are the
+ * same specificity as `.control`, so source order is what decides — and they must win, because
+ * `.control` sets `font: inherit` and `color: var(--ink-primary)` while an address entry wants
+ * monospace at one step down in secondary ink. **Moving them above `.control` would silently undo
+ * both** and nothing would say so: the entry would render as body text and read as an ordinary
+ * button, which is exactly the shape of defect nobody tests for.
+ *
+ * **Still below the focus rule, and that also is not an accident.** `.control:focus-visible` is
+ * (0,2,0) against this selector's (0,2,0), so only order keeps a focused entry's ring visible over
+ * a checked entry's border — which is the whole reason the focus rule is last on this file.
+ *
+ * **Monospace and one step down are inherited from the rule this replaces, and for its reason:**
+ * these are addresses, so they are compared rather than read. `user-select: all` is **gone**,
+ * because the entry is a control now rather than a reference, and a control whose text selects with
+ * one click is a control whose press is ambiguous.
+ */
+.panel__held-choice {
+  width: 100%;
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: var(--type-xs);
+  color: var(--ink-secondary);
+  overflow-wrap: anywhere;
+}
+
+/*
+ * **The current entry, told apart without pressing anything (`design.md` D6's cost).**
+ *
+ * **`aria-checked` alone would not do it**, and the reason is that it is invisible to a person while
+ * being the first thing assistive technology reads — so the same state is carried three ways: the
+ * attribute, these declarations, and `PANEL_COPY.showingMailbox` in words underneath the group.
+ *
+ * **Three declarations rather than one, and each is a different sense.** The accent border says *this
+ * one*; the ink step says *and this one is the one being shown*; the weight says the same thing at a
+ * glance. A single background change would be satisfied by a hover, which is why the border is not
+ * a background.
+ */
+.panel__held-choice[aria-checked="true"] {
+  color: var(--ink-primary);
+  background: var(--surface-sunken);
+  border-color: var(--accent);
+  font-weight: var(--weight-medium);
 }
 
 /*

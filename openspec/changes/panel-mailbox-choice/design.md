@@ -397,10 +397,177 @@ distinction being named they would read as though they had been checked:
   merge would have changed the content script's offerable set without a requirement describing it** —
   which is the recorded shape of scope creep that costs more to unpick than to decline now.
 
+## Amendments recorded at apply (2026-10-12)
+
+**Nothing above is rewritten.** Every decision above is unchanged by the implementation, and the four
+entries here record what happened *while* carrying them out — because each one changed what the
+instrument could measure, and a falsification record that omits that is a record of a cleaner run than
+occurred.
+
+### A1. The Playwright classifier had its polarity backwards, and swapping the branches was the wrong repair
+
+**The defect.** Exit `0` was read as `red` and exit `1` as `green`, so the first run reported **four of
+five** browser arms backwards: two real catches filed as survivors and two survivors filed as catches.
+**`side-panel-runtime-facts` recorded the identical defect in its own harness**, so this is the second
+occurrence in this repository.
+
+**The repair, and why it is not a swap.** The obvious fix is to exchange the two branches. That makes
+the instrument correct *for this run* and leaves it trusting a **single** signal, which is the property
+that let four arms go backwards in the first place. **So the classifier now reads two independent facts
+— the process exit code and the reporter's own summary line — and requires them to agree.** A
+disagreement is `harness-error`, not a verdict.
+
+**And two absences became outcomes of their own**, because both had been silently classified by
+whatever the code did with the leftover: a run where `-g` matched nothing exits `1` exactly like a real
+failure, and a run whose summary never printed **never reached the reporter at all**. Either one filed
+as a catch is counting a run that did not run.
+
+### A2. Two harness processes ran concurrently, and the tree was corrupted underneath the first
+
+**This is the recorded `pnpm.cmd`-cannot-be-spawned lesson's second half, and it is worse.** A shell
+redirect reported exit `0` against a **0-byte** output file while the process was **still alive**, so
+the run looked finished and empty. A second harness process was then started against the same tree.
+
+**What that produced is the reason `restoreOk` alone is not trustworthy here.** Each arm compares the
+file's SHA-256 before and after *its own* edit, so an arm whose site had already been mutated by the
+*other* process restored cleanly and reported `restoreOk: true` — while three arms hit already-mutated
+anchors, reported `noop`, and every unit arm cascaded to a uniform `n=11`. **A restoration check
+watches one file across one arm; a concurrent writer is outside both of those windows.**
+
+**Three residues survived into the tree** and were repaired before the counted run: a `role="option"`
+attribute at `Panel.tsx:694`, a dropped host-key comparison, and a `heldGroup` string claiming a
+page. **Two pre-existing `Panel.test.tsx` cases went red because of the second one**, which is how a
+residue announces itself when a gate is run and how little it announces itself when one is not.
+
+**The residue scan is therefore its own instrument, and it asks the harness for its own edit sites**
+rather than a hand-kept list that could disagree with it. `-SimpleMatch` over the **raw** string is
+the whole of its method; combining `-SimpleMatch` with a regex-escaped pattern matches nothing, which
+is how a clean tree reads as a dirty one. **Measured: 24 edit sites, 0 residue, before and after the
+counted run.**
+
+### A3. Two arms were broken mutants, and reading them was the work rather than a formality
+
+**U01/B01 mutated `role="radio"` unanchored and this file's own documentation came first** — the
+permitted-parent rule is documented at `Panel.tsx:664`, thirty-one lines above the JSX. `String.replace`
+rewrote the **comment** and left the attribute alone, so both tiers went green because **nothing
+shipped was broken**.
+
+**Both arms are now line-anchored, and they caught.** **The generalisable half is that
+`role="radio"` appearing in prose about `role="radio"` is enough to make a mutation of this file a
+mutation of its documentation**, and the same file's `setChosen`, `aria-checked` and `hostKey`
+spellings all appear in its comments too. Every anchor in the instrument is therefore anchored, and
+the first version of this entry — crediting the catch to a "clean run" — is what made the anchoring
+look unnecessary.
+
+### A4. The planted write needed two files, and `PanelRecords` having no write member was not a barrier
+
+**Task 5.3 asks for a planted write**, and the arm's first version planted a **read** — which the panel
+already performs at boot, so it was discharged by shipped code and could not have failed.
+
+**The structural argument was true and it was not the answer.** `PanelRecords` really has no write
+member, and `choose` really writes nothing: a *single-file* write cannot be planted, because the
+compiler refuses it. **But `SpectreSiteAssociations.saveSiteMailboxId` really exists and really is
+reachable from `panel-main.tsx`**, so the write plants cleanly across **three edits in two files** — a
+member added to the interface, a call added in `choose`, and the real adapter supplied from the real
+composition root. It compiles, it builds, it runs, and the browser case catches it.
+
+**So the instrument gained multi-file arms, and the property is now caught rather than argued.** A
+single-file mutation of a read-only contract proves the contract is read-only *at that one site*; the
+two-file version is what a regression would actually look like, and **half a planted write is not a
+write** — it compiles, it runs, and it records nothing.
+
+**One arm remains declared evidence rather than counted, and the reason is that its catch is
+impossible here.** Mutating `[aria-checked="true"]` to `[aria-checked="maybe"]` in the stylesheet
+leaves the **boundary** suite green, because that rule asks whether the **class hook** is styled and
+`.panel__held-choice` still is. **The property is held at the browser tier** by the case reading both
+resolved styles — so this is a **scope** finding about an existing rule, not a gap in this change, and
+it is recorded in `tasks.md` 4.3 rather than closed with a fourth boundary rule where an instrument
+already exists.
+
+### A5. Two cases this change wrote were green for a reason, and both reasons were about the *fixtures*
+
+**Neither was found by a mutation, and neither would have been.** U06's negative half and U10's
+subject were both unheld before this pass:
+
+- **The gate's negative half had no case.** Ten `Panel.test.tsx` cases hold **two or more** mailboxes,
+  so mutating `held.length > 1` to `held.length > 0` — a device holding exactly one being given a
+  chooser of one — changed nothing they could see. **The gate is a product decision (D9), and the arm
+  that mutates it was aimed at a case that did not exist.** `offers a device holding exactly one
+  mailbox no chooser to choose with` exists because of that mutation.
+- **Nothing held the wire between the two halves of a string.** The copy suite held `PANEL_COPY`'s
+  *entries* and the panel suite held the *rendered* `aria-label`, and the case that connected them —
+  that the group's own name comes from the entry that says what it is for — was absent. A literal
+  `"Addresses"` would have passed both. That case exists because of that mutation.
+
+**And two arms were added for task 3.7's own clause** — *"the case fails if the fake is made
+permissive"* — which is a clause about the **check** rather than the **product**, and so cannot be
+satisfied by any arm aimed at the panel. U16 makes the unit tier's recorder vacuous; **B06 makes the
+browser tier's storage reader return nothing.** Both are caught.
+
+### A6. A red that took thirty gate runs to reproduce, and the repair was a wait rather than a threshold
+
+**The one red `pnpm verify` produced across this change's tree was not a product defect and not a
+weakened assertion — it was a ninth instance of the recorded *precondition* shape, in a case this
+change did not author.**
+
+**What the red measured.** `AssertionError: expected [] to have a length of 1 but got +0`, on
+`Panel.test.tsx > the panel renders the mailbox beside the page > lists what the last check found and
+opens the one that is pressed`, at `expect(platform.asked).toHaveLength(1)`. **One reproduction in
+87 full-gate runs, none in 55 cheaper runs** — which is what "load-sensitive" means here, and is the
+reason the ledger below counts the gate runs rather than reporting three greens as if nothing had
+happened.
+
+**The mechanism, read rather than guessed.** The fixture's `tabs.sendMessage` pushes to `asked`
+synchronously, so an empty array can only mean **the panel had not asked yet**. The host question is
+gated on `boot.done`, which `Panel.tsx` sets **only after `await records.loadMailboxes()` resolves**,
+and the host effect returns early until it is true. The case's own wait —
+`await screen.findByText("Your sign-in code")` — resolves from **synchronous** `session` state, because
+the stub session publishes its listing on construction. **So the wait released the case one commit
+before the read it went on to assert on.** It is the same defect this repository has recorded against
+`Popup.spec.ts`'s *"waiting for the address to appear does not wait for the `saveMailbox` write"*, on a
+different surface and with the roles reversed: here the visible signal is **synchronous** and the work
+behind it is **asynchronous**.
+
+**The repair waits on the panel's own output rather than on the recorder, and the reason it is not
+circular is a strict ordering rather than an intention.** `asked.push` happens when the question is
+asked; the host sentence renders only after `resolveThePage` has published the reading **and** awaited
+`loadSiteMailboxId`. So *"the host line stopped saying it was asking"* is strictly later than the push,
+and the existing exact-count assertion is untouched — the wait establishes **at least one** and
+`toHaveLength(1)` is still what would fail a second ask. **A `waitFor` on `platform.asked` itself would
+also pass, and four cases in this file already use that shape**, but it would wait on the very thing
+being counted, and the count is the one thing this case adds to the listing it already covers.
+
+**Two facts about the repair are recorded because they are the kind a re-run would erase.** The
+asserting line is **unchanged context in this change's diff**, so the defect was shipped by
+`side-panel-surface` and merely *measured* here — which is the ninth entry against two totals this
+change's own files already carry (a "fifth" and a "sixth", then a "seventh" and an "eighth"), and this
+one follows the higher. And **the repair was confirmed under the condition that produced the red**: 20
+consecutive runs of the file unloaded and 10 more with six busy loops running, 30 for 30, followed by
+three clean `pnpm verify` runs and a clean block of ten browser runs. **A repair confirmed only on an
+unloaded machine would be a repair confirmed under easier conditions than the one that found the
+defect.**
+
+### A7. What none of this measured
+
+**Nothing about how a chooser of three addresses looks.** The chooser's cases read the **DOM**, a
+**resolved computed style**, the **recorded provider's own traffic**, and **`chrome.storage` read
+through the platform's own API**. None of those is a rendered pixel, so **whether a person can tell
+the current entry from the others at a glance is outside every gate in this change**, and `tasks.md`
+7.1 is deliberately unticked for that reason and not because it was overlooked.
+
+**And nothing about reachability in a real browser.** With `openPanelOnActionClick` unset, the panel is
+reachable only through Chromium's own side-panel entry point, and **no instrument in this repository
+reads a browser's own UI** — `docs/PROVIDERS.md` §4.6's probe measures the API, not a person opening
+it.
+
 ## Open Questions
 
-None. Everything deferred above is deferred **with its reason written next to it** — the merge, the
-pending-verification divergence, and the in-page affordance's limit — rather than left as a question
+None. Everything deferred above is deferred **with its reason written next to it** - the merge, the
+pending-verification divergence, and the in-page affordance's limit - rather than left as a question
 whose answer would change these specs, this approach, or the task breakdown. The one thing a
 following slice must not inherit as settled is the divergence in D8, and `tasks.md` records it as an
-open item belonging to the next slice by name.
+open item belonging to the next slice by name. **The apply stage added none**, and the six findings it
+recorded are all recorded above rather than left as questions about this design: **two about an
+instrument** (A1, A2), **one broken mutant whose being green was correct** (A3), **one planted write
+that needed two files** (A4), **two cases whose subjects no assertion held** (A5), and **one
+precondition in a case an earlier change shipped** (A6).
