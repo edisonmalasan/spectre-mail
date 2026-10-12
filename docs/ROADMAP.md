@@ -1,4 +1,32 @@
 # SpectreMail Development Roadmap
+### Two corrections recorded at archive (2026-10-13)
+
+**The archive holds 5 files, not 6, and the orchestrator's own brief said 6.** The brief named five
+things and then said six; the stage measured five with two enumerations and git'"'"'s own rename
+detection, and **proceeded against the measurement rather than searching for a sixth file.** All five
+moved as renames with **0 insertions and 0 deletions**, and **`.openspec.yaml` survived** - the file
+one earlier archive in this repository dropped, and the reason the pre-archive digests are taken at
+all.
+
+**A block-hash convention difference, resolved by probing rather than by adjusting until it matched.**
+The archive stage'"'"'s reader hashed `c46f2d87…` where the sync stage reported `9e0905c4…`. Rather
+than widen a normalisation until the numbers agreed, it **probed eight variants across both files**
+and found the difference is the trailing newline - **and that both files agree under both
+conventions**, so content was never in question. **Had it not probed, the report would have been
+either a false alarm or a silent hash coincidence**, and this repository has recorded both shapes: a
+verifier crying wolf for the wrong reason, and a check that can pass for the wrong reason.
+
+**The orchestrator re-verified the archived block against the promoted spec with a third reader:**
+both SHA-256 `9e0905c4bc59570bced27891203db0ac8326fc21d54dc3ab3271a776a12f764d`, byte-identical.
+`openspec/specs/` **15 / 15 files untouched** by the archive, `openspec validate --specs --strict`
+**14 passed, 0 failed**, `openspec list` **No active changes**.
+
+**What M11 delivered, in one place: the side panel is a shipped surface, and it now says what the
+mailbox holds.** It names the host beside it, offers the mailboxes this device holds rather than
+naming them, and marks each row with what the session determined - including saying a message *could
+not be read* rather than letting silence read as "nothing here". **Every one of those words is the
+panel'"'"'s own, and it reaches the rows through one optional prop defaulting to absent, because the
+popup shares the same component and is forbidden by a promoted clause from stating any of it.**
 
 > **Status:** Draft approved for implementation planning  
 > **Repository:** `edisonmalasan/spectre-mail`  
@@ -158,14 +186,92 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor: M11 - Side Panel + Mailbox Context, slice 3 SYNCED** as
-`panel-verification-state` - proposal PR **#124** merged `7c56c83`, apply PR **#125** merged
-`28f1360`, sync PR **#126** merged `b569ff6`. **Archive PR number left for the archive stage to
-fill.** `extension-client` 12 -> **13** requirements and 58 -> **65** scenarios; the tree is
+**Roadmap cursor: M11 - Side Panel + Mailbox Context is COMPLETE IN SCOPE.** `panel-verification-state`
+- proposal PR **#124** merged `7c56c83`, apply PR **#125** merged `28f1360`, sync PR **#126** merged
+`b569ff6`, archive PR **#128**, archived to
+`openspec/changes/archive/2026-10-13-panel-verification-state/`. The archive was run with
+`--skip-specs` because the sync stage already promoted the delta.
+
+**That archive PR went red on its first run, and the red was a defect in a test the apply stage had
+added - not in the archive, which is five renames and a paragraph.** `side-panel.spec.ts`'s staging
+opened the **panel document while the panel tab was itself the active tab**, so every case's host
+reading depended on a `chrome.tabs.onActivated` arriving to correct it, and that event's delivery
+was measured on one machine at **86 ms … 19 898 ms** against a 20 000 ms assertion timeout - the
+last reading being the CI failure reproduced locally, with `sendMessage` itself answering in
+**4 ms**. **The product was correct throughout; a case was reading it through a latency it does not
+control.** Repaired by PR **#129** merged `5afe676` as **the order, not a ceiling**: the fixture
+page is made active *before* the panel document loads, so the reading becomes the panel's mount
+ask with **no `onActivated` on the path**, and the four cases that genuinely hold *"re-asks on a tab
+switch"* observe the activation in the panel's own world first and then assert with **no timeout
+pressure**. **The 20 000 ms timeouts are gone rather than enlarged**, and collapsing the new
+ceiling to `1 ms` did **not** turn the file red - so **the order is what removed the race, and the
+ceiling is only there because a precondition without a deadline is a hang.**
+
+**What that repair is NOT evidence of, stated so nobody reads it as a fix rate.** The pre-repair
+file **passed 10 of 10 runs locally too**, so **no tally here can show the repair fixed anything** -
+only that it broke nothing, across **25 green runs** measured by the orchestrator (8 logged
+full-suite runs at `40 website + 89 extension`, 12 logged extension-tier runs, and 5 further
+full-suite runs). What it removes is a property of the suite rather than a rate: **every case in
+that file had a correctness precondition whose completion time the browser does not bound**, which
+holds however often the bad outcome happens to land. **The same shape as
+`waitForTheArmingThenDisarm`**, where the recorded lesson was also that the red rate was low locally
+and the fix was to the dependency rather than to the rate.
+
+**Two defects in the orchestrator's own instruments are recorded here rather than absorbed, because
+both reported a wrong answer with total confidence.** The first: a 3-run block reported
+`failed=1` and **which case it was was discarded**, and it was a *full* suite run, so it may have
+been the website's 40 cases and may be unrelated to this defect entirely - it did not recur across
+**25 green runs since**, so it stands as **unattributed** rather than folded into "fixed". The
+second: a classifier demanding **two** tier-summary lines, which is right for `pnpm test:browser`
+and wrong for the extension tier alone, reported **twelve green runs as twelve `HARNESS-ERROR`s**;
+re-classifying from the retained logs showed 12/12 green. **Had the logs been discarded on the
+classifier's verdict, the report would have been twelve failures that never happened** - the check
+narrower than the sentence beside it, failing in the direction that looks busy.
+`extension-client` 12 -> **13** requirements and 58 -> **65** scenarios; the tree is
 **167 requirements / 534 scenarios / 14 capabilities**, re-counted by heading after the promotion by
 two independent instruments, `openspec validate --specs --strict` **14 passed, 0 failed**, and the
 one promoted block byte-identical to its delta under SHA-256 `9e0905c4…f764d` with
-`added=133 removed=0` over a single file. **Slice 2 is COMPLETE** as
+`added=133 removed=0` over a single file. **The archive moved 5 files, and 5 is the
+measured count rather than the 6 the stage was briefed with** - the brief named
+`proposal.md`, `design.md`, `tasks.md`, `.openspec.yaml` and its delta spec, which is
+five, and a sixth was assumed rather than counted. Every one of the five is
+SHA-256 byte-identical to a digest taken **before** the archive command ran,
+**`.openspec.yaml` among them**, which is the defect `side-panel-runtime-facts`'s
+archive is recorded for having dropped. Git's own rename detection reported all five
+as `R` with **0 insertions and 0 deletions**, so a second tool reports the same fact
+the hashes do. **The promoted block was then re-read from the ARCHIVED delta copy** and
+is byte-identical to the promoted spec under SHA-256 `9e0905c4…f764d`, **and all 15
+files under `openspec/specs/` are byte-identical before and after** - a move that
+touched a promoted spec would have shown there. `openspec validate --specs --strict`
+is **14 passed, 0 failed** and `openspec list` reports **no active changes**.
+**The block's expected SHA is computed WITH its trailing newline**; the reader this
+stage wrote first excluded it and hashed to `c46f2d87…`, and **both files agreed under
+both conventions**, so the difference was a convention and not a content difference -
+which is only worth recording because it was checked rather than assumed either way.
+
+**What M11 delivered, in one place, because three slices of it were each a correction rather than a
+feature.** The side panel is a **shipped surface**, and it now says what the mailbox holds: it names
+the host beside it, it offers the mailboxes this device holds rather than naming them, and it marks
+each row with what the session determined - **including saying a message *could not be read*, rather
+than letting a row's silence read as "nothing here"**, which `state.ts` calls the one false claim in
+this product that costs a user the code they were waiting for. **Every one of those words is the
+panel's own, and they reach the rows through one optional prop defaulting to absent - because the
+popup shares the same component and a promoted clause forbids the popup from stating any of it.**
+That prop is the whole architectural story of this milestone: **the two surfaces agree on everything
+except the one thing only one of them is allowed to say**, and the mechanism is a default rather than
+a fork.
+
+**The cursor moves past M11, and what it does not establish is worth carrying forward.** Nothing
+here has measured **whether a person can reach the panel at all** - with `openPanelOnActionClick`
+unset it is reachable only through Chromium's own side-panel entry point, and **no instrument in
+this repository reads a browser's own UI**. Nothing here reads a **rendered pixel**, so how any of
+it looks remains a human judgement. And the item this milestone was reframed around - *whether any
+message this mailbox holds carries a detected verification* - **answers a fact and never a
+certainty**: the parser caps confidence by construction, a reducing shape is a penalty rather than an
+exclusion, and a verification link delivered as plain text is a **measured false negative** this
+product has, so a marker can be wrong in both directions with no instrument able to say which.
+
+**Slice 2 is COMPLETE** as
 `panel-mailbox-choice` — proposal PR #118, apply PR #119 merged `67439da`, sync PR #120 merged
 `47132ae`, archive PR #121 merged `560410f`, archived at
 `openspec/changes/archive/2026-10-12-panel-mailbox-choice/`. **M11 now has one item left, its
