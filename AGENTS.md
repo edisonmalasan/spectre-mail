@@ -933,8 +933,8 @@ Pin versions when exact versions matter.
   no extension build step — that is M8" became false at M8 and is deleted rather than
   reworded.**
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running **1201 tests across
-  62 files** via `pnpm test` (2026-10-12, at `panel-mailbox-choice`'s apply stage, and
+- Testing: Vitest `3.2.7` at the workspace root, verified running **1214 tests across
+  62 files** via `pnpm test` (2026-10-13, at `panel-verification-state`'s apply stage, and
   **re-measured with `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory** on three separate
   `pnpm verify` runs, each exit `0`), counted from a
   JSON reporter **grouped by project** rather than read off a summary line:
@@ -943,15 +943,15 @@ Pin versions when exact versions matter.
   **86 in `packages/storage`** (7 stored record, 11 mailbox collection, 30 IndexedDB adapter,
   11 site associations, 7 browser entry point, 12 `chrome.storage` adapter,
   **8 seen-message record**),
-  **438 in `apps/extension`** across **21** files (**25** in `content-script.test.ts`,
+  **451 in `apps/extension`** across **21** files (**25** in `content-script.test.ts`,
   **101** in `protocol.test.ts`, **70** in `extension-platform.test.ts`, **23** in
   `content-script-fill.test.ts`, **22** in `code-field.test.ts`, **25** in `Popup.test.tsx`,
-  **38** in `Panel.test.tsx`, **5** in `panel-copy.test.ts`, **17** in
+  **44** in `Panel.test.tsx`, **12** in `panel-copy.test.ts`, **17** in
   `content-script-create.test.ts`, **9** in `content-script-associations.test.ts`, **11** in
   `create-mailbox.test.ts`, **9** in `storage.test.ts`, **9** in
   `provider-config.test.ts`, **17** in `background-check.test.ts`,
   **11** in `notification.test.ts`, **7** in `alarms.test.ts`,
-  **17** in `content-script-handlers.test.ts`, **12** in `content-script-host-context.test.ts`,
+  **10** in `content-script-handlers.test.ts`, **12** in `content-script-host-context.test.ts`,
   **5** in `popup-copy.test.ts`, **8** in `service-worker.test.ts`, **4** in `scheduler.test.ts`),
   **38 in `packages/ui`**, and **53 architecture boundary assertions**.
   **This figure was stale by a milestone and is corrected here rather than left, and the reason
@@ -984,7 +984,16 @@ Pin versions when exact versions matter.
   pair, both added *inside* an existing test, so **the count says nothing about whether the work
   happened — the diff does** — and a change that had added a fourth rule to "prove" the probe was
   quarantined would have added a rule where an instrument already existed, which is not coverage.
-  **`pnpm test:browser` was re-run and is still 40 website and 67 extension cases**, which is the
+  **`panel-verification-state` moved the extension's browser tier 82 → 89 and moved nothing else** -
+  seven new cases in `side-panel.spec.ts`, of which **two are the ones that make the shared component
+  falsifiable**: *"renders no marking in the popup for the mailbox the panel marks"* and *"states the
+  marking without costing a request the session was not already making"*. **The first exists because
+  `MessageList` is one component serving both surfaces and a panel-only check would pass with the
+  prop's default flipped on** - which is the shape of a mutation that reads green while the thing it
+  exists to catch is true. `packages/ui` is still **38**, and here that is stronger than usual: **the
+  change declares adding a token, a class hook or a CSS rule to be a failure of itself**, the marker
+  being a bare `<p>` that `styles.css` already styles.
+  **`pnpm test:browser` was re-run and is now 40 website and 89 extension cases**, which is the
   other half: the fixture directories are not collected by any suite, and the rule requiring every
   shipped `*.spec.ts` to be collected by exactly one browser suite is what says so rather than a
   note.

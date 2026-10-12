@@ -47,11 +47,20 @@
 import { expect, test } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
 
+import { INBOX_POLL_CEILING_MS } from "../../../packages/mailbox/src/cadence";
+import { PANEL_VERDICT_WORDING } from "../src/panel-copy";
 import { launchExtension } from "./launch-extension";
 import type { LaunchedExtension } from "./launch-extension";
-import { recordProviderTraffic } from "./recorded-provider";
+import {
+  FIXTURE_IDS,
+  GUERRILLA_LIST_OPERATION,
+  GUERRILLA_OPERATION_PARAMETER,
+  GUERRILLA_READ_ANSWERS,
+  GUERRILLA_READ_OPERATION,
+  recordProviderTraffic,
+} from "./recorded-provider";
 import type { ProviderTraffic } from "./recorded-provider";
-import { clearArmedAlarms } from "./helpers/background-state";
+import { clearArmedAlarms, waitForTheArmingThenDisarm } from "./helpers/background-state";
 import { openFixturePage, reactState } from "./helpers/in-page-fixture";
 import {
   clearStoredMailbox,
@@ -108,13 +117,18 @@ test.afterEach(async () => {
  * **The order of the last two steps is load-bearing**, and it is the same order
  * `in-page-fill.spec.ts` gives its popup: the panel is a **tab**, so it is its own active tab, and
  * `findActiveTab` would otherwise name the panel rather than the page.
+ *
+ * **`options` is the only thing the marking cases below change, and it is passed to the recorder
+ * rather than applied afterwards.** Every case that passes nothing is staged exactly as it was
+ * before this change: the seam in `recorded-provider.ts` is a no-op unless a spec opts in, which is
+ * the property that keeps those 82 cases a measurement rather than a hope.
  */
-async function stage(): Promise<{
+async function stage(options: Parameters<typeof recordProviderTraffic>[1] = {}): Promise<{
   readonly page: Page;
   readonly panel: Page;
   readonly traffic: ProviderTraffic;
 }> {
-  const traffic: ProviderTraffic = await recordProviderTraffic(extension.context);
+  const traffic: ProviderTraffic = await recordProviderTraffic(extension.context, options);
   expect(traffic.unscripted).toEqual([]);
 
   const page = await openFixturePage(extension.context);
@@ -126,6 +140,23 @@ async function stage(): Promise<{
 
   await page.bringToFront();
   return { page, panel, traffic };
+}
+
+/**
+ * Close one staging's pages and take them out of the list `afterEach` closes.
+ *
+ * **Only for a case that runs two stagings in sequence.** `opened` is closed after every case, so a
+ * second `stage()` inside one case would otherwise leave the first panel answering the fixture page's
+ * `chrome.tabs.sendMessage` - **and both recordings' `context.route` handlers stay installed for the
+ * whole profile either way**, which is why the caller clears the device as well as closing the pages.
+ */
+async function closeStaged({ page, panel }: { readonly page: Page; readonly panel: Page }) {
+  for (const target of [panel, page]) {
+    const at = opened.indexOf(target);
+
+    if (at >= 0) opened.splice(at, 1);
+    await target.close().catch(() => undefined);
+  }
 }
 
 /** The host sentence the panel rendered, or `null` while it is still asking. */
@@ -208,6 +239,18 @@ function requestedFor(urls: readonly string[], sessionId: string): boolean {
  */
 function addressWithin(text: string): string | null {
   return /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/.exec(text)?.[0] ?? null;
+}
+
+/**
+ * The chooser's entries, in the order they render.
+ *
+ * **Declared beside the file's other readers rather than inside the describe that first needed it.**
+ * The verdict-wording group below presses one of these too, and a second copy of the selector would
+ * be a second thing to keep in step - the defect `in-page-fill.spec.ts`'s `open-mailbox.ts` was
+ * extracted to stop, and a selector is no different from a helper.
+ */
+function entriesOf(panel: Page): Locator {
+  return panel.locator('[data-testid="panel-held"]').getByRole("radio");
 }
 
 test.describe("the side panel, in a real Chromium", () => {
@@ -661,11 +704,6 @@ test.describe("the side panel, in a real Chromium", () => {
       await seedSiteAssociation(extension, { [FIXTURE_HOST]: STORED_MAILBOX.id });
     }
 
-    /** The chooser's entries, in the order they render. */
-    function entriesOf(panel: Page) {
-      return panel.locator('[data-testid="panel-held"]').getByRole("radio");
-    }
-
     /**
      * The provider session each seeded mailbox is reconciled with, read **from the fixture's own
      * credentials** rather than spelled here.
@@ -975,6 +1013,703 @@ test.describe("the side panel, in a real Chromium", () => {
       expect((await readHeldAddresses(extension)).slice().sort()).toEqual(
         [STORED_ADDRESS, SECOND_ADDRESS].sort(),
       );
+    });
+  });
+
+  /**
+   * ## What the panel states about a message nobody opened
+   *
+   * **`MessageList` is one component serving both extension surfaces, and it now renders a marking on
+   * a row when - and only when - its caller supplies the words to render it in.** So every claim in
+   * this group is a claim about **which surface asked**, and none of them is about a verdict the
+   * session failed to reach: `Panel.test.tsx` holds the verdicts-to-marking map in jsdom, and
+   * `packages/mailbox`'s own suite holds `verdictFor`. What is here is what only a built bundle can
+   * say - that the panel's own bundle asked, that the popup's did not, and that the words on the row
+   * are the ones the panel's copy module declares.
+   *
+   * **Every case in this group carries the same three instruments, and none of them is optional.**
+   *
+   * 1. **A positive control**, because the negative assertions below are about an *absence* and an
+   *    absence satisfied by a panel that rendered nothing is the recorded sweep-matching-nothing
+   *    defect.
+   * 2. **A planted control**, per case, because a reader that reports no marking for ever satisfies
+   *    every "carries none" assertion in the file.
+   * 3. **A staging that names its verdict**, so a reader of this file can tell which recorded answer
+   *    produced which row without reading `recorded-provider.ts`.
+   */
+  test.describe("what the panel states about a message nobody opened", () => {
+    /** The listing's rows, addressed as rows rather than as the list they sit in. */
+    function rowsIn(surface: Page): Locator {
+      return surface.locator('[data-testid="message-list"] > li');
+    }
+
+    /**
+     * The marking one row carries.
+     *
+     * **Scoped to the row rather than searched for in the document**, because the row is the unit the
+     * delta speaks in ("that message's row SHALL carry a marking"). A document-wide reader would
+     * answer the same thing for a panel that marked every row the same way and for one that marked
+     * exactly the row that was undetermined.
+     */
+    function markingOf(row: Locator): Locator {
+      return row.locator('[data-testid="message-verdict"]');
+    }
+
+    /**
+     * The one row this surface is showing.
+     *
+     * **Both recorded listings this tier serves hold exactly one message, and its subject is empty**,
+     * so a row cannot be scoped by its text and every case below would be indexing into a list whose
+     * length it never established. **The count is therefore asserted here, as a precondition**, and
+     * a fixture that gained a second message fails at this line rather than quietly making the case
+     * assert about whichever row happened to be first.
+     */
+    async function soleRow(surface: Page): Promise<Locator> {
+      const rows = rowsIn(surface);
+
+      await expect(rows, "the recorded listing this stage serves holds one message").toHaveCount(
+        1,
+        {
+          timeout: 20_000,
+        },
+      );
+
+      return rows.first();
+    }
+
+    /**
+     * Plant a marking the product did not write.
+     *
+     * **Written straight into the DOM rather than through any product path**, because the claim it
+     * exists for is about the *reader*: a reader that reported no marking for ever would satisfy
+     * every "carries none" assertion in this file, and only a marking that arrived by some other
+     * route can falsify it. **It takes a row or the whole surface**, because one case in this group
+     * has no row left to plant into by the time its control runs.
+     */
+    async function plantVerdictInto(node: Locator, words: string): Promise<void> {
+      await node.evaluate((element, text) => {
+        const planted = element.ownerDocument.createElement("p");
+
+        planted.setAttribute("data-testid", "message-verdict");
+        planted.textContent = text;
+        element.append(planted);
+      }, words);
+    }
+
+    /**
+     * Every Guerrilla Mail request for one operation, read from the query the adapter spells it in.
+     *
+     * **Per-operation rather than a total, and that is the claim rather than a convenience.** The
+     * claim is *"the marking costs no listing and no second body read"*, and a total cannot tell
+     * those apart: two listings and no reads is the same number as one listing and one read.
+     */
+    function guerrillaCalls(urls: readonly string[], operation: string): readonly string[] {
+      return urls.filter((url) => {
+        try {
+          return new URL(url).searchParams.get(GUERRILLA_OPERATION_PARAMETER) === operation;
+        } catch {
+          /** **A URL this reader cannot parse is not evidence about any operation.** */
+          return false;
+        }
+      });
+    }
+
+    /**
+     * The panel's or the popup's own rendered words, whitespace-collapsed into one string.
+     *
+     * **Rendered text rather than the copy module**, because the clause is about what a person
+     * would read. A wording entry that no surface ever renders satisfies a sweep over the record
+     * and fails this one, and only the second of those is the defect the requirement describes.
+     */
+    async function renderedWords(surface: Page): Promise<string> {
+      return (await surface.locator("body").innerText()).replace(/\s+/gu, " ");
+    }
+
+    /**
+     * Every forbidden phrasing the surface actually rendered, by name.
+     *
+     * **The same four the unit sweep holds (`panel-copy.test.ts`), restated here on purpose.** That
+     * file sweeps declared sentences; this one sweeps **rendered** ones, and a declaration that
+     * reached the screen by a path no declaration describes is a shape the declaration sweep cannot
+     * see. **Neither pattern carries `g`**, so `test` is not stateful across the calls below - a
+     * last-index-carrying `RegExp` makes a sweep report nothing on its second reading, which is the
+     * recorded "assertion that cannot fail" in its quietest form.
+     */
+    const FORBIDDEN = [
+      { name: "a percentage", pattern: /%/u },
+      { name: "a confidence value", pattern: /\bcertain[a-z]*\b|\bconfiden[a-z]*\b/iu },
+      {
+        /**
+         * *"... a claim that a message carries no verification"*, phrased as the certification
+         * shapes rather than as the bare substring - see `panel-copy.test.ts`'s own note for why
+         * `PANEL_COPY.noLinks` ("No verification link was found in this message.") is a report of
+         * what a scan found and not a claim about a message.
+         */
+        name: "a claim that the message carries no verification",
+        pattern:
+          /\b(?:carries?|carry|carried|contains?|contain)\s+no\s+(?:detected\s+)?verification\b|nothing\s+to\s+verify/iu,
+      },
+      { name: "the word 'pending'", pattern: /\bpending\b/iu },
+    ] as const;
+
+    /** Which of {@link FORBIDDEN} the surface rendered, by name. */
+    async function forbiddenWords(surface: Page): Promise<string[]> {
+      const words = await renderedWords(surface);
+
+      return FORBIDDEN.filter(({ pattern }) => pattern.test(words)).map(({ name }) => name);
+    }
+
+    /**
+     * The built popup, opened **as a tab** of the window the fixture page shares.
+     *
+     * **A substitute, and it is the same one `in-page-fill.spec.ts` uses for the same reason.**
+     * `chrome.action.openPopup()` adds no Playwright `Page` - measured - and a real popup window is
+     * not a tab. What this arrangement holds is that the **built** `popup.html` boots, adopts what
+     * this device holds, and renders; what it cannot hold is anything about how a popup is docked,
+     * which no case in either tier measures.
+     *
+     * **The caller brings the fixture page to front afterwards**, because the panel re-asks the active
+     * tab on every switch and this document's own readers read a *host*.
+     */
+    async function openThePopupDocument(): Promise<Page> {
+      const popup = await extension.context.newPage();
+
+      opened.push(popup);
+      await popup.goto(`chrome-extension://${extension.extensionId}/popup.html`);
+
+      return popup;
+    }
+
+    /**
+     * `4.1a` - *A message carries a detected verification*.
+     *
+     * **Two stagings in one case, and the reason is the clause.** "SHALL name which was detected"
+     * is a claim about **two** markings not being the same, so a case that only ever rendered one
+     * could not state it - it would be asserting a property of the record, which `panel-copy.test.ts`
+     * already does, rather than a property of the panel's built bundle.
+     *
+     * **Each staging answers the body read with a different recorded fixture**, chosen from
+     * `recorded-provider.ts`'s own list rather than by transcribing a provider body here:
+     * `mailtmMessageFetched`'s body carries a one-time code and no link, and
+     * `guerrillaMessageWithVerificationLink`'s carries an anchor and no code.
+     */
+    test("names a detected code on one row and a detected link on another, and tells them apart", async () => {
+      const withACode = await stage();
+
+      await expect(withACode.panel.locator('[data-testid="panel-host"]')).toContainText(
+        FIXTURE_HOST,
+        {
+          timeout: 20_000,
+        },
+      );
+      await createHere(withACode.panel);
+      await waitForTheArmingThenDisarm(extension, INBOX_POLL_CEILING_MS);
+
+      const codeRow = await soleRow(withACode.panel);
+
+      await expect(markingOf(codeRow)).toHaveCount(1);
+      await expect(markingOf(codeRow)).toHaveText(PANEL_VERDICT_WORDING.carriesCode, {
+        timeout: 20_000,
+      });
+
+      const codeMarking = (await markingOf(codeRow).textContent()) ?? "";
+
+      /**
+       * **The first staging's pages are closed and the device emptied before the second begins.**
+       *
+       * `recordProviderTraffic` installs a `context.route` for the whole profile, so a second staging
+       * in the same case means **two handlers on one context** - and the first one would then be
+       * answering requests it was written for a closed panel. **Clearing the stored mailbox matters
+       * for the same reason one device is one device**: the second panel would otherwise be offered
+       * the address the first one created, and `restore` would take a path this case is not about.
+       */
+      await closeStaged(withACode);
+      await clearArmedAlarms(extension);
+      await clearStoredMailbox(extension);
+
+      const withALink = await stage({
+        mailTmUnavailable: true,
+        guerrillaRead: GUERRILLA_READ_ANSWERS.link,
+      });
+
+      await expect(withALink.panel.locator('[data-testid="panel-host"]')).toContainText(
+        FIXTURE_HOST,
+        {
+          timeout: 20_000,
+        },
+      );
+      await createHere(withALink.panel);
+      await waitForTheArmingThenDisarm(extension, INBOX_POLL_CEILING_MS);
+
+      const linkRow = await soleRow(withALink.panel);
+
+      await expect(markingOf(linkRow)).toHaveCount(1);
+      await expect(markingOf(linkRow)).toHaveText(PANEL_VERDICT_WORDING.carriesLink, {
+        timeout: 20_000,
+      });
+
+      const linkMarking = (await markingOf(linkRow).textContent()) ?? "";
+
+      /**
+       * **The claim, as rendered rather than as declared.** Two panels, two recorded bodies, two
+       * different sentences - and a component that ignored the prop and marked every row the same
+       * way would fail here while passing every assertion above it.
+       */
+      expect(codeMarking).not.toBe(linkMarking);
+      expect(linkMarking).not.toBe(codeMarking);
+
+      /**
+       * **And neither names both** - *"SHALL name which was detected rather than naming both"*.
+       *
+       * **Checked against the rendered words and not against the record**, so a copy change that put
+       * both detections in one sentence is caught where a person would meet it.
+       */
+      expect(codeMarking).not.toMatch(/verification link/iu);
+      expect(linkMarking).not.toMatch(/one-time code/iu);
+
+      /** **The reader's control, in the surface whose absence is asserted elsewhere.** */
+      await plantVerdictInto(linkRow, PANEL_VERDICT_WORDING.undetermined);
+      await expect(markingOf(linkRow)).toHaveCount(2);
+    });
+
+    /**
+     * `4.1b` - *A message was read and carries nothing*.
+     *
+     * **Staged by letting the body read fall through to the recorded listing**, which carries no body
+     * field - so the read *succeeds*, the text is empty, and the session's verdict pass reaches
+     * `carriesNothing` for the honest reason rather than by being refused. **A refused read would
+     * produce `undetermined` instead**, which is a different row and the next case's subject, so
+     * the distinction this staging draws is the whole claim.
+     */
+    test("leaves the row bare when the message was read and carried nothing", async () => {
+      const { panel } = await stage({ mailTmUnavailable: true });
+
+      await expect(panel.locator('[data-testid="panel-host"]')).toContainText(FIXTURE_HOST, {
+        timeout: 20_000,
+      });
+      await createHere(panel);
+      await waitForTheArmingThenDisarm(extension, INBOX_POLL_CEILING_MS);
+
+      const row = await soleRow(panel);
+
+      /**
+       * **Bare is a count of zero on that row, and not "the text is not the other four".** A reader
+       * that returned the empty string for every verdict would satisfy the second reading and fail
+       * this one - and this is the direction that matters, because `carriesNothing` is the verdict a
+       * mapping bug most easily turns into a silence that means something else.
+       */
+      await expect(markingOf(row)).toHaveCount(0);
+
+      /** **And nothing anywhere on the panel renders one.** */
+      await expect(panel.locator('[data-testid="message-verdict"]')).toHaveCount(0);
+
+      /**
+       * **The empty string is declared, not missing** - so "bare" is a decision this module made
+       * rather than a key somebody forgot, and a future reader of `panel-copy.ts` sees why.
+       */
+      expect(PANEL_VERDICT_WORDING.carriesNothing).toBe("");
+
+      /**
+       * **And the panel says no forbidden thing anywhere**, which is the scenario's second half -
+       * *"SHALL NOT state that the message carries no verification"*. **Silence is the answer**, so
+       * this is the assertion that a future copy change cannot satisfy by rewording the marking.
+       */
+      expect(await forbiddenWords(panel)).toEqual([]);
+
+      /** **The sweep's own control, planted where the sweep reads it.** */
+      await plantVerdictInto(row, "Carries no verification.");
+      expect(await forbiddenWords(panel)).toEqual([
+        "a claim that the message carries no verification",
+      ]);
+
+      /** **And the reader can see a marking at all**, in the surface the assertion above emptied.** */
+      await expect(markingOf(row)).toHaveCount(1);
+    });
+
+    /**
+     * `4.1c` - *A message could not be determined*.
+     *
+     * **Staged by making the one body read answer with a recorded refusal**, so `getMessage` throws
+     * and the verdict pass records `undetermined`. **This is the row the whole capability exists
+     * for**: it is the only place in this product where a message is described by what the session
+     * does not know rather than by what was found in it.
+     */
+    test("says on that row that the message could not be read, and nothing about what it holds", async () => {
+      const { panel } = await stage({
+        mailTmUnavailable: true,
+        guerrillaRead: GUERRILLA_READ_ANSWERS.refused,
+      });
+
+      await expect(panel.locator('[data-testid="panel-host"]')).toContainText(FIXTURE_HOST, {
+        timeout: 20_000,
+      });
+      await createHere(panel);
+      await waitForTheArmingThenDisarm(extension, INBOX_POLL_CEILING_MS);
+
+      const row = await soleRow(panel);
+
+      await expect(markingOf(row)).toHaveCount(1);
+      await expect(markingOf(row)).toHaveText(PANEL_VERDICT_WORDING.undetermined, {
+        timeout: 20_000,
+      });
+
+      const said = (await markingOf(row).textContent()) ?? "";
+
+      /**
+       * **It is words, and it is not the absence the other verdict uses.** `carriesNothing` and
+       * `undetermined` are both "no detection" to a reader who only asks "did it find anything?", and
+       * `state.ts` names collapsing the second into the first as *"the one false claim in this
+       * product that costs a user the code they were waiting for"*. So the two are told apart by an
+       * assertion a silence cannot pass.
+       */
+      expect(said).not.toBe(PANEL_VERDICT_WORDING.carriesNothing);
+      expect(said.length).toBeGreaterThan(0);
+
+      /** **And it is not any of the three the session could have stated instead.** */
+      for (const kind of ["carriesCode", "carriesLink", "carriesCodeAndLink"] as const) {
+        expect(said, kind).not.toBe(PANEL_VERDICT_WORDING[kind]);
+      }
+
+      /** **And nothing on the panel certifies anything.** */
+      expect(await forbiddenWords(panel)).toEqual([]);
+
+      await plantVerdictInto(row, "Certainly contains a one-time code.");
+      expect(await forbiddenWords(panel)).toEqual(["a confidence value"]);
+    });
+
+    /**
+     * `4.1d` - *The listing is not yet determined in full*.
+     *
+     * **The same staging as `4.1c`, and deliberately: the clause is about what the panel says about
+     * the *mailbox* while one *row* is undetermined.** A panel that marked every row correctly could
+     * still add a heading reading "Nothing to verify here", and that sentence is the false claim this
+     * scenario forbids - so this case sweeps the whole rendered surface rather than the row.
+     */
+    test("concludes nothing about the whole mailbox while one message is undetermined", async () => {
+      const { panel } = await stage({
+        mailTmUnavailable: true,
+        guerrillaRead: GUERRILLA_READ_ANSWERS.refused,
+      });
+
+      await expect(panel.locator('[data-testid="panel-host"]')).toContainText(FIXTURE_HOST, {
+        timeout: 20_000,
+      });
+      await createHere(panel);
+      await waitForTheArmingThenDisarm(extension, INBOX_POLL_CEILING_MS);
+
+      const row = await soleRow(panel);
+
+      /**
+       * **The positive control, and it runs first.** Without it the sweep below is satisfied by a
+       * panel that rendered no words at all - which is the recorded shape of an assertion that cannot
+       * fail, and the reason every sweep in this repository carries a control.
+       */
+      await expect(markingOf(row)).toHaveText(PANEL_VERDICT_WORDING.undetermined, {
+        timeout: 20_000,
+      });
+
+      expect(await forbiddenWords(panel)).toEqual([]);
+
+      /** **The sweep's control, in the sentence shape a real heading would take.** */
+      await plantVerdictInto(row, "This mailbox contains no detected verification.");
+      expect(await forbiddenWords(panel)).toEqual([
+        "a claim that the message carries no verification",
+      ]);
+    });
+
+    /**
+     * `4.1e` - *A check failed and the last known listing is shown*, **staged by the panel's own poll
+     * rather than by a press - and that staging is a correction rather than a preference.**
+     *
+     * **The first version of this case asserted the variant was unreachable.** Its reasoning was that
+     * nothing in `apps/extension` calls `session.checkInbox()` or `session.setVisible()`, so nothing
+     * is ever scheduled and the panel never polls. **Measurement overturned it, and the mechanism is
+     * in `packages/mailbox` rather than in this client:** `InboxTracker` opens with `let visible = true`
+     * (`inbox.ts:143`) rather than `false`, and the **public** `check:` member - the very one `adopt`
+     * is handed (`session.ts:483`, `adopt(stored, inbox.check)`) - calls `scheduleNext()` itself
+     * (`inbox.ts:456-459`, added by the comment that names the omission a defect). **So the reconcile
+     * the panel already performs queues the next check**, and the recorded provider here was asked for
+     * a second listing about ten seconds after the first with nothing in this file having asked for it.
+     * Ten seconds is `nextDelay(1)`, not a number chosen here.
+     *
+     * **And the corrected staging is the stronger one, not the smaller one.** The rejected version
+     * asserted an *absence* - no marking on a listing that had vanished - having staged a failed
+     * reconcile, because `adopt` maps a first-failure to `restoreFailed`. **This reaches the thing the
+     * delta actually describes: rows that were marked, surviving a listing that failed afterwards,
+     * still marked with what they were found to carry.** The single case now covers what the two
+     * before it did apart from, and it covers it through the shipped code path.
+     */
+    test("keeps a marked row and what it was marked with, when the next check fails", async () => {
+      const { panel, traffic } = await stage({
+        mailTmUnavailable: true,
+        guerrillaRead: GUERRILLA_READ_ANSWERS.code,
+        /**
+         * **The second listing fails, counted in listings rather than as a boolean** - see
+         * `recorded-provider.ts`. A staging that failed every listing could not show a row at all,
+         * and this case's positive control *is* a row.
+         */
+        guerrillaListFailsFromAttempt: 2,
+      });
+
+      await expect(panel.locator('[data-testid="panel-host"]')).toContainText(FIXTURE_HOST, {
+        timeout: 20_000,
+      });
+      await createHere(panel);
+      await waitForTheArmingThenDisarm(extension, INBOX_POLL_CEILING_MS);
+
+      /** **The positive control: one listing, one body read, and a row marked from what they found.** */
+      const row = await soleRow(panel);
+      await expect(markingOf(row)).toHaveCount(1);
+      await expect(markingOf(row)).toHaveText(PANEL_VERDICT_WORDING.carriesCode, {
+        timeout: 20_000,
+      });
+      await waitForRequests(traffic, 1);
+      expect(guerrillaCalls(traffic.requested, GUERRILLA_LIST_OPERATION)).toHaveLength(1);
+
+      /**
+       * **The panel's own cadence makes the second listing, and it fails.** The ceiling is imported
+       * from `packages/mailbox/src/cadence` rather than picked, for the reason this file has recorded
+       * about every hand-chosen constant - and the wait is on the *failure having happened*, so a
+       * count is never read before the request that makes it exists.
+       */
+      await expect
+        .poll(() => guerrillaCalls(traffic.requested, GUERRILLA_LIST_OPERATION).length, {
+          timeout: INBOX_POLL_CEILING_MS,
+        })
+        .toBeGreaterThanOrEqual(2);
+
+      /** **The failure is reported rather than swallowed.** */
+      await expect(panel.getByRole("alert").first()).toBeVisible({ timeout: 20_000 });
+
+      /**
+       * **And the row is still on screen, still marked once, and still marked with what it was
+       * actually found to carry - not with `undetermined`.** This is the whole claim, and the last
+       * clause is the half that could have gone quietly wrong: a failure learned nothing *new*, so
+       * "nothing new is known" must not become "nothing is known about what was already read".
+       */
+      await expect(panel.locator('[data-testid="message-list"]')).toHaveCount(1);
+      const retained = await soleRow(panel);
+      await expect(markingOf(retained)).toHaveCount(1);
+      await expect(markingOf(retained)).toHaveText(PANEL_VERDICT_WORDING.carriesCode);
+      await expect(panel.locator('[data-testid="message-verdict"]')).toHaveCount(1);
+      await expect(panel.locator('[data-testid="message-verdict"]')).not.toHaveText(
+        PANEL_VERDICT_WORDING.undetermined,
+      );
+
+      /**
+       * **The reader's own control, planted into the panel's body rather than into a row.** A sweep
+       * or a count that cannot fail proves nothing, and `undetermined` is the one word that would
+       * satisfy "there is a marking" while telling the reader the opposite of the truth - so it is
+       * planted into a place this case did not author to show the reader would have reported it.
+       */
+      await plantVerdictInto(panel.locator("body"), PANEL_VERDICT_WORDING.undetermined);
+      await expect(panel.locator('[data-testid="message-verdict"]')).toHaveCount(2);
+      await expect(markingOf(retained)).toHaveCount(1);
+    });
+
+    /**
+     * `4.2` - the clause about **a surface that does not ask**: *"a surface that does not ask for a
+     * marking SHALL render its listing exactly as it does without this requirement"*.
+     *
+     * **The only place a leak between the two surfaces is observable at all.** They render the same
+     * component, over the same session, from the same recorded listing - and `Popup.test.tsx` cannot
+     * catch a prop that defaults to on, because a component test asserting "the popup renders no
+     * marking" passes against a component that marks every row when the assertion is written as
+     * *"the popup does not pass the prop"* rather than as *"no marking appears"*.
+     *
+     * **Both surfaces hold the same recorded mailbox, and the second gets it without being asked
+     * twice.** The panel creates it; the popup then adopts it out of `chrome.storage.local` through
+     * `main.tsx`'s `loadMailbox`, so the two surfaces' rows come from the identical input, the
+     * identical listing and the identical verdict pass - **and the only thing that differs is whether
+     * the words were asked for.** A popup that created its own mailbox instead would be comparing
+     * two different inputs, and "the popup renders no marking" would then be trivially true for the
+     * wrong reason.
+     */
+    test("renders no marking in the popup for the mailbox the panel marks", async () => {
+      const { page, panel } = await stage({
+        mailTmUnavailable: true,
+        guerrillaRead: GUERRILLA_READ_ANSWERS.code,
+      });
+
+      await expect(panel.locator('[data-testid="panel-host"]')).toContainText(FIXTURE_HOST, {
+        timeout: 20_000,
+      });
+      await createHere(panel);
+      await waitForTheArmingThenDisarm(extension, INBOX_POLL_CEILING_MS);
+
+      /** **The positive control: the panel marks it.** */
+      const panelRow = await soleRow(panel);
+      await expect(markingOf(panelRow)).toHaveCount(1);
+      await expect(markingOf(panelRow)).toHaveText(PANEL_VERDICT_WORDING.carriesCode, {
+        timeout: 20_000,
+      });
+
+      const popup = await openThePopupDocument();
+
+      /**
+       * **The fixture page comes to the front, and the reason is the one `in-page-fill.spec.ts`
+       * gives.** A surface opened as a tab is its own active tab, so both `findActiveTab` calls -
+       * the panel's host question and the popup's own - would answer with each other. **The panel
+       * re-asks on every tab switch**, so this is also what keeps the panel's own marking in place
+       * for the last assertion below.
+       */
+      await page.bringToFront();
+
+      /**
+       * **No press at all, and that is a measured property of the shipped tree rather than a
+       * convenience.** `apps/extension/src/main.tsx` hands the session
+       * `loadMailbox: async () => (await loadInsertableMailboxes(storage.records))[0] ?? null`, so a
+       * popup opened on a device that already holds the mailbox the panel just created **adopts
+       * that mailbox** and lists it - which means `Create an address` is not on the screen at all.
+       * **The first version of this case pressed it, and failed with a 90 s timeout rather than with
+       * an assertion, so nothing about the claim was measured.** Both presses are gone; the wait is
+       * on the row appearing.
+       */
+      await expect(popup.locator(".popup__address")).toHaveText(FIXTURE_IDS.guerrilla.address, {
+        timeout: 20_000,
+      });
+      await expect(rowsIn(popup)).toHaveCount(1, { timeout: 20_000 });
+
+      /** **And no marking in it. This is the claim.** */
+      await expect(popup.locator('[data-testid="message-verdict"]')).toHaveCount(0);
+
+      /** **The reader's own control, in the popup.** */
+      await plantVerdictInto(rowsIn(popup).first(), PANEL_VERDICT_WORDING.carriesCode);
+      await expect(popup.locator('[data-testid="message-verdict"]')).toHaveCount(1);
+
+      /**
+       * **And the panel still marks its own row, at the same moment** - so the two readings are of
+       * one device holding one mailbox, and this is not a case where the panel's marking had
+       * quietly gone away before the popup was opened.
+       */
+      await expect(markingOf(await soleRow(panel))).toHaveText(PANEL_VERDICT_WORDING.carriesCode);
+    });
+
+    /**
+     * `4.3` - *The panel states what the session holds*, read as a **request count** rather than as a
+     * rendering.
+     *
+     * **The claim is `design.md` D4's: the marking costs no provider request and reads no body.** The
+     * verdicts are already inside `listing.verdicts` by the time the panel renders, so a marking that
+     * read a body to draw itself would show up here as a **second** `fetch_email` for a listing - which
+     * is why the count is taken per operation rather than as a total.
+     *
+     * **And the shape asserted is an invariant rather than a difference, which is a repair rather than
+     * a preference.** The first version of this case compared the panel's totals against the popup's
+     * with `toBe(1)`. **That is a hand-picked figure and it is not load-independent:** both surfaces
+     * poll, `main.tsx`'s `loadMailbox` makes the popup adopt rather than create, and the panel's own
+     * `nextDelay(1)` listing landed inside the case - so the difference was 2, and a number that moves
+     * with machine load is the defect this repository has recorded more often than any other in this
+     * file. **Every listing this recording makes does exactly one body read and one body read per
+     * listing, on both surfaces, always** - so `reads === listings` is what "the marking costs no
+     * request and reads no body" looks like when nothing may be counted by hand, and it survives any
+     * number of poll cycles either surface runs.
+     */
+    test("states the marking without costing a request the session was not already making", async () => {
+      const { page, panel, traffic } = await stage({
+        mailTmUnavailable: true,
+        guerrillaRead: GUERRILLA_READ_ANSWERS.code,
+      });
+
+      await expect(panel.locator('[data-testid="panel-host"]')).toContainText(FIXTURE_HOST, {
+        timeout: 20_000,
+      });
+      await createHere(panel);
+      await waitForTheArmingThenDisarm(extension, INBOX_POLL_CEILING_MS);
+
+      /**
+       * **Waited for the marking, not read beside it.** The body read is part of the verdict pass,
+       * so a count taken while the marking has not appeared is a count about a listing that has not
+       * been analysed yet - and the recording's own lesson is that a count read next to an action
+       * is this repository's most-recorded defect.
+       */
+      await expect(markingOf(await soleRow(panel))).toHaveText(PANEL_VERDICT_WORDING.carriesCode, {
+        timeout: 20_000,
+      });
+
+      /** **The counter's positive control: it can see a request at all.** */
+      expect(traffic.requested.length).toBeGreaterThan(0);
+
+      /** **One listing, one body read, one marking - and the read the verdict pass needed.** */
+      await waitForRequests(traffic, 1);
+      expect(guerrillaCalls(traffic.requested, GUERRILLA_LIST_OPERATION)).toHaveLength(1);
+      expect(guerrillaCalls(traffic.requested, GUERRILLA_READ_OPERATION)).toHaveLength(1);
+
+      /**
+       * **The panel's own cadence makes the next listing, and it costs no body read.**
+       *
+       * **An earlier version of this line asserted `reads === listings`, and it was wrong** - that is
+       * what a *first* listing followed by a poll looks like, because `InboxTracker` retains the
+       * verdict of a message it has already read and re-reads nothing for a listing that brings no
+       * new one. **A figure derived from the first cycle is a figure about the first cycle.** What the
+       * scenario's *"SHALL read no message body of its own"* claims is that **no body read was spent on
+       * the verdict**, so what states it is the read count re-read after the session has demonstrably
+       * listed again: a listing with a marking on screen, and no read added by anything.
+       *
+       * **Waiting for the number of listings to grow is the load-independent half**; waiting for a
+       * period to elapse and hoping none arrives is the other, and it is the one this file has had to
+       * repair twice. The ceiling is the cadence's own, imported rather than picked.
+       */
+      await expect
+        .poll(() => guerrillaCalls(traffic.requested, GUERRILLA_LIST_OPERATION).length, {
+          timeout: INBOX_POLL_CEILING_MS,
+        })
+        .toBeGreaterThanOrEqual(2);
+
+      expect(guerrillaCalls(traffic.requested, GUERRILLA_READ_OPERATION)).toHaveLength(1);
+
+      /**
+       * **The same mailbox, on the surface that renders no marking**, taken in this same recording so
+       * one reader reads both surfaces' costs out of one log. `4.2` is what makes the popup's row the
+       * same input; this is what shows a surface that asks for nothing spends nothing either.
+       *
+       * **The read count is taken on both sides of the popup, and the reason is a measured property
+       * of the shipped tree rather than a convenience.** Each surface builds its own session over its
+       * own `InboxTracker`, so the popup arrives with an **empty verdict map** and reads the message
+       * once for itself - which is why the count after the popup is `+1` and not `+0`. **An earlier
+       * draft of this case asserted a total of one across both surfaces and failed on exactly that**,
+       * which is the finding: the figure has to account for two sessions, and only the recorded
+       * reader says how many there are.
+       */
+      const readsBefore = guerrillaCalls(traffic.requested, GUERRILLA_READ_OPERATION).length;
+
+      const popup = await openThePopupDocument();
+
+      await page.bringToFront();
+
+      /**
+       * **No press, for the reason `4.2` gives**: the popup adopts the mailbox the panel created out
+       * of the device's own storage, so it lists without being asked and has no create control to
+       * press.
+       */
+      await expect(popup.locator(".popup__address")).toHaveText(FIXTURE_IDS.guerrilla.address, {
+        timeout: 20_000,
+      });
+      await expect(rowsIn(popup)).toHaveCount(1, { timeout: 20_000 });
+      await expect(popup.locator('[data-testid="message-verdict"]')).toHaveCount(0);
+
+      /**
+       * **The popup added a listing and its own single verdict read, and nothing else.** The listing
+       * figure is a floor rather than an equality, because both surfaces go on polling on their own
+       * cadences and how many land before this line runs is a fact about machine load; the read figure
+       * is an equality **because a body read happens once per message per session**, and the recorded
+       * provider serves the same one message for the whole run - so the two sessions account for
+       * exactly `readsBefore + 1`, and a read spent on a marking would make it one more.
+       *
+       * **The popup's row is on screen**, so this is not a reading over an idle second surface, and
+       * **the panel's own marking was on screen for every one of these listings**, which is what makes
+       * the equality say something about the marking rather than about two surfaces at rest.
+       */
+      expect(guerrillaCalls(traffic.requested, GUERRILLA_LIST_OPERATION).length).toBeGreaterThan(2);
+      expect(guerrillaCalls(traffic.requested, GUERRILLA_READ_OPERATION)).toHaveLength(
+        readsBefore + 1,
+      );
+
+      /**
+       * **Nothing unscripted was reached on the way**, which is the tier's standing claim and is
+       * asserted last so it covers the popup's own traffic too.
+       */
+      expect(traffic.unscripted).toEqual([]);
     });
   });
 });

@@ -36,8 +36,20 @@
  * second copy of a decision table `design.md` D2 forbids**, and a website depiction resolving
  * labels against `POPUP_COPY` must keep finding them there.
  *
+ * ## What IS here that is not a `POPUP_COPY` string, and why
+ *
+ * **§The one claim this panel has and the popup is forbidden from.** {@link PANEL_VERDICT_WORDING}
+ * states a verdict per row, and `extension-client` says in two clauses - both naming **the popup** -
+ * that the popup SHALL NOT indicate a message carries a verification until it has opened it. **So
+ * these are the panel's sentences for the same reason `CodeClipboardActions` is caller-supplied
+ * rather than a string in `POPUP_COPY`: a panel-only word placed in the shared object would let the
+ * website's depiction claim the popup renders a thing it does not.** The popup passes nothing and
+ * the shared component has no channel to render one through.
+ *
  * @module
  */
+
+import type { MessageVerdict } from "@spectre-mail/mailbox";
 
 /** Every sentence the panel can say that is its own rather than the message surface's. */
 export const PANEL_COPY = {
@@ -323,3 +335,97 @@ export const PANEL_COPY_KEYS = Object.keys(PANEL_COPY);
  * chooser and then fail on the very host it is supposed to leave alone.
  */
 export const PANEL_CHOOSER_KEYS = ["heldGroup", "chooseMailbox", "showingMailbox"] as const;
+
+/**
+ * What the panel says about what the session found in one message, for every verdict there is.
+ *
+ * ## Why these are the panel's words and not `POPUP_COPY`'s
+ *
+ * **`extension-client` forbids exactly two surfaces from stating this, and both clauses name the
+ * popup** - *"The popup SHALL NOT indicate that a message carries a verification until it has opened
+ * that message"*, inside the requirement headed *"The extension's popup performs its first
+ * milestone's actions over the shared session"*. **A sentence in `POPUP_COPY` would be a string the
+ * website's `Extension preview` depiction could claim the popup renders**, and the popup does not.
+ * That is the same cousin as `popup-copy.ts`'s own rule - *a depiction can only show a string, so a
+ * function-valued entry is one no depiction may claim to render* - and the caller supplies these the
+ * way it supplies `links` and `clipboard`.
+ *
+ * ## Why this is the website's scheme and not a second one
+ *
+ * **`apps/web/src/InboxRow.tsx` already renders this same union with an exhaustive record**, and its
+ * own docstring gives three reasons the marking is text: a screen reader announces it, it survives a
+ * monochrome display, and it survives the stylesheet. **Two clients rendering one shared union
+ * differently is exactly the divergence a closed record exists to prevent**, so the strings are
+ * ported rather than reworded, and a case reads both.
+ *
+ * ## What is deliberately NOT ported, and this is a narrowing rather than an omission
+ *
+ * **`apps/web`'s closed positive set `CARRIES_VERIFICATION` is not here.** Its only consumer is the
+ * website's accent rule, whose own docstring says the omission is protecting - *"a rule beside a row
+ * is a claim that something is in it"* - and **this panel's rows carry no accent rule and none is
+ * added**. A named set with no consumer is a second thing to keep in step, which is the reason this
+ * module exists. **If a future slice gives the panel's rows a visual claim, the closed set becomes
+ * load-bearing and this narrowing must be revisited then.**
+ *
+ * ## Why `carriesNothing` is written out as `""` rather than omitted
+ *
+ * **Because "the row shows no marking" is a decision here and not a missing case**, and an omitted
+ * key would compile. `Readonly<Record<MessageVerdict["kind"], string>>` means **a sixth verdict
+ * fails to compile at this line**, which is the type doing the work a test would otherwise have to.
+ *
+ * @module
+ */
+export const PANEL_VERDICT_WORDING: Readonly<Record<MessageVerdict["kind"], string>> = {
+  /**
+   * A detected one-time code and nothing else.
+   *
+   * *Scenario: **A message carries a detected verification** - "the marking SHALL name which was
+   * detected rather than naming both."*
+   */
+  carriesCode: "Contains a one-time code.",
+
+  /**
+   * A detected verification link and nothing else.
+   *
+   * *Scenario: **A message carries a detected verification** - the same "which, rather than both".*
+   */
+  carriesLink: "Contains a verification link.",
+
+  /**
+   * Both detections, named as both.
+   *
+   * *Scenario: **A message carries a detected verification** - the requirement's first sentence,
+   * "a detected one-time code, a detected verification link, **or both**".*
+   */
+  carriesCodeAndLink: "Contains a one-time code and a verification link.",
+
+  /**
+   * The message **was** read whole and no verification was detected in it.
+   *
+   * **The empty string, and that is the whole of the claim.** *Scenario: **A message was read and
+   * carries nothing** - "the panel SHALL carry no marking on that row"*, and it is also the second
+   * half of *"the panel SHALL NOT state that the message carries no verification"*: the silence is
+   * the answer, because `carriesNothing` says the message was read and held nothing, which is not
+   * the same claim as "there is provably no code in it". **This is the only verdict with no words,
+   * and it is the one where a sentence would have to be a stronger claim than any specification
+   * here supports.**
+   */
+  carriesNothing: "",
+
+  /**
+   * The session has **not** determined this message.
+   *
+   * **Words on its own row, and this is the claim this panel exists to make.** *Scenario: **A
+   * message could not be determined** - "that message's row SHALL carry a marking stating that the
+   * message could not be read"*, and it also discharges *"a message the session has not determined
+   * SHALL NOT be presented as carrying a detection"* in words rather than by a rule nobody would see.
+   *
+   * **It says what the session does not know and never what the message holds**, so it is true
+   * whatever the message contains - `state.ts` names collapsing it into a negative as the one false
+   * claim in this product that costs a user the code they were waiting for. *Scenario: **A check
+   * failed and the last known listing is shown** - "a row whose message was read SHALL NOT be marked
+   * as a message that could not be read"* - is discharged by the map itself, because a message the
+   * session did read is not in it and is therefore not `undetermined`.
+   */
+  undetermined: "This message could not be read, so what it carries is unknown.",
+};

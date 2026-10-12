@@ -71,7 +71,7 @@ import type { CreateMailboxAnswer } from "./protocol";
 import { MessageList, OpenedMessageView } from "./MessageSurface";
 import type { CodeClipboardActions, FillReport, LinkCopyLabels } from "./MessageSurface";
 import { POPUP_COPY } from "./popup-copy";
-import { PANEL_COPY } from "./panel-copy";
+import { PANEL_COPY, PANEL_VERDICT_WORDING } from "./panel-copy";
 import { resolveForHost } from "./resolve-for-host";
 import type { ResolvedMailbox } from "./resolve-for-host";
 
@@ -751,9 +751,23 @@ export function Panel({ session, records, primaryProviderName }: PanelProps) {
                 )}
               </p>
             )}
+            {/**
+             * **The marking is asked for, and the panel is the only surface that asks.**
+             *
+             * `MessageList` is one component serving both surfaces, and `extension-client` forbids the
+             * **popup** from indicating that a message carries a verification before it has opened it.
+             * **So the prop's absence is what keeps the popup free of it, and its presence here is
+             * this panel exercising a capability it owns.** The verdicts themselves are not passed:
+             * they are already inside `state.inbox.listing.verdicts`, and each row reads its own -
+             * **a second source handed in here could disagree with the rows it marks.**
+             *
+             * **And this costs nothing.** The panel already restores through the full
+             * `session.restore`, which runs the verdict pass; this adds no request and reads no body.
+             */}
             <MessageList
               state={state.kind === "ready" ? state.inbox : { kind: "notStarted" }}
               onOpen={(id) => void session.openMessage(id)}
+              verdictWording={PANEL_VERDICT_WORDING}
             />
           </section>
 
