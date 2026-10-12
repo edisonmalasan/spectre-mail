@@ -158,24 +158,39 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor: M11 - Side Panel + Mailbox Context, slice 2, PROPOSED** as
-`panel-mailbox-choice`** — and it is one item, not the two below. *What M11 has left after this
-slice* names two, and exploration split them: **both amend the same `extension-client` requirement
-heading**, so putting two unrelated amendments to one heading in a single delta is the shape this
-repository records as where an amendment gets attributed to the wrong assertion. Slice 2 takes the
-first — **"recent mailboxes" offered rather than named** — and the second, **"whether verification
-mail is pending",** is a later slice because it needs a *definition* before it can be specified,
-and a change cannot be designed on a guess about what "pending" means.
+**Roadmap cursor: M11 - Side Panel + Mailbox Context, slice 2 COMPLETE** as
+`panel-mailbox-choice` — proposal PR #118, apply PR #119 merged `67439da`, sync PR #120 merged
+`47132ae`, archive PR #121 merged `560410f`, archived at
+`openspec/changes/archive/2026-10-12-panel-mailbox-choice/`. **M11 now has one item left, and it
+cannot be proposed yet.** *What M11 has left after this slice* named two; exploration split them
+because **both amended the same `extension-client` requirement heading**, and two unrelated
+amendments to one heading in a single delta is the shape this repository records as where an
+amendment gets attributed to the wrong assertion. Slice 2 took the first — **"recent mailboxes"
+offered rather than named** — and **the second, "whether verification mail is pending", needs a
+*definition* before it can be specified, and a change cannot be designed on a guess about what
+"pending" means. The next step is therefore an **exploration that defines it**, not a proposal.**
 
-**The first item is an amendment and not a repair, and that distinction is the change's first
-recorded finding.** The shipped requirement says the panel ***names*** the mailboxes this device
+**What defining it turns on, recorded so the exploration starts from a question rather than from
+the roadmap's noun.** *Pending* is ambiguous between at least two things this repository can tell
+apart, and **they lead to different surfaces, different storage and different tests**: **a message
+this device holds has been analysed and carries a detected one-time code** — which
+`packages/mail-parser` can already answer, which the background wake already reads, and which would
+be a property of the *mailbox*; against **a page asking right now** — which no instrument here
+reaches, because the extension holds no standing knowledge of what any page is showing, and which
+would be a property of the *host*. **Choosing between them is a product decision, not an
+implementation one**, and the roadmap's word alone does not make it.
+
+**The first item was an amendment and not a repair, and that distinction was the change's first
+recorded finding.** The requirement said the panel ***names*** the mailboxes this device
 holds, and an inert `<ul>` of `<span>` addresses is exactly what *names* means — **so the code
 conformed throughout and nothing shipped broken.** What was wrong was the requirement: it
 described a list a person could *read* where this roadmap's M11 section says **display: recent
 mailboxes**, and a panel that can only ever show the host's association or the newest address is
 the outcome `side-panel-surface`'s own design record named as the thing M11 exists to avoid. **A
 delta written as a defect repair would have put a false sentence in the promoted spec**, so the
-amendment says so where a reader will hit the question.
+amendment says so where a reader will hit the question. **It now reads *offers*, and the panel
+offers each held mailbox as a radio that makes that mailbox the mailbox the panel view is about —
+a choice that is transient, writes nothing, and resets when the page beside the panel changes.**
 
 **Exploration also found a real divergence that slice 2 records and does not resolve**, because it
 belongs to the pending-verification item: `apps/extension/src/MessageSurface.tsx:128-134` states
@@ -282,29 +297,34 @@ milestone that ships a surface whose reach is unmeasured is not a milestone whos
 and the slice's own proposal says so rather than leaving it to the first person to open a panel.
 
 **What M11 has left after this slice, read against the two lists in the M11 section below rather
-than from a summary.** The `Display:` list is **largely delivered**: current mailbox, site
-association, inbox, OTP with copy and fill, verification links with open and copy, and provider
-state (named in the address heading and attributed per failure) are all in the shipped panel, and
-new mail arrives because the panel holds its own `MailboxSession` on the extension scheduler.
-**Two items are not delivered, and both are named here rather than left to be discovered.**
+than from a summary. The `Display:` list is now delivered in full.** The first item below was taken
+by slice 2 (`panel-mailbox-choice`), and **one item remains, which is not offered as ready.**
 
-- **"Recent mailboxes" is displayed and not offered.** The panel renders `panel-held` — every
-  mailbox this device holds, newest first — as a plain `<ul>` of `<span>` addresses, **with no
-  control on any of them**. It is therefore a list a person can read and not one they can choose
-  from, so **the panel always shows the host's association or the newest address**, and D3's rule
-  that a panel showing "simply the newest" would name the wrong mailbox for a page applies to
-  every page. That is a **real decision left open for a later slice**, and it is not fake UI —
-  the elements are inert text, which is what `extension-client`'s non-goals requirement requires.
-- **"Whether verification mail is pending" has no representation at all.** Nothing in
+- **"Recent mailboxes" is displayed and not offered** — **DELIVERED by `panel-mailbox-choice`,
+  applied, verified, synced and archived at
+  `openspec/changes/archive/2026-10-12-panel-mailbox-choice/`.** The panel renders `panel-held` -
+  every mailbox this device holds, newest first - and **every entry is now a control**: a
+  `role="radiogroup"` of radios carrying `aria-checked` for the current one, so a person can point
+  the panel at a mailbox other than the host's association or the newest. **The choice is
+  transient and writes nothing** - it survives re-resolving the same host, is discarded when the
+  host changes, and **a choice a person only made while looking is not a use**, which is why it
+  records no association a page could later be handed.
+- **"Whether verification mail is pending" has no representation at all**, and **it is the one
+  item on either list this milestone did not touch at all rather than partly deliver.** Nothing in
   `apps/extension/src` models a pending verification message: there is no `pending` concept in the
   panel, in `panel-copy.ts`, or in the shared session it drives. **The roadmap lists it under
   context behaviour and it is owed**, and it is the one item on either list that the slice did not
   touch at all rather than partly deliver.
 
-The browser tier is **website 40 / extension 78** (`side-panel.spec.ts` adds eight), which is the
-change's own recorded measurement at `design.md` A20 — **not re-run at this archive stage**, and
-labelled as such rather than presented as a figure taken here. `pnpm test` **1187 across 61 files**
-**was** re-run on this branch, and agrees.
+The browser tier is **website 40 / extension 82**, of which `panel-mailbox-choice` adds **four** to
+`side-panel.spec.ts` on top of `side-panel-surface`'s eight - **a press changes what the panel
+shows, a press changes what the session restored, the checked entry is drawn differently, and a
+press writes nothing through the platform's own storage API.** `pnpm test` is **1201 across 62
+files**, **re-counted from a `--reporter=json` run grouped by project** on `panel-mailbox-choice`'s
+final tree: `apps/extension` **438**, `apps/web` **125**, `packages/ui` **38**,
+`packages/storage` **86**, boundary **53**, and every other package unmoved. **A block of ten
+consecutive `pnpm test:browser` runs on that tree was green every time**, with a reader that prints
+`HARNESS-ERROR` rather than `passed` when a run carries no tier summary.
 
 **Three things the spike cost more than its finding, and they are recorded because a spike that looks
 cheap in its diff is not cheap in its blast radius.** It edited **two boundary rules and one eslint
