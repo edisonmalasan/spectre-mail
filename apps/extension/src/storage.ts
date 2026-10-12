@@ -102,7 +102,7 @@ export type ExtensionStorage =
  * this change, and dropping it would tell someone who came back for their address that they had
  * none. Their address is still stored; it is simply in an older record.
  *
- * ## The two are never merged, and the first reason given for that was wrong
+ * ## The two are never merged, and both reasons this note has given for that have now lapsed
  *
  * An earlier version of this note said a merge would "call a newest-first order a fact about a list
  * the two records were written in no common order". **That reason is false, and this change's own
@@ -112,23 +112,35 @@ export type ExtensionStorage =
  * than by inference — and a merge would have been `[...collection, singular]` with the newer first,
  * deduplicated by id.
  *
- * **So the objection was never the order. It is that nothing in this milestone can show a second
- * entry.** The popup renders one address, the in-page control names one, and the worker creates
- * one. A merged second element would sit in a list with no surface to put it on, while costing
- * every call a second read and adding a branch for a singular read that fails with a collection
- * already in hand — a failure that would otherwise cost the device an address it can read perfectly
- * well. Merging becomes right the day a surface lists them, and it would have been wrong to do it
- * before.
+ * **So the objection was never the order. It was that no surface listed them, and that reason has
+ * now lapsed.** This note said *"Merging becomes right the day a surface lists them, and it would
+ * have been wrong to do it before."* **A surface does list them now** — the side panel renders
+ * every mailbox this device holds, and `panel-mailbox-choice` made each one a control — so the
+ * stated reason is false and a code comment whose justification is false is a defect in the
+ * direction nothing ever reads. The lapse is recorded rather than the merge shipped, and the two
+ * halves of that are the point.
+ *
+ * **The merge is unblocked and not done, and it is not done because of scope rather than caution.**
+ * Merging changes what `loadInsertableMailboxes` returns **for every caller**, and the callers
+ * that matter are the **content script** and the **background wake** — neither of which renders a
+ * list. A merged second element would change *"the control prefers the mailbox this site was last
+ * used with"*'s observable behaviour for every site on every device that upgraded, and it would
+ * change what a wake lists, **as a side effect of a panel change**. That is the side effect
+ * `in-page-integration`'s deferral note explicitly refused, and it is a different capability's
+ * behaviour reaching this one. **A following slice that acts on it must own the content script's
+ * offerable set**, and should be measured against the scenario named below.
  *
  * ## The limit this leaves, stated rather than left for the next reader to find
  *
  * **A mailbox recorded before this build stops being insertable once this device records another
  * one.** It is still stored, and the singular record still answers for it whenever the collection is
  * empty; but a device that upgraded and then created a second address can insert only the newer, and
- * nothing in this milestone lets a person ask for the older. That is the cost of the decision above,
- * and it is recorded because the alternative — a merge with no surface to show it — buys nothing a
- * person can reach. `spectre-storage`'s collection requirement carries it as a scenario rather than
- * only here.
+ * nothing in the in-page affordance lets a person ask for the older. **The side panel now does let
+ * a person choose among them, which is why this note is about scope rather than about the cost being
+ * unpayable** — the cost lands on the *content script's* offerable set rather than on the panel's
+ * list, and that is a capability this note does not speak for. It is recorded because the merge is
+ * now unblocked, and a reader looking for the next slice's entry point should find it named here.
+ * `spectre-storage`'s collection requirement carries the cost as a scenario rather than only here.
  *
  * @returns The mailboxes, or an empty list when this device holds none. An empty list is **not** a
  *   failure: a read that fails rejects, so a caller can still tell "holds nothing" from "could not

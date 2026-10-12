@@ -164,6 +164,60 @@ export const PANEL_COPY = {
   heldHeading: "Addresses on this device",
 
   /**
+   * **The chooser's own name, and it is a second string rather than {@link PANEL_COPY.heldHeading}
+   * reused.**
+   *
+   * *Requirement: `extension-client` — ... offers the mailboxes this device holds most recently,
+   * each as a control that makes that mailbox the mailbox this panel view is about.*
+   *
+   * **The heading says what the list *is*; this says what the list *is for*,** and a `radiogroup`
+   * carrying no name is an unnamed set of choices on a surface whose requirement names them as
+   * choices. **It names no host and no provider**, because what it names is a fact about this panel
+   * and not about the page beside it — and the host sentence three sections up already carries the
+   * host, so a name repeating it here would be the list claiming a second fact about the page.
+   */
+  heldGroup: "Choose which address this panel shows",
+
+  /**
+   * **The control for one mailbox, and a function of the address.**
+   *
+   * *Requirement: ... **each as a control that can act, rather than text** — Several mailboxes are
+   * held.*
+   *
+   * **It names the press as well as the value, because a list of addresses where every entry reads
+   * as a bare address gives a person nothing to decide between.** It is not a `<select>` and not a
+   * row of toggles — `design.md` D6 gives the reason, and it is the reason the control says what
+   * pressing it does.
+   *
+   * **It names no host, and that is a rule rather than an omission:** `resolve-for-host.ts` decides
+   * which mailbox a host means, and an entry that said *"the address for this site"* would restate
+   * that rule's answer in a place the rule does not live — which is the second spelling D3 exists to
+   * prevent. **It also names no provider**, for the same reason `addressHeading` above is allowed
+   * one: the provider is a fact a person checks before typing an address in, and this entry is a
+   * choice, not a reading.
+   */
+  chooseMailbox: (address: string): string => `Show ${address} in this panel`,
+
+  /**
+   * **Which mailbox this panel view is about, said in words rather than marked with a tick.**
+   *
+   * *Requirement: WHEN a person chooses one of the offered mailboxes THEN the panel SHALL show that
+   * mailbox's messages **AND the panel SHALL say which mailbox it is showing**.*
+   *
+   * **`aria-checked` alone does not discharge that clause**, and `design.md` D6 names why: a
+   * radiogroup whose checked state is only in the accessibility tree reads as correct to assistive
+   * technology and as *which one?* to a person. So both carry it — the attribute and this sentence —
+   * and a case reads each.
+   *
+   * **It sits inside the chooser rather than beside the address section, and the reason is that the
+   * address section is not always on screen.** `Panel.tsx` withholds `panel-address` beside a page
+   * the panel cannot name, and `design.md` D4 keeps that guard — so beside such a page **this is the
+   * only sentence that says what the view is about.** It says it beside the chooser that changed it,
+   * which is where a person who pressed one of them is looking.
+   */
+  showingMailbox: (address: string): string => `This panel is showing ${address}.`,
+
+  /**
    * Offering a new address, when a host beside the panel **was named** and this device holds none
    * for it.
    *
@@ -248,3 +302,24 @@ export const PANEL_COPY = {
 
 /** Every entry name, for a caller that resolves names rather than holding them. */
 export const PANEL_COPY_KEYS = Object.keys(PANEL_COPY);
+
+/**
+ * **The entries the chooser reads, declared rather than derived, for
+ * {@link POPUP_COPY_TEMPLATES}'s reason.**
+ *
+ * *Requirement: `extension-client` — ... **offers the mailboxes this device holds most recently, each
+ * as a control that makes that mailbox the mailbox this panel view is about**, AND ... the panel SHALL
+ * say which mailbox it is showing.*
+ *
+ * **A chooser entry renamed would leave the chooser's sweep reading nothing**, and a sweep reading
+ * nothing satisfies every assertion above it for ever — so the list is a declaration a test checks in
+ * both directions, not a predicate the test derives from the object it is checking.
+ *
+ * **It is a list and not a flag on the entries**, because a flag travels with a rename: a key
+ * `heldGroup: CHOOSER` becomes `heldName: CHOOSER` and every sweep still passes while the entry a
+ * reviewer reads by name is not the entry any rule looks at. **And it is not derived from "every
+ * function-valued entry"** — eight entries here are functions, four of them about a *host*, and a
+ * chooser defined as "the function-valued ones" would sweep `hostHasMailbox` into a rule about the
+ * chooser and then fail on the very host it is supposed to leave alone.
+ */
+export const PANEL_CHOOSER_KEYS = ["heldGroup", "chooseMailbox", "showingMailbox"] as const;

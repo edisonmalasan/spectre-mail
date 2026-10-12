@@ -59,6 +59,23 @@ const OLDER: Mailbox = createMailbox({
   credentials: { provider: "mailtm", accountId: "older", accessToken: "older-token" },
 });
 
+/**
+ * A third mailbox, and the only reason it exists is that one case needs the **held set itself** to
+ * change while a chooser is still on screen.
+ *
+ * **It is not a fixture added for tidiness: `loadMailboxes` is read once at boot and once after a
+ * creation, so "this device no longer holds what a person chose" is reachable in this tier only
+ * through the creation path.** A case that wanted the change to be *smaller* would re-read the
+ * collection with no address going anywhere, and there is no such read on this surface — which is
+ * itself the property `PanelRecords` documents.
+ */
+const NEWEST: Mailbox = createMailbox({
+  id: "newest-token",
+  address: "newest@sharklasers.com",
+  createdAt: 1_758_000_000_000,
+  credentials: { provider: "guerrilla", sessionId: "newest-token" },
+});
+
 /** One listed message, with the fields a row renders. */
 const LISTED = {
   id: "m1",
@@ -160,21 +177,53 @@ function stubSession(initial: SessionState) {
 function stubRecords(
   options: {
     readonly held?: readonly Mailbox[];
+    /**
+     * What the collection read answers **after the first one**.
+     *
+     * **`loadMailboxes` is read once at boot and once after a creation, and there is no third
+     * call** — so "this device no longer holds what a person chose" is reachable in this tier only
+     * by way of a creation, which is why the case that needs it also presses create. A fixture
+     * that changed the answer on a call count with no creation behind it would be modelling a read
+     * this surface does not perform.
+     *
+     * **The counter exists so the *first* read is unaffected.** The boot read is what decides
+     * whether the panel asks the page anything at all, so a fixture whose boot answer depended on
+     * whether a later creation had happened would be a fixture contradicting itself.
+     */
+    readonly heldAfter?: readonly Mailbox[];
     readonly association?: string | null;
+    /**
+     * A per-host association, consulted **before** `association`.
+     *
+     * **This is what makes "the page beside the panel changes" a fixture that can report a change.**
+     * One `association` for every host would make a two-host case assert the fixture's own
+     * repetition rather than the panel's reaction to two different facts — which is the fourth
+     * recorded shape of a precondition satisfied before the thing under test happened.
+     */
+    readonly associations?: Readonly<Record<string, string | null>>;
     readonly collectionFails?: boolean;
     readonly associationFails?: boolean;
   } = {},
-): PanelRecords & { askedForHost: string[] } {
+): PanelRecords & { askedForHost: string[]; collectionReads: number } {
   const askedForHost: string[] = [];
+  let collectionReads = 0;
 
   return {
     askedForHost,
+    get collectionReads() {
+      return collectionReads;
+    },
     loadMailboxes: async () => {
       if (options.collectionFails === true) {
         throw new Error("this device cannot say what it holds");
       }
 
-      return options.held ?? [MAILBOX];
+      const read = collectionReads++;
+
+      // **The first read is the boot read, and only later ones see a changed set.**
+      return read === 0
+        ? (options.held ?? [MAILBOX])
+        : (options.heldAfter ?? options.held ?? [MAILBOX]);
     },
     loadSiteMailboxId: async (host: string) => {
       askedForHost.push(host);
@@ -183,9 +232,48 @@ function stubRecords(
         throw new Error("this device cannot say what this host used");
       }
 
-      return options.association ?? null;
+      return options.associations?.[host] ?? options.association ?? null;
     },
   };
+}
+
+/**
+ * Every entry of a chooser group, in DOM order, read as **the entry itself** rather than as the
+ * region's text.
+ *
+ * **Why every case here reads the radios and not `panel-held.textContent`, in one place.**
+ *
+ * Before the chooser, an entry was a `<span>` whose whole text was the address, so
+ * `group.textContent` said exactly which addresses the group named and in what order. **That is no
+ * longer true**: an entry's own words are `PANEL_COPY.chooseMailbox(address)`, and the group carries
+ * a sentence naming the mailbox it is showing. `textContent` therefore still *contains* every address
+ * — so every old assertion keeps passing — while saying nothing about whether any of them is offered
+ * **as a control that acts**. A reader counting addresses in one string would be satisfied by the
+ * sentence underneath alone.
+ *
+ * **`addressOf` refuses to guess.** An entry whose text names none of the mailboxes it was given
+ * returns the whole string, so an assertion comparing against an address list fails loudly rather than
+ * passing on a substring match.
+ */
+function entriesOf(
+  group: HTMLElement,
+): { readonly text: string; readonly checked: string | null }[] {
+  return [...group.querySelectorAll<HTMLElement>('[role="radio"]')].map((entry) => ({
+    text: entry.textContent ?? "",
+    checked: entry.getAttribute("aria-checked"),
+  }));
+}
+
+/** The addresses the entries name, in the order they render, or the whole text where none matches. */
+function addressesOf(group: HTMLElement, known: readonly Mailbox[]): string[] {
+  return entriesOf(group).map(
+    ({ text }) => known.find((mailbox) => text.includes(mailbox.address))?.address ?? text,
+  );
+}
+
+/** The address a particular entry names, for a case that presses one and asks what became current. */
+function pressedFor(mailbox: Mailbox): string {
+  return PANEL_COPY.chooseMailbox(mailbox.address);
 }
 
 /**
@@ -201,6 +289,7 @@ function stubRecords(
  */
 function installPlatform(options: {
   readonly host?: string;
+  readonly hostByTab?: (tabId: number) => string | undefined;
   readonly hostAnswer?: unknown;
   readonly answer?: (request: unknown) => unknown;
   readonly createAnswer?: unknown;
@@ -225,12 +314,19 @@ function installPlatform(options: {
           // page that ran and reported nothing usable (`{ kind: "unconfirmed" }`). §4.6 measured
           // that the first two are indistinguishable from the platform's side, and `Panel.tsx`
           // carries one union for both — so a fixture could offer only one of them.
+          //
+          // **`hostByTab` is what a tab switch needs**, because the panel re-asks on every
+          // activation and a switch that answered with one fixed host would make "the page beside
+          // the panel changes" unreachable — the fixture would be asserting a change the platform
+          // never reported.
+          const host = options.hostByTab === undefined ? options.host : options.hostByTab(_tabId);
+
           callback(
             options.hostAnswer !== undefined
               ? options.hostAnswer
-              : options.host === undefined
+              : host === undefined
                 ? undefined
-                : hostContextAnswer(options.host),
+                : hostContextAnswer(host),
           );
           return;
         }
@@ -379,6 +475,41 @@ describe("the panel renders the mailbox beside the page", () => {
 
     await screen.findByText("Your sign-in code");
 
+    /**
+     * **The ninth recorded *precondition* defect, the first this file's own surface shipped, and the
+     * repair is a wait rather than a relaxed assertion.**
+     *
+     * **What the red measured.** Thirty `pnpm verify` runs of this change's tree produced exactly
+     * one red, and it was this case: `AssertionError: expected [] to have a length of 1 but got +0`
+     * on the last line. It was reproduced once in 87 full-gate runs and did not occur in 55 cheaper
+     * runs, so it is **load-sensitive** — a property of one execution's timing and not of the code
+     * it names.
+     *
+     * **The wait above cannot establish what this assertion reads, and reading the two together is
+     * the whole finding.** `findByText("Your sign-in code")` resolves from **synchronous**
+     * `session` state — the stub session publishes its listing on construction — so it returns as
+     * soon as the row is on the page. **The thing this case then asserts about is the platform round
+     * trip, which is asynchronous and is gated on `boot.done`** (`Panel.tsx`'s boot effect sets it
+     * only after `await records.loadMailboxes()` resolves, and the host effect returns early until
+     * it is true). **So the wait released the case while the read it asserted on had not happened
+     * yet**, and `asked === []` meant *the panel had not asked* rather than *the panel asked twice*.
+     * It is the same defect this repository has recorded against `Popup.spec.ts`'s *"waiting for the
+     * address to appear does not wait for the `saveMailbox` write"*, on a different surface: **a
+     * visible signal and the work behind it are not the same moment**, and one of the two here is
+     * synchronous.
+     *
+     * **The repair waits on the panel's own output rather than on the recorder, and that choice is
+     * the reason it is not circular.** `asked.push` happens when the question is asked; the host
+     * sentence renders only after `resolveThePage` has published the reading **and** awaited
+     * `loadSiteMailboxId`, so *"the host line stopped saying it was asking"* is strictly **later**
+     * than the push. **A `waitFor` on `platform.asked` itself would also pass — four cases in this
+     * file already use that shape — but it would wait on the very thing being counted**, and the
+     * count assertion is the one thing this case adds to the listing it already covers.
+     */
+    await waitFor(() => {
+      expect(screen.getByTestId("panel-host").textContent).not.toMatch(/asking/i);
+    });
+
     // **Named by what the control says, not by a fragment of it** — "Read" is the row's whole
     // accessible name, and matching `/open/i` would have found nothing at all while looking as
     // though it had looked in the right place.
@@ -386,7 +517,8 @@ describe("the panel renders the mailbox beside the page", () => {
 
     expect(session.openMessage).toHaveBeenCalledWith("m1");
     // **The host question was asked once, and the listing cost nothing of the panel's own** — the
-    // listing came from the session the popup also drives.
+    // listing came from the session the popup also drives. **The count is still an exact count**:
+    // the wait above establishes *at least one*, and this line is what would fail a second ask.
     expect(platform.asked).toHaveLength(1);
   });
 
@@ -617,13 +749,33 @@ describe("the panel renders the mailbox beside the page", () => {
 
     const list = await screen.findByTestId("panel-held");
 
-    expect(list.textContent).toContain(MAILBOX.address);
-    expect(list.textContent).toContain(OLDER.address);
-    // **Newest first**, because that is the order `loadInsertableMailboxes` promises and an order
-    // this surface sorts for itself would be a second spelling of that contract.
-    expect((list.textContent ?? "").indexOf(MAILBOX.address)).toBeLessThan(
-      (list.textContent ?? "").indexOf(OLDER.address),
-    );
+    /**
+     * **Read through the entries rather than through the container's `textContent`, and that is what
+     * this case's re-point was for.**
+     *
+     * Every entry is now a control whose own words are *"Show `<address>` in this panel"*, and the
+     * group carries a sentence saying which mailbox it is showing. **`textContent` would still
+     * contain both addresses, so the old assertions would have kept passing while asserting less**
+     * — the whole region's text would satisfy "names this address" whether the address was in an
+     * entry, in the sentence underneath, or in a comment that had not been typed yet. Reading the
+     * entries restores what the case was written to say.
+     *
+     * **One array against two addresses says both halves of the case at once** — it is exactly
+     * `held`, and it is `held` in order. **The order is read from the array of entries rather than
+     * from two `indexOf` calls on one string**, because a single string cannot say *which entry* came
+     * first: it says only that one address appears before another, which a group whose heading
+     * happened to name the newer mailbox would satisfy.
+     */
+    expect(addressesOf(list, [MAILBOX, OLDER])).toEqual([MAILBOX.address, OLDER.address]);
+
+    // **Each entry reads as a control that acts rather than as text**, which is what `extension-client`
+    // now requires of the list — and it is the half `textContent` could never have said. A chooser
+    // offering a mailbox this device cannot find would also be offering to read something that does
+    // not exist here, so the addresses are matched exactly rather than by containment.
+    expect(entriesOf(list).map((entry) => entry.text)).toEqual([
+      PANEL_COPY.chooseMailbox(MAILBOX.address),
+      PANEL_COPY.chooseMailbox(OLDER.address),
+    ]);
   });
 
   it("offers to create when this device holds nothing, and names no address as being that page's", async () => {
@@ -722,16 +874,25 @@ describe("the panel names the page beside it", () => {
     } as unknown as SessionState);
   }
 
-  /** Mount a panel and wait until it has finished asking the page about itself. */
+  /**
+   * Mount a panel and wait until it has finished asking the page about itself.
+   *
+   * **The platform is returned as well as the session**, because a choice is only worth making if
+   * something can afterwards be asked of it: the tab switch that must carry the choice back to the
+   * rule's answer, and the tab switch that must not. Without the platform a case could establish a
+   * selection and then assert nothing about what happens afterwards — which is the recorded shape
+   * of `design.md` D10's reworded scenario, whose whole content is *"and it is still there"*.
+   */
   async function mount(
     options: {
       readonly host?: string;
+      readonly hostByTab?: (tabId: number) => string | undefined;
       readonly hostAnswer?: unknown;
       readonly noActiveTab?: boolean;
     },
     records: PanelRecords,
   ) {
-    installPlatform(options);
+    const platform = installPlatform(options);
     const session = readySession();
 
     render(<Panel session={session} records={records} primaryProviderName="Mail.tm" />);
@@ -754,7 +915,7 @@ describe("the panel names the page beside it", () => {
      */
     await act(async () => undefined);
 
-    return session;
+    return { session, platform };
   }
 
   it("names the host the page beside it reported, and the mailbox last used on it", async () => {
@@ -864,8 +1025,11 @@ describe("the panel names the page beside it", () => {
       expect(screen.getByTestId("panel-host").textContent).toMatch(/not one SpectreMail runs on/i);
     });
     // **A page this extension does not reach is not a fault in the panel**, so the rest of it keeps
-    // working: the mailboxes this device holds are still named, in full.
-    expect(screen.getByTestId("panel-held").textContent).toContain(OLDER.address);
+    // working: the mailboxes this device holds are still offered, each as a control.
+    expect(addressesOf(screen.getByTestId("panel-held"), [MAILBOX, OLDER])).toEqual([
+      MAILBOX.address,
+      OLDER.address,
+    ]);
   });
 
   /**
@@ -933,14 +1097,19 @@ describe("the panel names the page beside it", () => {
       expect(screen.queryByTestId("message-list")).toBeNull();
 
       /**
-       * **And the inventory this device does hold is still shown**, under its own heading — the
+       * **And the inventory this device does hold is still offered**, under its own heading — the
        * positive control. Without it, "no mailbox offered" would be satisfied by a panel that had
        * simply rendered nothing, which is the fake-UI defect this whole repair exists to remove.
+       *
+       * **Read through the entries, because the chooser added a second way for an address to be on
+       * this page.** The sentence naming the mailbox this view is showing carries one too, so
+       * `textContent` would satisfy both assertions from that sentence alone — which is a claim about
+       * a mailbox the device holds, offered as something a person can act on. That is not what this
+       * control asserts, and it is not what the requirement asks for here.
        */
       const heldList = screen.getByTestId("panel-held");
 
-      expect(heldList.textContent).toContain(MAILBOX.address);
-      expect(heldList.textContent).toContain(OLDER.address);
+      expect(addressesOf(heldList, [MAILBOX, OLDER])).toEqual([MAILBOX.address, OLDER.address]);
     });
 
     it("does not claim this device holds nothing", async () => {
@@ -1072,7 +1241,7 @@ describe("the panel names the page beside it", () => {
   });
 
   it("restores the mailbox this page resolves to and never opens a new one", async () => {
-    const session = await mount(
+    const { session } = await mount(
       { host: "signup.example.test" },
       stubRecords({ held: [OLDER, MAILBOX], association: OLDER.id }),
     );
@@ -1111,5 +1280,485 @@ describe("the panel names the page beside it", () => {
     // reconciles by asking the provider, so re-running it on every switch would be a request per
     // tab change for a mailbox the panel is already showing.
     expect(session.restore).not.toHaveBeenCalled();
+  });
+
+  /**
+   * **The chooser, and every case here is a decision about where a choice stops applying.**
+   *
+   * **`design.md` D2 made the choice carry the host it was made for**, and that is why these are
+   * seven cases rather than one: a choice that is simply a mailbox id would satisfy the first case
+   * and every one of the other six, and `D10`'s two regression guards are exactly the two that would
+   * catch it. **Each is proven by a mutation rather than by reading the implementation** — see
+   * `tasks.md` 6.3 — because the failure this guards against is a panel that *looks* right beside
+   * one page and carries somebody else's mailbox into another.
+   */
+  describe("choosing a mailbox beside the page", () => {
+    /** Two addresses on this device, and this host last used the newer of them. */
+    const HELD = [MAILBOX, OLDER] as const;
+
+    /**
+     * Press the entry for one mailbox and wait for the panel to publish the consequence.
+     *
+     * **Waited rather than read straight after the click**, because `choose` is a `setState` and
+     * the restore it triggers is `void`-ed — the same reason the fill case waits on `delivered`.
+     */
+    async function press(mailbox: Mailbox) {
+      fireEvent.click(await screen.findByRole("radio", { name: pressedFor(mailbox) }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("panel-held")).toBeDefined();
+      });
+    }
+
+    it("makes the chosen mailbox the one the panel shows, and hands the session that one", async () => {
+      const { session } = await mount(
+        { host: "signup.example.test" },
+        stubRecords({ held: HELD, association: MAILBOX.id }),
+      );
+
+      // **The positive control for everything below it.** Without a selection established first,
+      // every assertion about what a choice changed is satisfied by a panel that never had one —
+      // and `D10`'s reworded scenario (*"a chosen mailbox is still there"*) is satisfied for the
+      // wrong reason by a chooser nobody pressed. This is the repository's recorded *precondition*
+      // shape, and this arm is where it would otherwise have been filed as coverage.
+      expect(screen.getByTestId("panel-address").textContent).toContain(MAILBOX.address);
+
+      await press(OLDER);
+
+      // **The address section follows the choice** — D4's whole content.
+      expect(screen.getByTestId("panel-address").textContent).toContain(OLDER.address);
+      expect(screen.getByTestId("panel-address").textContent).not.toContain(MAILBOX.address);
+
+      // **Exactly one restore, naming the chosen record.** `restore` reconciles by asking the
+      // provider, so a choice that restored twice would cost two requests to show one mailbox —
+      // and the count is asserted rather than the call, because "last called with" is satisfied by
+      // a second call that happened to agree with it.
+      expect(session.restore).toHaveBeenCalledTimes(1);
+      expect(session.restore).toHaveBeenCalledWith(OLDER);
+      // **And never a creation**: the panel beside a page must not make an address.
+      expect(session.open).not.toHaveBeenCalled();
+
+      // **Both entries are still offered, and only the chosen one is checked.** Offering only the
+      // chosen mailbox would make this a `<p>`, which is what the panel shipped before this change
+      // and what D9 forbids.
+      const held = screen.getByTestId("panel-held");
+      expect(addressesOf(held, HELD)).toEqual([MAILBOX.address, OLDER.address]);
+      expect(entriesOf(held).map((entry) => entry.checked)).toEqual(["false", "true"]);
+
+      // **And it says in words which mailbox it is about**, because `aria-checked` alone reads as
+      // correct to assistive technology and as *which one?* to a person (D6).
+      expect(screen.getByText(PANEL_COPY.showingMailbox(OLDER.address))).toBeDefined();
+    });
+
+    it("still says what the host was last used with, while showing somebody else's choice", async () => {
+      /**
+       * **The D4 guard, and it exists because two values in this component are nearly the same
+       * thing.**
+       *
+       * `record` is what the view is *about*; `associatedRecord` is what the host was *last used
+       * with*. Before a choice they are the same value, so a host sentence reading the wrong one is
+       * indistinguishable from a correct panel — **right up until somebody chooses.** Reading
+       * `record` here would rewrite the sentence to say the choice was *this host's*, which is the
+       * one thing a transient choice must never claim.
+       *
+       * **And this is the arm that catches it.** The mutation is a one-word change from
+       * `associatedRecord` to `record`, and nothing else in the suite can see it: the address
+       * section, the `aria-checked` values and the session are all identical either way.
+       */
+      await mount(
+        { host: "signup.example.test" },
+        stubRecords({ held: HELD, association: MAILBOX.id }),
+      );
+
+      await press(OLDER);
+
+      const line = screen.getByTestId("panel-host");
+      expect(line.textContent).toContain("signup.example.test");
+      expect(line.textContent).toContain(MAILBOX.address);
+      // **And not the chosen one** — this is the half that fails under the mutation, because the
+      // sentence's other half still passes.
+      expect(line.textContent).not.toContain(OLDER.address);
+      // **Spelled as a claim rather than as a pattern**, so a sentence rewritten in other words
+      // fails rather than satisfying a sweep for one phrase.
+      expect(line.textContent).not.toMatch(/no longer on this device/i);
+    });
+
+    it("keeps the choice when the same host is asked about again", async () => {
+      /**
+       * **`D10`'s reworded scenario — "a chosen mailbox is still there" — and the positive control
+       * is the half that matters.**
+       *
+       * The panel re-asks on every tab activation (§4.6 measured `chrome.tabs.onActivated` reaching a
+       * context holding no `tabs` permission), so a naive `resolution` recomputed from
+       * `chosen.mailboxId` alone would be overwritten by the rule's answer the moment the same host
+       * reported again. **A fixed `host` makes both activations name the same page**, so the only
+       * thing that could drop the choice is the recomputation itself.
+       *
+       * **Without the pre-switch assertion this case passes on a panel whose choice never took**,
+       * which is why the establishment of the selection is not left to the previous case: each case
+       * here has to establish its own precondition, because `design.md` D10's sentence is about
+       * persistence and persistence is not established by a neighbouring test.
+       */
+      const { session, platform } = await mount(
+        { hostByTab: () => "signup.example.test" },
+        stubRecords({ held: HELD, association: MAILBOX.id }),
+      );
+
+      await press(OLDER);
+      expect(screen.getByTestId("panel-address").textContent).toContain(OLDER.address);
+
+      const restoresBefore = session.restore.mock.calls.length;
+
+      platform.activate(9);
+
+      await waitFor(() => {
+        expect(platform.asked).toHaveLength(2);
+      });
+
+      expect(screen.getByTestId("panel-address").textContent).toContain(OLDER.address);
+      expect(entriesOf(screen.getByTestId("panel-held")).map((entry) => entry.checked)).toEqual([
+        "false",
+        "true",
+      ]);
+      expect(screen.getByText(PANEL_COPY.showingMailbox(OLDER.address))).toBeDefined();
+
+      /**
+       * **And the re-ask cost no second restore of the same mailbox**, which is the older guard's
+       * property and must survive the choice: `restore` reconciles with the provider, so re-running
+       * it on every activation would be a request per tab change for a mailbox already showing.
+       *
+       * **Asserted as a count rather than as the call list**, because a count is what the claim is:
+       * "no cost" is not "the same argument again".
+       */
+      expect(session.restore).toHaveBeenCalledTimes(restoresBefore);
+      expect(session.open).not.toHaveBeenCalled();
+    });
+
+    it("returns to the rule's answer when the page beside the panel changes", async () => {
+      /**
+       * **The first of `D10`'s two regression guards, and the one that makes the choice's host key
+       * load-bearing.**
+       *
+       * A choice with no host key survives *every* host change, so this panel would keep showing the
+       * mailbox a person picked beside a **different site** — the panel's whole hazard, and the one
+       * `resolve-for-host.ts` exists to prevent for associations. **The fixture has to be able to
+       * report a different host**, so `hostByTab` answers per tab and `associations` is consulted per
+       * host: with one fixed `association` both hosts would resolve to the same mailbox and the
+       * assertion would be satisfied by the fixture's own repetition.
+       *
+       * **The chosen mailbox is deliberately one the *first* host does not resolve to**, so a press
+       * is a real change and the pre-switch reading cannot be mistaken for it.
+       */
+      const { platform } = await mount(
+        {
+          hostByTab: (tabId) => (tabId === 7 ? "first.example.test" : "second.example.test"),
+        },
+        stubRecords({
+          held: [MAILBOX, OLDER, NEWEST],
+          // **The three mailboxes are distinct on purpose.** `OLDER` is the choice and `NEWEST` is
+          // what the *second* host resolves to, so *"the choice carried over"* and *"the rule
+          // decided again"* are two different readings. **A fixture whose second host resolved to
+          // the chosen mailbox could not tell them apart** — and this case existed to be the one
+          // that can.
+          associations: { "first.example.test": MAILBOX.id, "second.example.test": NEWEST.id },
+        }),
+      );
+
+      // **The page beside the panel is `first.example.test`, which resolves to `MAILBOX`.**
+      expect(screen.getByTestId("panel-host").textContent).toContain("first.example.test");
+      expect(screen.getByTestId("panel-address").textContent).toContain(MAILBOX.address);
+
+      await press(OLDER);
+      expect(screen.getByTestId("panel-address").textContent).toContain(OLDER.address);
+
+      platform.activate(9);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("panel-host").textContent).toContain("second.example.test");
+      });
+
+      /**
+       * **The rule's answer for the *new* host, and not the choice.**
+       *
+       * This is the assertion that makes `D10`'s first regression guard falsifiable. A choice with
+       * no host key satisfies every other assertion in this case — the host sentence still names
+       * `second.example.test`, because `associatedRecord` is re-read per host either way — and
+       * fails **only here**, because `OLDER` is not what `second.example.test` resolves to.
+       */
+      expect(screen.getByTestId("panel-address").textContent).toContain(NEWEST.address);
+      expect(screen.getByTestId("panel-address").textContent).not.toContain(OLDER.address);
+      expect(screen.getByText(PANEL_COPY.showingMailbox(NEWEST.address))).toBeDefined();
+
+      // **And the entry is checked on the mailbox the rule reached for**, so the difference is in
+      // the chooser and not only in the sentence above it.
+      expect(entriesOf(screen.getByTestId("panel-held")).map((entry) => entry.checked)).toEqual([
+        "false",
+        "false",
+        "true",
+      ]);
+
+      /**
+       * **And the host sentence moved with the page** — it names what *the new host* was last used
+       * with, which is `NEWEST`, not the mailbox a person had chosen for the old one. This is
+       * `D4`'s two-values rule again, in the only configuration where the two can differ, and it
+       * is the second half of the guard: under a choice with no host key the address section is
+       * wrong *and* the sentence is wrong, and a case asserting only one of them would report a
+       * catch it had only half earned.
+       */
+      expect(screen.getByTestId("panel-host").textContent).toContain("second.example.test");
+      expect(screen.getByTestId("panel-host").textContent).toContain(NEWEST.address);
+      expect(screen.getByTestId("panel-host").textContent).not.toContain(OLDER.address);
+    });
+
+    it("changes only what is shown when the page beside it cannot be named", async () => {
+      /**
+       * **`D10`'s second regression guard, and it is the half that is easy to get wrong in the
+       * *helpful* direction.**
+       *
+       * `hostKey` is `""` for every reading that named no host, so a choice made there is recorded
+       * against `""` and matches `hostKey` on the next resolution — which is what lets a person
+       * choose beside a page the panel cannot name at all. **The alternative "repair" would be to
+       * suppress the chooser beside an unnamed page**, and that would be the *loss* of a capability
+       * to prevent a leak: it would make this case pass by removing the feature.
+       *
+       * **So the assertions are all about what did not change.** A choice changes what the panel
+       * shows; it must not make the panel able to say which mailbox belongs to the page, because
+       * the panel still cannot name the page.
+       */
+      const { session } = await mount(
+        { hostAnswer: hostContextAnswer(undefined) },
+        stubRecords({ held: HELD, association: MAILBOX.id }),
+      );
+
+      // **Nothing is claimed about the page, before anything is chosen** — the precondition this
+      // case's later assertions depend on.
+      expect(screen.queryByTestId("panel-address")).toBeNull();
+
+      await press(OLDER);
+
+      // **Still no address section**, and still no inbox: a choice moved the view, not the panel's
+      // knowledge of the page.
+      expect(screen.queryByTestId("panel-address")).toBeNull();
+      expect(screen.queryByTestId("message-list")).toBeNull();
+      // **And no restore** — D3's *"a chosen mailbox needs no arming of its own"* has to hold for the
+      // unnamed arm too, and a restore here would hand the session a mailbox for a page this panel
+      // cannot name, which is the hazard `panel-address`'s absence exists to prevent.
+      expect(session.restore).not.toHaveBeenCalled();
+      expect(session.open).not.toHaveBeenCalled();
+
+      // **Both entries are still offered and the chosen one is checked**, which is what says the
+      // choice took effect at all: a panel that ignored the press satisfies every absence
+      // assertion above.
+      const held = screen.getByTestId("panel-held");
+      expect(addressesOf(held, HELD)).toEqual([MAILBOX.address, OLDER.address]);
+      expect(entriesOf(held).map((entry) => entry.checked)).toEqual(["false", "true"]);
+      expect(screen.getByText(PANEL_COPY.showingMailbox(OLDER.address))).toBeDefined();
+    });
+
+    it("refuses a chosen mailbox this device no longer holds", async () => {
+      /**
+       * **The stale-choice arm, and reaching it needs a creation because the collection is read
+       * exactly twice.**
+       *
+       * `PanelRecords` documents that: `loadMailboxes` is read once at boot and once after a
+       * creation, and there is no third call. **A fixture that changed the answer on a call count
+       * with no creation behind it would be modelling a read this surface does not perform**, which
+       * is why this case presses *create* and rides the second read rather than reaching for a
+       * fake the panel does not have.
+       *
+       * **The fallback is to the rule's answer rather than to nothing**, and the rule is `null` for
+       * an unnamed host — so the arms are chosen to tell those apart: `MAILBOX` survives the
+       * creation as this host's mailbox, so "falls back to the rule" and "shows nothing" are two
+       * different readings and the assertions below distinguish them.
+       */
+      const platform = installPlatform({
+        hostAnswer: hostContextAnswer(undefined),
+        // **A `created` answer is what makes the panel re-read the collection at all** — every other
+        // answer reports and returns without reading (`Panel.tsx`'s `create`), so a fixture that
+        // staged the refused arm would leave the held set unchanged and this case would pass for the
+        // wrong reason.
+        createAnswer: { kind: "created", address: NEWEST.address, mailboxId: NEWEST.id },
+      });
+      const session = readySession();
+      const records = stubRecords({
+        held: HELD,
+        heldAfter: [NEWEST, MAILBOX],
+        association: MAILBOX.id,
+      });
+
+      render(<Panel session={session} records={records} primaryProviderName="Mail.tm" />);
+
+      await screen.findByTestId("panel-held");
+
+      // **The choice is established and shown first** — without this, "no longer checked" is
+      // satisfied by a chooser that was never pressed.
+      await press(OLDER);
+      expect(entriesOf(screen.getByTestId("panel-held")).map((entry) => entry.checked)).toEqual([
+        "false",
+        "true",
+      ]);
+
+      // **The creation is what changes the held set.** `NEWEST` is handed in as the answer rather
+      // than being fabricated by the panel, so the case is about the *choice* going stale and not
+      // about what a creation produces.
+      fireEvent.click(await screen.findByRole("button", { name: PANEL_COPY.createForUnnamedPage }));
+
+      await waitFor(() => {
+        expect(platform.created).toEqual([{ kind: "spectre:create-mailbox" }]);
+      });
+
+      await waitFor(() => {
+        expect(records.collectionReads).toBeGreaterThan(1);
+      });
+
+      // **`OLDER` is gone from what this device holds, so nothing is checked** — a chooser able to
+      // select an absent mailbox would be offering to read something that does not exist here, and
+      // that is the same hazard `resolve-for-host.ts` guards against for a stale association.
+      expect(screen.queryByText(PANEL_COPY.showingMailbox(OLDER.address))).toBeNull();
+      expect(entriesOf(screen.getByTestId("panel-held")).map((entry) => entry.checked)).toEqual([
+        "false",
+        "false",
+      ]);
+
+      // **And the stale choice fell back to the rule's answer, which here is nothing at all** — the
+      // page named no host, so `byRule` is `null` and the panel shows nothing. **That is the arm
+      // that distinguishes *"refused"* from *"silently showed the newest"*, and it is asserted as
+      // an absence rather than by naming a mailbox this panel has no grounds to name**: `MAILBOX`
+      // is still held, and a chooser falling back to the newest would have named it.
+      expect(screen.queryByText(PANEL_COPY.showingMailbox(NEWEST.address))).toBeNull();
+      expect(screen.queryByText(PANEL_COPY.showingMailbox(MAILBOX.address))).toBeNull();
+      expect(screen.queryByTestId("panel-address")).toBeNull();
+    });
+
+    it("writes nothing when a person chooses", async () => {
+      /**
+       * **The write-avoidance claim, and it is asserted with a recorder rather than with a spy on
+       * the two read methods.**
+       *
+       * `PanelRecords` is a read-only contract — it has no write member at all — so a panel that
+       * wrote anything would have to reach `chrome.storage` through `extension-platform.ts`, which
+       * this unit tier does not install. **A recorder over the two reads is therefore a statement
+       * about the panel's own behaviour, not about the platform's**, and the non-empty positive
+       * control is what stops it being vacuous: a recorder that recorded nothing would satisfy
+       * "no new reads" without ever having watched one.
+       */
+      const reads: string[] = [];
+      const records: PanelRecords = {
+        loadMailboxes: async () => {
+          reads.push("loadMailboxes");
+
+          return [...HELD];
+        },
+        loadSiteMailboxId: async (host) => {
+          reads.push(`loadSiteMailboxId:${host}`);
+
+          return MAILBOX.id;
+        },
+      };
+
+      const { session, platform } = await mount({ host: "signup.example.test" }, records);
+
+      /**
+       * **The positive control: the recorder has watched real reads, so its silence afterwards
+       * means something.** Without it, "the call list is unchanged" is satisfied by a recorder that
+       * recorded nothing at all.
+       */
+      expect(reads).toEqual(["loadMailboxes", "loadSiteMailboxId:signup.example.test"]);
+
+      await press(OLDER);
+
+      expect(screen.getByTestId("panel-address").textContent).toContain(OLDER.address);
+
+      // **No read of either kind happened because of the press.** The boot read is the whole list,
+      // and it is asserted as the *exact* list rather than as its length: a length would be
+      // satisfied by a re-read of one method in place of another.
+      expect(reads).toEqual(["loadMailboxes", "loadSiteMailboxId:signup.example.test"]);
+      // **And the platform was asked about the page exactly once**, so the choice did not re-ask
+      // the content script — a re-ask is what would let a *changed* host quietly replace the
+      // choice rather than the rule replacing it.
+      expect(platform.asked).toHaveLength(1);
+      expect(session.restore).toHaveBeenCalledTimes(1);
+      expect(session.restore).toHaveBeenCalledWith(OLDER);
+    });
+
+    it("offers a device holding exactly one mailbox no chooser to choose with", async () => {
+      /**
+       * **The gate, and it is the half of `tasks.md` 3.2's *"a case asserting the gate"* that the
+       * falsification pass found missing rather than merely unproven.**
+       *
+       * **`held.length > 1` had a positive half and no negative one.** Seven chooser cases and four
+       * other arms all hold two or more addresses, so the `> 2` mutation was caught by nine cases
+       * while the `> 0` mutation — which gives a device holding exactly one mailbox a chooser of one —
+       * left the whole file green. **That is the recorded shape of a check narrower than its rule, and
+       * it is here in the half nobody reads:** a gate proven to open at two is not a gate proven to
+       * stay shut at one, and only one of those two directions was held by anything.
+       */
+      await mount(
+        { host: "signup.example.test" },
+        stubRecords({ held: [MAILBOX], association: MAILBOX.id }),
+      );
+
+      /**
+       * **The positive control, and it is what makes the absence below mean anything.**
+       *
+       * `resolution` is `resolveForHost(held, hostKey, associated)` — **the held list is an argument
+       * to the rule, not a decoration beside it** — so the address section naming this device's one
+       * mailbox is proof that `held` was read and resolved against. Without it, *"offers no chooser"*
+       * is satisfied by a panel whose held list never arrived at all, which is the whole of what
+       * `queryByTestId` cannot tell apart: an absent element and an element whose `data-testid` was
+       * deleted read identically.
+       */
+      expect(screen.getByTestId("panel-address").textContent).toContain(MAILBOX.address);
+
+      // **The gate itself, read as the absence of the group.**
+      expect(screen.queryByTestId("panel-held")).toBeNull();
+
+      // **And read as the absence of a control, which is how a person meets it** — a `radiogroup` of
+      // one is a group offering no choice, and a control set that cannot act on anything is exactly
+      // what `design.md` D9 refuses to ship. Asserting only the `data-testid` above would be
+      // satisfied by a chooser that rendered every entry and dropped the id.
+      expect(screen.queryByRole("radio")).toBeNull();
+      expect(screen.queryByRole("radiogroup")).toBeNull();
+
+      // **And the sentence about which mailbox is on screen is withheld with it**, because that
+      // sentence is part of the chooser and would otherwise be a lone "this panel is showing …" line
+      // on a panel that offers nothing to show instead.
+      expect(screen.queryByText(PANEL_COPY.showingMailbox(MAILBOX.address))).toBeNull();
+    });
+
+    it("names the chooser group for what it is for, from the one copy entry that says so", async () => {
+      /**
+       * **The group's own accessible name, and it exists because `panel-copy.ts` says why the list
+       * carries two sentences rather than one.**
+       *
+       * The `<h2>` above the group names *the list*; the group's `aria-label` names *what the list is
+       * for*, and `panel-copy.test.ts` holds the second sentence's words. **What nothing held was the
+       * binding between them**: rewiring `aria-label={PANEL_COPY.heldGroup}` to a literal left every
+       * case green, because the copy suite tests the module and the panel suite tests the entries —
+       * and neither one reads the sentence the other one owns. **Two suites each holding one end of a
+       * wire is this repository's recorded `heldGroup: CHOOSER` shape arriving one level up.**
+       */
+      await mount(
+        { host: "signup.example.test" },
+        stubRecords({ held: HELD, association: MAILBOX.id }),
+      );
+
+      // **The positive control: the group is on screen and it is a group.** Without it, a name
+      // assertion is satisfied by a panel that renders no chooser at all.
+      const group = screen.getByTestId("panel-held");
+      expect(group.getAttribute("role")).toBe("radiogroup");
+      expect(group.querySelectorAll('[role="radio"]')).toHaveLength(HELD.length);
+
+      // **The binding itself, read the way assistive technology reads it** — by accessible name over
+      // the role, rather than by the attribute, so a group that carried the sentence somewhere
+      // `aria-label` does not reach would fail rather than pass.
+      expect(screen.getByRole("radiogroup", { name: PANEL_COPY.heldGroup })).toBe(group);
+      expect(group.getAttribute("aria-label")).toBe(PANEL_COPY.heldGroup);
+
+      // **And it is not the heading's sentence**, so the two are still doing different work — the
+      // `<h2>` names the list, the group names its purpose, and one string doing both would mean one
+      // of the two claims was never made.
+      expect(PANEL_COPY.heldGroup).not.toBe(PANEL_COPY.heldHeading);
+    });
   });
 });

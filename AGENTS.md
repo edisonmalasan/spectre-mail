@@ -907,24 +907,48 @@ Pin versions when exact versions matter.
   no extension build step — that is M8" became false at M8 and is deleted rather than
   reworded.**
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running **1093 tests across
-  58 files** via `pnpm test` (2026-10-11, at `incoming-mail-notification`'s apply stage, and
-  **re-measured at `side-panel-runtime-facts`'s apply stage with every figure identical**, with
-  `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory), counted from a
+- Testing: Vitest `3.2.7` at the workspace root, verified running **1201 tests across
+  62 files** via `pnpm test` (2026-10-12, at `panel-mailbox-choice`'s apply stage, and
+  **re-measured with `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory** on three separate
+  `pnpm verify` runs, each exit `0`), counted from a
   JSON reporter **grouped by project** rather than read off a summary line:
   54 in `packages/core`, 92 in `packages/providers`, **149 in `packages/mail-parser`**,
   **166 in `packages/mailbox`**, **125 in `apps/web`**,
   **86 in `packages/storage`** (7 stored record, 11 mailbox collection, 30 IndexedDB adapter,
   11 site associations, 7 browser entry point, 12 `chrome.storage` adapter,
   **8 seen-message record**),
-  **330 in `apps/extension`** (**25** in `content-script.test.ts`, **64** in `protocol.test.ts`,
-  **64** in `extension-platform.test.ts`, **23** in `content-script-fill.test.ts`, **22** in
-  `code-field.test.ts`, **25** in `Popup.test.tsx`, **17** in `content-script-create.test.ts`,
-  **9** in `content-script-associations.test.ts`, **11** in `create-mailbox.test.ts`, **9** in
-  `storage.test.ts`, **9** in `provider-config.test.ts`, **17** in `background-check.test.ts`,
+  **438 in `apps/extension`** across **21** files (**25** in `content-script.test.ts`,
+  **101** in `protocol.test.ts`, **70** in `extension-platform.test.ts`, **23** in
+  `content-script-fill.test.ts`, **22** in `code-field.test.ts`, **25** in `Popup.test.tsx`,
+  **38** in `Panel.test.tsx`, **5** in `panel-copy.test.ts`, **17** in
+  `content-script-create.test.ts`, **9** in `content-script-associations.test.ts`, **11** in
+  `create-mailbox.test.ts`, **9** in `storage.test.ts`, **9** in
+  `provider-config.test.ts`, **17** in `background-check.test.ts`,
   **11** in `notification.test.ts`, **7** in `alarms.test.ts`,
+  **17** in `content-script-handlers.test.ts`, **12** in `content-script-host-context.test.ts`,
   **5** in `popup-copy.test.ts`, **8** in `service-worker.test.ts`, **4** in `scheduler.test.ts`),
   **38 in `packages/ui`**, and **53 architecture boundary assertions**.
+  **This figure was stale by a milestone and is corrected here rather than left, and the reason
+  matters more than the number:** it read **1093 across 58 files**, which was accurate at
+  `incoming-mail-notification` and at `side-panel-runtime-facts`, and **`side-panel-surface`
+  moved it to 1187/61 without this paragraph being updated** — so the figure a reader would have
+  compared against was two milestones stale, and **a count nobody re-ran is a count nobody
+  checked**. Every figure above was therefore taken from a `--reporter=json` run **grouped by
+  project**: the current tree's totals from the runs this change made, and the **baseline** they
+  are compared against from a **`git worktree` at `7a6e875`** — and in both cases by
+  running the reporter, never by reading this file or a previous session's summary.
+  **`AGENTS.md` is listed in `.prettierignore`, so `pnpm format:check` is not a gate over
+  this paragraph at all**, which is recorded here because a green `pnpm verify` says nothing
+  about the lines it is standing on.
+  **`panel-mailbox-choice` moved `apps/extension` 424 -> 438 and moved nothing else**, and the
+  arithmetic accounts for all fourteen: **`panel-copy.test.ts` is new at 5** and **`Panel.test.tsx`
+  went 29 -> 38**, +9. `apps/web` is still **125**, which is how the change shows it touched no
+  website at all; `packages/storage` is still **86** and `git diff --stat` over that package is
+  **empty**, which is what makes its note-correction a measurement rather than a promise; **`packages/ui`
+  is still 38 for the eleventh time**, because the change adds no token and no motion; and **the
+  boundary count is still 53** — the same *no rule was added because every property already had an
+  instrument* result `incoming-mail-notification` reached, with the table naming each instrument in
+  the change's own `tasks.md` 4.3 rather than in a note here.
   **`side-panel-runtime-facts` moved no total at all, and that is the whole claim.** It is a
   measurement spike: it ships one `.mjs` and one fixture, **zero files under `apps/extension/src/`
   and a byte-identical `apps/extension/static/manifest.json`**, so `apps/extension` is still
