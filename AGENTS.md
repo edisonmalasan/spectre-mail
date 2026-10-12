@@ -16,23 +16,35 @@
 > open the PR and a predicted PR number in a document other stages cite by name is a figure
 > nobody counted** — `gh pr view` filled it in one command afterwards, which is the honest
 > order. **Unlike the spike it declares no `skip_specs`, so it had a real sync
-> stage and the promoted counts are now 166 requirements and 520 scenarios across the same
+> stage and the promoted counts stood at 166 requirements and 520 scenarios across the same
 > 14 capabilities** — `extension-client` 10 → 12 and `in-page-integration` 16 → 17, **three
 > requirements rather than five because two of its five blocks are `MODIFIED` and each
 > replaces rather than adds, the fourth milestone to produce that arithmetic.** Re-counted by
-> heading *after* the archive rather than carried forward: **166/520, unmoved**, with
+> heading *after* the archive rather than carried forward: **166/520, unmoved by that stage**, with
 > `openspec validate --specs --strict` at **14 passed, 0 failed**, the archive having moved **6
 > files every one byte-identical to its pre-archive original with `.openspec.yaml` kept**,
 > `openspec/specs/` byte-identical throughout, and all **5 promoted blocks byte-identical to
 > the archived deltas** against a freshly written reader.
+>
+> **`panel-mailbox-choice`'s sync has since moved the scenario count and the requirement count
+> not at all: `openspec/specs/` now holds 166 requirements and 527 scenarios across the same
+> 14 capabilities**, re-counted by heading across the tree after the promotion and counted
+> twice, with `openspec validate --specs --strict` at **14 passed, 0 failed** — `extension-client`
+> **12 → 12 requirements and 52 → 58 scenarios**, `in-page-integration` **17 → 17 and 67 → 68**.
+> **Three blocks promoted and zero requirements added is the first time in this repository
+> that every promoted block replaced rather than added**, so the block count (3) is not the
+> requirement delta (0) and a reader expecting either figure from the other would be wrong. The
+> scenario delta of **+7** is the sum of **+5, +1 and +1** and was measured rather than
+> predicted. **Two `docs/ROADMAP.md` figures quote the superseded 166/520 and were left for
+> the root orchestrator, which owns that file.**
 >
 > **The side panel is therefore no longer a surface `page-composition` declares absent by
 > requirement — it ships.** It names the host of the page beside it and re-asks on a tab
 > switch, and it does so over the route the spike priced as free: **the content-script round
 > trip and not the `tabs` permission**, so `tab.url` stays withheld and no permission was added
 > to read it. **The answer is a hostname and nothing else**, because a signup page's query
-> string is where its tokens are. **The cursor moves to M11 slice 2, now PROPOSED as
-> `panel-mailbox-choice`** — and it is **one item, not the two `docs/ROADMAP.md`'s Project Status
+> string is where its tokens are. **The cursor moves to M11 slice 2, APPLIED, VERIFIED and SYNCED
+> as `panel-mailbox-choice`** — and it is **one item, not the two `docs/ROADMAP.md`'s Project Status
 > block names.** Exploration split them, because **both amend the same `extension-client`
 > requirement heading**, and two unrelated amendments to one heading in one delta is the shape
 > this repository records as where an amendment gets attributed to the wrong assertion. Slice 2
