@@ -160,10 +160,11 @@ before the command), with `.openspec.yaml` kept.**
 
 **M11 slice 1 is now APPLIED, VERIFIED, SYNCED and ARCHIVED** at
 `openspec/changes/archive/2026-10-12-side-panel-surface/` — apply PR **#115** merged `11a415c`,
-sync PR **#116** merged `4c93975`, archive PR **not yet opened — this commit's PR**. **The
-number is deliberately left unfilled rather than guessed**: this stage was told not to open the
-PR, so the next number is a prediction and **a predicted PR number in a ledger that other stages
-cite by name is a figure nobody counted.** `gh pr view` fills it in one command. **Unlike the
+sync PR **#116** merged `4c93975`, archive PR **#117**. **The number was deliberately left
+unfilled by the archive stage rather than guessed**: that stage was told not to open the PR, so
+the next number would have been a prediction, and **a predicted PR number in a ledger that other
+stages cite by name is a figure nobody counted** — `gh pr view` filled it in one command
+afterwards, which is the honest order. **Unlike the
 spike it does NOT declare
 `skip_specs`, and that difference is the whole reason the sync stage existed**: it ships a surface,
 so the archive **must** be run `openspec archive side-panel-surface --skip-specs --yes`, because the

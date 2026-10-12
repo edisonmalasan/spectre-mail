@@ -11,10 +11,11 @@
 > pre-archive original with `.openspec.yaml` kept**). **M11 slice 1 has since run its whole
 > lifecycle as `side-panel-surface` and is APPLIED, VERIFIED, SYNCED and ARCHIVED** at
 > `openspec/changes/archive/2026-10-12-side-panel-surface/` — apply PR **#115** merged
-> `11a415c`, sync PR **#116** merged `4c93975`, archive PR **not yet opened — this stage's
-> commit** (the number is left unfilled rather than guessed, because this stage was told not to
-> open the PR and **a predicted PR number in a document other stages cite by name is a figure
-> nobody counted**). **Unlike the spike it declares no `skip_specs`, so it had a real sync
+> `11a415c`, sync PR **#116** merged `4c93975`, archive PR **#117**. **The archive PR number
+> was left unfilled by the archive stage rather than guessed, because that stage was told not to
+> open the PR and a predicted PR number in a document other stages cite by name is a figure
+> nobody counted** — `gh pr view` filled it in one command afterwards, which is the honest
+> order. **Unlike the spike it declares no `skip_specs`, so it had a real sync
 > stage and the promoted counts are now 166 requirements and 520 scenarios across the same
 > 14 capabilities** — `extension-client` 10 → 12 and `in-page-integration` 16 → 17, **three
 > requirements rather than five because two of its five blocks are `MODIFIED` and each
