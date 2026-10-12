@@ -158,9 +158,14 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor: M11 - Side Panel + Mailbox Context, slice 3 APPLIED and VERIFIED** as
-`panel-verification-state` - proposal PR **#124** merged `7c56c83`, **apply PR number filled by
-whoever opens it**. **Slice 2 is COMPLETE** as
+**Roadmap cursor: M11 - Side Panel + Mailbox Context, slice 3 SYNCED** as
+`panel-verification-state` - proposal PR **#124** merged `7c56c83`, apply PR **#125** merged
+`28f1360`, sync PR **#126** merged `b569ff6`. **Archive PR number left for the archive stage to
+fill.** `extension-client` 12 -> **13** requirements and 58 -> **65** scenarios; the tree is
+**167 requirements / 534 scenarios / 14 capabilities**, re-counted by heading after the promotion by
+two independent instruments, `openspec validate --specs --strict` **14 passed, 0 failed**, and the
+one promoted block byte-identical to its delta under SHA-256 `9e0905c4…f764d` with
+`added=133 removed=0` over a single file. **Slice 2 is COMPLETE** as
 `panel-mailbox-choice` — proposal PR #118, apply PR #119 merged `67439da`, sync PR #120 merged
 `47132ae`, archive PR #121 merged `560410f`, archived at
 `openspec/changes/archive/2026-10-12-panel-mailbox-choice/`. **M11 now has one item left, its
