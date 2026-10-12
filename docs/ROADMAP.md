@@ -161,24 +161,52 @@
 **Roadmap cursor: M11 - Side Panel + Mailbox Context, slice 2 COMPLETE** as
 `panel-mailbox-choice` — proposal PR #118, apply PR #119 merged `67439da`, sync PR #120 merged
 `47132ae`, archive PR #121 merged `560410f`, archived at
-`openspec/changes/archive/2026-10-12-panel-mailbox-choice/`. **M11 now has one item left, and it
-cannot be proposed yet.** *What M11 has left after this slice* named two; exploration split them
-because **both amended the same `extension-client` requirement heading**, and two unrelated
-amendments to one heading in a single delta is the shape this repository records as where an
-amendment gets attributed to the wrong assertion. Slice 2 took the first — **"recent mailboxes"
-offered rather than named** — and **the second, "whether verification mail is pending", needs a
-*definition* before it can be specified, and a change cannot be designed on a guess about what
-"pending" means. The next step is therefore an **exploration that defines it**, not a proposal.**
+`openspec/changes/archive/2026-10-12-panel-mailbox-choice/`. **M11 now has one item left, its
+definition was settled on 2026-10-12, and what was settled is that the roadmap's noun was wrong.**
+*What M11 has left after slice 2* named two; exploration split them because **both amended the same
+`extension-client` requirement heading**, and two unrelated amendments to one heading in a single
+delta is the shape this repository records as where an amendment gets attributed to the wrong
+assertion. Slice 2 took the first — **"recent mailboxes" offered rather than named**. The second
+needed a *definition* before it could be specified, and the exploration that defined it found that
+**the definition the roadmap asks for is the wrong one**, which is a more useful result than a
+definition would have been.
 
-**What defining it turns on, recorded so the exploration starts from a question rather than from
-the roadmap's noun.** *Pending* is ambiguous between at least two things this repository can tell
-apart, and **they lead to different surfaces, different storage and different tests**: **a message
-this device holds has been analysed and carries a detected one-time code** — which
-`packages/mail-parser` can already answer, which the background wake already reads, and which would
-be a property of the *mailbox*; against **a page asking right now** — which no instrument here
-reaches, because the extension holds no standing knowledge of what any page is showing, and which
-would be a property of the *host*. **Choosing between them is a product decision, not an
-implementation one**, and the roadmap's word alone does not make it.
+**The noun is wrong, and that is the finding worth carrying.** The M11 section's fourth context line
+reads *whether verification mail is pending*, and **there is no reading of "pending" this product can
+honestly satisfy.** The affordable one — *a message this device holds has been analysed and carries
+a detected verification* — describes **a fact about the past**: the message arrived, it was read, the
+verdict is in hand. Nothing is outstanding, nothing is waiting, and **the only thing that resembles
+"pending" is the person not having looked yet, which is a statement about their attention rather than
+about the mail.** Shipping that under the roadmap's word would answer a question nobody asked and
+**would ratify the word by delivering against it instead of testing it.** So the item is **reframed
+rather than dropped** — the product value underneath it is real, because a person looking at the
+panel does want to know whether a code is waiting in the mailbox they are about to read — and the
+fourth context line now reads **"whether any message this mailbox holds carries a detected
+verification"**, which is a fact, and which is already required to exist.
+
+**What makes that free, and every one of these was read rather than assumed.** `mailbox-session`
+**already obliges** the session to determine whether a message carries a verification, to remember
+that verdict against the message so it is never determined twice, and to report it — the promoted
+requirement is headed *"A message is analysed once, and only when it is new"*. **The panel already
+pays for it**: `Panel.tsx` calls `session.restore(record)`, the full restore path, which adopts
+through the inbox's verdict pass rather than through `restoreSummaries`, and the verdicts ride on the
+listing type itself. **Zero extra provider requests, zero new storage, zero new seams, zero new
+permissions.** The background wake is why that is worth stating plainly: it was **repaired** to use
+`restoreSummaries` instead, because the full restore cost *"two requests for a mailbox holding one
+message"* — twenty-four requests a minute at one message, and **over Mail.tm's `30; w=60` budget at
+two** — for a verdict it had no consumer for. **The panel is the surface that can afford the answer,
+and that is a property of the panel rather than a preference about it.**
+
+**And the expensive reading was rejected on falsifiability rather than on cost**, which is the
+finding that actually decides it. A property of the *host* would mean *a page beside the panel is
+asking for a code right now*, and **no instrument in this repository can produce that fact**.
+Playwright adds **no `Page` for a docked panel at all**, and the substitute this repository uses —
+opening the panel document as a tab — *is* a substitute, because a tab-hosted document is its own
+active tab and so cannot answer *"which page am I beside"*, which is that reading's entire defining
+fact. **A green browser tier would be silence rather than evidence there**, and this repository has
+recorded that shape too many times to ship it deliberately. **The surface that reading would need is
+also the one whose reach is already recorded as unmeasured**, since with `openPanelOnActionClick`
+unset nobody here has measured whether a person can reach the panel at all.
 
 **The first item was an amendment and not a repair, and that distinction was the change's first
 recorded finding.** The requirement said the panel ***names*** the mailboxes this device
@@ -192,13 +220,26 @@ amendment says so where a reader will hit the question. **It now reads *offers*,
 offers each held mailbox as a radio that makes that mailbox the mailbox the panel view is about —
 a choice that is transient, writes nothing, and resets when the page beside the panel changes.**
 
-**Exploration also found a real divergence that slice 2 records and does not resolve**, because it
-belongs to the pending-verification item: `apps/extension/src/MessageSurface.tsx:128-134` states
-that `extension-client` **forbids a surface** from indicating that a message carries a
-verification, read as a **class-wide** rule, while `extension-client:252-257` says ***the popup***
-SHALL NOT**, read as **surface-specific**. **The code comment and the requirement text disagree
-today**, and a panel that answered "pending" under the class-wide reading would break a rule the
-promoted text does not state. Recorded as the change's D8.
+**Exploration settled D8 by reading the promoted text rather than by choosing a side, and the text
+is not ambiguous.** `MessageSurface.tsx:128-134` states that `extension-client` *"forbids **a
+surface** from indicating that one does"*. The promoted requirement says ***The popup SHALL NOT
+indicate that a message carries a verification until it has opened that message***, inside a
+requirement headed *"The extension's **popup** performs its first milestone's actions over the shared
+session"*, and **its own rationale is about carrying rather than about surfaces**: *"the count the
+popup showed before is the whole of what a listing can support, and a marker the listing cannot carry
+would be a guess about a message nobody has read."* **A search of every promoted spec for such a
+clause returns exactly two hits and both name the popup.** So the comment states a stronger rule
+than the spec states, **the comment is what is wrong, and correcting it is a comment-only edit** —
+the same shape slice 2 used on `storage.ts`. **The panel's listing is a listing that carries**, which
+is exactly what the popup's is not, so the popup's rationale does not reach it.
+
+**And a change that acts on this reading SHALL NOT rely on the absence of a prohibition as its
+permission.** Silence in a promoted spec is not consent, and this repository has recorded that a
+reader who found an implication rather than a statement would be the one holding it. So the slice
+that ships the indicator **carries a positive clause saying the panel states it**, rather than
+inferring that it may — and **that clause is what makes the comment correction safe rather than
+load-bearing.** The correction belongs to that slice, which this cursor now names:
+`panel-verification-state`.
 
 M10 is complete in scope
 and the `side-panel-runtime-facts` spike that unblocked M11 is **APPLIED, VERIFIED and ARCHIVED** at
@@ -311,10 +352,15 @@ by slice 2 (`panel-mailbox-choice`), and **one item remains, which is not offere
   records no association a page could later be handed.
 - **"Whether verification mail is pending" has no representation at all**, and **it is the one
   item on either list this milestone did not touch at all rather than partly deliver.** Nothing in
-  `apps/extension/src` models a pending verification message: there is no `pending` concept in the
-  panel, in `panel-copy.ts`, or in the shared session it drives. **The roadmap lists it under
-  context behaviour and it is owed**, and it is the one item on either list that the slice did not
-  touch at all rather than partly deliver.
+  `apps/extension/src` models it: there is no `pending` concept in the panel, in `panel-copy.ts`, or
+  in the shared session it drives. **The roadmap lists it under context behaviour and it is owed**,
+  and **the 2026-10-12 exploration reframed rather than dropped it** — the item is now *"whether any
+  message this mailbox holds carries a detected verification"*, and the cursor paragraph above states
+  why the noun was the actual defect. **It is owed, it is now definable, and it has not been built.**
+  **What is owed is narrower than the original line and the narrowing is the finding**: not *"whether
+  a code is waiting"*, which nothing can honestly answer, but *"whether any message in this mailbox
+  was found to carry one"*, which `mailbox-session` **already requires the session to determine and
+  report** and the panel **already pays to know**.
 
 The browser tier is **website 40 / extension 82**, of which `panel-mailbox-choice` adds **four** to
 `side-panel.spec.ts` on top of `side-panel-surface`'s eight - **a press changes what the panel
@@ -4219,8 +4265,17 @@ The side panel should understand:
 current tab hostname
 mailbox associated with current hostname
 current mailbox provider
-whether verification mail is pending
+whether any message this mailbox holds carries a detected verification
 ```
+
+**The fourth line was originally written as *whether verification mail is pending*, and the change
+is recorded here rather than made silently, because the noun was the defect.** There is no reading of
+*pending* this product can honestly satisfy: the message has arrived, it has been read, and the
+verdict is in hand — **nothing is outstanding.** What the line now says is a **fact rather than a
+state**, it is **already required to exist** by `mailbox-session`, and **the panel already pays for
+it** through the full `restore` path. **Three of the four lines above are delivered; the fourth is
+not, and it is not falsifiable in the form a property of the page would have been** — see the
+Project Status block for why that was the deciding consideration rather than the cost.
 
 No cloud account is required.
 
