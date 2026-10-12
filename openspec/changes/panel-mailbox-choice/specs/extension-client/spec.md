@@ -112,8 +112,18 @@ used it.**
 
 #### Scenario: A chosen mailbox is still there
 
-- **WHEN** the panel resolves the same host again while a chosen mailbox is held
-- **THEN** the panel SHALL continue to show the chosen mailbox
+- **WHEN** the panel resolves the same host again while a mailbox a person chose is still selected
+- **THEN** the panel SHALL continue to show that chosen mailbox
+
+**This scenario's `WHEN` was reworded at proposal, and the reason is recorded in `design.md` D10
+rather than left as an apparent stylistic choice.** It read *"while a chosen mailbox is held"*, and
+**held** already means *this device stores a mailbox* throughout this specification and throughout
+this repository — it is the variable `held` in `Panel.tsx`, which is the result of
+`loadMailboxes()`. The clause therefore named **a condition about storage** where the requirement
+is about **a choice being in effect**, and **a panel with no chooser at all could satisfy it**: with
+no choice ever made, `resolveForHost` returns the host's association or the newest mailbox, and a
+panel would pass whenever the mailbox a person would have chosen happened to be that one. The
+clause now names the selection, so the scenario can only be met by a panel holding one.
 
 #### Scenario: The page beside the panel changes
 

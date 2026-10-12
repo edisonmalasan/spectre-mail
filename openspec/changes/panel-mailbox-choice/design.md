@@ -1,9 +1,13 @@
 # Design
 
-Nine decisions. Each is a fork this change took **knowing** it took it, and each names the
+Ten decisions. Each is a fork this change took **knowing** it took it, and each names the
 alternative it rejected and the cost of that choice — because a design record that only says what
 was chosen cannot be reviewed, and this repository's rule is that the cost of a decision is part
 of the decision.
+
+**D10 is the one that is not a fork.** It is a defect this change found in its own delta and
+repaired, recorded in the same list and the same form because **a repair whose reason is not written
+down reads as a cosmetic edit the next time the clause is touched.**
 
 ## Context
 
@@ -276,6 +280,84 @@ Three things a person might reasonably expect from "choose a mailbox", each refu
 - **Not a provider selector, and not a "create" control in disguise.** Both are already refused for
   the panel by the previous slice, for the popup's reason: a control over one reachable option cannot
   act, and creation beside a named host is already offered above the list.
+
+## D10 — One scenario said *held* where the requirement is about a choice, and the word would have permitted a panel with no chooser
+
+The scenario *"A chosen mailbox is still there"* — the only one stating that a choice survives a
+re-resolution, which is D2's first clause and therefore half the transient decision — read:
+
+> **WHEN** the panel resolves the same host again **while a chosen mailbox is held**
+> **THEN** the panel SHALL continue to show the chosen mailbox
+
+**It now reads:**
+
+> **WHEN** the panel resolves the same host again while **a mailbox a person chose is still
+> selected**
+> **THEN** the panel SHALL continue to show **that** chosen mailbox
+
+**Why *held* was the wrong word, and it is not a synonym problem — it is a collision with a word
+this repository has already spent.** *Held* means **this device stores a mailbox**: it is the
+subject of `extension-client`'s *"Several mailboxes are held"* scenario, the wording
+`docs/ROADMAP.md` uses for this very list, the name of `PanelRecords.loadMailboxes`'s return, and
+the variable `held` in `Panel.tsx:187`. **A reader — and the author — has that meaning loaded
+before reaching this line.** So *"a chosen mailbox is held"* reads as *while the device still
+stores the mailbox that was chosen*, which is a claim about **storage** and not about **selection**.
+**The requirement is about the second and the clause named the first.**
+
+**What it would have permitted, and this is the part that makes it a defect rather than an
+ambiguity: a panel with no chooser at all.** Take a panel in which nothing about a choice exists.
+Nothing is ever chosen, so `shown` is `resolveForHost(held, host, associated)` and nothing else. Now
+run the scenario as written: the panel resolves the same host again — which it does, on every tab
+activation — and the mailbox that *would* have been chosen is, say, the one this host resolves to.
+**Both clauses hold and no chooser was involved.** The scenario was satisfied by the pre-change
+implementation doing exactly what it already does, which means it was not a scenario about this
+change at all; it was a restatement of D3's rule wearing a choice's vocabulary.
+
+**That is the recorded defect this repository calls an assertion narrower than the rule it
+documents, arriving in a requirement rather than a test — and the direction is the dangerous one.**
+A test too narrow for its rule fails to catch a defect; **a scenario too narrow for its requirement
+does not even appear to be trying to**, because it sits in a delta beside the requirement it is
+supposed to pin down and reads as though it were. **The class is the same, and it is found here by
+no gate:** not by a mutation, and not by running anything. **It was found by reading a delta's
+vocabulary against the vocabulary the code already uses** — the same instrument that found the
+`MessageSurface.tsx` divergence in D8, and the one `site-associations` recorded as *"the instrument
+that finds this class of defect is not a gate."*
+
+**And the check that settles it is the panel as it stands today.** Read against the shipped source,
+the reworded scenario is **unreachable** for the pre-change panel: `Panel.tsx:546` renders each held
+mailbox as `<span className="panel__held-address">` with no role, no handler and nothing operable,
+so no person can choose anything, and the `WHEN`'s precondition cannot come into being. Corroborated
+by `Panel.tsx:275-283`, where `shown` is a `useMemo` over `{ associated, held, reading }` — **there
+is no fourth input for a choice to arrive on**, so even a state variable injected beside it would
+have nothing to reach `record` through. **A scenario the pre-change implementation cannot fail is a
+scenario; the previous spelling was one, and this is the sentence that makes that claim about the
+shipped tree rather than about it.**
+
+**The same check was run over the other four scenarios this change adds**, because a defect found in
+one clause of a block is evidence about the block and not about the clause. **Two are falsifiable by
+the shipped panel and two are not, and both non-falsifiable ones are recorded here rather than
+quietly reworded** — they are regression guards for behaviour that cannot exist until this change
+lands, which is a different and legitimate thing for a scenario to be, and reworded without that
+distinction being named they would read as though they had been checked:
+
+- **"A person chooses a mailbox"** and **"Nothing is recorded"** — both name **a person choosing**,
+  which is unreachable on the shipped panel for the same reason, so both are falsifiable. **"Nothing
+  is recorded" is falsifiable in a weaker and more specific sense worth stating**: its falsifiability
+  comes from the `WHEN` being unreachable, **not from its `THEN` failing**, because "the extension
+  wrote no association" is true of a panel that has written nothing at all. **Its bite arrives the
+  moment a chooser exists** — a chooser that planted a write is caught by the `THEN`, and that is the
+  mutation `tasks.md` 3.7 asks for.
+- **"The page beside the panel changes"** and **"A person chooses beside a page the panel cannot
+  name"** — **not falsifiable as written.** The first is satisfied outright by the shipped panel,
+  which already re-resolves on every tab activation and already shows whatever `resolveForHost`
+  returns; the second's first and third clauses hold today as well (`panel-held` is ungated by the
+  host and `.panel__address` is withheld), and only its middle clause — the effect of choosing — is
+  new, and it is vacuous rather than false on a panel that cannot choose. **Both guard D2's reset and
+  D4's unnamed-page clause, and neither has another scenario doing that job**, so the honest repair is
+  a `WHEN` that names the choice (`"…and a person has chosen one of them"`), which would make both
+  reachable-only-after-this-change. **That has not been done here**, because a reword that turns a
+  regression guard into a falsifiable scenario is a scope question for the maintainer rather than a
+  precision fix, and **the direction it would move is the opposite of the defect D10 is about.**
 
 ## Risks / Trade-offs
 
