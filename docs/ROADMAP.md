@@ -146,9 +146,34 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor: M11 - Side Panel + Mailbox Context, slice 2, not yet proposed** — its scope is
-named below under *What M11 has left after this slice*, and the two items there are the ones the
-M11 section's own `Display:` and `Context behavior` lists still carry. M10 is complete in scope
+**Roadmap cursor: M11 - Side Panel + Mailbox Context, slice 2, PROPOSED** as
+`panel-mailbox-choice`** — and it is one item, not the two below. *What M11 has left after this
+slice* names two, and exploration split them: **both amend the same `extension-client` requirement
+heading**, so putting two unrelated amendments to one heading in a single delta is the shape this
+repository records as where an amendment gets attributed to the wrong assertion. Slice 2 takes the
+first — **"recent mailboxes" offered rather than named** — and the second, **"whether verification
+mail is pending",** is a later slice because it needs a *definition* before it can be specified,
+and a change cannot be designed on a guess about what "pending" means.
+
+**The first item is an amendment and not a repair, and that distinction is the change's first
+recorded finding.** The shipped requirement says the panel ***names*** the mailboxes this device
+holds, and an inert `<ul>` of `<span>` addresses is exactly what *names* means — **so the code
+conformed throughout and nothing shipped broken.** What was wrong was the requirement: it
+described a list a person could *read* where this roadmap's M11 section says **display: recent
+mailboxes**, and a panel that can only ever show the host's association or the newest address is
+the outcome `side-panel-surface`'s own design record named as the thing M11 exists to avoid. **A
+delta written as a defect repair would have put a false sentence in the promoted spec**, so the
+amendment says so where a reader will hit the question.
+
+**Exploration also found a real divergence that slice 2 records and does not resolve**, because it
+belongs to the pending-verification item: `apps/extension/src/MessageSurface.tsx:128-134` states
+that `extension-client` **forbids a surface** from indicating that a message carries a
+verification, read as a **class-wide** rule, while `extension-client:252-257` says ***the popup***
+SHALL NOT**, read as **surface-specific**. **The code comment and the requirement text disagree
+today**, and a panel that answered "pending" under the class-wide reading would break a rule the
+promoted text does not state. Recorded as the change's D8.
+
+M10 is complete in scope
 and the `side-panel-runtime-facts` spike that unblocked M11 is **APPLIED, VERIFIED and ARCHIVED** at
 `openspec/changes/archive/2026-10-11-side-panel-runtime-facts/` - proposal PR #111 merged `dd4fc3f`,
 apply PR #112 merged `e2e1611`, archive PR #113. **It declares `skip_specs` and promoted nothing, so

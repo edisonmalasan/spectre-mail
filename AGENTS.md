@@ -31,12 +31,17 @@
 > switch, and it does so over the route the spike priced as free: **the content-script round
 > trip and not the `tabs` permission**, so `tab.url` stays withheld and no permission was added
 > to read it. **The answer is a hostname and nothing else**, because a signup page's query
-> string is where its tokens are. **The cursor moves to M11 slice 2, which is not yet
-> proposed**, and its scope is named in `docs/ROADMAP.md`'s Project Status block: **"recent
-> mailboxes" is displayed and not offered** — the panel renders every held mailbox as inert
-> `<span>` text with no control on any of them — **and "whether verification mail is pending"
-> has no representation at all**, which is the one item on either of the M11 section's two
-> lists this slice did not touch. **What none of this measured is whether a person can reach
+> string is where its tokens are. **The cursor moves to M11 slice 2, now PROPOSED as
+> `panel-mailbox-choice`** — and it is **one item, not the two `docs/ROADMAP.md`'s Project Status
+> block names.** Exploration split them, because **both amend the same `extension-client`
+> requirement heading**, and two unrelated amendments to one heading in one delta is the shape
+> this repository records as where an amendment gets attributed to the wrong assertion. Slice 2
+> takes **"recent mailboxes" is displayed and not offered** — the panel renders every held mailbox
+> as inert `<span>` text with no control on any of them. **"Whether verification mail is pending"
+> has no representation at all** and remains the one item on either of the M11 section's two lists
+> slice 1 did not touch; it is a later slice because it needs a *definition* before it can be
+> specified, **and a change cannot be designed on a guess about what "pending" means.** **What
+> none of this measured is whether a person can reach
 > the panel**: with `openPanelOnActionClick` unset, the panel is reachable only through
 > Chromium's own side-panel entry point, and no instrument in this repository reads a browser's
 > own UI.
