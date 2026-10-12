@@ -673,3 +673,85 @@ Recorded here so the Verify clause of a task cannot be read as covering them.
 - **Nothing about which real services deliver verifications in which shape**, including the
   `<a href>`-only blind spot in D7. **This repository has never received verification mail from any
   service.**
+
+---
+
+## Amendments recorded at apply (2026-10-13)
+
+**Decisions taken during apply that are not derivable from D1–D14. The measurements, the
+falsification table and the held-property counts are in `tasks.md`'s
+`## Amendments recorded at apply`, and are cross-referenced rather than repeated here.**
+
+### A1. A falsification harness must never run `boundaries.test.ts` in parallel
+
+**D15. This is a constraint on how any measurement of this repository is run, and it was measured by
+being violated.**
+
+`tests/architecture/boundaries.test.ts`'s positive controls **plant files into the real working
+tree**, and two of them **edit tracked files in place** — `apps/web/index.html` and `package.json`.
+**Four concurrent `pnpm test` processes therefore delete each other's probes mid-read**, every run
+goes red with `ENOENT`, and the race **loses restores**, leaving the planted probes behind in a dirty
+tree that then reads as a product defect on the next run.
+
+**Why it belongs in design rather than in a note.** The generalisation is already stated at the top of
+this file's own history — *"a test placed outside a collected glob is silently skipped"*, and
+*"a sweep matching nothing satisfies every assertion above it for ever"*. **This is the same class
+one level up: an instrument whose failure mode is a corrupted tree rather than a red assertion**, and
+nothing in the suite can report it, because the suite is the thing doing the corrupting. **A repair is
+deliberately not proposed**: one serial run never collides, so the correct response is a constraint
+on the harness, and a block that violates it is a defect in the block. Both tracked files were
+restored and verified byte-identical to `HEAD` after it was found.
+
+### A2. The Panel case's load-sensitivity is recorded as a finding, and repairing it is declined
+
+**D16. This is the tenth recorded precondition defect in this repository and the first one this change
+measured but chose not to fix.**
+
+One `pnpm verify` run went red on `Panel.test.tsx > names the mailbox this page resolves to and the
+provider that served it`, with the panel still on *"Asking that page which host it is on…"* — the wait
+released the case before `resolveThePage` had published anything. **The rate on every clean
+instrument is 0 in 66 runs** (60 serial unloaded, 6 serial under 6 CPU burners); the case appeared in
+8 of 20 runs **only** under four concurrent `pnpm test` processes, which is the condition D15 shows
+corrupts the tree and so is not a measurement of this case.
+
+**Why declining is the decision and not an omission.** **A threshold change is excluded first**, and
+on the recorded grounds rather than on taste: raising `findByRole`'s timeout does not establish the
+precondition, it buys time, and **it is this repository's own recorded defect with a larger number**.
+**The isolation shape is known and does not fit**, which is the part worth recording: the file's own
+ninth precondition repair (`Panel.test.tsx:521`) waits on `panel-host` no longer saying *"asking"*,
+and that signal is **strictly earlier** than what this case asserts on, because `resolveThePage` calls
+`setReading` at `Panel.tsx:269` **before** `await records.loadSiteMailboxId(...)` at `:276`. **Copying
+the sibling's repair would have been a repair that looks like the recorded one and is not it.**
+
+**Then two independent reasons the change is declined rather than deferred.** **The case and the
+code path it exercises are untouched by this change** — the `Panel.test.tsx` hunks are at 31–47,
+111–123 and 1755+, and `Panel.tsx`'s are an import, one prop and a comment. **And a repair whose
+failure cannot be reproduced on demand cannot be falsified**, which is the same rule that makes a
+branch no assertion can reach unfalsifiable rather than uncovered. **The finding is therefore
+recorded here and in `tasks.md` A7, and the case is left exactly as it shipped.**
+
+### A3. Task 3.4's Verify clause contradicted task 5.2, and the clause is amended rather than the task
+
+**D17. Recorded because two halves of one task file were allowed to disagree, and the obvious repair
+was the wrong one.**
+
+3.4's Verify required `git diff --stat` over `packages/mailbox` **and** `packages/storage` to be
+**empty**, while 5.2 edits `packages/mailbox/src/inbox.ts` in this same change. **Deleting 5.2's edit
+to satisfy 3.4 would have satisfied the clause by leaving a false claim standing in the source**, so
+the clause is the part that is corrected: `packages/storage` empty, and `packages/mailbox`
+**comment-only with an empty behavioural diff** — which is 5.2's own clause already, so 3.4 defers
+to it instead of restating a weaker version.
+
+**The principle is the one this file keeps restating, in the direction that costs something:** *when
+a task's Verify clause is unsatisfiable, the clause is the defect.* A clause that can only be met by
+breaking another task is not a strict check, it is an instruction to break one.
+
+### A4. M9 is a green the suite is built to produce, and it is not counted as a catch
+
+**D18. One falsification arm edits a comment, and no assertion in either tier reads a comment.**
+
+It is filed as `green, predicted` and excluded from the caught count. **A survivor means the assertion
+did not catch it, never that the assertion is too weak, until the mutant has been read and shown to
+be the thing it claims** — and this one is a comment, read and shown. **The prediction is recorded
+rather than the outcome**, because a green predicted before the run is a measurement and a green
+explained afterwards is a rationalisation.
