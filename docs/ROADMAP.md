@@ -158,10 +158,9 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor: M11 - Side Panel + Mailbox Context, slice 3 PROPOSED** as
-`panel-verification-state` — proposal artifacts written locally on `main` and **not yet pushed, and
-no PR is open**, so no PR number is quoted here: this paragraph is written by the proposal stage and
-filled by whoever opens it. **Slice 2 is COMPLETE** as
+**Roadmap cursor: M11 - Side Panel + Mailbox Context, slice 3 APPLIED and VERIFIED** as
+`panel-verification-state` - proposal PR **#124** merged `7c56c83`, **apply PR number filled by
+whoever opens it**. **Slice 2 is COMPLETE** as
 `panel-mailbox-choice` — proposal PR #118, apply PR #119 merged `67439da`, sync PR #120 merged
 `47132ae`, archive PR #121 merged `560410f`, archived at
 `openspec/changes/archive/2026-10-12-panel-mailbox-choice/`. **M11 now has one item left, its
