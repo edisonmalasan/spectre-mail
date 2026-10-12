@@ -111,17 +111,239 @@ test.afterEach(async () => {
 });
 
 /**
+ * How long the panel's **own** host reading may take to appear at staging time.
+ *
+ * **Derived from nothing, and measured rather than reasoned** — see {@link establishTheHostReading}.
+ * At staging time the page is already the active tab, so this ask is a content script round trip and
+ * nothing more: **35, 51, 15, 12, 11, 12, 13 and 17 ms** over eight stagings. Five seconds is
+ * roughly a hundred times the slowest of those, which is the margin a *sampling rate* buys rather
+ * than a tolerance being granted.
+ */
+const HOST_RESOLUTION_CEILING_MS = 5_000;
+
+/**
+ * How long a **deliberate** tab switch may take to become observable in the panel document.
+ *
+ * **This is not the same kind of number as the one above, and the difference is the whole finding.**
+ * `chrome.tabs.onActivated` reaches the panel document on Chromium's own schedule, and the
+ * measurement recorded below put that schedule anywhere between **86 ms and 19 898 ms** on one
+ * machine. So a switch gets its own ceiling, its own reader, and its own precondition — and the
+ * assertions after it are then written with **no timeout pressure at all**.
+ */
+const TAB_SWITCH_CEILING_MS = 40_000;
+
+/**
+ * The host sentence the panel has rendered so far, or `null` while it is still asking.
+ *
+ * **Two separate nulls are folded into one `null` here on purpose, and the fold is what makes this
+ * a precondition rather than a poll.** `hostLine` below is the reader the *assertions* use: it
+ * resolves the element, so on a panel still asking it throws rather than answering. This one answers
+ * instead, because the state {@link establishTheHostReading} exists to detect is precisely "there is
+ * nothing to read yet", and a reader that threw there could not tell a panel still asking from a
+ * panel that had gone wrong. **The wrong reading, once rendered, is not this helper's business** —
+ * naming it is the assertion's, and the fixture host is the only thing `stage` could possibly
+ * resolve to.
+ */
+async function currentHostLine(panel: Page): Promise<string | null> {
+  const host = panel.locator('[data-testid="panel-host"]');
+  if ((await host.count()) === 0) return null;
+  return host.textContent({ timeout: 500 }).catch(() => null);
+}
+
+/**
+ * The staging **precondition**: the panel has resolved a host, so every case below starts from a
+ * question that has an answer rather than from a race.
+ *
+ * ## Why this exists, and why it is a repair rather than a larger number
+ *
+ * **CI run `38306040431` failed this file's 20th case** — *"leaves the row bare when the message was
+ * read and carried nothing"* — with the panel rendering `PANEL_COPY.noScriptHere` where
+ * `in-page.invalid` was expected. **No threshold was raised, and none should be**: the cause was
+ * measured, and it was not a slow assertion.
+ *
+ * **The panel re-asks its host on every `chrome.tabs.onActivated`.** The old staging order opened the
+ * panel document first and brought the fixture page to front second, so the *only* host reading 82
+ * cases ever had was the one that depends on that event arriving. **Measured, on the panel's own
+ * `performance.now()` clock with the listener installed in the panel's own world:**
+ *
+ * ```text
+ * resolved after bringToFront   onActivated delivered   sendMessage round trip
+ *                        89ms                      86ms                       10ms
+ *                        194ms                     167ms                      31ms
+ *                       5365ms                    3907ms                       2ms
+ *                      10238ms                   10234ms                       6ms
+ *                      19832ms                   19898ms                       4ms
+ * ```
+ *
+ * **The event's delivery is the variable, and the round trip is not.** The last row is the CI
+ * failure reproduced on this machine: a `sendMessage` answered correctly in **4 ms**, behind a
+ * `chrome.tabs.onActivated` that took **19 898 ms** to arrive — against a 20 000 ms assertion
+ * timeout. **So the same product was correct throughout, and a case was reading it through a
+ * latency it does not control.**
+ *
+ * ## The repair is the order, not the ceiling
+ *
+ * {@link stage} now makes the fixture page the active tab **after the panel's tab exists and before
+ * its document loads**, so the reading every case depends on is the panel's **mount-time** ask, which
+ * is a direct `sendMessage` to a tab already known to be active. **No `chrome.tabs.onActivated` is
+ * involved in staging at all**, which is the point: the event whose delivery was measured between
+ * 86 ms and 19 898 ms is simply not on the path any more.
+ *
+ * **Both halves of that order are load-bearing, and the first attempt at this repair had only the
+ * wrong half.** Putting `bringToFront` *before* `context.newPage` is undone by it — `newPage` creates
+ * a tab, that tab becomes active, the panel mounts with itself active, and `sendMessage` reaches a
+ * `chrome-extension://` document with no content script in it. Because the fixture page had been
+ * activated *before* the panel existed, no `onActivated` followed to correct the reading either, and
+ * the file failed **11 of 20 cases** on `noScriptHere`, each stuck on it across every poll of its
+ * timeout. **Recorded because it is the same trap twice**: the first version of this file's staging
+ * got the order right and paid for it in latency, the repair got the latency right and paid for it
+ * in correctness, and only one of those is visible from reading the code.
+ *
+ * ## What this repair is NOT evidence of, stated before anyone reads it as such
+ *
+ * **The pre-repair file was run ten consecutive times on this machine and passed 10/10 at 20 cases.**
+ * **The file-level failure did not reproduce here**, and a repair that fixes a defect nobody can
+ * reproduce is a repair whose benefit rests entirely on the measurement above rather than on a
+ * before/after tally. That is not nothing — the delivery-latency spread **was** observed on this
+ * machine, and one arm of it (19 898 ms) did cross the 20 000 ms boundary the assertions carried —
+ * but **it was observed under a diagnostic instrument** (twelve stagings inside one test, polling
+ * every 50 ms), not under the ordinary run of this file, and a reader is entitled to know that.
+ *
+ * **So the honest statement is about the dependency, not about a fix rate:** before this change,
+ * **every case in this file had a correctness precondition whose completion time Chromium does not
+ * bound**, and this removes it. That is a property of the suite that holds regardless of how often
+ * the bad outcome happens to land, and it is the same shape of repair as
+ * `waitForTheArmingThenDisarm` — where the recorded lesson was also that the red rate was low
+ * locally and the fix was to the dependency rather than to the rate.
+ *
+ * ## Both preconditions were falsified, and one of them first refused to be
+ *
+ * **And the reorder introduces no new condition, which was checked rather than assumed:** every
+ * `bringToFront` in this file names a **fixture** page — `other`, `bare`, `page`, or a popup switch —
+ * and none names `panel`, so nothing that used to be true of a staged panel stops being true. **Of
+ * this file's 20 cases, 16 depend on the mount-time reading and the other 4 switch on purpose** —
+ * those four are given their own precondition in {@link watchTabActivations} rather than being
+ * staged around.
+ *
+ * **`establishTheHostReading` fails when the reading is absent**, and names what it saw: pointing
+ * `currentHostLine` at a `data-testid` the panel never renders turns every case red with *"the panel
+ * named no host within 5000ms of the fixture page becoming the active tab, and its last reading was
+ * null"*. So the precondition is not a `count()` that cannot fail.
+ *
+ * **Collapsing {@link HOST_RESOLUTION_CEILING_MS} to `1` did NOT turn it red, and that is the more
+ * useful measurement.** The repaired order means the panel's reading is already on screen by the time
+ * `panel.goto` resolves, so the precondition is satisfied on its **first read** and the ceiling is
+ * never reached. **The ceiling is not what removed the race — the order did** — and a mutation that
+ * "proves" the ceiling load-bearing would have been reported here as a catch when it measured nothing
+ * but a fast machine. The ceiling stays because a precondition without a deadline is a hang, not
+ * because anything was measured to need one.
+ *
+ * **`watchTabActivations` fails when the listener is installed after the switch** — the deliberate
+ * switch it guards was already delivered, the counter read `0` at every poll, and the case went red
+ * naming the count. That is the falsification that matters for it: it proves the waiter observes an
+ * event that happens **in the order the case creates it**, rather than a counter that was going to be
+ * non-zero anyway.
+ *
+ * @throws If the panel names no host within {@link HOST_RESOLUTION_CEILING_MS}, naming what it saw.
+ *   **Reported rather than swallowed**, because "the round trip was slow" and "the content script
+ *   never answered" need opposite repairs and look identical to a silent reader.
+ */
+async function establishTheHostReading(panel: Page): Promise<void> {
+  const deadline = Date.now() + HOST_RESOLUTION_CEILING_MS;
+  let last: string | null = null;
+
+  // **The interval is a sampling rate, not a tolerance.** Nothing is allowed to fail because of it;
+  // what decides the outcome is `deadline`.
+  for (;;) {
+    last = await currentHostLine(panel);
+    if (last !== null) return;
+    if (Date.now() >= deadline) {
+      throw new Error(
+        `the panel named no host within ${HOST_RESOLUTION_CEILING_MS}ms of the fixture page becoming ` +
+          `the active tab, and its last reading was ${JSON.stringify(last)} - so either the mount ask ` +
+          `never reached the content script or the panel never rendered a reading at all`,
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+}
+
+/**
+ * The precondition for a case that **deliberately** switches tabs: a waiter that resolves once the
+ * panel document has itself observed a `chrome.tabs.onActivated`.
+ *
+ * ## Why the switch sites need their own reader
+ *
+ * Reordering {@link stage} removes the mount-time race, and it deliberately does not remove the
+ * behaviour the requirement is about: **the panel re-asks on a tab switch, without a reload.** Four
+ * cases here exist to hold exactly that, so they cannot be staged their way out of needing it.
+ *
+ * **Those cases used to wait for it with a 20 000 ms assertion timeout, and that timeout was the
+ * defect**: the measurement above puts this event's delivery between 86 ms and 19 898 ms on one
+ * machine, so a 20 s budget on it is a coin toss dressed as a bound. **The repair inverts the
+ * wait** — observe the activation in the panel's *own* world, with its own deadline, and then
+ * assert with no timeout pressure at all. **The assertion becomes instantaneous because the
+ * precondition has already established the event happened.**
+ *
+ * ## Read reflectively, for the reason `background-state.ts` gives
+ *
+ * There is no `@types/chrome` in this package, so `chrome` is reached through a cast rather than
+ * written bare. **This is the same idiom the same file uses, and for the same reason** — and the
+ * browser tier is exempted from the boundary rule confining the platform global by the `testDir`
+ * allowance that rule already reads out of this suite's own config.
+ *
+ * @returns A waiter to `await` **after** the `bringToFront`, not before.
+ * @throws If no activation is observed within {@link TAB_SWITCH_CEILING_MS}, naming the count it saw.
+ */
+async function watchTabActivations(panel: Page): Promise<() => Promise<void>> {
+  await panel.evaluate(() => {
+    const world = globalThis as unknown as {
+      chrome: { tabs: { onActivated: { addListener: (listener: () => void) => void } } };
+    };
+    Reflect.set(globalThis, "__spectreSeenActivations", 0);
+    world.chrome.tabs.onActivated.addListener(() => {
+      const seen = Reflect.get(globalThis, "__spectreSeenActivations");
+      Reflect.set(globalThis, "__spectreSeenActivations", Number(seen) + 1);
+    });
+  });
+
+  return async () => {
+    const deadline = Date.now() + TAB_SWITCH_CEILING_MS;
+    let seen = 0;
+
+    for (;;) {
+      seen = await panel.evaluate(() =>
+        Number(Reflect.get(globalThis, "__spectreSeenActivations")),
+      );
+      if (seen > 0) return;
+      if (Date.now() >= deadline) {
+        throw new Error(
+          `the panel document observed no chrome.tabs.onActivated within ${TAB_SWITCH_CEILING_MS}ms of ` +
+            `the switch and counted ${seen}, so the assertions after this point would have been waiting ` +
+            `on an event this browser had not delivered`,
+        );
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+  };
+}
+
+/**
  * A panel staged but not asked anything: the document is open, and the fixture page is the active
  * tab of the window they share.
  *
- * **The order of the last two steps is load-bearing**, and it is the same order
- * `in-page-fill.spec.ts` gives its popup: the panel is a **tab**, so it is its own active tab, and
- * `findActiveTab` would otherwise name the panel rather than the page.
+ * **The order of the last three steps is load-bearing, and it is the repair
+ * {@link establishTheHostReading} documents.** The panel's tab is created first, the fixture page is
+ * then made the active tab of the window they share, and only then does the panel document load — so
+ * its mount ask names the page rather than itself. `in-page-fill.spec.ts`'s popup ordering is the
+ * same rule about a different surface, and its failure mode is the same one: staging it the other
+ * way round leaves every case depending on the delivery of `chrome.tabs.onActivated`, the one event
+ * measured between 86 ms and 19 898 ms.
  *
  * **`options` is the only thing the marking cases below change, and it is passed to the recorder
  * rather than applied afterwards.** Every case that passes nothing is staged exactly as it was
  * before this change: the seam in `recorded-provider.ts` is a no-op unless a spec opts in, which is
- * the property that keeps those 82 cases a measurement rather than a hope.
+ * the property that keeps the other 82 cases a measurement rather than a hope.
  */
 async function stage(options: Parameters<typeof recordProviderTraffic>[1] = {}): Promise<{
   readonly page: Page;
@@ -136,9 +358,31 @@ async function stage(options: Parameters<typeof recordProviderTraffic>[1] = {}):
 
   const panel = await extension.context.newPage();
   opened.push(panel);
+
+  /**
+   * **The fixture page is made the active tab BEFORE the panel document loads, and after the panel's
+   * tab exists. Both halves are load-bearing, and the first version of this repair got the first one
+   * wrong.**
+   *
+   * **Wrong: `bringToFront` before `newPage`.** `context.newPage` creates a tab and that tab becomes
+   * active, so a `bringToFront` issued before it is undone by it. The panel then mounts with *itself*
+   * as the active tab, `sendMessage` reaches a `chrome-extension://` document, no content script is
+   * there, and the panel renders `noScriptHere` — and because the fixture page was activated *before*
+   * the panel existed, **no `chrome.tabs.onActivated` ever follows to correct it.** Measured: the
+   * first case failed with the panel stuck on `noScriptHere` across all 43 polls of its 20 s timeout,
+   * and 11 of 20 cases failed the same way.
+   *
+   * **Right: `newPage`, then `bringToFront`, then `goto`.** The panel's tab exists and is background;
+   * the fixture page is the active tab; and a background tab's document still loads and runs, so the
+   * panel's **mount ask** fires with the page already active. No `chrome.tabs.onActivated` is involved
+   * at all, which is the whole point.
+   */
+  await page.bringToFront();
+
   await panel.goto(`chrome-extension://${extension.extensionId}/sidepanel.html`);
 
-  await page.bringToFront();
+  await establishTheHostReading(panel);
+
   return { page, panel, traffic };
 }
 
@@ -532,11 +776,20 @@ test.describe("the side panel, in a real Chromium", () => {
       Reflect.set(globalThis, "__spectreNoReload", "planted");
     });
 
+    /**
+     * **The activation is waited for in the panel's own world before it is asserted, and the
+     * assertion then carries no timeout at all.** This case is one of the four that genuinely needs
+     * `onActivated` — reordering `stage` removes the mount-time race and deliberately leaves this
+     * behaviour alone. The 20 000 ms it used to wait here was the defect, not the bound: the event's
+     * delivery was measured between 86 ms and 19 898 ms on one machine, so the precondition below is
+     * what makes the following assertion instantaneous rather than lucky.
+     */
+    const activationOfTheOtherHost = await watchTabActivations(panel);
     await other.bringToFront();
+    await activationOfTheOtherHost();
 
     await expect(panel.locator('[data-testid="panel-host"]')).toContainText(
       new URL(OTHER_ORIGIN).hostname,
-      { timeout: 20_000 },
     );
 
     // **The old host is gone from the sentence**, so this is a re-read rather than an append.
@@ -625,14 +878,16 @@ test.describe("the side panel, in a real Chromium", () => {
       timeout: 20_000,
     });
 
+    /** **Its own activation precondition, for the reason the first switch site's gives.** */
+    const activationOfTheBareHost = await watchTabActivations(panel);
     await bare.bringToFront();
+    await activationOfTheBareHost();
 
     // **It says so, in its own words** — and specifically *not* the wording for a page that ran and
     // answered nothing, because the two are different faults and a person is the only one who can
     // act on the difference.
     await expect(panel.locator('[data-testid="panel-host"]')).toContainText(
       /not one SpectreMail runs on/i,
-      { timeout: 20_000 },
     );
 
     /**
@@ -677,10 +932,17 @@ test.describe("the side panel, in a real Chromium", () => {
      * *\"the rest keeps working\"*, because a panel that went blank and stayed blank would satisfy
      * every assertion above while being useless.
      */
+    /**
+     * **A second activation precondition rather than a second timeout**, because this is the same
+     * event as the switch above and it delivers on the same schedule — measured on this machine
+     * between 86 ms and 19 898 ms. The watcher is installed **after** the first switch was already
+     * observed, so it counts from this second one and cannot be satisfied by it.
+     */
+    const activationOfTheRealPage = await watchTabActivations(panel);
     await page.bringToFront();
-    await expect(panel.locator('[data-testid="panel-host"]')).toContainText(FIXTURE_HOST, {
-      timeout: 20_000,
-    });
+    await activationOfTheRealPage();
+
+    await expect(panel.locator('[data-testid="panel-host"]')).toContainText(FIXTURE_HOST);
 
     // **The page it could not name is untouched**, which is the `in-page-integration` half of this:
     // asking a page for its host must not disturb it.
@@ -1552,8 +1814,15 @@ test.describe("the side panel, in a real Chromium", () => {
        * the panel's host question and the popup's own - would answer with each other. **The panel
        * re-asks on every tab switch**, so this is also what keeps the panel's own marking in place
        * for the last assertion below.
+       *
+       * **And the switch is given the same activation precondition as the first two cases in this
+       * file**, for the reason `establishTheHostReading` records: this is one of the four cases that
+       * genuinely needs `chrome.tabs.onActivated`, so it cannot be staged around and must not be
+       * left waiting on the delivery of an event this browser schedules.
        */
+      const switchedBackFromPopup = await watchTabActivations(panel);
       await page.bringToFront();
+      await switchedBackFromPopup();
 
       /**
        * **No press at all, and that is a measured property of the shipped tree rather than a
@@ -1675,7 +1944,12 @@ test.describe("the side panel, in a real Chromium", () => {
 
       const popup = await openThePopupDocument();
 
+      /** **The fourth case that genuinely needs `chrome.tabs.onActivated`**, so it is given the same
+       * activation precondition as the other three rather than a 20 000 ms wait on an event measured
+       * between 86 ms and 19 898 ms. See `establishTheHostReading`. */
+      const switchedBackFromPopup = await watchTabActivations(panel);
       await page.bringToFront();
+      await switchedBackFromPopup();
 
       /**
        * **No press, for the reason `4.2` gives**: the popup adopts the mailbox the panel created out
