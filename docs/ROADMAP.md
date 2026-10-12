@@ -158,14 +158,36 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor: M11 - Side Panel + Mailbox Context, slice 3 SYNCED** as
+**Roadmap cursor: M11 - Side Panel + Mailbox Context, slice 3 ARCHIVED** as
 `panel-verification-state` - proposal PR **#124** merged `7c56c83`, apply PR **#125** merged
-`28f1360`, sync PR **#126** merged `b569ff6`. **Archive PR number left for the archive stage to
-fill.** `extension-client` 12 -> **13** requirements and 58 -> **65** scenarios; the tree is
+`28f1360`, sync PR **#126** merged `b569ff6`, archived to
+`openspec/changes/archive/2026-10-13-panel-verification-state/`. **Archive PR number left
+unfilled by the archive stage rather than guessed, because that stage was told not to open the
+PR and a predicted PR number in a document other stages cite by name is a figure nobody
+counted** - `gh pr view` fills it in one command afterwards, which is the honest order. The
+archive was run with `--skip-specs` because the sync stage already promoted the delta.
+`extension-client` 12 -> **13** requirements and 58 -> **65** scenarios; the tree is
 **167 requirements / 534 scenarios / 14 capabilities**, re-counted by heading after the promotion by
 two independent instruments, `openspec validate --specs --strict` **14 passed, 0 failed**, and the
 one promoted block byte-identical to its delta under SHA-256 `9e0905c4…f764d` with
-`added=133 removed=0` over a single file. **Slice 2 is COMPLETE** as
+`added=133 removed=0` over a single file. **The archive moved 5 files, and 5 is the
+measured count rather than the 6 the stage was briefed with** - the brief named
+`proposal.md`, `design.md`, `tasks.md`, `.openspec.yaml` and its delta spec, which is
+five, and a sixth was assumed rather than counted. Every one of the five is
+SHA-256 byte-identical to a digest taken **before** the archive command ran,
+**`.openspec.yaml` among them**, which is the defect `side-panel-runtime-facts`'s
+archive is recorded for having dropped. Git's own rename detection reported all five
+as `R` with **0 insertions and 0 deletions**, so a second tool reports the same fact
+the hashes do. **The promoted block was then re-read from the ARCHIVED delta copy** and
+is byte-identical to the promoted spec under SHA-256 `9e0905c4…f764d`, **and all 15
+files under `openspec/specs/` are byte-identical before and after** - a move that
+touched a promoted spec would have shown there. `openspec validate --specs --strict`
+is **14 passed, 0 failed** and `openspec list` reports **no active changes**.
+**The block's expected SHA is computed WITH its trailing newline**; the reader this
+stage wrote first excluded it and hashed to `c46f2d87…`, and **both files agreed under
+both conventions**, so the difference was a convention and not a content difference -
+which is only worth recording because it was checked rather than assumed either way.
+**Slice 2 is COMPLETE** as
 `panel-mailbox-choice` — proposal PR #118, apply PR #119 merged `67439da`, sync PR #120 merged
 `47132ae`, archive PR #121 merged `560410f`, archived at
 `openspec/changes/archive/2026-10-12-panel-mailbox-choice/`. **M11 now has one item left, its
