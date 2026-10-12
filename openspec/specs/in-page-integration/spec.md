@@ -532,11 +532,22 @@ mailbox happened to be stored first.
 
 **And the preference is what "allow using: the mailbox this site was last used with" means here,
 stated plainly because the roadmap's wording is a list of three.** This change delivers that third
-option as **which** mailbox a site resolves to, not as a menu over the others. A person on a site
-that has an association who wants a different existing mailbox has no control for it; they create a
-new mailbox, which becomes the newest, and it is offered on the next visit. **That is a real limit
-on "allow using", and it is recorded here rather than left to be discovered at M10**, when a menu
-inside somebody else's page can be judged on its own evidence instead of added as a side effect.
+option as **which** mailbox a site resolves to, not as a menu over the others. **A person on a
+site that has an association who wants a different existing mailbox has no control for it in this
+affordance**; they create a new mailbox, which becomes the newest, and it is offered on the next
+visit. **That is a real limit on "allow using", and it remains one for this affordance.**
+
+**Amendment, recorded at proposal (2026-10-12), by `panel-mailbox-choice`. This limit's *milestone*
+was stale and its scope was too wide; the limit itself did not change.** The text deferred this to a
+named milestone on the grounds that *"a menu inside somebody else's page can be judged on its own
+evidence instead of added as a side effect."* **That milestone has closed and no such change was
+made**, so the deferral named a future that did not arrive and a reader would have gone looking for
+it. **What the deferral did not say, and should have, is that the limit was never only about the
+menu's evidence — it is also about whose page it goes on.** A panel is this extension's own
+document and offers the choice; **this affordance is a control inside somebody else's page, and
+there it still offers no way to choose among the mailboxes this device holds.** The scope is
+therefore narrowed, not widened: the limit is now stated as this affordance's, and **no menu, no
+control and no capability is added to the in-page surface by this change.**
 
 #### Scenario: This site has a mailbox of its own
 
@@ -559,6 +570,12 @@ inside somebody else's page can be judged on its own evidence instead of added a
 - **WHEN** the key for a site is determined
 - **THEN** it SHALL be the host the browser reports for that page
 - **AND** no other spelling of that host SHALL be used as a key
+
+#### Scenario: A person wants a different existing mailbox
+
+- **WHEN** this device holds a mailbox it was not last used with on the site a field belongs to
+- **THEN** the affordance SHALL offer only the mailbox that rule resolves to
+- **AND** it SHALL offer no control to choose among the others
 
 ### Requirement: An association is recorded by an insertion, and one that cannot be honoured is not offered
 
