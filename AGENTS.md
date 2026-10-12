@@ -43,8 +43,8 @@
 > switch, and it does so over the route the spike priced as free: **the content-script round
 > trip and not the `tabs` permission**, so `tab.url` stays withheld and no permission was added
 > to read it. **The answer is a hostname and nothing else**, because a signup page's query
-> string is where its tokens are. **The cursor moves to M11 slice 2, now PROPOSED as
-> `panel-mailbox-choice`** — and it is **one item, not the two `docs/ROADMAP.md`'s Project Status
+> string is where its tokens are. **The cursor moves to M11 slice 2, APPLIED, VERIFIED and SYNCED
+> as `panel-mailbox-choice`** — and it is **one item, not the two `docs/ROADMAP.md`'s Project Status
 > block names.** Exploration split them, because **both amend the same `extension-client`
 > requirement heading**, and two unrelated amendments to one heading in one delta is the shape
 > this repository records as where an amendment gets attributed to the wrong assertion. Slice 2

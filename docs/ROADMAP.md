@@ -25,7 +25,7 @@
 > `spectre-storage` (M6 slice 1), `browser-verification`, `visual-system` (M7 slice
 > 1), `page-composition` (M7 slice 3), `extension-client` (M8) and
 > `in-page-integration` (M9 slice 1). Counted mechanically at each sync and again
-> after each archive, they hold **166 requirements and 520 scenarios** in total.
+> after each archive, they hold **166 requirements and 527 scenarios** in total.
 >
 > **The `alarms-packing-interval` spike declared `skip_specs` and promoted nothing, and
 > that was verified rather than assumed**: immediately after the archive the totals were
@@ -141,6 +141,18 @@
 > (recorded *before* the move, compared after), and all **13 requirement blocks** are
 > byte-identical to their promoted counterparts - re-verified against the **archived
 > copies**, since a move is the operation most likely to quietly drop a file.
+>
+> **Re-counted again after `panel-mailbox-choice`'s sync on 2026-10-12, by heading and not
+> transcribed: `extension-client` 12 -> 12 requirements / 52 -> 58 scenarios and
+> `in-page-integration` 17 -> 17 / 67 -> 68, with the other twelve capabilities identical to the
+> figures above, for 166 requirements and 527 scenarios across the same fourteen capabilities.**
+> **Requirements moved by zero, and this is the first time in this repository that every promoted
+> block replaced rather than added** - three blocks were promoted and not one added a requirement,
+> so **the block count is not the requirement delta**, and a reader expecting either figure from the
+> other would be wrong. The scenario delta of **+7** is the sum of **+5, +1 and +1**, and it was
+> measured rather than predicted. **The earlier per-capability list above is deliberately left as
+> the measurement it was**, because rewriting it would falsify what `side-panel-surface`'s archive
+> actually found - a record of a past measurement is not a stale figure.
 >
 > M0's own capability spec was archived with
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
