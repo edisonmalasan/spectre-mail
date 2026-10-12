@@ -1,4 +1,32 @@
 # SpectreMail Development Roadmap
+### Two corrections recorded at archive (2026-10-13)
+
+**The archive holds 5 files, not 6, and the orchestrator's own brief said 6.** The brief named five
+things and then said six; the stage measured five with two enumerations and git'"'"'s own rename
+detection, and **proceeded against the measurement rather than searching for a sixth file.** All five
+moved as renames with **0 insertions and 0 deletions**, and **`.openspec.yaml` survived** - the file
+one earlier archive in this repository dropped, and the reason the pre-archive digests are taken at
+all.
+
+**A block-hash convention difference, resolved by probing rather than by adjusting until it matched.**
+The archive stage'"'"'s reader hashed `c46f2d87…` where the sync stage reported `9e0905c4…`. Rather
+than widen a normalisation until the numbers agreed, it **probed eight variants across both files**
+and found the difference is the trailing newline - **and that both files agree under both
+conventions**, so content was never in question. **Had it not probed, the report would have been
+either a false alarm or a silent hash coincidence**, and this repository has recorded both shapes: a
+verifier crying wolf for the wrong reason, and a check that can pass for the wrong reason.
+
+**The orchestrator re-verified the archived block against the promoted spec with a third reader:**
+both SHA-256 `9e0905c4bc59570bced27891203db0ac8326fc21d54dc3ab3271a776a12f764d`, byte-identical.
+`openspec/specs/` **15 / 15 files untouched** by the archive, `openspec validate --specs --strict`
+**14 passed, 0 failed**, `openspec list` **No active changes**.
+
+**What M11 delivered, in one place: the side panel is a shipped surface, and it now says what the
+mailbox holds.** It names the host beside it, offers the mailboxes this device holds rather than
+naming them, and marks each row with what the session determined - including saying a message *could
+not be read* rather than letting silence read as "nothing here". **Every one of those words is the
+panel'"'"'s own, and it reaches the rows through one optional prop defaulting to absent, because the
+popup shares the same component and is forbidden by a promoted clause from stating any of it.**
 
 > **Status:** Draft approved for implementation planning  
 > **Repository:** `edisonmalasan/spectre-mail`  
@@ -158,9 +186,9 @@
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor: M11 - Side Panel + Mailbox Context, slice 3 ARCHIVED** as
-`panel-verification-state` - proposal PR **#124** merged `7c56c83`, apply PR **#125** merged
-`28f1360`, sync PR **#126** merged `b569ff6`, archived to
+**Roadmap cursor: M11 - Side Panel + Mailbox Context is COMPLETE IN SCOPE.** `panel-verification-state`
+- proposal PR **#124** merged `7c56c83`, apply PR **#125** merged `28f1360`, sync PR **#126** merged
+`b569ff6`, archive PR **#128**, archived to
 `openspec/changes/archive/2026-10-13-panel-verification-state/`. **Archive PR number left
 unfilled by the archive stage rather than guessed, because that stage was told not to open the
 PR and a predicted PR number in a document other stages cite by name is a figure nobody
@@ -187,6 +215,29 @@ is **14 passed, 0 failed** and `openspec list` reports **no active changes**.
 stage wrote first excluded it and hashed to `c46f2d87…`, and **both files agreed under
 both conventions**, so the difference was a convention and not a content difference -
 which is only worth recording because it was checked rather than assumed either way.
+
+**What M11 delivered, in one place, because three slices of it were each a correction rather than a
+feature.** The side panel is a **shipped surface**, and it now says what the mailbox holds: it names
+the host beside it, it offers the mailboxes this device holds rather than naming them, and it marks
+each row with what the session determined - **including saying a message *could not be read*, rather
+than letting a row's silence read as "nothing here"**, which `state.ts` calls the one false claim in
+this product that costs a user the code they were waiting for. **Every one of those words is the
+panel's own, and they reach the rows through one optional prop defaulting to absent - because the
+popup shares the same component and a promoted clause forbids the popup from stating any of it.**
+That prop is the whole architectural story of this milestone: **the two surfaces agree on everything
+except the one thing only one of them is allowed to say**, and the mechanism is a default rather than
+a fork.
+
+**The cursor moves past M11, and what it does not establish is worth carrying forward.** Nothing
+here has measured **whether a person can reach the panel at all** - with `openPanelOnActionClick`
+unset it is reachable only through Chromium's own side-panel entry point, and **no instrument in
+this repository reads a browser's own UI**. Nothing here reads a **rendered pixel**, so how any of
+it looks remains a human judgement. And the item this milestone was reframed around - *whether any
+message this mailbox holds carries a detected verification* - **answers a fact and never a
+certainty**: the parser caps confidence by construction, a reducing shape is a penalty rather than an
+exclusion, and a verification link delivered as plain text is a **measured false negative** this
+product has, so a marker can be wrong in both directions with no instrument able to say which.
+
 **Slice 2 is COMPLETE** as
 `panel-mailbox-choice` — proposal PR #118, apply PR #119 merged `67439da`, sync PR #120 merged
 `47132ae`, archive PR #121 merged `560410f`, archived at
