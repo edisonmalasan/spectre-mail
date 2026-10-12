@@ -31,17 +31,23 @@
  * @vitest-environment jsdom
  */
 
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createMailbox } from "@spectre-mail/core";
 import type { Mailbox } from "@spectre-mail/core";
-import type { MailboxSession, SessionState } from "@spectre-mail/mailbox";
+import type {
+  InboxState,
+  MailboxSession,
+  MessageVerdict,
+  SessionState,
+} from "@spectre-mail/mailbox";
 
+import { MessageList } from "./MessageSurface";
 import { Panel } from "./Panel";
 import type { PanelRecords } from "./Panel";
 import { HOST_CONTEXT_REQUEST, fillCodeRequest, hostContextAnswer } from "./protocol";
-import { PANEL_COPY } from "./panel-copy";
+import { PANEL_COPY, PANEL_VERDICT_WORDING } from "./panel-copy";
 
 /** The mailbox a host resolves to in most of these cases. */
 const MAILBOX: Mailbox = createMailbox({
@@ -111,7 +117,13 @@ const OPENED = {
 const FAILURE = {
   code: "PROVIDER_UNREACHABLE",
   description: "Mail.tm answered 503.",
-  providerFailures: [{ provider: "mailtm", description: "Mail.tm answered 503." }],
+  /**
+   * **A one-element tuple rather than an array**, so a case may read `[0]` without a
+   * non-null assertion. `noUncheckedIndexedAccess` is on for every workspace project, and
+   * `providerFailures[0]!` in an assertion is a cast that invites the reader to believe the
+   * element exists when nothing checks that it does.
+   */
+  providerFailures: [{ provider: "mailtm", description: "Mail.tm answered 503." }] as const,
 };
 
 /**
@@ -1755,10 +1767,361 @@ describe("the panel names the page beside it", () => {
       expect(screen.getByRole("radiogroup", { name: PANEL_COPY.heldGroup })).toBe(group);
       expect(group.getAttribute("aria-label")).toBe(PANEL_COPY.heldGroup);
 
-      // **And it is not the heading's sentence**, so the two are still doing different work — the
+      // **And it is not the heading's sentence**, so the two are still doing different work - the
       // `<h2>` names the list, the group names its purpose, and one string doing both would mean one
       // of the two claims was never made.
       expect(PANEL_COPY.heldGroup).not.toBe(PANEL_COPY.heldHeading);
     });
+  });
+});
+
+/**
+ * ## What the panel says about each message, and what the shared listing says without being asked
+ *
+ * **`panel-mailbox-choice`'s group 7.2 left a comment in `MessageSurface.tsx` saying the slice that
+ * ships the indicator owns this, and this is that slice.** The cases below are the unit half of the
+ * delta's seven scenarios; the browser half is `side-panel.spec.ts`, and **both tiers hold the same
+ * properties for the reason this file's header gives** - a browser cannot be put into every state on
+ * demand, and *"a listing whose verdicts are not all determined"* is one of them.
+ *
+ * **And the last case is not a panel case at all.** It renders `MessageList` directly with **no**
+ * `verdictWording`, because that absence is the delta's own clause - *"a surface that does not ask
+ * SHALL render its listing exactly as it does without this requirement"* - and **the panel can never
+ * falsify it**, because `Panel.tsx` always asks. A case that renders the panel and finds no marking
+ * proves only that this particular caller passed no wording, which is a statement about `Panel.tsx`
+ * rather than about the default.
+ */
+describe("the panel states, per message, what the session found", () => {
+  const ORIGINAL_PLATFORM = Object.getOwnPropertyDescriptor(globalThis, "chrome");
+
+  afterEach(() => {
+    if (ORIGINAL_PLATFORM === undefined) {
+      Reflect.deleteProperty(globalThis, "chrome");
+    } else {
+      Object.defineProperty(globalThis, "chrome", ORIGINAL_PLATFORM);
+    }
+
+    cleanup();
+  });
+
+  /**
+   * One listed message, distinguished by id and subject only.
+   *
+   * **The sender and the arrival time are held identical across every message**, so a marking that
+   * were rendered by anything other than the verdict cannot be told apart by looking at the row.
+   */
+  function listed(id: string, subject: string) {
+    return { ...LISTED, id, subject };
+  }
+
+  /** A `checked` inbox carrying the given messages and verdicts. */
+  function checked(
+    messages: readonly ReturnType<typeof listed>[],
+    verdicts: ReadonlyMap<string, MessageVerdict>,
+  ): InboxState {
+    return { kind: "checked", listing: { messages, verdicts } } as InboxState;
+  }
+
+  /** Render a panel whose session publishes exactly this inbox. */
+  function renderPanelWith(inbox: InboxState) {
+    installPlatform({ host: "signup.example.test" });
+
+    const session = stubSession({
+      kind: "ready",
+      mailbox: MAILBOX,
+      inbox,
+      opened: null,
+    } as unknown as SessionState);
+
+    render(
+      <Panel
+        session={session}
+        records={stubRecords({ held: [MAILBOX], association: MAILBOX.id })}
+        primaryProviderName="Mail.tm"
+      />,
+    );
+  }
+
+  /**
+   * The marking on the row carrying a subject, **read at that row**.
+   *
+   * **Scoped to the row because a listing-wide read cannot tell a marking from its neighbour's**,
+   * and every case below has a row that must carry nothing sitting beside rows that must carry
+   * something. `rowFor` refuses to guess as well: a subject that is not on any row throws from
+   * `getByText` rather than resolving to `null` and reading as *"this row is bare"*.
+   */
+  function markingFor(subject: string): string | null {
+    const row = screen.getByText(subject).closest("li");
+
+    expect(row, `no row carries ${subject}`).not.toBeNull();
+
+    return within(row as HTMLElement).queryByTestId("message-verdict")?.textContent ?? null;
+  }
+
+  it("marks a code row and a link row with their own words, and the two are distinguishable", async () => {
+    const messages = [listed("m-code", "Sign-in code"), listed("m-link", "Confirm your address")];
+
+    renderPanelWith(
+      checked(
+        messages,
+        new Map<string, MessageVerdict>([
+          ["m-code", { kind: "carriesCode" }],
+          ["m-link", { kind: "carriesLink" }],
+        ]),
+      ),
+    );
+
+    await screen.findByText("Sign-in code");
+
+    const code = markingFor("Sign-in code");
+    const link = markingFor("Confirm your address");
+
+    /**
+     * **Read against the wording record rather than against literal strings**, so a wording changed
+     * on purpose does not leave a component test red for a reason that is not the component. The
+     * *distinguishable* claim below is the requirement's own clause and it is what carries the case.
+     */
+    expect(code).toBe(PANEL_VERDICT_WORDING.carriesCode);
+    expect(link).toBe(PANEL_VERDICT_WORDING.carriesLink);
+
+    // **The clause: "the marking SHALL name which was detected rather than naming both."** Asserted as
+    // an inequality between two readings rather than as an absence of a word, because a row naming
+    // both would still satisfy every word-level check that looked for the one it does name.
+    expect(code).not.toBe(link);
+    expect(code).not.toBeNull();
+    expect(link).not.toBeNull();
+  });
+
+  it("leaves a row the session read and found nothing bare, and certifies nothing about it", async () => {
+    renderPanelWith(
+      checked(
+        [listed("m-bare", "Weekly digest")],
+        new Map([["m-bare", { kind: "carriesNothing" }]]),
+      ),
+    );
+
+    await screen.findByText("Weekly digest");
+
+    // **The row-level absence, at the row.** `queryByTestId` returns null when *nothing* carries the
+    // id, so a panel that rendered no listing at all would satisfy it - which is why the wait above
+    // establishes the row is on the page first, and why the case below re-establishes it.
+    expect(markingFor("Weekly digest")).toBeNull();
+    expect(screen.getByText("Weekly digest")).toBeDefined();
+
+    /**
+     * **The rendered panel's own text, swept - and this is where `carriesNothing` earns its empty
+     * string.** The requirement's clause is *"the panel SHALL NOT state that the message carries no
+     * verification"*, so the claim is about **words on the page** and not about a node's absence.
+     *
+     * **The patterns are the requirement's own sentence** - *carries no verification*, *contains no
+     * verification*, *nothing to verify* - and not the bare substring, because
+     * `PANEL_COPY.noLinks` reads *"No verification link was found in this message."*, which reports
+     * what a **scan** found rather than certifying what the **message** holds. `panel-copy.test.ts`
+     * carries the same narrowing and the same reasoning at the module's own level.
+     */
+    const CERTIFIES = [
+      /\b(?:carries|carry|carried|contains|contain)\s+no\s+(?:detected\s+)?verification\b/i,
+      /nothing\s+to\s+verify/i,
+      /\b(?:contains?|carries|has|holds?)\s+(?:a\s+|an\s+|the\s+)?(?:detected\s+)?(?:one[- ]time\s+)?(?:code|verification\s+link)\b/i,
+    ] as const;
+
+    const panelText = (): string => document.body.textContent ?? "";
+
+    for (const pattern of CERTIFIES) {
+      expect(pattern.test(panelText()), String(pattern)).toBe(false);
+    }
+
+    /**
+     * **The negative control, and it is planted in the running document rather than in a string.**
+     *
+     * **A sweep over `document.body.textContent` is the easiest reader in this file to write
+     * wrongly** - a body that is empty, or a `textContent` that resolved before the row rendered,
+     * both answer *false* for every pattern and satisfy every assertion above. So the control puts
+     * the phrase on the page and requires the **same reader, called the same way**, to report it.
+     */
+    const planted = document.createElement("p");
+    planted.textContent = "This message carries no verification.";
+    document.body.append(planted);
+
+    try {
+      expect(CERTIFIES[0].test(panelText())).toBe(true);
+    } finally {
+      planted.remove();
+    }
+  });
+
+  it("says on an undetermined row that the message could not be read, and nothing about its contents", async () => {
+    /**
+     * **An id the map has never heard of**, which is how `undetermined` actually arrives: `verdictFor`
+     * defaults to it, so a missing entry *is* the answer rather than an error to handle.
+     */
+    renderPanelWith(checked([listed("m-new", "Something arrived")], new Map()));
+
+    await screen.findByText("Something arrived");
+
+    const marking = markingFor("Something arrived");
+
+    expect(marking).toBe(PANEL_VERDICT_WORDING.undetermined);
+    expect(marking).toMatch(/could not be read/i);
+
+    // **Two separate clauses, asserted separately because they can fail apart**: a wording that said
+    // *"we could not read it, but it probably has a code"* satisfies the first and violates the
+    // second, which is the delta's *"SHALL NOT be presented as carrying a detection"*.
+    expect(marking).not.toMatch(
+      /\b(?:contains?|carries|has|holds?)\s+(?:a\s+|an\s+|the\s+)?(?:detected\s+)?(?:one[- ]time\s+)?(?:code|verification\s+link)\b/i,
+    );
+    expect(marking).not.toMatch(/\b(?:probably|likely|perhaps|appears?\s+to|seems?\s+to)\b/i);
+  });
+
+  it("renders exactly the four wordings, on their own rows, and nothing on the fifth", async () => {
+    /**
+     * **One listing holding one message per verdict**, because the two arms this case has to hold
+     * apart - a row that must be marked and a row that must be bare - are indistinguishable in any
+     * listing that does not contain both.
+     */
+    const messages = [
+      listed("m-code", "One code"),
+      listed("m-link", "One link"),
+      listed("m-both", "Code and link"),
+      listed("m-bare", "Nothing found"),
+      listed("m-unread", "Never read"),
+    ];
+
+    renderPanelWith(
+      checked(
+        messages,
+        new Map<string, MessageVerdict>([
+          ["m-code", { kind: "carriesCode" }],
+          ["m-link", { kind: "carriesLink" }],
+          ["m-both", { kind: "carriesCodeAndLink" }],
+          ["m-bare", { kind: "carriesNothing" }],
+          // **`m-unread` is deliberately absent.** See above.
+        ]),
+      ),
+    );
+
+    await screen.findByText("Never read");
+
+    const rendered = screen.getAllByTestId("message-verdict").map((node) => node.textContent ?? "");
+
+    /**
+     * **The identity, and it is one assertion carrying both halves of the claim.**
+     *
+     * `panel-copy.test.ts`'s *"declares one entry for every verdict kind"* case holds that the record
+     * is exhaustive. This one holds that **exactly the non-empty entries reach the page** - so a
+     * wording in the record that nothing renders, and a marking on screen that no wording declared,
+     * both fail the same assertion. Two separate expectations would each be satisfied by a listing
+     * that dropped one row and gained another.
+     */
+    expect([...rendered].sort()).toEqual(
+      Object.entries(PANEL_VERDICT_WORDING)
+        .filter(([, wording]) => wording !== "")
+        .map(([, wording]) => wording)
+        .sort(),
+    );
+
+    // **And per row, because a listing-wide count cannot say *which* row is bare.**
+    expect(markingFor("One code")).toBe(PANEL_VERDICT_WORDING.carriesCode);
+    expect(markingFor("One link")).toBe(PANEL_VERDICT_WORDING.carriesLink);
+    expect(markingFor("Code and link")).toBe(PANEL_VERDICT_WORDING.carriesCodeAndLink);
+    expect(markingFor("Never read")).toBe(PANEL_VERDICT_WORDING.undetermined);
+
+    /**
+     * **The fifth row, on its own.**
+     *
+     * **`carriesNothing` is `""` and the component refuses to render an empty `<p>`**, so this asserts
+     * absence *and* the reason: a bare `""` would otherwise be satisfied by a node carrying an empty
+     * paragraph, which is on screen, which is not nothing.
+     */
+    expect(markingFor("Nothing found")).toBeNull();
+    expect(
+      within(screen.getByText("Nothing found").closest("li") as HTMLElement).getByText(
+        "Nothing found",
+      ),
+    ).toBeDefined();
+  });
+
+  it("keeps the verdicts a failed check's listing already carried", async () => {
+    /**
+     * **The reverse false claim, and it is the one the delta adds a scenario for.**
+     *
+     * A check that failed still shows what an **earlier** check determined, and **those messages were
+     * read**. Marking them *"could not be read"* would be false in the direction this repository calls
+     * the one that costs a user the code they were waiting for - and a refactor that dropped the
+     * marking on this variant would lose it silently, because the variant renders identically until
+     * somebody looks at this case.
+     */
+    renderPanelWith({
+      kind: "checkFailed",
+      listing: {
+        messages: [listed("m-old", "From the last good check")],
+        verdicts: new Map<string, MessageVerdict>([["m-old", { kind: "carriesCodeAndLink" }]]),
+      },
+      failure: FAILURE,
+    } as unknown as InboxState);
+
+    await screen.findByText("From the last good check");
+
+    // **The positive control: we are on the `checkFailed` variant and not on `checked`.** The listing
+    // alone does not distinguish them, so an assertion about retained verdicts on the wrong variant
+    // would pass for the right reason. **The sentence is read whole** because `providerFailed`
+    // interpolates the provider's own words into one sentence, and a reader matching only the
+    // description would be satisfied by any `role="alert"` on the page.
+    expect(
+      screen.getByText(
+        PANEL_COPY.providerFailed(
+          FAILURE.providerFailures[0].provider,
+          FAILURE.providerFailures[0].description,
+        ),
+      ),
+    ).toBeDefined();
+
+    expect(markingFor("From the last good check")).toBe(PANEL_VERDICT_WORDING.carriesCodeAndLink);
+    expect(markingFor("From the last good check")).not.toBe(PANEL_VERDICT_WORDING.undetermined);
+  });
+
+  it("renders the shared listing with no marking at all when no surface asks for one", () => {
+    /**
+     * **The shared component, rendered directly, with the prop absent** - which is the only place
+     * the default is observable at all.
+     *
+     * **Five messages, one per verdict, so "under any verdict" is literal.** A listing of one message
+     * with one verdict would be satisfied by a default that only failed to render `carriesCode`.
+     */
+    const state = checked(
+      [
+        listed("m-code", "One code"),
+        listed("m-link", "One link"),
+        listed("m-both", "Code and link"),
+        listed("m-bare", "Nothing found"),
+        listed("m-unread", "Never read"),
+      ],
+      new Map<string, MessageVerdict>([
+        ["m-code", { kind: "carriesCode" }],
+        ["m-link", { kind: "carriesLink" }],
+        ["m-both", { kind: "carriesCodeAndLink" }],
+        ["m-bare", { kind: "carriesNothing" }],
+      ]),
+    );
+
+    render(<MessageList state={state} onOpen={() => undefined} />);
+
+    expect(screen.getAllByRole("listitem")).toHaveLength(5);
+    expect(screen.queryByTestId("message-verdict")).toBeNull();
+
+    /**
+     * **The positive control, and it is the second half of the absence claim.**
+     *
+     * **Without it, `queryByTestId` returning null proves nothing about the default**: it returns
+     * null for a component that never renders a marking whatever it is asked, which is the other
+     * failure this default exists to distinguish from. So the **same state, on the same component**,
+     * is rendered again with the wording supplied, and the markings have to appear.
+     */
+    cleanup();
+    render(
+      <MessageList state={state} onOpen={() => undefined} verdictWording={PANEL_VERDICT_WORDING} />,
+    );
+
+    expect(screen.getAllByTestId("message-verdict")).toHaveLength(4);
   });
 });

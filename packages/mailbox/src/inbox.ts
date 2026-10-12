@@ -102,8 +102,12 @@ export interface InboxTracker {
    * every wake, because this tracker remembers which bodies it has read only for its own
    * lifetime and each wake built a fresh one. Against a `GET /messages` budget of
    * `30; w=60` that is twenty-four requests a minute at one message and over the whole
-   * budget at two, and `apps/web/src/Inbox.tsx` is the only caller in this repository
-   * that reads a verdict at all.
+   * budget at two. **Two surfaces in this repository read a verdict and this wake is
+   * neither of them: `apps/web/src/Inbox.tsx`, and the side panel's listing** - which reads
+   * the verdicts `restore`'s own verdict pass produced. **The arithmetic above is about a
+   * wake's *repeating* cost**, which is why those callers do not reach the same figure: the
+   * website and the panel are each destroyed with their own surface rather than rebuilt on
+   * every wake.
    *
    * **It reports the same `InboxState` union, with an empty verdict map.** That is not a
    * missing value standing in for one: `checking` already publishes a listing with no

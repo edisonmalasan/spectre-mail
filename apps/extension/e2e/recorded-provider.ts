@@ -37,8 +37,11 @@ import type { BrowserContext } from "@playwright/test";
 import {
   FIXTURE_IDS,
   guerrillaLiveList,
+  guerrillaMessageFetched,
+  guerrillaMessageWithVerificationLink,
   guerrillaSessionCreated,
   guerrillaThrottled,
+  guerrillaUnclassifiable,
   mailtmAccountCreated,
   mailtmDomains,
   mailtmMessageFetched,
@@ -46,6 +49,7 @@ import {
   mailtmThrottled,
   mailtmToken,
 } from "../../../packages/providers/src/fixtures";
+import type { RecordedStep } from "../../../packages/providers/src/recorder";
 
 /**
  * Mail.tm's account creation, as the adapter spells it in a URL.
@@ -65,6 +69,52 @@ export const MAILTM_ACCOUNTS = "https://api.mail.tm/accounts";
  * matched on a bare host would also match nothing here.
  */
 export const GUERRILLA_AJAX = "https://api.guerrillamail.com/ajax.php";
+
+/**
+ * The query parameter {@link GUERRILLA_AJAX}'s adapter spells its operation in, and the two
+ * operations a body-verdict staging has to tell apart.
+ *
+ * **A URL's spelling, not a response field, and that distinction is why these names can live
+ * under `apps/`.** `tests/architecture`'s provider-wire rule forbids seven **response field
+ * names** - `mail_id`, `sid_token`, `content_type` and four others - and the operation is none
+ * of them: it travels in the query string and this file already documents its existence on
+ * {@link GUERRILLA_AJAX}. **A stage that matched a bare host would match both operations and
+ * stage nothing**, and a stage that guessed which is which would stage the wrong answer
+ * confidently, so both are named rather than inferred.
+ *
+ * **Exported so a spec can say what it staged rather than re-typing it.**
+ */
+export const GUERRILLA_OPERATION_PARAMETER = "f";
+
+/** The listing request. */
+export const GUERRILLA_LIST_OPERATION = "check_email";
+
+/** The one-body read, which is what decides a verdict. */
+export const GUERRILLA_READ_OPERATION = "fetch_email";
+
+/**
+ * The recorded answers a spec can stage for a body read, by name.
+ *
+ * **A list rather than a free `RecordedStep`, and the reason is that every one of these is a
+ * fixture this repository already holds** - a spec naming its own response would transcribe a
+ * provider body into `apps/`, which is the defect this file's own header records having been
+ * made once already. **So the choice is which recorded fixture answers the read, not what the
+ * read returns.**
+ *
+ * **`none` is the default and it is a real answer.** With no option, the read is answered with
+ * the recorded *listing* body, which carries no body field - so the read succeeds and reports an
+ * empty message, which the session's verdict pass correctly calls `carriesNothing`. **That is
+ * the fixture the `carriesNothing` cases use, and it is the reason a fourth verdict needed no
+ * new recorded response anywhere in `packages/providers`.**
+ */
+export const GUERRILLA_READ_ANSWERS = {
+  /** The measured fetch, whose body carries a one-time code. */
+  code: guerrillaMessageFetched,
+  /** The synthetic fetch, whose body carries an `<a href>` and no code. */
+  link: guerrillaMessageWithVerificationLink,
+  /** The recorded `500`, so `getMessage` throws and the verdict is `undetermined`. */
+  refused: guerrillaUnclassifiable,
+} as const satisfies Readonly<Record<string, RecordedStep>>;
 
 /**
  * A recorded **refusal** per creation path, for {@link RecordingOptions.allProvidersThrottled}.
@@ -201,6 +251,37 @@ export interface RecordingOptions {
    * waiting on a request that is not the one under test.
    */
   readonly holdAccountCreation?: Promise<unknown>;
+
+  /**
+   * Which recorded fixture answers a **body read** ({@link GUERRILLA_READ_OPERATION}).
+   *
+   * **Off by default, and the default is a verdict rather than an absence.** With no option the
+   * read falls through to {@link SCRIPT} and is answered with the recorded *listing* body,
+   * which carries no body field - so the read succeeds, the text is empty, and the session's
+   * verdict pass reaches `carriesNothing`. **Stating it as a missing option would have made the
+   * most common verdict the one a spec had to opt into by accident.**
+   *
+   * **The map rather than a fixture argument**, so a spec cannot transcribe a provider body
+   * under `apps/` and so the three answers this tier offers are three fixtures that already
+   * exist. See {@link GUERRILLA_READ_ANSWERS}.
+   */
+  readonly guerrillaRead?: (typeof GUERRILLA_READ_ANSWERS)[keyof typeof GUERRILLA_READ_ANSWERS];
+
+  /**
+   * The **one-based** attempt at a listing ({@link GUERRILLA_LIST_OPERATION}) from which the
+   * recorded `500` is served, so a check that has already succeeded can be made to fail.
+   *
+   * **Counted rather than a boolean, and the reason is that "the listing fails" is not one
+   * moment.** The panel's first listing is its adoption, and a scenario about a *later* check
+   * failing - a check that leaves the rows it already learned on screen - cannot be staged by
+   * making every listing fail, because then there are no rows to retain. **A spec wanting the
+   * first listing itself to fail passes `1`.**
+   *
+   * **Attempt counting is per `recordProviderTraffic` call**, which is what makes it usable:
+   * one spec is one recording, so the counter starts at zero with the panel closed and no two
+   * cases in this profile can move it.
+   */
+  readonly guerrillaListFailsFromAttempt?: number;
 }
 
 /** What the interception saw. */
@@ -242,6 +323,16 @@ export async function recordProviderTraffic(
   const requestedAt: number[] = [];
   const unscripted: string[] = [];
 
+  /**
+   * How many listings this recording has answered, so a *later* one can be made to fail.
+   *
+   * **A closure counter rather than a member of {@link ProviderTraffic}, and the reason is that
+   * nothing outside this function may read it.** Exposing it would invite a spec to assert on
+   * the count as though it were a property of the product; it is a property of the staging, and
+   * the only claim a spec makes about it is whether the listing it staged arrived.
+   */
+  let listingAttempts = 0;
+
   await context.route("**/*", async (route) => {
     const url = route.request().url();
 
@@ -278,6 +369,49 @@ export async function recordProviderTraffic(
           body: refusal[1].body,
         });
         return;
+      }
+    }
+
+    /**
+     * **Guerrilla Mail's two operations are told apart before {@link SCRIPT} is consulted, and
+     * that ordering is the whole seam.** {@link SCRIPT} keys on a URL *prefix*, and
+     * `ajax.php` is the prefix of both operations - so without this block a body read would be
+     * answered with a *listing*, the adapter would find no body field, and every staged verdict
+     * would be `carriesNothing` while the spec believed it had staged something else.
+     *
+     * **Both branches are no-ops unless a spec asked for them**, so every case in this file that
+     * does not opt in is answered exactly as it was before this seam existed. That is the
+     * direction that matters: a seam that changed the default would have invalidated the 82
+     * cases already passing rather than the seven this change adds.
+     */
+    if (url.startsWith(GUERRILLA_AJAX)) {
+      const operation = new URL(url).searchParams.get(GUERRILLA_OPERATION_PARAMETER);
+
+      if (operation === GUERRILLA_READ_OPERATION && options.guerrillaRead !== undefined) {
+        const staged = recorded(options.guerrillaRead);
+        await route.fulfill({
+          status: staged.status,
+          contentType: "application/json",
+          body: staged.body,
+        });
+        return;
+      }
+
+      if (operation === GUERRILLA_LIST_OPERATION) {
+        listingAttempts += 1;
+
+        if (
+          options.guerrillaListFailsFromAttempt !== undefined &&
+          listingAttempts >= options.guerrillaListFailsFromAttempt
+        ) {
+          const refused = recorded(guerrillaUnclassifiable);
+          await route.fulfill({
+            status: refused.status,
+            contentType: "text/plain",
+            body: refused.body,
+          });
+          return;
+        }
       }
     }
 

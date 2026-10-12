@@ -24,17 +24,19 @@
  * **`POPUP_COPY`, not `PANEL_COPY`,** because these are the *message surface*'s words and this
  * change did not alter any of them: the panel shows the same listing, the same codes and the same
  * delivery reports because they are the same facts about the same mailbox. `design.md` D9 gives
- * `panel-copy.ts` the panel's **own** four claims — the host, the inability to name it, a failed
- * provider, a mailbox that is gone — and those are panel-specific sentences that exist nowhere
- * else. Renaming `POPUP_COPY` was not an option either way: `apps/web`'s `Extension preview`
- * region resolves every label it declares against that constant by name, and `D9` commits
+ * `panel-copy.ts` the panel's **own** claims - the host, the inability to name it, a failed
+ * provider, a mailbox that is gone, and the per-message verdict marking, which is panel-only
+ * because the popup is forbidden from stating it - and those are panel-specific sentences that
+ * exist nowhere else. Renaming `POPUP_COPY` was not an option either way: `apps/web`'s `Extension
+ * preview` region resolves every label it declares against that constant by name, and `D9` commits
  * `apps/web` to **125 tests** and no change at all.
  *
  * @module
  */
 
 import type { MessageSummary, VerificationLink } from "@spectre-mail/core";
-import type { InboxState, OpenedMessageState } from "@spectre-mail/mailbox";
+import { verdictFor } from "@spectre-mail/mailbox";
+import type { InboxState, MessageVerdict, OpenedMessageState } from "@spectre-mail/mailbox";
 
 import type { FillCodeAnswer } from "./protocol";
 import { POPUP_COPY } from "./popup-copy";
@@ -125,13 +127,26 @@ export type FillReport =
 /**
  * The listed messages, each of which can be opened.
  *
- * ## Why the listing shows no marker at all, and that is the requirement
+ * ## Why the popup's listing shows no marker, and which clauses say so
  *
- * **`MessageSummary` carries no codes and no links, on purpose** — `packages/core` says listing a
- * mailbox must not require fetching bodies. So a row *cannot* say a message carries a verification,
- * and `extension-client` forbids a surface from indicating that one does. **Rendering the sender and
- * the subject and nothing else is the whole of what a listing can honestly show**, and a marker here
- * would be a guess about a message nobody has read.
+ * **`MessageSummary` carries no codes and no links, on purpose** - `packages/core` says listing a
+ * mailbox must not require fetching bodies. So a row built from a summary alone *cannot* say a
+ * message carries a verification.
+ *
+ * **And `extension-client` forbids exactly two surfaces from saying it, and both clauses name THE
+ * POPUP** - *"The popup SHALL NOT indicate that a message carries a verification until it has opened
+ * that message"*, inside the requirement headed *"The extension's popup performs its first
+ * milestone's actions over the shared session"*, with the scenario *"A check has listed messages"*.
+ * **An earlier version of this comment said the requirement "forbids a surface", which is broader
+ * than the promoted text**, and a reader arriving at the marking below would have taken that broader
+ * claim as the rule. `panel-mailbox-choice` left it here for the slice that ships the indicator.
+ *
+ * **The panel's listing does carry it, which is why the marking below exists at all.**
+ * `InboxListing` carries `verdicts` once the session's verdict pass has run, and that requirement -
+ * *"A message is analysed once, and only when it is new"* - already obliges the session to
+ * determine it, hold it against the message, and report it. **The panel's permission is not the
+ * absence of the popup's prohibition: it is a positive requirement of its own**, *"The side panel
+ * states, per message, whether a detected verification was found in it"*.
  *
  * ## Why opening goes through the session rather than fetching anything
  *
@@ -139,12 +154,39 @@ export type FillReport =
  * and it retains that analysis so a second visit costs no provider request. A surface that fetched a
  * body itself would spend a request per message to recompute an answer already in hand.
  */
+
+/**
+ * A surface's own words for each verdict in the shared union.
+ *
+ * **Exhaustive, so a sixth `MessageVerdict["kind"]` fails to compile here.** The empty case is
+ * written out rather than omitted, because *"the row shows no marking"* is a decision and not a
+ * missing case, and an omitted key would be indistinguishable from one nobody wrote.
+ */
+export type VerdictWording = Readonly<Record<MessageVerdict["kind"], string>>;
+
 export function MessageList({
   state,
   onOpen,
+  verdictWording,
 }: {
   readonly state: InboxState;
   readonly onOpen: (messageId: string) => void;
+  /**
+   * Absent renders no marking on any row, which is what the popup asks for.
+   *
+   * **The default is off and that direction is the requirement.** A prop defaulting to *on* would
+   * make the forbidden behaviour the default and the allowed one the exception, so the failure mode
+   * of a future refactor would be a spec violation rather than a missing feature. **This is the
+   * {@link LinkCopyLabels} precedent exactly** - a record of labels the caller owns, whose absence is
+   * what keeps the popup free of them.
+   *
+   * **It carries the words and NOT the verdicts map, and that is deliberate.** The verdicts are
+   * already inside `state`: `listing.verdicts` sits beside `listing.messages`, so each row reads its
+   * own through {@link verdictFor}. **A caller handed the map instead would be a second source that
+   * can disagree with the rows it marks** - a panel holding another mailbox's map would mark these
+   * rows with that mailbox's verdicts, and nothing anywhere would report it.
+   */
+  readonly verdictWording?: VerdictWording;
 }) {
   if (state.kind !== "checked" && state.kind !== "checkFailed") {
     return null;
@@ -152,21 +194,43 @@ export function MessageList({
 
   return (
     <ul aria-label={COPY.messages} data-testid="message-list">
-      {state.listing.messages.map((message) => (
-        <li key={message.id}>
-          <span className="message__from">{describeSender(message)}</span>
-          <span className="message__subject">{message.subject}</span>
-          <button
-            type="button"
-            className="control"
-            onClick={() => {
-              onOpen(message.id);
-            }}
-          >
-            {COPY.openMessage}
-          </button>
-        </li>
-      ))}
+      {state.listing.messages.map((message) => {
+        /**
+         * **`verdictFor` rather than a lookup written here**, because its default is the whole
+         * point: an id the map has never heard of is `undetermined` - "not known" - rather than an
+         * accidental `undefined` a row might treat as a negative answer. **The same holds for the
+         * `checkFailed` variant above**, which carries the last known listing *with its verdicts*, so
+         * a row the session did read is marked by what it actually found and never by "could not be
+         * read".
+         */
+        const verdict = verdictFor(state.listing.verdicts, message.id);
+        const marking = verdictWording?.[verdict.kind] ?? "";
+
+        return (
+          <li key={message.id}>
+            <span className="message__from">{describeSender(message)}</span>
+            <span className="message__subject">{message.subject}</span>
+            {/**
+             * **A bare `<p>` carrying a `data-testid` and no class at all.**
+             *
+             * `.panel p` and `.popup p` are declared already, so the words are styled by a rule that
+             * exists today, and **a new class hook would be a stylesheet obligation** the boundary
+             * rule reports by name. The marking is **words only, with no accent rule**: a rule beside
+             * a row is a claim that something is in it, and an undetermined row must not carry one.
+             */}
+            {marking !== "" && <p data-testid="message-verdict">{marking}</p>}
+            <button
+              type="button"
+              className="control"
+              onClick={() => {
+                onOpen(message.id);
+              }}
+            >
+              {COPY.openMessage}
+            </button>
+          </li>
+        );
+      })}
     </ul>
   );
 }
