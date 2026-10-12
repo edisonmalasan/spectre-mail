@@ -189,11 +189,44 @@ popup shares the same component and is forbidden by a promoted clause from stati
 **Roadmap cursor: M11 - Side Panel + Mailbox Context is COMPLETE IN SCOPE.** `panel-verification-state`
 - proposal PR **#124** merged `7c56c83`, apply PR **#125** merged `28f1360`, sync PR **#126** merged
 `b569ff6`, archive PR **#128**, archived to
-`openspec/changes/archive/2026-10-13-panel-verification-state/`. **Archive PR number left
-unfilled by the archive stage rather than guessed, because that stage was told not to open the
-PR and a predicted PR number in a document other stages cite by name is a figure nobody
-counted** - `gh pr view` fills it in one command afterwards, which is the honest order. The
-archive was run with `--skip-specs` because the sync stage already promoted the delta.
+`openspec/changes/archive/2026-10-13-panel-verification-state/`. The archive was run with
+`--skip-specs` because the sync stage already promoted the delta.
+
+**That archive PR went red on its first run, and the red was a defect in a test the apply stage had
+added - not in the archive, which is five renames and a paragraph.** `side-panel.spec.ts`'s staging
+opened the **panel document while the panel tab was itself the active tab**, so every case's host
+reading depended on a `chrome.tabs.onActivated` arriving to correct it, and that event's delivery
+was measured on one machine at **86 ms … 19 898 ms** against a 20 000 ms assertion timeout - the
+last reading being the CI failure reproduced locally, with `sendMessage` itself answering in
+**4 ms**. **The product was correct throughout; a case was reading it through a latency it does not
+control.** Repaired by PR **#129** merged `5afe676` as **the order, not a ceiling**: the fixture
+page is made active *before* the panel document loads, so the reading becomes the panel's mount
+ask with **no `onActivated` on the path**, and the four cases that genuinely hold *"re-asks on a tab
+switch"* observe the activation in the panel's own world first and then assert with **no timeout
+pressure**. **The 20 000 ms timeouts are gone rather than enlarged**, and collapsing the new
+ceiling to `1 ms` did **not** turn the file red - so **the order is what removed the race, and the
+ceiling is only there because a precondition without a deadline is a hang.**
+
+**What that repair is NOT evidence of, stated so nobody reads it as a fix rate.** The pre-repair
+file **passed 10 of 10 runs locally too**, so **no tally here can show the repair fixed anything** -
+only that it broke nothing, across **25 green runs** measured by the orchestrator (8 logged
+full-suite runs at `40 website + 89 extension`, 12 logged extension-tier runs, and 5 further
+full-suite runs). What it removes is a property of the suite rather than a rate: **every case in
+that file had a correctness precondition whose completion time the browser does not bound**, which
+holds however often the bad outcome happens to land. **The same shape as
+`waitForTheArmingThenDisarm`**, where the recorded lesson was also that the red rate was low locally
+and the fix was to the dependency rather than to the rate.
+
+**Two defects in the orchestrator's own instruments are recorded here rather than absorbed, because
+both reported a wrong answer with total confidence.** The first: a 3-run block reported
+`failed=1` and **which case it was was discarded**, and it was a *full* suite run, so it may have
+been the website's 40 cases and may be unrelated to this defect entirely - it did not recur across
+**25 green runs since**, so it stands as **unattributed** rather than folded into "fixed". The
+second: a classifier demanding **two** tier-summary lines, which is right for `pnpm test:browser`
+and wrong for the extension tier alone, reported **twelve green runs as twelve `HARNESS-ERROR`s**;
+re-classifying from the retained logs showed 12/12 green. **Had the logs been discarded on the
+classifier's verdict, the report would have been twelve failures that never happened** - the check
+narrower than the sentence beside it, failing in the direction that looks busy.
 `extension-client` 12 -> **13** requirements and 58 -> **65** scenarios; the tree is
 **167 requirements / 534 scenarios / 14 capabilities**, re-counted by heading after the promotion by
 two independent instruments, `openspec validate --specs --strict` **14 passed, 0 failed**, and the
