@@ -48,9 +48,10 @@
 >
 > **`extension-clear-data` is M12 slice 1, and is APPLIED, VERIFIED, SYNCED and ARCHIVED** at
 > `openspec/changes/archive/2026-10-13-extension-clear-data/` — proposal PR **#130** merged
-> `7e7fd81`, apply PR **#131** merged `62eb976`, sync PR **#132** merged `908e555`. **Its
-> archive PR number is left unfilled for the reason recorded above**, because this stage was
-> told not to open the PR and `gh pr view` fills it in one command afterwards.
+> `7e7fd81`, apply PR **#131** merged `62eb976`, sync PR **#132** merged `908e555`, archive PR
+> **#133** merged `bc0be20`. **That archive PR number was left unfilled by the archive stage for
+> the reason recorded above, and is filled in here by `gh pr view` — which is the honest order:**
+> a predicted PR number in a document other stages cite by name is a figure nobody counted.
 > **It was taken ahead of M12's permissions review because the gap was recorded *inside a
 > promoted requirement* rather than merely suspected** — `spectre-storage` already required a
 > whole-area removal through one contract and **no shipped surface called it**. The panel now

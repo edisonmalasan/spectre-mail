@@ -188,9 +188,10 @@ popup shares the same component and is forbidden by a promoted clause from stati
 >
 > **`extension-clear-data` is APPLIED, VERIFIED, SYNCED and ARCHIVED** at
 > `openspec/changes/archive/2026-10-13-extension-clear-data/` — apply PR **#131** merged
-> `62eb976`, sync PR **#132** merged `908e555`. **M12 slice 1 is the extension's missing
-> clear-data control**, and it was taken ahead of the permissions review because the gap was
-> recorded *inside a promoted requirement* rather than merely suspected: `spectre-storage`
+> `62eb976`, sync PR **#132** merged `908e555`, archive PR **#133** merged `bc0be20`. **M12 slice 1
+> is the extension's missing clear-data control**, and it was taken ahead of the permissions
+> review because the gap was recorded *inside a promoted requirement* rather than merely
+> suspected: `spectre-storage`
 > already required a whole-area removal through one contract and **no shipped surface called
 > it**. The panel now offers a two-step confirmed removal mirroring the website's
 > `LocalData.tsx`, reaching `clearAll` through the `SpectreStorage` contract rather than
