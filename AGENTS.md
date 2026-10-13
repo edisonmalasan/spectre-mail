@@ -1871,7 +1871,7 @@ depends on **did not work as first written**: with the destination as plain text
 the page said *"No verification link was found in this message"* on a message whose readable
 text plainly contained the URL.
 
-**The extension's 9 spec files and 67 cases** - `manifest.spec.ts` (**10**; **6** added by M8,
+**The extension's 10 spec files and 89 cases** - `manifest.spec.ts` (**12**; **6** added by M8,
 **three** by `in-page-address` and **one** by `incoming-mail-notification`),
 `popup.spec.ts` (**8**), `in-page.spec.ts` (**17**, added by `in-page-address`),
 `in-page-create.spec.ts` (**8**, added by `in-page-mailbox`),
@@ -1879,9 +1879,22 @@ text plainly contained the URL.
 **`in-page-fill.spec.ts` (**8**; **seven** added by `in-page-fill` and **one** by
 `incoming-mail-notification`)**,
 **`background-check.spec.ts` (**2**, added by `incoming-mail-notification`)**,
-`measurement.spec.ts` (**1**) and `alarm-floor.spec.ts` (**1**) - **67 in 9 files, against the
-extension's 63 in 8 that `in-page-fill` recorded, the 56 in 7 that `verification-actions` recorded,
+**`side-panel.spec.ts` (**20**, added by `side-panel-surface`, M11 slice 1)**,
+`measurement.spec.ts` (**1**) and `alarm-floor.spec.ts` (**1**) - **89 in 10 files, against the
+67 in 9 that `in-page-fill` recorded before M11 added the side-panel file,
+the 63 in 8 that `in-page-fill` recorded, the 56 in 7 that `verification-actions` recorded,
 the 36 in 5 at slice 1, and the 16 in 4 that `extension-preview` recorded**.
+
+**The per-file figures above were re-measured at `extension-clear-data`'s proposal (2026-10-13)
+rather than carried forward, and two of them were wrong: `manifest.spec.ts` was recorded at **10**
+where it holds **12**, and `side-panel.spec.ts` was absent from the list entirely** - although
+`panel-verification-state` had already raised the tier to 89 and this file's own top block said so.
+**Both are the recorded defect in its exact form: a count nobody re-ran is a count nobody
+checked.** The correction is in the *current* list only; the historical chains beneath it are left
+as the figures their own milestones recorded. **Counting `test(` at a line start does not measure
+this tier at all**: it read `manifest.spec.ts` at **16**, because `test.beforeAll`,
+`test.afterAll` and two `test.describe` lines are not cases, and summed the whole tier to **136
+against a real 89**.
 
 **`background-check.spec.ts`'s two are the first cases that observe a wake, and the second one
 existed because the first could not measure what it claimed.** The first waits for **two** wakes and
