@@ -321,6 +321,41 @@ a failure caused by which command ran first, and would report a *different* one 
 `dist/` was stale. D10's byte-identity prediction on that file is therefore checkable without a
 build, which is what makes it a prediction rather than a hope.
 
+## Sync record
+
+**Promoted 8 requirements and 19 scenarios as a new capability, `privacy-disclosure`, and the
+arithmetic is the predicted one: 168 → 176 requirements, 545 → 564 scenarios, 14 → 15 capabilities,
+with every other capability unmoved** — `extension-client` still 14 / 75. That the others are
+unmoved is *required* rather than incidental: the delta is `ADDED`-only, so a promotion that moved
+anything else would have touched a capability this change never named. `openspec validate --specs
+--strict` is **15 passed, 0 failed**.
+
+**The promotion was rehearsed on a throwaway copy of `openspec/` before the real tree**, and the
+rehearsal is what showed both instruments working: 8 blocks, 19 scenarios, **0 delta-only section
+markers**, and the real tree still untouched afterwards.
+
+**The promoter and the verifier share no code and no reader** — the promoter reads blocks with a
+line-by-line state machine, the verifier splits whole text by regex — so neither can inherit the
+other's blind spot, and the independence is structural rather than a promise. **The verifier was
+falsified before its verdict was trusted**: reader self-test **4/4**, then one word changed inside a
+promoted block, where **the counts stayed 8 / 8 while the whole-block comparison moved the digest
+and named line 4**; a `## ADDED Requirements` planted between two requirements; restoration to
+byte-identical.
+
+**A count cannot detect a wrong block, and the verifier's own third self-test establishes that the
+block count is *equal* in exactly the shape that hides absorption** — so the equality above is not
+an accident of this file. Only a whole-block comparison establishes identity, which is why the
+comparison is the claim and the count is context.
+
+**Two limits, stated rather than smoothed over.**
+
+- **The promoted spec's `## Purpose` is prose written at sync and is not in the delta.** Block
+  identity covers the **8 requirement blocks** and nothing else, so "the promoted blocks are
+  byte-identical to the archived delta" is a claim about requirements and not about the whole file.
+- **The promoter refuses to run over an existing spec.** The first sync tool in this repository
+  logged a deletion it never performed, so refusing is what makes the tool safe to run twice, and
+  the refusal is falsified rather than assumed.
+
 ## Risks
 
 | risk | answer |
