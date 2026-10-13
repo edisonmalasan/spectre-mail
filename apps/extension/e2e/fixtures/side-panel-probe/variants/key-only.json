@@ -1,0 +1,4 @@
+{
+  "_comment": "Merged over the base manifest by a shallow top-level assign. `permissions` is replaced WHOLE, never unioned, so a fragment cannot accumulate an entry the base did not have. This fragment varies ONE entry against the base: it drops the `sidePanel` permission and keeps the `side_panel` key the base declares. That is the cell the two-cell comparison in docs/PROVIDERS.md 4.6 could never answer, because every arm measured until now declared the permission and the key together or declared neither. Only the driver materialises this file.",
+  "permissions": ["storage"]
+}

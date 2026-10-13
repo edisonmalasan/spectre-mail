@@ -190,3 +190,111 @@ if the list is where a probe must be named; it is not, because the probe already
   amendment is written **into the change's delta**, never straight into `openspec/specs/`, so a
   gap between the archived delta and the promoted spec remains the defect this repository records
   as "an amendment was recorded in the wrong artifact".
+
+## Apply-stage decisions (2026-10-13)
+
+**Recorded after the work rather than before it, and named as such.** D1-D9 were written before the
+two missing cells ran, which is the only reason the branch below could be conditional at all. What
+follows is what the measurement returned and what the code did about it, and **nothing here revises a
+decision above** - a decision edited after it is answered is a decision recorded for its own
+approval.
+
+### D10 - The cells answered the question, and the answer kept `sidePanel`
+
+Four runs of `side-panel-runtime.mjs`, all four complete, all four printing the same four cells:
+
+| cell | `sidePanel` permission | `side_panel` key | `chrome.sidePanel` |
+|---|---|---|---|
+| `no-permission__no-key` (`control`) | absent | absent | `undefined` |
+| `no-permission__with-key` (`key-only`) | absent | **present** | **`undefined`** |
+| `with-permission__no-key` (`permission-only`) | present | absent | **present** |
+| `with-permission__with-key` (`base`) | present | present | present |
+
+**`key-only` is the cell that decided it, and it is the corner D1 said could not be expressed.** The
+key alone gets nothing; the permission alone gets everything, `open` and `setPanelBehavior` included.
+**So branch 3.1 was taken: the entry stays, `static/manifest.json` is byte-identical, and the outcome
+is an amendment in this change's delta naming all four cells.** Branch 3.2 was not taken, so the
+two-line removal it described did not happen, and the amendment paragraph that was already in the
+delta stands untouched per 3.3 - **its claim is about what was measured before this change, and
+editing it to agree with the new answer would make the record say the correction was obvious in
+hindsight.**
+
+**`permission-only` is the finding that changes what the map is for.** A panel document is mounted
+from the key, so a reader could reasonably have called the key the cause and the permission the
+access token. **The measurement is the other way round**, and that is what forces `sidePanel`'s entry
+to be `manifest key` rather than `platform read`.
+
+### D11 - `decide()`'s not-observed check moved *first*, because a refusal must not describe a cell
+
+The four cells are API-presence cells, which is the stage D3's defect lived in, so the repair had to
+be inside the verdict rather than beside it. **The check was reordered so a cell that reported
+nothing is consulted before any cell that did**, and a non-observed cell prints its own `NOT OBSERVED`
+row rather than a value: **"cannot report" and "was absent" print identically otherwise**, which is
+the same defect the panel's first version made from a `sidepanel.html` with no `<script>`.
+
+**The reordering is a decision about the failure direction.** A verdict assembled from a subset of
+its own cells is decoration, and a *readable* subset is worse than a short one - it looks like an
+answer.
+
+### D12 - **This file's Context table is wrong about the spelling**, and the implementation does not use it
+
+Lines 12-26 of this file scan shipped source for `chrome.<permission>` and report `storage`, `alarms`
+and `notifications` as reached by "a shipped `chrome.<name>` call". **Measured: after comments are
+stripped, that spelling appears nowhere under `apps/extension/src` - zero member-expression hits for
+every permission, including `tabs`.** The reason is structural, not accidental: this repository's own
+boundary rule confines the bare `chrome` token to one module, so shipped code reads the platform as
+`Reflect.get(globalThis, "chrome")` and then takes each member's **name as a string literal**.
+
+**The table is not corrected here.** It is a record of what the design was written against, and
+**correcting it in place would erase the only evidence that the design's own premise was wrong** -
+which is more useful to the next reader than a tidy table. **What the implementation does instead**:
+
+- `manifest.spec.ts` matches the platform read **by its own shape** -
+  `Reflect.get(globalThis, "chrome")` - and the member **as a string literal**, in the same
+  comment-stripped module. **A module that reads the platform and contains the name.**
+- Every `chrome.<name>` occurrence in shipped source is **inside a comment** - 14 in
+  `extension-platform.ts`, 9 in `storage.ts` - which is why D4's stripping is load-bearing rather
+  than tidy: an unstripped scan would justify `storage`, `notifications` *and* `tabs` from prose,
+  and `tabs` is a permission this extension deliberately does not declare.
+
+**The looseness is in the direction that finds a justification rather than losing one**, so an
+incidental `"alarms"` string in the platform module would corroborate a stale entry. That is stated
+in the helper's own block rather than left for a reader to work out from the direction of the error.
+
+### D13 - The map is the assertion, and a shipped read is deliberately not a fallback
+
+`spectre-storage`-style bookkeeping is the easy failure here: "the permission has a read behind it,
+the entry is redundant". **`tabs` is the standing proof that this would have been wrong, and the proof
+comes from shipped code rather than from this file's reasoning.** `extension-platform.ts` reads
+`readPlatform()`'s `"tabs"` member twice while `tabs` is **deliberately undeclared** - `tab.url` is
+withheld without it, which is why the panel asks the page's content script instead (§4.6). **A case
+built as "a read justifies a permission" would have failed on `tabs` first, and the repair would have
+been to declare it** - the exact opposite of what the M12 review is for.
+
+**So the asymmetry is deliberate and it decides what the case can fail on.** A permission declared
+with no entry **fails**. An entry for a permission the manifest no longer declares **does not**,
+because the loop is over `manifest.permissions` and never over the map's keys: **a repaired removal
+must be able to leave its own bookkeeping behind without a reader deciding whether the entry is still
+true.** Arm 6 of the falsification is that control, and it stayed green.
+
+### D14 - The falsification instrument was wrong twice, and the second defect is the one this repository has recorded before
+
+Six arms caught by the assertion each was aimed at, one control correctly unaffected, one positive
+control green, `wrongcatch` / `green` / `noop` / `nocompile` / `harness-error` all zero, restoration
+SHA-256 against a digest taken **before** each mutation.
+
+- **The harness rebuilt `dist/` from the mutated source and restored afterwards**, so the built
+  manifest carried one arm's planted permission into the next arm - and **the control, which must
+  stay green, failed.** The repair is the **order** (restore, then rebuild) plus a line printing the
+  built manifest's `permissions` before every case arm. **This is the recorded "restoring a source
+  file is not restoring what the browser serves" defect, committed by the instrument that exists to
+  catch it.**
+- **The same defect then falsified the positive control in the next process**, because the harness's
+  last arm left a mutated `dist/` behind: an unmutated run began red. **A control that fails is not a
+  weak assertion - it is the instrument reporting its own state, and the state was wrong.** The
+  harness now rebuilds from restored source before it reads anything at all.
+
+**And one probe run is recorded as lost rather than reconciled away**: a baseline run failed to dock
+the panel and reported it correctly (`HARNESS-ERROR`, exit `1`), and the log file was **overwritten by
+the re-run** - which is the one respect in which task 2.4's retention was not met, and the failure
+line is transcribed into `docs/PROVIDERS.md` §4.6 in its place rather than presented as the log.

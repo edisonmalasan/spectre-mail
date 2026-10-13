@@ -1,0 +1,5 @@
+{
+  "_comment": "Merged over the base manifest by a shallow top-level assign. `null` DELETES the key rather than setting it, because an assign cannot remove what the base already declared. `permissions` is replaced WHOLE, never unioned, so a fragment cannot accumulate an entry the base did not have. This fragment varies ONE entry against the base, and it is named for the entry it removes rather than the one it keeps: the base's permission set with no `side_panel` key. `control` also declares no `side_panel` key, and the difference between the two cells is exactly the `sidePanel` permission - which is what makes the difference between them attributable to that one entry. Only the driver materialises this file.",
+  "permissions": ["sidePanel", "storage"],
+  "side_panel": null
+}

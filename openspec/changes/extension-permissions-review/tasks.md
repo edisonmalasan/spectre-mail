@@ -176,3 +176,101 @@
       headless and that `open()` resolving and the document running are two smaller facts than
       a person seeing one.** No gate here can answer that and none will be cited as if it
       could.
+
+## 8. Apply-stage record (2026-10-13)
+
+**Appended, and nothing above this line is edited or re-ticked** — no box in sections 1-7 was ticked
+by this stage, and the orchestrator owns them. What follows is what was measured, one prediction that
+turned out to be wrong, and the gate results as they stand.
+
+### 8.1 Branch 3.1, decided by the `key-only` cell
+
+**The cells show the key alone does not work without the permission** (`chrome.sidePanel` is
+`undefined` with the `side_panel` key present and the permission absent), so `sidePanel` stays,
+`apps/extension/static/manifest.json` is **byte-identical**, and the outcome went into the **delta** as
+a recorded apply-stage amendment naming all four cells. **Branch 3.2 did not happen**, so the
+two-line removal it described did not happen either. **Task 3.3's paragraph is untouched.**
+
+### 8.2 **Task 6.3's number is wrong, and the change contradicts itself about it**
+
+6.3 says _"This change adds **no** browser case - the probe is quarantined and neither tier collects
+it - so **40 website and 97 extension** on every run"_. **Task 4.1 mandates a case in
+`manifest.spec.ts`, which the extension's browser suite collects.** One requirement cannot be
+satisfied with the other, and the browser tier is where the map can be asserted at all, because the
+case reads the **built** `dist` manifest beside the shipped `apps/extension/src`.
+
+**Measured: 40 website and 98 extension**, on 9 of 10 runs. **97 is the count before this change**,
+and the honest reading of 6.3 is that it was written while the probe work was the whole of it. **This
+is recorded rather than edited**, because a task corrected in place by the stage that proved it wrong
+is a task whose correction cannot be re-derived from the file.
+
+### 8.3 Falsification, both tiers
+
+**Six arms caught by the assertion each was aimed at; one control correctly unaffected; one positive
+control green; `wrongcatch`, `green`, `noop`, `nocompile` and `harness-error` all zero**; every mutated
+file restored to a **SHA-256 digest taken before the mutation** (not `HEAD`, not a post-mutation
+digest); `git checkout --` never used; `dist/` rebuilt from restored source after every arm that fed
+it; the harness in `%TEMP%\opencode\` and **deleted**. Arms 1-2 falsify the two new cells (task 5.1),
+arm 3 is the positive control 5.2 asks for, arms 4-6 are task 5.3 in all three of its directions, and
+arms 7-8 falsify the comment-stripping task 4.3 calls load-bearing — one per comment form. Full table
+in `docs/PROVIDERS.md` §4.6.
+
+**The instrument was wrong twice before it measured anything** (design.md D14), and the second defect
+is the recorded `dist/`-outlives-the-restoration one, committed by the instrument that exists to catch
+it. **The control is what exposed it.**
+
+### 8.4 The four counts did not move
+
+`packages/ui` **38**, `packages/storage` **86**, `apps/web` **125**, boundary assertions **53** —
+measured from a `--reporter=json` run grouped by project, not read off a summary line.
+`apps/extension` is **465**, unmoved, and **that is the measurement task 6.2 asks for**: the only case
+this change adds is in the browser tier, which no Vitest glob collects, so the unit total is _required_
+to be identical. **Total 1228 across 62 files**, identical to the baseline. **No boundary rule was
+added** — `manifest.spec.ts` already owned half the property, and a rule added where an instrument
+already exists is not coverage.
+
+### 8.5 Gates, as measured — including what the machine did to them
+
+| gate | result |
+|---|---|
+| `pnpm verify` (x3, `PLAYWRIGHT_BROWSERS_PATH` at an empty directory) | **3 runs exited `0`** after `format:check` was repaired. Six further runs exited `1` — see below |
+| `pnpm test --reporter=json` | **1228 in 62 files**, exit `0` |
+| `pnpm test:browser` | **9 of 10 runs green, every one at 40 website and 98 extension** |
+| `openspec validate --specs --strict` | **14 passed, 0 failed** |
+| `openspec validate extension-permissions-review --type change --strict` | **valid** |
+| re-count by heading across `openspec/specs/` | **168 requirements, 544 scenarios, 14 capabilities** — `extension-client` 14 / 74, unmoved by this change, as predicted for a `MODIFIED` block |
+
+**The first three `verify` runs were red on `format:check`** — three files this change wrote, with
+Prettier not yet run over them. **That is the recorded reason the gate is run three times**, and it
+was repaired rather than counted.
+
+**The machine was under sustained external load for the rest of it** — another project on the same
+box ran `turbo typecheck` and then `turbo run test` throughout, with sampled CPU at **84-92%** and
+`verify`'s wall time between **106s and 581s** against roughly 50s uncontended. Six reds, named:
+
+- **`Panel.test.tsx` "names the mailbox this page resolves to and the provider that served it"** — a
+  1-second `findByRole` wait — **four times**. **0 failures in 10 runs of that file alone.**
+- **`service-worker.test.ts` "names the alarm in the one module that owns it..."** — once.
+- **`apps/web/src/recovery.test.tsx` "offers a removal once it has stored something"** — once.
+- **One run had `1228 passed` and still exited `1`**: Vitest's own
+  `[vitest-worker]: Timeout calling "onTaskUpdate"`, a runner RPC timeout with a green test result.
+
+**None of these can be this change, and the argument is structural rather than correlational**: the
+diff adds only `apps/extension/e2e/**`, two probe fixtures, `docs/PROVIDERS.md` and this change's own
+artifacts — and the Vitest globs are `tests/architecture/**`, `packages/*/src/**` and `apps/*/src/**`,
+so **nothing this change wrote is collected by `pnpm test` at all.** A browser case in a file this
+change does not touch (`in-page-fill.spec.ts`, `Received: 2` where one listing was expected — **the
+background-wake race AGENTS.md already records for this tier**) accounts for the one browser red.
+
+**These are recorded as findings about the machine, not repaired and not hidden, and no load-induced
+red is counted toward the three greens.** A quiet machine was not obtainable here and that limit is
+part of the result.
+
+### 8.6 Not done, and left where it belongs
+
+- **No task box is ticked**, and `openspec/specs/` is untouched — the delta promotes nothing yet, and
+  this stage does not sync.
+- **No boundary rule was added or edited**, including `QUARANTINED_PROBES` — the probe is already
+  named there (design.md D9), and the count staying at **53** is the measurement.
+- **The privacy document (7.1), `tabs` (7.2), the surviving alarm (7.3), a headed browser and another
+  engine (7.4), and a human looking at the extension (7.5) are all untouched** and none is claimed.
