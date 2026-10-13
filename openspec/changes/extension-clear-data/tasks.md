@@ -989,15 +989,49 @@ promoted requirements already describe, and `design.md` D5 is why no visual-syst
       | boundary assertions | **53** | **53** | 7.1 |
       | `manifest.json` | — | **byte-identical** | SHA-256 as in the table at the top |
 
-- [ ] 8.5 **The promoted counts, predicted and to be re-measured at sync rather than carried forward:
+- [x] 8.5 **The promoted counts, predicted and to be re-measured at sync rather than carried forward:
       167 → 168 requirements and 534 → 544 scenarios** across the same 14 capabilities. The
       requirement arithmetic is `+1`; **the block count is three**, because two `MODIFIED` blocks each
-      *replace* rather than add — the usual shape here, and stated so a reader expecting three new
+      *replace* rather than add - the usual shape here, and stated so a reader expecting three new
       requirements is wrong about the total. The scenario arithmetic is `+9` in `extension-client`,
       `+1` in the first `spectre-storage` block, and `+0` in the second. **Counted by heading
       (`### Requirement:` / `#### Scenario:`) across `openspec/specs/` after the promotion, never
-      transcribed** — and re-counted after the archive, because archiving is a move and a move is the
+      transcribed** - and re-counted after the archive, because archiving is a move and a move is the
       operation most likely to quietly drop a file.
+
+      **Measured at sync (2026-10-13), by heading across the tree after the promotion:
+      167 → 168 requirements and 534 → 544 scenarios, across the same 14 capabilities. Both
+      predictions hold exactly** — `+1` requirement against three promoted blocks, and `+10` scenarios.
+      `extension-client` went **13 → 14** requirements and its scenarios by **`+9`**; `spectre-storage`
+      held at **16** requirements — **which is the arithmetic working rather than a discrepancy**, since
+      both of its blocks replaced — and moved its scenarios by `+1`. **The second `spectre-storage`
+      block's `+0` was also measured, not assumed**: its promoted copy went from 6 scenarios to 6.
+
+      **All three promoted blocks were verified byte-identical to their deltas by an independently
+      written reader, and the rehearsal that found two defects happened on a throwaway copy of
+      `openspec/` before the real tree was touched** — which is the reason it is in this repository's
+      workflow at all, and both defects were in the instruments:
+
+      - **The promoter compared a character offset against a line index** while deciding which section
+        a block sat under, so every block read as `UNKNOWN` — **and it refused to place a block it
+        could not classify, rather than guessing.** That refusal is the property worth keeping: an
+        instrument that stops is recoverable, and one that guessed would have put a `MODIFIED` block
+        somewhere plausible and wrong.
+      - **The verifier searched for its heading *with* the leading newline**, so the promoted-side
+        offset pointed at that newline and the forward boundary scan found **its own heading** and
+        sliced an empty block — reporting **three blocks differing, all with a 0-character promoted
+        side.** It **exited non-zero and said `VERIFIER FAILED`**, which is why the defect was a typo
+        and not a false green. **A shared reader would very likely have produced a pass here**, and
+        that is the whole argument for the independence being structural rather than a promise.
+
+      **A third defect was mine and was in the check I ran *before* either instrument existed**: a
+      one-liner testing whether the `ADDED` requirement already existed in the promoted spec reported
+      **`present=True`**, on a heading the spec does not contain. **The literal search and the
+      requirement list both say it is absent** — 13 requirements before, none of them this one — so
+      `ADDED` was correct and a real promotion was not skipped. **The check was wrong, not the
+      change**, and had it been trusted it would have produced a sync that silently dropped the one
+      requirement this change exists to add. **A reader that reports something for the wrong reason is
+      worse than no reader at all, and this one did not even have a failure mode to inspect.**
 
 ## 9. What this change deliberately does not do
 
