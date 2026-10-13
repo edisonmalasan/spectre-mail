@@ -232,6 +232,61 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > | `e723fba` | archive `panel-verification-state` (PR #128) | 167 | 534 |
 > | `62eb976` | apply `extension-clear-data` (PR #131) — **baseline** | 167 | 534 |
 > | `908e555` | sync `extension-clear-data` (PR #132) | **168** | **544** |
+> | `3d9bd05` | apply `extension-permissions-review` (PR #135) — **baseline** | 168 | 544 |
+> | `00be929` | sync `extension-permissions-review` (PR #136) | **168** | **545** |
+> | (this archive) | archive `extension-permissions-review` | 168 | 545 |
+
+> **`extension-permissions-review` is APPLIED, VERIFIED, SYNCED and ARCHIVED** at
+> `openspec/changes/archive/2026-10-14-extension-permissions-review/` — proposal PR **#134**
+> merged `7c9be91`, apply PR **#135** merged `3d9bd05`, sync PR **#136** merged `00be929`. The
+> archive PR number is **left unfilled here rather than predicted** and is filled in by
+> `gh pr view` after the merge, because **a PR number in a document other stages cite by name is
+> a figure nobody counted**, and the honest order is to merge, then read it.
+>
+> **It is M12's permissions review, and the recorded finding it was built on was wrong in its
+> reasoning rather than in its conclusion.** `docs/PROVIDERS.md` §4.6 said the `side_panel` key
+> and the `sidePanel` permission *"cannot be separated on this substrate"*, and this block
+> repeated it as the reason the review needed an instrument none here could provide.
+> **That was two cells of a 2×2 with two never run** — and both were constructible with the
+> staging the probe already had. All four cells are now recorded, and the answer
+> **contradicted the shape of the claim rather than its conclusion**: the key alone does not
+> work without the permission (`chrome.sidePanel` is `undefined` with the key present and the
+> permission absent), so **`sidePanel` stays and `manifest.json` is byte-identical**. **A
+> measurement recorded as a limitation turned out to be a measurement that had not been taken.**
+>
+> **What ships is not the answer but the instrument that keeps it honest**: a test-owned
+> permission map in `manifest.spec.ts` — `permission -> the call that reaches it, or the
+> manifest key that earns it` — asserted in **both** directions, with the direction that did not
+> exist before being the one that matters (**a permission declared with nothing behind it**).
+> **It lives in a test file and nowhere else**, because a rule a comment can satisfy is not a
+> rule. **`tabs` is why the map and not a scan**: it is read twice in shipped code and
+> deliberately undeclared, so a scan would have reported it as a false failure and the repair
+> would have been to declare it. **No boundary rule was added** — `manifest.spec.ts` already
+> owned half the property, and **a rule added where an instrument already exists is not
+> coverage**. The boundary count staying at **53** is the measurement.
+>
+> **The sync promoted one block and moved the totals by zero requirements and one scenario:
+> 168 -> 168 and 544 -> 545, with `extension-client` 14 -> 14 and 74 -> 75.** **Requirements
+> moving by zero is the arithmetic working and not a promotion that missed** — a `MODIFIED`
+> block *replaces* rather than adds, which this block has now recorded four times. Per
+> capability, re-counted the same way after the archive: `extension-client` is **14/75** and
+> **the other thirteen are identical to the figures above**.
+>
+> **Three false claims were found and corrected during this change, and all three were the same
+> error in three files** — substituting *"does a module spell `chrome.<name>`"* for the
+> requirement's *"no shipped surface uses"*. Measured on the shipped tree with comments
+> stripped: **of 71 occurrences under `apps/extension/src`, 70 are inside comments**, and the
+> one in code is `service-worker.test.ts`'s own forbidden-token list. **Shipped code reaches the
+> platform through `Reflect.get(globalThis, "chrome")` with member names as data**, which is
+> the boundary rule this repository already enforces. **The correction came from a measurement,
+> not from a re-reading.**
+>
+> **The counts that did not move are the measurement the change turned on**: `packages/ui` **38**,
+> `packages/storage` **86**, `apps/web` **125**, boundary **53**, and **`apps/extension` 465** —
+> which is *required* to be identical, because the only case the change adds lives in the browser
+> tier that no Vitest glob collects. `pnpm test` is **1228 across 62 files**; `pnpm test:browser`
+> is **40 website and 98 extension**.
+>
 
 > **`panel-verification-state`'s sync promoted one `ADDED` requirement carrying seven
 > scenarios in `extension-client` — exactly the `+1 / +7` step in the table above.** Its change
@@ -295,24 +350,28 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > differs from its siblings is a defect a later reader would have to rediscover, and it is
 > **not** hand-written here because the canonical generator owns that file.
 >
-> **M12's remaining items are the permissions review and the privacy document, and both
-> carry recorded findings rather than clean starting points.** The review is an **audit,
-> not a slice** — `manifest.spec.ts:246` hard-codes
-> `["storage","alarms","notifications","sidePanel"]`, and the `sidePanel` entry has **no
-> shipped module behind it**: zero files under `apps/extension/src` name `sidePanel`, while
-> the manifest declares both the permission and the `side_panel` key. `docs/PROVIDERS.md`
-> §4.6 measured permission and key together and cannot separate them, so resolving it needs
-> **a Chromium carrying the key without the permission**, which no instrument here can
-> provide. The privacy document (M12 item three) is **partly drafted**
-> (`README.md:602-613`, this file's §29) and publishing it before the extension can act on
-> its own data would assert a gap this change has just closed.
+> **M12's remaining items were the permissions review and the privacy document, and both
+> carried recorded findings rather than clean starting points. The permissions review is now
+> APPLIED, VERIFIED, SYNCED and ARCHIVED** — see the entry above, which records that the
+> review's own premise was **two cells of a 2×2 that had never been run**, and that both were
+> constructible with the staging the probe already had. **The paragraph this replaces said the
+> review "needs a Chromium carrying the key without the permission, which no instrument here
+> can provide"; that was true of the instrument as it stood and false of what it could be
+> extended to do**, and the correction came from building the two missing cells rather than
+> from re-reading the two that existed. **The privacy document (M12 item three) is the only
+> M12 item left, and it is partly drafted** (`README.md:602-613`, this file's §29) — publishing
+> it before the extension can act on its own data would assert a gap this change has just
+> closed.
 >
 > M0's own capability spec was archived with
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor: M12 - Release Hardening. M11 - Side Panel + Mailbox Context is COMPLETE IN
-SCOPE.** `panel-verification-state`
+**Roadmap cursor: M12 - Release Hardening, with two of its three items done. M11 - Side Panel +
+Mailbox Context is COMPLETE IN SCOPE.** `extension-permissions-review` is M12's permissions review
+and is archived — **so the cursor stays on M12 and the next item is the privacy document**, which
+`extension-clear-data` unblocked and which is partly drafted at `README.md:602-613` and §29.
+`panel-verification-state`
 - proposal PR **#124** merged `7c56c83`, apply PR **#125** merged `28f1360`, sync PR **#126** merged
 `b569ff6`, archive PR **#128**, archived to
 `openspec/changes/archive/2026-10-13-panel-verification-state/`. The archive was run with

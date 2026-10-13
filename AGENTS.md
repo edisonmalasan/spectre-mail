@@ -1,7 +1,11 @@
 # AGENTS.md
 
-> **Current milestone state (reconciled against Git and OpenSpec 2026-10-12): M0-M9 are complete
-> in scope, M10 is complete in scope, and the `side-panel-runtime-facts` spike that unblocked
+> **Current milestone state (reconciled against Git and OpenSpec 2026-10-14): M0-M11 are complete
+> in scope, M12 is in progress with **two of its three items done**, and the cursor is on **the
+> privacy document** — M12's only remaining item.**
+>
+> **M10 is complete in scope, and the history below is kept in the order the milestones
+> happened.** The `side-panel-runtime-facts` spike that unblocked
 > **M11** is **APPLIED, VERIFIED and ARCHIVED** at
 > `openspec/changes/archive/2026-10-11-side-panel-runtime-facts/` — proposal PR **#111** merged
 > `dd4fc3f`, apply PR **#112** merged `e2e1611`, **no sync stage because the change declares
@@ -45,6 +49,76 @@
 > where the tree says **+1 and +10**. **The error was caught only by counting the tree, three
 > edits after it was written**, and a ledger whose headline can be two syncs stale while its
 > body is correct has no way to notice.
+>
+> **`extension-permissions-review` (M12's permissions review) has since run its whole lifecycle
+> and is APPLIED, VERIFIED, SYNCED and ARCHIVED** at
+> `openspec/changes/archive/2026-10-14-extension-permissions-review/` — proposal PR **#134**
+> merged `7c9be91`, apply PR **#135** merged `3d9bd05`, sync PR **#136** merged `00be929`.
+> **The finding it was built on was wrong in its reasoning, and that is the part worth
+> reading.** `docs/PROVIDERS.md` §4.6 had recorded that the `side_panel` key and the
+> `sidePanel` permission *"cannot be separated on this substrate"* — **which was two cells of
+> a 2×2 with two never run**, and both were constructible with the staging the probe already
+> had. All four cells are now measured, and the answer **contradicted the shape of the claim
+> rather than its conclusion**: the key alone does **not** work without the permission
+> (`chrome.sidePanel` is `undefined` with the key present and the permission absent), so
+> **`sidePanel` stays and `apps/extension/static/manifest.json` is byte-identical**.
+> **A measurement recorded as a limitation turned out to be a measurement that had not been
+> taken.**
+>
+> **What ships is the instrument rather than the answer**: a test-owned permission map in
+> `apps/extension/e2e/manifest.spec.ts` — `permission → the call that reaches it, or the
+> manifest key that earns it` — asserted **both** ways, the new direction being the one that
+> matters (**a permission declared with nothing behind it**). **It lives in a test file and
+> nowhere else**, because a rule a comment can satisfy is not a rule. **`tabs` is why the map
+> and not a scan**: read twice in shipped code and deliberately undeclared, so a scan would
+> have reported it as a false failure and the repair would have been to declare it. **No
+> boundary rule was added**, and **the boundary count staying at 53 is the measurement** — a
+> rule added where an instrument already exists is not coverage.
+>
+> **Three false claims were corrected in the same change, and all three were one error in
+> three files**: substituting *"does a module spell `chrome.<name>`"* for the requirement's
+> *"no shipped surface **uses**"*. Measured on the shipped tree with comments stripped,
+> **of 71 occurrences under `apps/extension/src`, 70 are inside comments**, and the single
+> one in code is `service-worker.test.ts`'s own forbidden-token list. **Shipped code reaches
+> the platform through `Reflect.get(globalThis, "chrome")` with member names as data**, which
+> is the boundary rule this repository already enforces.
+>
+> **The sync promoted one block and moved the totals by zero requirements and one scenario:
+> 168 → 168 and 544 → 545 across the same 14 capabilities**, `extension-client` 14 → 14 and
+> 74 → 75. **Requirements moving by zero is the arithmetic working, not a promotion that
+> missed** — a `MODIFIED` block replaces rather than adds, the fourth milestone to produce
+> this shape. **Re-counted by heading after the archive rather than carried forward**, with
+> `openspec validate --specs --strict` at **14 passed, 0 failed**, `openspec list` reporting
+> **No active changes**, all **5** archived files byte-identical to pre-archive digests
+> **including `.openspec.yaml`**, all **14** files under `openspec/specs/` byte-identical
+> throughout the archive, and the promoted block re-verified **BYTE-IDENTICAL against the
+> archived delta** — because archiving is a move, and a move is the operation most likely to
+> quietly drop a file.
+>
+> **The counts that did not move are the measurement the change turned on**: `packages/ui`
+> still **38**, `packages/storage` still **86**, `apps/web` still **125**, and
+> **`apps/extension` still 465** — which is *required* to be identical, because the only case
+> the change adds lives in the browser tier that no Vitest glob collects. `pnpm test` is
+> **1228 across 62 files**; `pnpm test:browser` is **40 website and 98 extension**, 5/5 green.
+>
+> **Three instrument defects from this stage are recorded because each produced a confident
+> wrong answer.** Two of them are the same defect in two instruments written independently:
+> **Vitest writes its summary to stderr with SGR codes around every token**, so a regex
+> written against clean text never matches — one reader reported **five green runs as five
+> `HARNESS-ERROR`s**; and **Playwright's summary parentheses hold a duration, not a count**,
+> so a second reader reported **four green runs as four `HARNESS-ERROR`s**. **Both repairs
+> were in the reader and neither in the tally**, and both readers were then given self-tests
+> (**6/6 each**) whose first case is the exact shape that broke them. **The sync's two
+> block readers shared no code and no reader**, and the verifier was falsified before its
+> verdict was trusted: one word changed inside the promoted block, and the counts stayed
+> **14 / 75** while the whole-block comparison named the line — **a count cannot detect a
+> wrong block, and that is now demonstrated rather than asserted**. And **`gh pr merge` exited
+> `1` on a merge that had already succeeded**, so the state was read with `gh pr view` rather
+> than taken from the exit code: **a command that reports a successful operation as a failure
+> is the mirror of the one that reports a failure as a success**, and this repository has
+> recorded the second shape four times.
+>
+> **M12's cursor stays where it is: the privacy document is its only remaining item.**
 >
 > **`extension-clear-data` is M12 slice 1, and is APPLIED, VERIFIED, SYNCED and ARCHIVED** at
 > `openspec/changes/archive/2026-10-13-extension-clear-data/` — proposal PR **#130** merged
@@ -1058,7 +1132,7 @@ Pin versions when exact versions matter.
   `--reporter=json` run at this archive stage rather than carried forward from the apply
   stage's record** — the arithmetic reconciled exactly, and a figure that reconciles is still
   a figure somebody could have transcribed wrong.
-  **`pnpm test:browser` is now 40 website and 97 extension cases**, which is the other half:
+  **`pnpm test:browser` is now 40 website and 98 extension cases**, which is the other half:
   the fixture directories are not collected by any suite, and the rule requiring every shipped
   `*.spec.ts` to be collected by exactly one browser suite is what says so rather than a note.
   The **eight** new cases are `side-panel.spec.ts`'s **B1–B8**, added to a file that stood at
@@ -1941,23 +2015,28 @@ depends on **did not work as first written**: with the destination as plain text
 the page said *"No verification link was found in this message"* on a message whose readable
 text plainly contained the URL.
 
-**The extension's 10 spec files and 97 cases** - `side-panel.spec.ts` (**28**; **20** added by
+**The extension's 10 spec files and 98 cases** - `side-panel.spec.ts` (**28**; **20** added by
 `side-panel-surface`, M11 slice 1, and **eight** by `extension-clear-data`),
 `in-page.spec.ts` (**17**, added by `in-page-address`),
 **`in-page-associations.spec.ts` (**12**, added by `site-associations`)**,
-`manifest.spec.ts` (**12**; **6** added by M8, **three** by `in-page-address` and **one** by
-`incoming-mail-notification`),
+`manifest.spec.ts` (**13**; **6** added by M8, **three** by `in-page-address`, **one** by
+`incoming-mail-notification`, and **one** by `extension-permissions-review`),
 `popup.spec.ts` (**8**), `in-page-create.spec.ts` (**8**, added by `in-page-mailbox`),
 **`in-page-fill.spec.ts` (**8**; **seven** added by `in-page-fill` and **one** by
 `incoming-mail-notification`)**,
 **`background-check.spec.ts` (**2**, added by `incoming-mail-notification`)**,
-`measurement.spec.ts` (**1**) and `alarm-floor.spec.ts` (**1`) - **97 in 10 files, against the
-89 in 10 that `panel-verification-state` recorded,
+`measurement.spec.ts` (**1**) and `alarm-floor.spec.ts` (**1`) - **98 in 10 files, against the
+97 in 10 that `extension-clear-data` recorded, the 89 in 10 that
+`panel-verification-state` recorded,
 the 67 in 9 that `in-page-fill` recorded before M11 added the side-panel file,
 the 63 in 8 that `in-page-fill` recorded, the 56 in 7 that `verification-actions` recorded,
 the 36 in 5 at slice 1, and the 16 in 4 that `extension-preview` recorded**.
 
-**Every figure in that list was re-measured at `extension-clear-data`'s archive (2026-10-13)
+**Every figure in that list was re-measured again at `extension-permissions-review`'s archive
+(2026-10-14)**, and **two moved and eight did not** — `manifest.spec.ts` **12 → 13**, the tier
+**97 → 98**, every other file identical. That is a measurement rather than an adjustment, and it
+is the second time this list has been re-measured at an archive rather than transcribed; the first
+re-measurement was at `extension-clear-data`'s archive (2026-10-13)
 from Playwright's own collection list rather than read off a file or carried forward from the
 proposal's record, and it agrees — which is the outcome worth stating, because the same list
 was wrong in two places two stages earlier.** The instrument is `playwright test --list

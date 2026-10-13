@@ -157,7 +157,7 @@
       > is wrong about it is corrected where it stands, rather than left to be
       > reconciled by a later reader.
 
-- [ ] 6.4 **`openspec validate --specs --strict` and `openspec validate <change> --type
+- [x] 6.4 **`openspec validate --specs --strict` and `openspec validate <change> --type
       change --strict`**, and the re-count by heading across `openspec/specs/` **taken after
       the archive rather than carried into it.** Baseline is **168 requirements and 544
       scenarios across 14 capabilities**; this change's delta adds **0 requirements and 1
@@ -450,3 +450,84 @@ place.
 Both `validate` commands have now run (`14 passed, 0 failed`; the change `valid`). **The re-count
 task 6.4 asks for is one *after the archive*, and there is no archive yet**, so the box stays open
 rather than half-ticked. **A box ticked for half its work is a box that will be read as done.**
+## 11. Archive record (2026-10-14)
+
+Archived as **`2026-10-14-extension-permissions-review`** with `openspec archive --skip-specs --yes`,
+because **the sync stage had already promoted the delta** and without that flag the requirements are
+applied twice.
+
+### 11.1 The move, measured
+
+**All 5 files are byte-identical to digests taken before the command ran, and `.openspec.yaml` is
+one of them** -- which past archives in this repository did not keep. The source directory is gone,
+and **all 14 files under `openspec/specs/` are byte-identical throughout the archive**, so the
+archive moved the change and did not touch a promoted spec.
+
+| file | before | after |
+|---|---|---|
+| `.openspec.yaml` | `01044727` | `01044727` IDENTICAL |
+| `design.md` | `9D177B9F` | `9D177B9F` IDENTICAL |
+| `proposal.md` | `38F0DC43` | `38F0DC43` IDENTICAL |
+| `specs/extension-client/spec.md` | `96641B28` | `96641B28` IDENTICAL |
+| `tasks.md` | `27CE8EF3` | `27CE8EF3` IDENTICAL |
+
+### 11.2 The counts, re-counted after the archive rather than carried into it
+
+**168 requirements, 545 scenarios, 14 capabilities** -- **unmoved by the archive**, which is what a
+move should show. `extension-client` **14 / 75**, likewise unmoved.
+
+`openspec list` reports **No active changes**, `openspec validate --specs --strict` is **14 passed,
+0 failed**, and **no `## (MODIFIED|ADDED|REMOVED) Requirements` marker appears anywhere under
+`openspec/specs/`**.
+
+### 11.3 The promoted block re-verified against the ARCHIVED delta
+
+**Archiving is a move, and a move is the operation most likely to quietly drop a file**, so the
+whole-block comparison was re-run against the archived copy rather than trusting the one taken
+before the move. **1 block, BYTE-IDENTICAL** (`eaf27a4f` on both sides).
+
+**Task 6.4 is now ticked**, because its re-count clause is one *after the archive* and the archive
+has run. **It was deliberately left open through the sync stage** for the reason recorded in §10.4:
+a box ticked for half its work is a box that will be read as done.
+
+### 11.4 Two boxes remain open, and both are permanent
+
+- **2.4** -- a probe log was overwritten by its own re-run. The log is gone and no re-run brings it
+  back, so this box is closed as *not done* rather than as *done*.
+- **3.2** -- the branch that would have removed `sidePanel` from the manifest was not taken, because
+  the cells decided 3.1. **`manifest.json` is byte-identical to before this change**, and ticking
+  3.2 would assert a removal that did not happen.
+
+**Twenty-seven of twenty-nine.** The two that are open are the two the record says are open, which
+is the only way an unticked box is distinguishable from a task nobody looked at.
+
+### 11.5 One instrument defect, and it is the recorded `pkill`-adjacent one
+
+**`gh pr merge` exited `1` on a merge that had already succeeded** -- `main` moved from `3d9bd05` to
+`00be929` while the command reported failure. A second identical invocation exited `0` against an
+already-merged PR, printing only the local fast-forward.
+
+**Neither exit code was trusted; `gh pr view --json state` was read instead**, which is what
+established the merge. **A command that reports a successful operation as a failure is the mirror of
+the one that reports a failure as a success**, and this repository has recorded the second shape four
+times: the falsification harness reading empty `pnpm` output as green, a `pnpm.cmd` spawn failure
+filed as two uncaught mutations, a reader reporting five green runs as five `HARNESS-ERROR`s, and a
+tally whose script fell off the end so a completed block reported `exit 1`. **Both are the same
+defect**: an instrument whose reported outcome and actual outcome are unconnected. **The repair is
+always to read the state, never to trust the code.**
+
+### 11.6 What this change does not close
+
+**The privacy document is not written** (7.1) and remains its own change. **`tabs` is still read and
+still deliberately undeclared** (7.2), and the map in `manifest.spec.ts` is what records that rather
+than a scan that would have demanded it. **The alarm that survives a removal is not cleared** (7.3).
+**Nothing about a rendered pixel, a headed desktop, or another engine** (7.4), and **no human has
+looked at the extension** (7.5) -- `§4.6` already records that `open()` resolving and the panel's
+document running are two smaller facts than a person seeing one.
+
+**And the finding this change overturned is now recorded in the place it was read from.** The
+sentence that said the `side_panel` key and the `sidePanel` permission "cannot be separated on this
+substrate" was **two cells of a 2x2 with two never run**. Both were constructible with the staging
+the probe already had. **A measurement recorded as a limitation turned out to be a measurement that
+had not been taken**, and the correction came from building the missing cells rather than from
+re-reading the ones that existed.
