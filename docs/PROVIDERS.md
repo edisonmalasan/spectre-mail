@@ -705,15 +705,35 @@ asset, and a generated file left in a source tree would be read as evidence abou
 ### 4.6 Side-panel facts, measured before the side panel was designed (2026-10-11)
 
 Measured while `side-panel-runtime-facts` was at apply stage, because M11's first slice has four
-branches and each turns on a fact this repository had never asked a panel. Chromium (Playwright
-1.63.0), **unpacked and headless**, against a throwaway probe with a **sibling control** differing
-from it in exactly the manifest entries under test — `control` declares neither the `sidePanel`
-permission nor a `side_panel` key, `tabs` adds one permission and nothing else.
+branches and each turns on a fact this repository had never asked a panel, and **the `sidePanel`
+row was re-measured at `extension-permissions-review`'s apply stage because two of its four cells
+had never been run at all.** Chromium (Playwright 1.63.0), **unpacked and headless**, against a
+throwaway probe with **a sibling control** differing from it in the manifest entries under test.
+`tabs` adds one permission and nothing else. **The four cells of the `sidePanel` question are staged
+from the same fixture manifest by a shallow top-level merge, and each differs from the both-entries
+corner in exactly one entry:**
+
+**The four cells, as measured on 2026-10-13 (`extension-permissions-review`).** Every reading is
+`chrome.sidePanel` seen from the fixture's **service worker**:
+
+| | no `side_panel` key | `side_panel` key present |
+|---|---|---|
+| **no `sidePanel` permission** | `control` — **`undefined`** | **`key-only` — `undefined`** |
+| **`sidePanel` permission present** | **`permission-only` — present** | `base` — **present** |
+
+**The permission is what makes the API exist, and it is sufficient on its own** — `permission-only`
+declares no `side_panel` key anywhere and still gets the API, `open` and `setPanelBehavior` included.
+**The key alone gets nothing.** So the two entries are not redundant with one another: **the
+permission earns the API and the key tells Chromium which document to mount**, and the shipped
+manifest carries both for that reason. **The corner that decided it is `key-only`**, and it is the
+one cell §4.6 could previously not express — a fixture declaring `side_panel` with no permission
+granting it had never been loaded.
 
 | Question | Measured answer | What it does **not** establish |
 |---|---|---|
-| Does `chrome.sidePanel` exist without declaring it? | **No.** `undefined` in the control; present in the probe. Those two manifest entries are the whole difference | Nothing about any other API, and nothing about a context other than a service worker. |
-| Is every method on it present? | **No.** `open` and `setPanelBehavior` are functions; **`getPanelState` is `undefined` in all three variants** | Nothing about other Chromium versions, where it may exist — and **it is the one method that would have confirmed the panel's own state**, so its absence is a finding about the substrate, not a missing feature. |
+| **Which of the two entries makes `chrome.sidePanel` exist?** | **The permission, and only the permission.** The four cells are tabulated below rather than described here, because the sentence this row used to carry — *"the permission is one of the two and cannot be separated from them on this substrate"* — was two cells of a two-by-two read as a limit of the platform, and it was carried forward across four changes as one. `open` and `setPanelBehavior` are functions wherever the API exists; **`getPanelState` is `undefined` in all five variants** | **Every reading is the API's existence in a service worker.** So nothing about any other API, **nothing about a context other than a service worker** — in particular nothing about whether Chromium would mount a panel document from the key alone if a person opened one by a route this repository cannot perform, **and nothing about another engine, another Chrome release, or a hand-authored manifest.** Each cell is a shallow merge over one fixture, not four manifests written out. |
+| **…and is `control` a controlled comparison against `base`?** | **No, and the four cells are not four controlled pairs.** `control` differs from the both-entries corner in **two** entries (it drops the permission *and* the key); each of the two new cells differs in **one**. `control` is the two-by-two's **baseline**, not its controlled comparison against `base` — which is why `no-permission__no-key` and `with-permission__no-key` answer different questions and the two are read together | Nothing about `control` being an invalid cell: it is the corner both axes are read against, and it is the arm that makes every later arm mean anything. |
+| Is every method on it present? | **No.** `open` and `setPanelBehavior` are functions; **`getPanelState` is `undefined` in all five variants** | Nothing about other Chromium versions, where it may exist — and **it is the one method that would have confirmed the panel's own state**, so its absence is a finding about the substrate, not a missing feature. |
 | Can a panel be docked and opened headlessly from a real click? | **Yes.** `chrome.sidePanel.open()` resolved with no `lastError`, from a genuine `click()`, and the panel's document then ran and reported | Nothing about a **headed** desktop, and nothing about how it is **drawn** — see the limits. |
 | Does `open()` succeeding mean the panel ran? | **No — the two are separate, and the run records both.** `open()` resolved in an early run whose panel document had not executed at all | Nothing about how often the platform would do this again; see the instability below. |
 | What does a panel-hosted document see of the window? | `chrome.windows.getCurrent()` returns a real, focused, normal window | Nothing about a panel in a window that is not focused. |
@@ -736,7 +756,7 @@ permissions** — `tabs.query` names it and `sendMessage` reaches it — but it 
 works and is one entry** — and it is a *broadening* of what this extension can read across every
 window, which is why the free route is the one the measurement favours and the decision stays M11's.
 
-**Four limits, stated because the requirements lean on them.**
+**Five limits, stated because the requirements lean on them.**
 
 - **A docked panel is not a rendered pixel.** Nothing here reads its appearance, its width, or how it
   is drawn, and no test in this repository reads a rendered pixel's colour or position.
@@ -746,12 +766,44 @@ window, which is why the free route is the one the measurement favours and the d
   extension — the same limit §4.5 states.
 - **The arms are not independent.** One fixture is loaded per stage, so a platform that remembered
   state across loads would not be distinguishable from one that did not.
+- **Every cell of the four-cell table is the API's existence in a service worker.** So the table
+  answers *what the worker can reach* and not *what a panel would do if a person opened one*: no
+  instrument here can watch a panel mount, so a fixture declaring `side_panel` with no permission
+  granting it is measured as **"`chrome.sidePanel` is `undefined`"** and **not** as "a panel cannot
+  appear". **The distinction is the whole residual**, and it is what `sidePanel`'s necessity rests on
+  — the API is unreachable without the permission, and nothing here says what a person would see.
 
 **And one instability, measured rather than explained away.** Across the runs taken while recording
 this section, **one run in six failed to dock the panel in either the base or the `tabs` stage**,
 while three consecutive re-runs produced four panel reports each. **The instrument reported it
 correctly** — `MISS` arms, `answerable: false`, exit `1` — which is D6 working rather than a flake
 being tolerated. **The cause was not diagnosed**, and this section does not claim one.
+
+**Re-measured 2026-10-13 with the two new cells, and the rate did not reproduce.** **Four runs, all
+four complete:** every run reported **13 of 13** observations — every cell, every arm, `answerable:
+true`, **exit `0`** — and every run printed the same four cells. **So `0/4` dock failures against
+the recorded `1/6`, on a run carrying three more fixture loads than the earlier runs did.** **That is
+a rate, not a fix, and it is not a licence to reduce the earlier figure**: four runs cannot move a
+one-in-six estimate in either direction, the cause is still undiagnosed, and the count that matters
+is the one that would be *recorded* if a run failed — `HARNESS-INCONCLUSIVE`, `answerable: false`,
+exit `1`, with the arm named. **All four logs were retained rather than reconciled away**, which is
+the whole of what "records the rate rather than fixing it" amounts to.
+
+**And those four retained logs are not logs of the instrument as committed, which is recorded because
+"the logs are retained" reads as stronger than "the logs are of an earlier build of the same
+instrument".** They print **`[object Object]`** in the `side_panel key` column, where the committed
+`printCells` prints **`present`** or **`absent`** — a rendering-only repair made after the four runs,
+so the *readings* in those logs are the committed instrument's readings while the *column* is not.
+**The independent check below is the one taken against the committed code.**
+
+**Independently re-measured on the committed probe, 2026-10-13.** One run, taken by the
+orchestrator rather than by the change's implementer, against the tree this branch ships: **exit `0`,
+`13/13` observations, `answerable: true`, and the same four cells** — `key-only` **`undefined`**,
+`permission-only` **present**, `control` **`undefined`**, `base` **present** — **and the same
+verdict: `side_panel key alone false`, `sidePanel permission alone true`.** So the reading that keeps
+the entry is **reproduced by a second reader on a second run of the shipped code**, and what changed
+between the retained logs and the shipped instrument is the table's rendering rather than any
+reading.
 
 **Instrument: `apps/extension/e2e/side-panel-runtime.mjs`**, quarantined with the three beside it.
 **Four deliberate violations were run against it and all four were caught**, with restoration verified
@@ -772,6 +824,68 @@ reading:
   its refusals were read from the API-presence stage, which is a *different fixture load* from the
   arms, so a failing arms stage left the verdict positive. **A verdict that survives a total
   measurement failure is decoration**; the arms are now passed in and their observations counted.
+
+**And eight more were run against the two new cells and the map that reads them
+(`extension-permissions-review`), six caught by the assertion each was aimed at, one control
+correctly unaffected, one positive control green, with `wrongcatch`, `green`, `noop`, `nocompile` and
+`harness-error` all zero and every mutated file restored to a SHA-256 digest taken *before* the
+mutation** — not against `HEAD`, and not against a digest taken after it. They are:
+
+| # | Mutation | Declared catcher | Outcome |
+|---|---|---|---|
+| 1 | `permission-only.json` given a `side_panel` key | cell `with-permission__no-key`, the **`side_panel key`** column: `absent` → `present` | caught — and the `chrome.sidePanel` column stayed `present`, which is the point: the key column moved while the API column did not |
+| 2 | `key-only.json` given `"sidePanel"` in `permissions` | cell `no-permission__with-key`, the **`chrome.sidePanel`** column: `undefined` → `present` | caught |
+| 3 | none (positive control) | the new `manifest.spec.ts` case | green |
+| 4 | `"sessions"` added to `static/manifest.json`, no map entry, no read | the new case | caught, naming `sessions` |
+| 5 | the same permission **plus** a shipped read of `"sessions"` in `extension-platform.ts`, still no map entry | the new case | caught — **the map is the assertion and not a fallback** |
+| 6 | a map entry for an undeclared permission with a **false** justification | nothing: a control that survives is the control working | green, as required |
+| 7 | `sidePanel`'s map entry flipped to `platform read`, with `"sidePanel"` planted in a **`/* … */`** comment | the new case | caught — the block-comment branch of the stripper |
+| 8 | the same, planted in a **`//`** comment | the new case | caught — the line-comment branch |
+
+**Arms 4 and 5 are the ones the design turns on, and 6 is why they are falsifiable at all.**
+`extension-platform.ts` reads `readPlatform()`'s `"tabs"` member twice while `tabs` is **deliberately
+undeclared** — so a scan that treated "a shipped read" as sufficient would have had `tabs` as its
+first false failure, and the repair would have been to declare it. Arm 5 plants the read and leaves
+the map silent, and the case reports the permission anyway. Arm 6 plants a stale entry with a false
+justification for a permission the manifest does not declare, and the case stays green, because the
+loop is over `manifest.permissions` and never over the map's keys: **a repaired removal must be
+allowed to leave its own bookkeeping behind.** Arms 7 and 8 exist because **of the 71 `chrome.<name>`
+occurrences under `apps/extension/src`, 70 are inside comments** — 14 in `extension-platform.ts`, 9
+in `storage.ts` — so an unstripped scan would justify `storage`, `notifications` *and* `tabs` from
+prose, and `tabs` is a permission this extension deliberately does not declare. **The single
+occurrence in code is `service-worker.test.ts:100`'s `FORBIDDEN_IN_WORKER`, naming `"chrome.alarms"`
+in order to forbid it** — a test file, and a forbidden list even if the scan read one. **Every
+occurrence in a shipped runtime module is inside a comment**, which is the form of the claim this
+change originally stated too strongly and measured to its true value at apply.
+
+**The falsification instrument was itself wrong twice before it measured anything, and the second
+defect is the recorded `dist/`-outlives-the-restoration one, committed by the instrument that exists
+to catch it.** Its first version rebuilt the extension from the **mutated** manifest and restored the
+source *afterwards*, so `dist/` carried the arm-4 permission into arm 6 — and **arm 6's control, which
+must stay green, failed.** The repair is the order (**restore, then rebuild**) plus a line that prints
+the **built** manifest's `permissions` before every case arm, so a `dist/` the source does not justify
+is visible in the record instead of inferable only from an arm failing oddly. **The same defect then
+falsified the positive control in the next process**: the harness's last arm left a mutated `dist/`
+behind, so arm 3 began red on an unmutated tree. **A control that fails is not a weak assertion; it is
+the instrument reporting its own state, and the state was wrong** — so the harness now rebuilds from
+restored source before it reads anything at all.
+
+**And one probe run was lost rather than reconciled away, and the loss is recorded rather than
+papered over.** Between the four clean measurement runs above and the falsification, a baseline probe
+run **failed to dock the panel and reported it correctly**:
+
+```text
+HARNESS-ERROR: base-panel registered no service worker: TimeoutError:
+browserContext.waitForEvent: Timeout 30000ms exceeded while waiting for event "serviceworker".
+Both flags and an absolute path are required - see extensionFlags() in playwright.config.ts.
+```
+
+**So the rate is now 1 failure in 8 runs, not `0/4`, and the `0/4` above stands as what those four runs
+measured.** The immediate re-run completed with all four cells reporting and every arm catching. **That
+log file was then overwritten by the re-run**, which is the one respect in which this record falls
+short of task 2.4: the retained file is gone and the line above is transcribed from it into this
+document instead, which is a weaker form of retention and is named as such rather than presented as
+the log itself.
 
 **One of its *claims* about the platform was also wrong before it was measured.** The no-content-script
 arm's output line read *"a refusal here is the answer"*, written when the fixture expected a rejection.

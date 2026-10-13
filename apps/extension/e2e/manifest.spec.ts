@@ -40,6 +40,241 @@ import { SCRIPTED_PROVIDER_ORIGINS } from "./recorded-provider";
 /** The built extension's directory, as a path this file can read from. */
 const EXTENSION_DIST_PATH = fileURLToPath(new URL(`../${EXTENSION_DIST}`, import.meta.url));
 
+/** The client's own source tree, as a path this file can read from. */
+const EXTENSION_SRC_PATH = fileURLToPath(new URL("../src", import.meta.url));
+
+/** The justification shapes a map entry may take. Both are checked; neither is inferred. */
+type EarnedBy =
+  | {
+      /**
+       * A shipped module reaches the platform member through the one reflective read this client
+       * allows itself. **Never the `chrome.<name>` member expression**, which this repository's own
+       * boundary rule forbids across `apps/` — measured: after comments are stripped, that spelling
+       * appears **nowhere** under `apps/extension/src`, so a scan for it would report every
+       * permission as unjustified.
+       */
+      readonly kind: "platform read";
+      readonly member: string;
+    }
+  | {
+      /** The manifest key the permission is for, and which must still be declared. */
+      readonly kind: "manifest key";
+      readonly key: ManifestKeyName;
+    };
+
+/**
+ * The manifest keys a {@link EarnedBy} may name.
+ *
+ * **Spelled as a union rather than read through an index signature**, so naming a key the built
+ * manifest does not carry stops the case at `tsc` instead of leaving it to read `undefined` and
+ * report nothing. The direction that matters here is the one where a *mistyped* key silently
+ * satisfies nothing.
+ */
+type ManifestKeyName = "side_panel" | "action" | "background" | "content_scripts";
+
+/**
+ * What earns one declared permission, and nothing else.
+ *
+ * **Two kinds, and the second exists because `sidePanel` is earned by one of them.** Measured on
+ * 2026-10-13 (`docs/PROVIDERS.md` §4.6's four cells): `chrome.sidePanel` exists **iff** the
+ * `sidePanel` permission is declared — the `side_panel` key alone leaves it `undefined` — so the
+ * entry below names the **permission**, and the `side_panel` key is recorded as *the surface the
+ * permission is for*, which is what the delta's trace scenario asks a reader to find.
+ *
+ * **The map is the assertion, and a shipped read is deliberately NOT a fallback for it.** The
+ * `tabs` permission is the standing proof, and it is proof from shipped code rather than from this
+ * file's reasoning: `extension-platform.ts` reads `readPlatform()`'s `"tabs"` member twice, so
+ * **`chrome.tabs` IS reached in this client and `tabs` is deliberately not declared** — `tab.url`
+ * is withheld without it, which is why the panel asks the page's content script instead
+ * (`docs/PROVIDERS.md` §4.6). **An entry added to this map without a reason is the defect this case
+ * exists to report, and an entry removed because a read disappeared would be a repair nobody can
+ * make**, so the map's failure mode is a stale entry and not a missing one.
+ *
+ * **Test-owned, deliberately.** `design.md` D6 rejects making the requirement's *prose* the source
+ * of this mapping, because a rule a comment can satisfy is not a rule — and this repository has
+ * recorded that failure twice, once specifically as *"prose must not be able to satisfy one,
+ * because a module that only describes the coupling it lacks is exactly the defect"*. A fixture is
+ * where a test's expectations belong, and a test that owns the map cannot drift from the manifest
+ * without failing.
+ */
+const PERMISSION_IS_EARNED_BY: Record<string, EarnedBy> = {
+  storage: { kind: "platform read", member: "storage" },
+  alarms: { kind: "platform read", member: "alarms" },
+  notifications: { kind: "platform read", member: "notifications" },
+  // **The one entry with no shipped read behind it**, and its justification is the manifest key that
+  // names the document Chromium mounts. See the block above for why the key is not what makes the
+  // API exist and is recorded as the thing the permission is *for* rather than as its cause.
+  sidePanel: { kind: "manifest key", key: "side_panel" },
+};
+
+/**
+ * Replace comment content with spaces, preserving line structure.
+ *
+ * **A copy of `tests/architecture/boundaries.test.ts`'s own reader, and the duplication is recorded
+ * rather than avoided**: the two files are in two runners with two collection roots, and
+ * `tests/architecture` is not a typechecked workspace member, so a Playwright spec cannot import
+ * from it. **It is a reader and not a list**, which is the distinction this repository's rule about
+ * two spellings is about — two *lists* of expected values drift, and two scanners of the same text
+ * do not.
+ *
+ * **Stripping is what makes the scan above mean anything, and that is measured rather than
+ * asserted.** Of the 71 `chrome.<name>` occurrences under `apps/extension/src`, **70 are inside
+ * comments** — 14 in `extension-platform.ts`, 9 in `storage.ts` — so an unstripped scan would
+ * justify `storage`, `tabs` *and* `notifications` from prose in files that reach no platform
+ * member at all, and `tabs` is a permission this extension deliberately does not declare. **The one
+ * occurrence in code is `service-worker.test.ts:100`'s `FORBIDDEN_IN_WORKER`, which names
+ * `"chrome.alarms"` in order to *forbid* it** — a test file this scan excludes, and a forbidden
+ * list even if it did not. **Every occurrence in a shipped runtime module is inside a comment.**
+ * (Measured by an independently written region-tracker, not by this stripper.)
+ *
+ * **Known to be imperfect, in the direction this repository records for the original:** it does not
+ * understand regex literals, and `apps/extension/src` contains two (both in `*.test.ts`, which this
+ * case does not read). Blanking rather than deleting keeps every line number correct, so a failure
+ * still names the line a reader has to open.
+ */
+function stripComments(source: string): string {
+  let out = "";
+  let inBlock = false;
+  let inLine = false;
+  let inString: '"' | "'" | "`" | null = null;
+
+  for (let i = 0; i < source.length; i += 1) {
+    const char = source[i] as string;
+    const next = source[i + 1];
+
+    if (inLine) {
+      if (char === "\n") {
+        inLine = false;
+        out += char;
+      } else {
+        out += " ";
+      }
+      continue;
+    }
+
+    if (inBlock) {
+      if (char === "*" && next === "/") {
+        inBlock = false;
+        out += "  ";
+        i += 1;
+      } else {
+        out += char === "\n" ? "\n" : " ";
+      }
+      continue;
+    }
+
+    if (inString !== null) {
+      out += char;
+      if (char === "\\") {
+        const following = source[i + 1];
+        if (following !== undefined) {
+          out += following;
+          i += 1;
+        }
+        continue;
+      }
+      if (char === inString) {
+        inString = null;
+      }
+      continue;
+    }
+
+    if (char === "/" && next === "/") {
+      inLine = true;
+      out += " ";
+      i += 1;
+      continue;
+    }
+
+    if (char === "/" && next === "*") {
+      inBlock = true;
+      out += " ";
+      i += 1;
+      continue;
+    }
+
+    out += char;
+    if (char === '"' || char === "'" || char === "`") {
+      inString = char;
+    }
+  }
+
+  return out;
+}
+
+/**
+ * Every shipped module of this client, as comment-stripped source.
+ *
+ * **Found from disk, recursively, and never from a list.** A list of modules is a second spelling
+ * of the tree, and a module added without appearing in it would be invisible to the case — which is
+ * the recorded "a test that reads a list reads the list, not the code" failure. `boundary` rules
+ * take their roots from directory contents for the same reason.
+ *
+ * **`*.test.ts` and `*.test.tsx` are excluded, and that exclusion is the assertion's subject rather
+ * than housekeeping.** A test *describing* a platform read is documentation of one, and a fixture
+ * that plants `"storage"` in a stub would otherwise justify the permission on its own — the same
+ * shape `stripComments` exists to prevent, one construct further out. Nothing under `dist` counts
+ * either: that is the build's output, and the build is what the manifest spec is measuring, so
+ * reading it here would let a stale artefact justify a permission no source earns.
+ */
+function shippedModules(): { path: string; source: string }[] {
+  const found: { path: string; source: string }[] = [];
+
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+
+      if (entry.isDirectory()) {
+        walk(path);
+        continue;
+      }
+      if (!/\.tsx?$/.test(entry.name)) continue;
+      if (/\.test\.tsx?$/.test(entry.name)) continue;
+
+      found.push({ path, source: stripComments(readFileSync(path, "utf8")) });
+    }
+  };
+
+  walk(EXTENSION_SRC_PATH);
+  return found;
+}
+
+/**
+ * The one expression this client reaches the platform through.
+ *
+ * **Matched by its own shape rather than by a file name, because a name is a second spelling of
+ * where the platform is read and this repository has recorded that a rule forced to name a module
+ * gets widened the first time the module moves.** `tests/architecture/boundaries.test.ts` confines
+ * the bare `chrome` token to one module, and this finds the same place by the call the code makes —
+ * which is why the two can be edited independently and disagree loudly.
+ */
+const PLATFORM_READ = /Reflect\s*\.\s*get\s*\(\s*globalThis\s*,\s*["'`]chrome["'`]\s*\)/;
+
+/**
+ * Whether any shipped module reads the platform member the map names.
+ *
+ * **The member is matched as a string literal, which is the only spelling shipped code uses** — the
+ * reflective read takes the member's name as data. **The looseness is in the direction that finds a
+ * justification rather than losing one**, so an incidental `"alarms"` string in the platform module
+ * would corroborate a stale entry; the map is the assertion and this is its corroboration, which is
+ * stated in the map's own block rather than left for a reader to work out from the direction of the
+ * error.
+ */
+function platformReadsMember(member: string): boolean {
+  const quoted = new RegExp(`["'\`]${member}["'\`]`);
+
+  return shippedModules().some(
+    (module) => PLATFORM_READ.test(module.source) && quoted.test(module.source),
+  );
+}
+
+/** A map entry, spelled for a failure message that names what was claimed and what was not there. */
+function describeEarnedBy(earned: EarnedBy): string {
+  return earned.kind === "platform read"
+    ? `a shipped platform read of "${earned.member}"`
+    : `the manifest key "${earned.key}"`;
+}
+
 const MANIFEST_PATH = join(EXTENSION_DIST_PATH, "manifest.json");
 const manifest = JSON.parse(readFileSync(MANIFEST_PATH, "utf8")) as {
   manifest_version: number;
@@ -244,6 +479,80 @@ test.describe("the built extension's manifest", () => {
     // ever. The separate case *"requests no permission in order to name the page beside the
     // panel"* names it, because this one would not distinguish it from any other omission.
     expect(manifest.permissions ?? []).toEqual(["storage", "alarms", "notifications", "sidePanel"]);
+  });
+
+  test("earns every declared permission by a shipped platform read or by the manifest key it is for", () => {
+    // **The other direction of the case above, and neither alone is the requirement.** That case
+    // answers *"is the declaration still the one this milestone measured?"* — an exact list, which
+    // cannot name a *reason*, so a permission added to `static/manifest.json` and to that list in
+    // the same commit passes it while granting a capability no requirement asked for. This case
+    // answers *"is each declared permission traceable to something?"* and the answer is written
+    // out per permission rather than folded into a list.
+    //
+    // **The requirement's own wording is what makes this a map rather than a scan.** It requires a
+    // declared permission to be *"traceable to a requirement"* — and `design.md` D6 rejected making
+    // the requirement's prose the source of this mapping for a reason this repository has recorded
+    // twice: a rule a comment can satisfy is not a rule, and "prose must not be able to satisfy
+    // one, because a module that only describes the coupling it lacks is exactly the defect". So
+    // the coupling is stated here, as data a test owns, and checked against the tree.
+    //
+    // **Two kinds, and neither is inferred from the other.** `platform read` is the ordinary case:
+    // a shipped module reaches the member, and the read has to be there — a permission whose
+    // surface was deleted earns nothing by having been read once. `manifest key` exists for
+    // `sidePanel` alone, because §4.6 measured that `chrome.sidePanel` is `undefined` in a
+    // variant carrying the `side_panel` key with the permission absent, and `present` in a variant
+    // carrying the permission with the key absent: **the permission is the cause and the key is
+    // the surface it is for**, so naming the key as the cause would be false and a scan looking
+    // for a read would report `sidePanel` as unjustified.
+    //
+    // **The map is the assertion, so a shipped read is deliberately not a fallback.** `tabs` is the
+    // standing proof from shipped code rather than from this file's reasoning: `extension-platform.ts`
+    // reads `readPlatform()`'s `"tabs"` member twice, and `tabs` is deliberately **not declared** —
+    // `tab.url` is withheld without it and the panel asks the page's content script instead
+    // (§4.6). Had this case been built as "a read justifies a permission", `tabs` would be the
+    // first entry it failed to hold, and the repair would have been to declare it.
+    //
+    // **Stale is the failure mode this map cannot have, and that asymmetry is deliberate.** A
+    // permission declared with no entry here fails. An entry here for a permission the manifest no
+    // longer declares is **not** a failure and is not asserted against — a repaired removal must be
+    // allowed to leave its own bookkeeping behind without a reader having to decide whether the
+    // entry is still true, and the loop is over `manifest.permissions` rather than over the map's
+    // keys precisely so that removing a permission cannot be blocked by its own history.
+    const declared = manifest.permissions ?? [];
+
+    // **Every declared permission has a stated reason, reported by name.** A single
+    // `Object.keys(...)`-shaped assertion would name the wrong thing: the failure a reader gets is
+    // "permission not accounted for", and there is no `toEqual` for that.
+    const unaccounted = declared.filter((permission) => !(permission in PERMISSION_IS_EARNED_BY));
+    expect(
+      unaccounted,
+      `declared with no reason in PERMISSION_IS_EARNED_BY: ${unaccounted.join(", ")}`,
+    ).toEqual([]);
+
+    // **And each reason is checked against the tree, all offenders named in one run.** The two
+    // checks are separate loops rather than one combined pass so the message can say *which kind*
+    // of justification failed — "is not read" and "is not declared" are different defects with
+    // different repairs, and one merged list would force the reader to work out which applied.
+    const notRead: string[] = [];
+    const notDeclared: string[] = [];
+
+    for (const permission of declared) {
+      const earned = PERMISSION_IS_EARNED_BY[permission];
+      if (earned === undefined) continue;
+
+      if (earned.kind === "platform read" && !platformReadsMember(earned.member)) {
+        notRead.push(`${permission} (claims ${describeEarnedBy(earned)})`);
+      }
+      if (earned.kind === "manifest key" && manifest[earned.key] === undefined) {
+        notDeclared.push(`${permission} (claims ${describeEarnedBy(earned)})`);
+      }
+    }
+
+    expect(notRead, `claimed a shipped read that is not there: ${notRead.join(", ")}`).toEqual([]);
+    expect(
+      notDeclared,
+      `claimed a manifest key the built manifest does not carry: ${notDeclared.join(", ")}`,
+    ).toEqual([]);
   });
 
   test("ships the icon a notification names, and declares it nowhere else", () => {

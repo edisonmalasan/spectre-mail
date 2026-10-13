@@ -123,6 +123,43 @@ settled. **It is a fixture with two cells unwritten, carried across four later c
 the platform forbade the measurement**, and the two missing cells are two lines of a staged manifest
 in an instrument this repository already owns.
 
+**Amendment, recorded at apply (2026-10-13), by `extension-permissions-review`. The two cells the
+previous paragraph says were never run have now been run, and they separate the two entries: the
+`sidePanel` permission is what makes `chrome.sidePanel` exist, and the `side_panel` key is not.**
+Four cells were measured on this Chromium, in a service-worker context, each staged from one fixture
+manifest by a shallow top-level merge and each differing from the `with-permission__with-key` corner
+in exactly one entry:
+
+| cell | `sidePanel` permission | `side_panel` key | `chrome.sidePanel` |
+|---|---|---|---|
+| `no-permission__no-key` | absent | absent | **`undefined`** |
+| `no-permission__with-key` | absent | present | **`undefined`** |
+| `with-permission__no-key` | present | absent | **present** |
+| `with-permission__with-key` | present | present | **present** |
+
+**The entry stays, and `manifest.json` is unchanged by this change.** The cell that decided it is
+`no-permission__with-key`: **the key alone does not work**, so the permission is not redundant
+because the key is present beside it. **The other cell matters just as much and is the one nobody had
+run**: `with-permission__no-key` shows the permission alone is *sufficient* — the API exists, and
+`open` and `setPanelBehavior` are functions, with no `side_panel` key declared anywhere in that
+manifest. So of the two entries, **the permission is the one that earns the API and the key is the
+one that tells Chromium which document to mount** — they are not interchangeable and neither is
+redundant, which is the fact the two-cell comparison could not express.
+
+**This is not a defect attributed to the milestone that added the entry.** `side-panel-surface`
+recorded what it had measured and said plainly what could not be separated on this substrate; that
+is a different claim from claiming it had been settled, and the entry was traceable to the
+requirement below that cannot be met without a panel. **What was wrong was the fixture — two cells
+of a two-by-two that were never written — and it was wrong for four changes after the entry landed.**
+
+**What the four cells do not establish, and what the trace required by the scenario below therefore
+records.** Each cell's reading is the **API's existence in a service worker**, so this says that
+`chrome.sidePanel.open()` is unreachable from the worker without the permission — **and it says
+nothing about whether Chromium would mount a panel document in a window if a person opened one by
+some other route with the key alone**, which was not measured because no instrument here can see a
+panel dock (`docs/PROVIDERS.md` §4.6's limits). One engine, one machine, one fixture, and a staged
+merge rather than a hand-authored manifest.
+
 #### Scenario: The manifest is read
 
 - **WHEN** the extension's manifest is read

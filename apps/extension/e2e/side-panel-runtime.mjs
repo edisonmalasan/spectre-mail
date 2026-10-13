@@ -26,7 +26,7 @@
  *
  * | #  | arm                | question                                                    |
  * | -- | ------------------ | ----------------------------------------------------------- |
- * | 1  | api presence       | is `chrome.sidePanel` here at all, and absent in the control? |
+ * | 1  | the two-by-two     | what does each of four cells see, and does either entry alone make the API? |
  * | 2  | open outcome       | what did `open()` itself say?                                |
  * | 3  | panel report       | did the panel's document run, and what could it see?           |
  * | 4  | route (b)          | is `tab.url` readable without `tabs`, and with it?            |
@@ -39,6 +39,25 @@
  * control *and* in the base, then "the manifest made it exist" is false and every later arm is about
  * an API that is not there — which is the alarms probe's recorded lesson about a control that shares
  * the resource under measurement.
+ *
+ * ## Arm 1 is a two-by-two, and it was two cells for four
+ *
+ * Until `extension-permissions-review` added them, `VARIANTS` held one cell for each *corner of the
+ * same question*: `control` declared neither the `sidePanel` permission nor a `side_panel` key, and
+ * `base` declared both. The two cells in between — permission without the key, and key without the
+ * permission — were never run, and `docs/PROVIDERS.md` §4.6 recorded the consequence as *"the
+ * permission is one of the two and cannot be separated from them on this substrate"*. **That
+ * sentence described the fixture.** `permission-only` and `key-only` are the two missing cells and
+ * each differs from `base` in **one** entry; `control` still differs in **two** and is the
+ * two-by-two's baseline rather than a controlled comparison against it, which is what the printed
+ * table says beside it.
+ *
+ * **`key-only` is the cell the extension's manifest entry turns on**, and it is also the cell whose
+ * fixture is most likely to be refused outright — a manifest naming `side_panel` with no permission
+ * granting it is precisely the combination nobody had run. So a cell that fails to launch is recorded
+ * as a row with **no reading**, and `readCell` counts it as not observed: **"did not report" is not
+ * "the API was absent"**, and the verdict refuses to produce a finding through either a missing row
+ * or a failing arm.
  *
  * ## Why the panel is measured by what it writes
  *
@@ -99,7 +118,108 @@ const RESULTS_DIR = fileURLToPath(new URL("../test-results", import.meta.url));
 const PROBE_KEY = "__spectreSidePanelProbe";
 
 /** The variants, and what each one exists to price. `base` is the control for `control`. */
-const VARIANTS = ["control", "base", "tabs"];
+const VARIANTS = ["control", "base", "permission-only", "key-only", "tabs"];
+
+/**
+ * The two-by-two, and which variant is which cell.
+ *
+ * **Four cells and one extra variant.** `tabs` is not a cell of this two-by-two — it varies a third
+ * manifest entry and is priced by §4.6's route (b) — so the cell table is spelled out rather than
+ * derived from `VARIANTS`, and the one spelling of "which variant is which cell" lives here instead
+ * of in a reader four times.
+ *
+ * **The cell names name both axes, and the order is the order a reader reads the two-by-two in.**
+ * `no-permission__with-key` is the cell `docs/PROVIDERS.md` §4.6 could not answer: the key alone,
+ * with nothing granting it.
+ */
+const CELLS = {
+  "no-permission__no-key": "control",
+  "no-permission__with-key": "key-only",
+  "with-permission__no-key": "permission-only",
+  "with-permission__with-key": "base",
+};
+
+/**
+ * One cell's reading, and whether it read at all.
+ *
+ * **A cell that reported nothing is `observed: false` and its `api` is `null` — never `false`.**
+ * §4.6 records a verdict that "survived a total measurement failure", and this function is the
+ * repair in the direction the two new cells make necessary: they are API-presence cells, which is
+ * the stage that carries the defect, so a cell whose worker never started must not be readable as
+ * a cell that saw the API absent. **The two are the same shape of output to a reader and opposite
+ * facts**, and `observed` is what tells them apart.
+ */
+function readCell(rows, variant) {
+  const row = rows.find((candidate) => candidate.variant === variant);
+  const value = row?.api?.hasSidePanelApi;
+  const observed = typeof value === "boolean";
+
+  return {
+    variant,
+    observed,
+    api: value === undefined ? null : value,
+    permissions: row?.api?.declaredPermissions ?? null,
+    key: row?.api?.declaredSidePanelKey ?? null,
+    failure: row?.failure ?? null,
+  };
+}
+
+/** Every cell's reading, in the order `CELLS` declares them. */
+function readCells(rows) {
+  return Object.entries(CELLS).map(([cell, variant]) => ({ cell, ...readCell(rows, variant) }));
+}
+
+/**
+ * One cell's API reading, or `false` when that cell reported nothing.
+ *
+ * **`false` for an unreported cell is the right answer here even though `readCell` refuses it**, and
+ * the two are consistent: `decide()` has already returned `answerable: false` on any unreported
+ * cell before either caller runs, so this function is only ever asked about four observed cells. The
+ * `&&` in each caller is belt and braces rather than the mechanism - the mechanism is that an
+ * unreported cell cannot reach a verdict at all.
+ */
+function cellApi(cells, name) {
+  return cells.find((cell) => cell.cell === name)?.api === true;
+}
+
+/**
+ * Print the two-by-two as a table, with every cell's own observation beside it.
+ *
+ * **The table is printed whether or not the run is answerable, and a cell that did not report says
+ * so in its own column** rather than leaving a gap a reader fills with whatever the run concluded.
+ * The old table in §4.6 is a single yes/no row, and it is what four documents carried forward as
+ * though it described the platform; a table whose empty cell reads as an answer is that defect
+ * again.
+ */
+function printCells(cells) {
+  say(`\n[2x2] the side_panel key against the sidePanel permission`);
+
+  const rows = [
+    ["", "declared permissions", "side_panel key", "chrome.sidePanel"],
+    ...cells.map((c) => [
+      `cell ${c.cell}`,
+      c.observed ? JSON.stringify(c.permissions) : "NOT OBSERVED",
+      // **The key column says `present` or `absent`, never the key's own value.** The probe reports the
+      // key as Chromium's own `side_panel` object, so `JSON.stringify` of it printed
+      // `[object Object]` in the cell that matters most - the one cell whose whole question is whether
+      // the key is there. A column that prints `[object Object]` beside a column that prints `present`
+      // reads as a rendering fault, and a reader who works that out has spent attention on the answer.
+      c.observed ? (c.key === null ? "absent" : "present") : "NOT OBSERVED",
+      c.observed ? (c.api ? "present" : "undefined") : "NOT OBSERVED",
+    ]),
+  ];
+
+  const widths = [0, 1, 2, 3].map((column) => Math.max(...rows.map((row) => row[column].length)));
+  for (const [index, row] of rows.entries()) {
+    say(`    ${row.map((cell, column) => cell.padEnd(widths[column])).join("  ")}`);
+    if (index === 0) say(`    ${widths.map((width) => "-".repeat(width)).join("  ")}`);
+  }
+
+  for (const c of cells.filter((cell) => !cell.observed)) {
+    say(`    cell ${c.cell} reported nothing, so it is NOT OBSERVED rather than "undefined"`);
+    if (c.failure) say(`      ${c.failure}`);
+  }
+}
 
 class HarnessError extends Error {}
 
@@ -225,10 +345,31 @@ const CONTENT_PAGE_ORIGIN = "https://side-panel-fixture.invalid";
  * decoration.** The arms are therefore passed in and their observations counted here, rather than the
  * verdict being computed from the arms' absence and printed beside it.
  */
-function decide(apiRows, panelRun, observations) {
+function decide(apiRows, cells, panelRun, observations) {
   const byVariant = Object.fromEntries(apiRows.map((row) => [row.variant, row]));
-  const controlAbsent = byVariant.control?.hasSidePanelApi === false;
-  const basePresent = byVariant.base?.hasSidePanelApi === true;
+  const controlAbsent = byVariant.control?.api?.hasSidePanelApi === false;
+  const basePresent = byVariant.base?.api?.hasSidePanelApi === true;
+
+  // **The not-observed check comes FIRST, and it is this change's own addition.**
+  //
+  // The two refusals below each describe what a cell *saw*, so running them against a cell that
+  // saw nothing produces a sentence about a measurement nobody took — the control arm reading
+  // "still saw chrome.sidePanel" when the control's worker never started is a claim, not a
+  // refusal. §4.6 records a verdict that survived a total measurement failure, and a refusal
+  // that misreports *why* the run is inconclusive is the same defect wearing a smaller number.
+  //
+  // **Every cell that failed to report therefore names itself here**, and `observedCount < total`
+  // in `main()` exits the run non-zero on the same fact — so a cell that reported nothing cannot
+  // produce a verdict in either place.
+  const missed = (observations ?? []).filter((o) => !o.observed).map((o) => o.arm);
+  if (missed.length > 0) {
+    return {
+      answerable: false,
+      reason:
+        `${missed.length} arm(s) measured nothing, so no finding below would be attributable: ` +
+        missed.join(", "),
+    };
+  }
 
   if (!basePresent) {
     return {
@@ -248,20 +389,20 @@ function decide(apiRows, panelRun, observations) {
     return { answerable: false, reason: panelRun.reason ?? "the panel arms did not run" };
   }
 
-  // **The refusal, in the order the reader needs it.** An arm that measured nothing is named, so the
-  // reason says which arms failed rather than only that something did.
-  const missed = (observations ?? []).filter((o) => !o.observed).map((o) => o.arm);
-  if (missed.length > 0) {
-    return {
-      answerable: false,
-      reason:
-        `${missed.length} arm(s) measured nothing, so no finding below would be attributable: ` +
-        missed.join(", "),
-    };
-  }
-
   return {
     answerable: true,
+    // **The cell-derived answers, read from the four cells rather than re-derived from the fixture
+    // materialiser.** Both of these are the question the extension's manifest entry turns on, and
+    // both are read off the run's own output so a verdict cannot disagree with the table above it.
+    //
+    // `keyAloneEarnsTheApi` is the one the M12 permissions review is waiting for: it says whether
+    // `side_panel` alone makes `chrome.sidePanel` exist. It is stated **for this Chromium, on this
+    // machine, with this fixture** and nothing else - one engine, and the manifest entries staged by
+    // a shallow merge rather than hand-written, both of which §4.6 already carries.
+    keyAloneEarnsTheApi:
+      cells.every((c) => c.observed) && cellApi(cells, "no-permission__with-key"),
+    permissionAloneEarnsTheApi:
+      cells.every((c) => c.observed) && cellApi(cells, "with-permission__no-key"),
     // **These four are the findings, read back from the arms rather than restated from the source.**
     // A verdict that re-derives its own conclusion from the code that produced it is not a verdict,
     // it is a copy.
@@ -299,6 +440,11 @@ const LIMITS = [
   "  provider would serve a real mailbox request, and the response body is never read",
   "the arms are not independent: one fixture is loaded per stage, so a platform that remembered state",
   "  across loads would not be distinguishable from one that did not",
+  "the two-by-two is four cells of ONE Chromium on one machine, and each cell's manifest is a shallow",
+  "  merge over a fixture rather than a hand-written manifest - so it prices those two entries on this",
+  "  fixture, and says nothing about another engine, another Chrome release, or a manifest authored",
+  "  by hand. The `tabs` variant is NOT one of the four cells: it varies a third entry and is priced",
+  "  by route (b) below.",
 ];
 
 /**
@@ -512,25 +658,52 @@ async function stageTabs(context) {
 
 // ---------------------------------------------------------------------------
 
+/**
+ * Arm 1: what each staged manifest gives the worker, for every variant.
+ *
+ * **A variant that cannot be launched is recorded as a row with no reading, and the stage carries on.**
+ * This is the change that added two cells, and a cell's fixture is the one thing a platform can
+ * refuse outright - a manifest naming `side_panel` with no permission granting it is the exact
+ * combination §4.6 never ran, so **its worker failing to start is a plausible result rather than a
+ * surprise.** Letting that throw out of the loop would abandon the other four variants and produce a
+ * run with no reading at all, which is the recorded "measured nothing" outcome arriving through a
+ * different door. So the failure is captured beside the reading it replaced, and `readCell` counts it
+ * as not observed - which `decide()` then refuses to produce a verdict through.
+ *
+ * **`HarnessError` and anything else are both caught**, because the point is that the run reports
+ * *which* cell did not read and keeps going, and a fixture that crashed the driver would report
+ * nothing at all.
+ */
 async function runApiPresence(label) {
   const rows = [];
 
   for (const variant of VARIANTS) {
-    const staged = stageVariant(variant, `${label}-api`);
-    const name = `${variant}-api`;
-    await launchWorker(staged, name);
+    try {
+      const staged = stageVariant(variant, `${label}-api`);
+      const name = `${variant}-api`;
+      await launchWorker(staged, name);
 
-    const worker = workerOf(name);
-    const api = await callProbe(worker, "apiReport");
-    rows.push({ variant, ...api });
+      const worker = workerOf(name);
+      const api = await callProbe(worker, "apiReport");
+      rows.push({ variant, api });
 
-    say(`\n[api presence] variant: ${variant}`);
-    say(`    declared permissions   ${JSON.stringify(api.declaredPermissions)}`);
-    say(`    declared side_panel    ${JSON.stringify(api.declaredSidePanelKey)}`);
-    say(`    chrome.sidePanel       ${api.hasSidePanelApi ? "present" : "undefined"}`);
-    say(`    .open available        ${api.hasOpen}`);
-    say(`    .getPanelState         ${api.hasGetPanelState}`);
-    say(`    .setPanelBehavior      ${api.hasSetPanelBehavior}`);
+      say(`\n[api presence] variant: ${variant}`);
+      say(`    declared permissions   ${JSON.stringify(api.declaredPermissions)}`);
+      say(`    declared side_panel    ${JSON.stringify(api.declaredSidePanelKey)}`);
+      say(`    chrome.sidePanel       ${api.hasSidePanelApi ? "present" : "undefined"}`);
+      say(`    .open available        ${api.hasOpen}`);
+      say(`    .getPanelState         ${api.hasGetPanelState}`);
+      say(`    .setPanelBehavior      ${api.hasSetPanelBehavior}`);
+    } catch (cause) {
+      const failure = `${variant}: ${String(cause)}`;
+      rows.push({ variant, api: null, failure });
+
+      say(`\n[api presence] variant: ${variant}`);
+      say(`    DID NOT REPORT         ${String(cause)}`);
+      say(
+        `    → recorded as NOT OBSERVED, which is not the same as "chrome.sidePanel is undefined"`,
+      );
+    }
   }
 
   return rows;
@@ -544,7 +717,11 @@ async function runApiPresence(label) {
  * meaningful against a known starting state.
  */
 async function runPanelArms(label, apiRows) {
-  const apiByVariant = Object.fromEntries(apiRows.map((row) => [row.variant, row]));
+  // **Rows carry their reading under `api` now, because a row may carry none** — the API-presence
+  // stage records a fixture that failed to launch as a row with `api: null`, so every reader here
+  // has to go through the same property rather than half of them reading `row.hasSidePanelApi` and
+  // finding it absent for two different reasons.
+  const apiByVariant = Object.fromEntries(apiRows.map((row) => [row.variant, row.api]));
   const basePresent = apiByVariant.base?.hasSidePanelApi === true;
   const controlAbsent = apiByVariant.control?.hasSidePanelApi === false;
 
@@ -892,9 +1069,25 @@ async function main() {
     panelRun.results.playwright = playwrightArm;
   }
 
-  // --- verdict ------------------------------------------------------------------------
+  // --- the two-by-two, and then the verdict --------------------------------------------
+  //
+  // **Printed before the arms tally and read by it.** The cells are four of the observations below,
+  // so a cell that reported nothing shows up as a `MISS` line *and* as `NOT OBSERVED` in the table —
+  // two independent readers of the same fact, which is what stops a reader treating one of them as
+  // decorative.
+  const cells = readCells(apiRows);
+  printCells(cells);
+
   const observations = [];
-  observations.push({ arm: "api presence", observed: apiRows.length === VARIANTS.length });
+  // **The aggregate reads rows *with a reading*, not rows.** `apiRows.length === VARIANTS.length`
+  // was true for a run in which every fixture failed to launch, because a captured failure is
+  // still a row — and this is the same "an absence of data read as an observation" defect the cell
+  // rows above were added to stop. `tabs` is the one variant no cell covers, so the aggregate is
+  // what keeps it in the tally rather than being dropped from it.
+  observations.push({ arm: "api presence", observed: apiRows.every((row) => row.api !== null) });
+  for (const cell of cells) {
+    observations.push({ arm: `2x2 cell ${cell.cell} (${cell.variant})`, observed: cell.observed });
+  }
   observations.push({
     arm: "open outcome",
     observed: Boolean(panelRun.results?.openOutcome),
@@ -930,7 +1123,7 @@ async function main() {
 
   const observedCount = observations.filter((o) => o.observed).length;
   const total = observations.length;
-  const verdict = decide(apiRows, panelRun, observations);
+  const verdict = decide(apiRows, cells, panelRun, observations);
 
   say(`\n${"=".repeat(72)}`);
   say(`arms observed   ${observedCount}/${total}`);
@@ -944,6 +1137,10 @@ async function main() {
   if (!verdict.answerable) {
     say(`  reason                      ${verdict.reason}`);
   } else {
+    say(`  --- the two-by-two, computed from the four cells above ---`);
+    say(`  side_panel key alone          ${verdict.keyAloneEarnsTheApi}`);
+    say(`  sidePanel permission alone    ${verdict.permissionAloneEarnsTheApi}`);
+    say(`  --- the panel arms ---`);
     say(`  panel opened                ${verdict.panelOpened}`);
     say(`  panel's document ran        ${verdict.panelRan}`);
     say(`  hostname WITHOUT tabs        ${JSON.stringify(verdict.hostnameWithoutTabs)}`);
