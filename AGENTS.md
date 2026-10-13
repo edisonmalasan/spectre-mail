@@ -26,6 +26,51 @@
 > `openspec/specs/` byte-identical throughout, and all **5 promoted blocks byte-identical to
 > the archived deltas** against a freshly written reader.
 >
+> **M11 slice 3 (`panel-verification-state`) and M12 slice 1 (`extension-clear-data`) have both
+> run their whole lifecycles since, and the count neither of them wrote down was found by this
+> change's own archive stage — so both are recorded here together.**
+> **`panel-verification-state`** is APPLIED, VERIFIED, SYNCED and ARCHIVED at
+> `openspec/changes/archive/2026-10-13-panel-verification-state/` — proposal PR **#124**, apply
+> **#125** merged `28f1360`, sync **#126** merged `b569ff6`, archive **#128** merged `e723fba` —
+> **and its sync promoted one `ADDED` requirement carrying seven scenarios in
+> `extension-client`, moving the tree from 166/527 to 167/534.** That change recorded the
+> figure correctly in its own narrative (`docs/ROADMAP.md`: *"the tree is 167 requirements /
+> 534 scenarios / 14 capabilities"*), **so it is not accurate to say the step went unrecorded —
+> what went stale was the standing headline at the top of the Project Status block, which still
+> read 166/527 from `panel-mailbox-choice` and which nothing re-checks.** **That distinction is
+> the whole finding, and it has a shape worth naming: the figure a reader copies is the headline,
+> and the headline is the one number in the block no change has to touch to record itself.** The
+> consequence was concrete — this change's own first draft of its entry inherited the stale
+> headline, computed its deltas against it, and published **+2 requirements and +17 scenarios**
+> where the tree says **+1 and +10**. **The error was caught only by counting the tree, three
+> edits after it was written**, and a ledger whose headline can be two syncs stale while its
+> body is correct has no way to notice.
+>
+> **`extension-clear-data` is M12 slice 1, and is APPLIED, VERIFIED, SYNCED and ARCHIVED** at
+> `openspec/changes/archive/2026-10-13-extension-clear-data/` — proposal PR **#130** merged
+> `7e7fd81`, apply PR **#131** merged `62eb976`, sync PR **#132** merged `908e555`. **Its
+> archive PR number is left unfilled for the reason recorded above**, because this stage was
+> told not to open the PR and `gh pr view` fills it in one command afterwards.
+> **It was taken ahead of M12's permissions review because the gap was recorded *inside a
+> promoted requirement* rather than merely suspected** — `spectre-storage` already required a
+> whole-area removal through one contract and **no shipped surface called it**. The panel now
+> offers a two-step confirmed removal mirroring the website's `LocalData.tsx`, reaching
+> `clearAll` through the `SpectreStorage` contract **and naming none of the four keys
+> `chrome.storage.local` holds**. **`packages/storage` is untouched at 86 tests and its
+> `git diff --stat` is empty**, which is the measurement rather than a promise: `clearAll()`
+> already existed, already meant the whole area, and its falsification already existed twice.
+> **The sync promoted three blocks — one `ADDED` and two `MODIFIED` — and moved the totals by
+> one requirement and ten scenarios: 167 → 168 and 534 → 544 across the same 14 capabilities**,
+> `extension-client` 13 → 14 and 65 → 74, `spectre-storage` 16 → **16** and 57 → 58. **The
+> requirement count holding at 16 is the predicted outcome, not a promotion that missed**: a
+> `MODIFIED` block replaces rather than adds, and `+9 +1 = +10` accounts for the scenario
+> delta exactly. **Re-counted by heading after the archive rather than carried forward**, with
+> `openspec validate --specs --strict` at **14 passed, 0 failed**, `openspec list` reporting
+> **No active changes**, all **5** archived files byte-identical to pre-archive digests,
+> `openspec/specs/` byte-identical throughout the archive, and all **3** promoted blocks
+> re-verified byte-identical against the **archived** deltas — because archiving is a move, and
+> a move is the operation most likely to quietly drop a file.
+>
 > **`panel-mailbox-choice`'s sync has since moved the scenario count and the requirement count
 > not at all: `openspec/specs/` now holds 166 requirements and 527 scenarios across the same
 > 14 capabilities**, re-counted by heading across the tree after the promotion and counted
@@ -933,20 +978,24 @@ Pin versions when exact versions matter.
   no extension build step — that is M8" became false at M8 and is deleted rather than
   reworded.**
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running **1214 tests across
-  62 files** via `pnpm test` (2026-10-13, at `panel-verification-state`'s apply stage, and
-  **re-measured with `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory** on three separate
+- Testing: Vitest `3.2.7` at the workspace root, verified running **1228 tests across
+  62 files** via `pnpm test` (2026-10-13, at `extension-clear-data`'s apply stage, and
+  **re-measured with `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory** on five separate
   `pnpm verify` runs, each exit `0`), counted from a
-  JSON reporter **grouped by project** rather than read off a summary line:
+  JSON reporter **grouped by project** rather than read off a summary line, and **re-measured
+  at this archive stage from a fresh run rather than carried forward** — because the count a
+  ledger carries is only worth what the last person to re-run it made it worth, and this
+  repository has now had a standing figure in its own status block go stale by a whole
+  milestone for exactly that reason:
   54 in `packages/core`, 92 in `packages/providers`, **149 in `packages/mail-parser`**,
   **166 in `packages/mailbox`**, **125 in `apps/web`**,
   **86 in `packages/storage`** (7 stored record, 11 mailbox collection, 30 IndexedDB adapter,
   11 site associations, 7 browser entry point, 12 `chrome.storage` adapter,
   **8 seen-message record**),
-  **451 in `apps/extension`** across **21** files (**25** in `content-script.test.ts`,
+  **465 in `apps/extension`** across **21** files (**25** in `content-script.test.ts`,
   **101** in `protocol.test.ts`, **70** in `extension-platform.test.ts`, **23** in
   `content-script-fill.test.ts`, **22** in `code-field.test.ts`, **25** in `Popup.test.tsx`,
-  **44** in `Panel.test.tsx`, **12** in `panel-copy.test.ts`, **17** in
+  **53** in `Panel.test.tsx`, **17** in `panel-copy.test.ts`, **17** in
   `content-script-create.test.ts`, **9** in `content-script-associations.test.ts`, **11** in
   `create-mailbox.test.ts`, **9** in `storage.test.ts`, **9** in
   `provider-config.test.ts`, **17** in `background-check.test.ts`,
@@ -993,10 +1042,30 @@ Pin versions when exact versions matter.
   exists to catch is true. `packages/ui` is still **38**, and here that is stronger than usual: **the
   change declares adding a token, a class hook or a CSS rule to be a failure of itself**, the marker
   being a bare `<p>` that `styles.css` already styles.
-  **`pnpm test:browser` was re-run and is now 40 website and 89 extension cases**, which is the
-  other half: the fixture directories are not collected by any suite, and the rule requiring every
-  shipped `*.spec.ts` to be collected by exactly one browser suite is what says so rather than a
-  note.
+  **`extension-clear-data` moved `apps/extension` 451 → 465 and the browser tier 89 → 97, and
+  moved nothing else — and every number that did not move is the measurement this change's plan
+  turned on.** `packages/storage` is still **86**, and `git diff --stat` over that package is
+  **empty**: `clearAll()` already existed, already meant the whole area, and its falsification
+  already existed twice, so the gap was that **no shipped surface called it** rather than that
+  the adapter was wrong. `apps/web` is still **125**, `packages/providers` still **92**,
+  **`packages/ui` still 38**, and the **boundary count still 53** — the last because
+  `design.md` D5 made a new token, class hook or CSS rule a declared *failure* of the change,
+  and a rise would have meant visual surface no capability describes. The arithmetic is the
+  check that the movement is accounted for: `Panel.test.tsx` 44 → **53** (+9) and
+  `panel-copy.test.ts` 12 → **17** (+5), which is 451 + 9 + 5 = **465**, and the other nineteen
+  extension files unmoved. **Both per-file figures were re-measured from a fresh
+  `--reporter=json` run at this archive stage rather than carried forward from the apply
+  stage's record** — the arithmetic reconciled exactly, and a figure that reconciles is still
+  a figure somebody could have transcribed wrong.
+  **`pnpm test:browser` is now 40 website and 97 extension cases**, which is the other half:
+  the fixture directories are not collected by any suite, and the rule requiring every shipped
+  `*.spec.ts` to be collected by exactly one browser suite is what says so rather than a note.
+  The **eight** new cases are `side-panel.spec.ts`'s **B1–B8**, added to a file that stood at
+  **20**, and two of them are the ones that make the shared component falsifiable rather than
+  merely exercised: *"removes nothing until a second press confirms it"* and *"reports the
+  removal as done only after the platform's own area reports itself empty"* — the second
+  because a control that reported completion on `clearAll()` returning would pass with the
+  removal silently not having happened.
   **`incoming-mail-notification` moved `apps/extension` 262 → 330, `packages/storage` 78 → 86,
   `packages/mailbox` 158 → 166, and moved nothing else - and the four numbers that did not move are
   the measurement this change's plan turned on.** `apps/web` is still **125**, which is how the
@@ -1871,19 +1940,32 @@ depends on **did not work as first written**: with the destination as plain text
 the page said *"No verification link was found in this message"* on a message whose readable
 text plainly contained the URL.
 
-**The extension's 10 spec files and 89 cases** - `manifest.spec.ts` (**12**; **6** added by M8,
-**three** by `in-page-address` and **one** by `incoming-mail-notification`),
-`popup.spec.ts` (**8**), `in-page.spec.ts` (**17**, added by `in-page-address`),
-`in-page-create.spec.ts` (**8**, added by `in-page-mailbox`),
+**The extension's 10 spec files and 97 cases** - `side-panel.spec.ts` (**28**; **20** added by
+`side-panel-surface`, M11 slice 1, and **eight** by `extension-clear-data`),
+`in-page.spec.ts` (**17**, added by `in-page-address`),
 **`in-page-associations.spec.ts` (**12**, added by `site-associations`)**,
+`manifest.spec.ts` (**12**; **6** added by M8, **three** by `in-page-address` and **one** by
+`incoming-mail-notification`),
+`popup.spec.ts` (**8**), `in-page-create.spec.ts` (**8**, added by `in-page-mailbox`),
 **`in-page-fill.spec.ts` (**8**; **seven** added by `in-page-fill` and **one** by
 `incoming-mail-notification`)**,
 **`background-check.spec.ts` (**2**, added by `incoming-mail-notification`)**,
-**`side-panel.spec.ts` (**20**, added by `side-panel-surface`, M11 slice 1)**,
-`measurement.spec.ts` (**1**) and `alarm-floor.spec.ts` (**1**) - **89 in 10 files, against the
-67 in 9 that `in-page-fill` recorded before M11 added the side-panel file,
+`measurement.spec.ts` (**1**) and `alarm-floor.spec.ts` (**1`) - **97 in 10 files, against the
+89 in 10 that `panel-verification-state` recorded,
+the 67 in 9 that `in-page-fill` recorded before M11 added the side-panel file,
 the 63 in 8 that `in-page-fill` recorded, the 56 in 7 that `verification-actions` recorded,
 the 36 in 5 at slice 1, and the 16 in 4 that `extension-preview` recorded**.
+
+**Every figure in that list was re-measured at `extension-clear-data`'s archive (2026-10-13)
+from Playwright's own collection list rather than read off a file or carried forward from the
+proposal's record, and it agrees — which is the outcome worth stating, because the same list
+was wrong in two places two stages earlier.** The instrument is `playwright test --list
+--reporter=json`, walked recursively and attributing each spec to its nearest enclosing `file`,
+because a `describe` block does not carry one and a reader that assumed otherwise read **zero**
+cases in nine of the ten files and one in the tenth. **`stats` in that same report is not the
+count and must not be used for it: `--list` runs nothing, so it reports `expected: 0` and
+`skipped: 97`** — a figure that looks like a total failure and is in fact the correct
+description of a run that deliberately executed nothing.
 
 **The per-file figures above were re-measured at `extension-clear-data`'s proposal (2026-10-13)
 rather than carried forward, and two of them were wrong: `manifest.spec.ts` was recorded at **10**

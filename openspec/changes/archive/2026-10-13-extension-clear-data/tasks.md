@@ -1064,3 +1064,106 @@ promoted requirements already describe, and `design.md` D5 is why no visual-syst
       records that Playwright adds **no `Page` for a docked panel at all**, and the cases open the
       panel document **as a tab** — **a substitute, and one that cannot answer "which page am I
       beside."** Both are recorded there and unchanged by this change.
+
+## 10. The archive stage
+
+Recorded after the move rather than before it, which is the honest order for one of these sections:
+the archive has to have run for anything below to be a statement about an archive.
+
+- [x] 10.1 **The archive ran, and it moved rather than rewrote.** `openspec archive
+      extension-clear-data --skip-specs --yes` reported success and moved the change to
+      `openspec/changes/archive/2026-10-13-extension-clear-data/`. **A command reporting success is
+      not the claim worth making about a move** — the operation most likely to quietly drop or
+      rewrite a file is the one that only relocates paths, so every file was compared by SHA-256
+      between its `HEAD` path (`openspec/changes/extension-clear-data/…`, i.e. the bytes as
+      committed by the sync stage) and its archived path:
+
+      | file | bytes | pre-archive SHA-256 | post-archive SHA-256 | verdict |
+      | --- | --- | --- | --- | --- |
+      | `design.md` | 22182 | `f9fdd7110a226f2d…` | `f9fdd7110a226f2d…` | identical |
+      | `proposal.md` | 15012 | `1382a83b0f75549b…` | `1382a83b0f75549b…` | identical |
+      | `specs/extension-client/spec.md` | 6611 | `aac3dd06c0956c87…` | `aac3dd06c0956c87…` | identical |
+      | `specs/spectre-storage/spec.md` | 11477 | `56ad7141a74b52eb…` | `56ad7141a74b52eb…` | identical |
+      | `tasks.md` | 88137 | `4cbb6993c31e90df…` | `4cbb6993c31e90df…` | identical |
+
+      **5 tracked, 5 identical, 0 differ, 0 dropped, 0 added.** No file exists at the destination
+      that did not exist at the source, so the move added nothing. See **10.7** for the one
+      qualification on this table.
+
+- [x] 10.2 **`--skip-specs` was required, and its effect was measured rather than assumed.** The
+      sync stage (PR **#132**) already promoted the delta, so running the archive without the flag
+      would apply the same requirements twice. **`git diff HEAD -- openspec/specs` afterwards is
+      empty** — not "small", not "only the three blocks", **empty**: a promoted spec touched by the
+      archive would have shown there, and `--skip-specs` leaving the directory alone is the claim
+      being made.
+
+- [x] 10.3 **All three promoted blocks are byte-identical to their ARCHIVED deltas, re-read after
+      the move.** Re-verified with the sync stage's independently written verifier — which shares
+      no reader and no code with the promoter, so a defect in one cannot be inherited by the other
+      — against `openspec/changes/archive/2026-10-13-extension-clear-data/specs/…`:
+
+      | capability | kind | block | lines | verdict |
+      | --- | --- | --- | --- | --- |
+      | `extension-client` | `ADDED` | *"The side panel offers to remove what this device…"* | 110 | byte-identical |
+      | `spectre-storage` | `MODIFIED` | *"Removal is observed in a browser, not only again…"* | 76 | byte-identical |
+      | `spectre-storage` | `MODIFIED` | *"The message ids this device has been told about…"* | 98 | byte-identical |
+
+      **Blocks compared: 3. Byte-identical: 3.** Compared as whole blocks and not by title, because
+      a hand-typed paraphrase keeps the heading and loses the text — and **re-run against the
+      archived copies rather than trusted**, because archiving is a move and a move is the operation
+      most likely to leave a reader reading the file it started from.
+
+- [x] 10.4 **The counts were re-counted after the move rather than carried into it.** Counting
+      `### Requirement:` and `#### Scenario:` by heading across `openspec/specs/` in the working tree
+      after the archive: **168 requirements, 544 scenarios, 14 capabilities** — unmoved by the
+      archive, which is what a move should show. `openspec validate --specs --strict` is
+      **14 passed, 0 failed** and `openspec list` reports **No active changes**.
+
+      **The baseline for that comparison is 167 and 534, not the 166 and 527 this repository's own
+      ledger carried**, and the difference is this stage's finding rather than an arithmetic
+      correction: `panel-verification-state`'s sync (PR **#126**, merged `b569ff6`) promoted one
+      `ADDED` requirement carrying seven scenarios in `extension-client`, moving the tree to
+      167/534. **That change recorded the figure correctly in its own narrative; what was stale was
+      the standing headline at the top of the Project Status block, which no change has to touch in
+      order to record itself and which is the one a reader copies.** This stage's first draft of the
+      archive entry inherited the stale headline and published **+2 requirements and +17 scenarios**
+      where the tree says **+1 and +10** — and every individual sentence in it was about *this*
+      change and was true. **A stale headline is worse than no headline, because it is the one
+      number a reader does not think to re-derive.** The headline is now corrected, and it carries
+      its own baseline so the next reader can check it rather than trust it.
+
+- [x] 10.5 **`.openspec.yaml` is absent from this change, and the archive did not drop it.** Every
+      peer carries one — `2026-10-13-panel-verification-state`, `2026-10-12-panel-mailbox-choice`
+      and `2026-10-12-side-panel-surface` all hold `schema: spec-driven` plus a `created:` date, and
+      this change holds none. **The cause is *not* the archive**, and this stage checked rather than
+      assumed it: `git ls-tree -r HEAD -- openspec/changes/extension-clear-data` lists **five**
+      files and `.openspec.yaml` is not among them, so it was already absent from the change as the
+      sync stage committed it. **It was lost at proposal, not at archive** — which is a different
+      defect from the one `side-panel-runtime-facts`'s archive is recorded for having dropped, and
+      conflating the two would blame a stage that did nothing. **It is recorded, not hand-repaired,
+      because the canonical generator owns that file**: writing one by hand would make an archived
+      change differ from its siblings in a way no instrument here can then explain.
+
+- [x] 10.6 **The byte-identity instrument was wrong before it was right, and the failure mode is the
+      one this repository keeps recording.** The first version compared **text**, taking the
+      pre-archive side through `git cat-file | Out-String` and the post-archive side through
+      `File.ReadAllText`, and reported **5 of 5 `DIFFERS`** on a move that changed nothing:
+      `Out-String` re-wraps line endings and appends a newline, so the two sides were hashed under
+      **different conventions** and every file looked changed. **A byte-identity check that hashes
+      two different conventions is an assertion narrower than its rule — except that this one
+      pointed at the archive rather than at itself**, and the direction that matters is the one that
+      cries wolf: a reader who believed it would have reported a clean move as five corrupted files
+      and gone looking for a bug in `openspec`. The repair is **raw bytes on both sides**, with
+      git's output redirected through `cmd` so nothing decodes and re-encodes on the way out.
+      **It then reported 5 identical, and the only thing that changed was the instrument.**
+
+- [x] 10.7 **One qualification on 10.1, stated rather than left for a reader to find.** The digests
+      in 10.1 were taken **before** this section was appended, and this section is appended to
+      `tasks.md`. **The `tasks.md` this stage ships is therefore the one file in the move whose
+      bytes no longer match the table above**, by design and after measurement. The table's claim is
+      about *the move*, and it was measured immediately after the move; a deliberate, recorded edit
+      afterwards does not falsify it, but **leaving the table unqualified beside a file that no
+      longer matches it would be the exact defect this repository records as "a verification
+      performed at one moment, stated as a property of the tree".** The other four files are
+      byte-identical to their pre-archive originals in the shipped tree, and this line is the only
+      reason a reader can tell which numbers to trust.
