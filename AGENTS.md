@@ -128,8 +128,9 @@
 > is the mirror of the one that reports a failure as a success**, and this repository has
 > recorded the second shape four times.
 >
-> **`privacy-document` is M12's privacy-documentation item, and is APPLIED.** Proposal PR **#138**
-> merged `86c2296`. **`docs/PRIVACY.md` is 221 lines and ships the one record nobody had named**:
+> **`privacy-document` is M12's privacy-documentation item, and is APPLIED and SYNCED.** Proposal PR
+> **#138** merged `86c2296`, apply PR **#139** merged `6c4d0f2`. **`docs/PRIVACY.md` is 221 lines and
+> ships the one record nobody had named**:
 > `chrome.storage.local`'s `site-mailboxes`, a `hostname` → mailbox id map written at
 > `content-script/controller.ts:348` and **only after an insertion lands**. It is **the only
 > browsing-adjacent record this product keeps**, and no document named it — `README.md` stopped at
@@ -184,6 +185,24 @@
 > direction it was aimed at** — so the lesson is not *check carefully* but that **a confident
 > wrong answer from an unnamed reader is indistinguishable from a real defect until the reader
 > itself is read.**
+>
+> **The sync promoted one new capability, `privacy-disclosure`, at 8 requirements and 19 scenarios,
+> moving the totals from 168 → 176 requirements and 545 → 564 scenarios across 14 → 15
+> capabilities**, with `extension-client` **unmoved at 14 / 75** and every other capability unmoved, which is *required*
+> here because the delta is `ADDED`-only and a new capability has to touch nothing else.
+> `openspec validate --specs --strict` is **15 passed, 0 failed**. The promotion was **rehearsed in
+> full on a throwaway copy of `openspec/`** before the real tree, and the **promoter and the
+> verifier share no code and no reader** — one reads blocks with a line-by-line state machine, the
+> other splits whole text by regex — so **neither can inherit the other's blind spot**. The
+> verifier's reader **self-test 4/4**, and it was **falsified before its verdict was trusted**:
+> one word changed inside a promoted block left the counts at **`8 / 8`** while the whole-block
+> comparison moved the digest and **named line 4**; a `## ADDED Requirements` planted between two
+> requirements was caught; and **the verifier's own third self-test proves the block count is equal
+> in exactly the shape that hides absorption**, so a count cannot detect a wrong block here either.
+> **Two limits are stated rather than smoothed over: the promoted spec's `## Purpose` is prose
+> written at sync and is not in the delta, so byte-identity covers the 8 requirement blocks and
+> nothing else; and the promoter refuses to run over an existing spec**, because the first sync
+> tool in this repository logged a deletion it never performed.
 >
 > **`M12`'s three tracked items are done, and M12 is not thereby closed.** Its section lists five —
 > **the security review and the branding check were never among the three tracked ones** and have

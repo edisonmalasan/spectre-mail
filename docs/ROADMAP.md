@@ -369,8 +369,9 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > differs from its siblings is a defect a later reader would have to rediscover, and it is
 > **not** hand-written here because the canonical generator owns that file.
 >
-> **`privacy-document` is APPLIED.** Proposal PR **#138** merged `86c2296`; apply PR left unfilled
-> here and filled in by `gh pr view` after the merge. `pnpm test` is **63 files / 1250 tests** —
+> **`privacy-document` is APPLIED and SYNCED.** Proposal PR **#138** merged `86c2296`; apply PR
+> **#139** merged `6c4d0f2`; sync PR left unfilled here and filled in by `gh pr view` after the
+> merge. `pnpm test` is **63 files / 1250 tests** —
 > that is `1228 + 22` and `62 + 1`, and both movements are accounted for by the one new file.
 >
 > **`pnpm test` was red on the shipped tree, and the cause was a reader in another file.**
@@ -418,6 +419,34 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > it was aimed at** — the lesson is not *"check carefully"* but that **a confident wrong answer from
 > an unnamed reader is indistinguishable from a real defect until the reader is read**.
 >
+> **The sync promoted one new capability and moved the totals by eight requirements and nineteen
+> scenarios: 168 → 176 and 545 → 564, across 14 → 15 capabilities**, `openspec validate --specs
+> --strict` at **15 passed, 0 failed**, and **every other capability unmoved** — `extension-client`
+> still **14 / 75**, `spectre-storage` still **16 / 58**, `website-client` still **23 / 75**.
+> **A capability that is new rather than amended has to move nothing else, so the unmoved figures
+> are the check that the promotion touched only what it claimed to.**
+>
+> **The promotion was rehearsed in full on a throwaway copy of `openspec/` before it touched the
+> real tree**, and the rehearsal is how the instruments were shown to work: the promoter wrote **8
+> blocks, 19 scenarios and 0 delta-only section markers**, and the real tree was still untouched
+> afterwards. **The promoter and the verifier share no code and no reader** — the promoter reads
+> blocks with a line-by-line state machine and the verifier splits the whole text by regex — so
+> **one cannot inherit the other's blind spot, and the independence is structural rather than a
+> promise.** The verifier was **falsified before its verdict was trusted**: its reader self-test at
+> **4/4**, then one word changed inside a promoted block, where **the counts stayed `8 / 8` and the
+> whole-block comparison named line 4 and moved the digest**; a `## ADDED Requirements` planted
+> between two requirements; and restoration to byte-identical. **A count cannot detect a wrong
+> block, and the verifier's own third self-test proves the count is equal in exactly the shape that
+> hides it**, so the equality is not an accident of this file.
+>
+> **Two limits are stated rather than smoothed over, and the first is the one a reader copies.** The
+> `## Purpose` section of the promoted spec is **prose written at sync and is not in the delta**, so
+> block identity covers the **8 requirement blocks** and does not cover it — **a byte-identity claim
+> about a promoted spec means the requirement blocks and nothing else.** And the promoter **refuses
+> to run over an existing spec**, because the first sync tool in this repository logged a deletion
+> it never performed; that refusal is falsified too, and refusing is what makes the tool safe to run
+> twice.
+
 > **The gap is recorded inside a promoted requirement rather than merely suspected**, which is
 > the same reason `extension-clear-data` was taken before this. `page-composition`'s *A section
 > states only what the product does* says the footer ships *"the privacy and provider facts,
