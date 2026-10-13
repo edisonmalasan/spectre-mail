@@ -1,8 +1,10 @@
 # AGENTS.md
 
 > **Current milestone state (reconciled against Git and OpenSpec 2026-10-14): M0-M11 are complete
-> in scope, M12 is in progress with **two of its three items done**, and the cursor is on **the
-> privacy document** — M12's only remaining item.**
+> in scope, and M12's three tracked items are done — **two of them as of
+> `extension-permissions-review` (PRs #134–#137) and the third as of `privacy-document`, which is
+> APPLIED.** The cursor is on **M12's security review**, which was never one of the three tracked
+> items.**
 >
 > **M10 is complete in scope, and the history below is kept in the order the milestones
 > happened.** The `side-panel-runtime-facts` spike that unblocked
@@ -126,7 +128,66 @@
 > is the mirror of the one that reports a failure as a success**, and this repository has
 > recorded the second shape four times.
 >
-> **M12's cursor stays where it is: the privacy document is its only remaining item.**
+> **`privacy-document` is M12's privacy-documentation item, and is APPLIED.** Proposal PR **#138**
+> merged `86c2296`. **`docs/PRIVACY.md` is 221 lines and ships the one record nobody had named**:
+> `chrome.storage.local`'s `site-mailboxes`, a `hostname` → mailbox id map written at
+> `content-script/controller.ts:348` and **only after an insertion lands**. It is **the only
+> browsing-adjacent record this product keeps**, and no document named it — `README.md` stopped at
+> *No backend / No account / Client-side storage* and §29 at the single word `local-first`.
+> **A privacy document that omits the one record resembling browsing history is worse than none,
+> because its presence implies the omission was considered**, which is why it leads the document.
+>
+> **What ships is the instrument as much as the document**, and it is at
+> `tests/architecture/privacy-disclosure.test.ts` — **22 cases, 1734 lines**, a **test-owned map
+> rather than a scan**, every enumerable claim compared against a constant **the code itself
+> exports**, asserted **in both directions**. The file self-tests **four** of its readers and audits
+> itself for pattern-freeness and for sharing no reader with the boundary suite.
+> `boundaries.test.ts` staying at **53** is the prediction: this change adds no boundary, because
+> every property it introduces is about a document and none is structural.
+>
+> **`pnpm test` was red on the shipped tree, and the cause was a reader in another file.** The
+> first apply report said the new file's 22 cases passed on a first run — **it had never run
+> `pnpm test`** — and `pnpm test` was red: *conﬁnes provider adapters to `packages/providers`*
+> reported **six violations, every one naming the new file**. **`stripComments` tracks line
+> comments, block comments and three string delimiters, and has no state for a
+> regular-expression literal** — so a backtick inside one opened a template string that ran to the
+> next backtick, the reader desynchronised for the rest of the file, and **the doc comment
+> immediately below it — naming the three adapter identifiers while explaining this very defect —
+> was emitted verbatim as if it were code.** Replicated rather than argued: the reader
+> re-implemented byte-for-byte over **235** files, **one** containing the literal; restoring only
+> the pattern turns that single case red with **3 identifier + 3 pattern hits**; repairing it
+> returns the file to green with its SHA-256 **byte-identical**. **The remembered split was 4+2
+> and the measured split is 3+3** — the total was right and the split was wrong, and **the split is
+> what explains the mechanism.** **The cause was repaired; the reader defect is recorded and not
+> fixed**, because `boundaries.test.ts` is outside the change's write scope — **and any future file
+> putting a backtick inside a regex literal takes a green gate red with a cause that reads as
+> correct.**
+>
+> **Two limits were recorded rather than engineered away, and the second is the one worth carrying.**
+> A declared count guards a *silent* edit, not a deliberate one — **a decision is caught by
+> nothing**, so the count establishes non-silence rather than completeness, and the reverse
+> direction needs a name predicate over `PANEL_COPY` that **this change's own design forbids**
+> (D3). **The instrument that would catch it is the instrument the design rules out**, and that
+> trade is paid in public rather than hidden. And **`tests/architecture/` has no `tsconfig.json`
+> and is not a workspace member, so `pnpm typecheck` does not check either architecture file's
+> types** — recorded as a limit on what `pnpm verify` establishes here, and **not** repaired,
+> because adding a `tsconfig` would move every future gate's typecheck scope.
+>
+> **And the orchestrator nearly recorded a false finding against the same class.** Spot-checking the
+> document's *"does not collect"* pointers independently, a reader requiring `### Requirement: `
+> immediately before the cited text returned **five MISS out of six** — **and all five resolved**:
+> every heading carries a subject before the cited phrase, so the reader was **narrower than the
+> rule it was checking**. Re-run against the heading lines, **all six resolve** and the slug
+> `requirement-persistence-is-reached-through-one-contract` matches its heading exactly.
+> **This is the most-recorded defect in this repository, and the instance that produced the
+> instinct to record a finding here was caused by an instrument that could not fail in the
+> direction it was aimed at** — so the lesson is not *check carefully* but that **a confident
+> wrong answer from an unnamed reader is indistinguishable from a real defect until the reader
+> itself is read.**
+>
+> **`M12`'s three tracked items are done, and M12 is not thereby closed.** Its section lists five —
+> **the security review and the branding check were never among the three tracked ones** and have
+> never been started. The cursor is on **the security review**.
 >
 > **`extension-clear-data` is M12 slice 1, and is APPLIED, VERIFIED, SYNCED and ARCHIVED** at
 > `openspec/changes/archive/2026-10-13-extension-clear-data/` — proposal PR **#130** merged

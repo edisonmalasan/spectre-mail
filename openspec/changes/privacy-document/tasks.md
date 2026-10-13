@@ -69,9 +69,12 @@
       (`design.md` D5), so `styles.css` stays byte-identical.
 - [x] 4.2 Confirm `apps/web/src/styles.css` and `apps/extension/static/manifest.json` are
       byte-identical to their task 1.1 digests.
-- [ ] 4.3 Update `docs/ROADMAP.md`'s Project Status — root-owned, and the archive PR number for
+- [x] 4.3 Update `docs/ROADMAP.md`'s Project Status — root-owned, and the archive PR number for
       `extension-permissions-review` is filled in there by `gh pr view` (**#137**, merged
-      `2b3ee7d`), never predicted.
+      `2b3ee7d`), never predicted. **Done by the root orchestrator at this stage**, together with
+      `AGENTS.md`'s milestone block and cursor. The cursor moves to **M12's security review**,
+      and the entry states plainly that **M12 is not thereby closed**: its section lists five items
+      and the security review and the branding check were never among the three tracked ones.
 
 ## 5. Falsification
 
