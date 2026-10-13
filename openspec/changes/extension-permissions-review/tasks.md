@@ -382,3 +382,71 @@ forbidden-token list, so it is not a use. **The other seventy are all inside com
 
 **`tabs` is the standing proof that the map, not a scan, is the assertion**: it is read twice in
 shipped code and deliberately undeclared. A scan-based rule would have demanded it.
+
+## 10. Sync record (2026-10-13)
+
+**One `MODIFIED` block promoted. The requirement count is unmoved and that is the arithmetic
+working, not a promotion that missed** -- a `MODIFIED` block *replaces* rather than adds.
+
+| | before | after |
+|---|---|---|
+| requirements | **168** | **168** |
+| scenarios | **544** | **545** |
+| capabilities | **14** | **14** |
+| `extension-client` requirements | 14 | **14** |
+| `extension-client` scenarios | 74 | **75** |
+
+**Re-counted by heading across `openspec/specs/` after the promotion rather than carried forward**,
+and **13 of the 14 spec files are byte-identical** to their pre-promotion SHA-256
+(`extension-client` `EF01DFD7...` -> `66A19320...`, the only one that moved). **`git diff --stat` is
+`1 file changed, 84 insertions(+)`, zero deletions** -- the new block is the old block plus its two
+recorded amendments, so Git matched the whole of the old block as common context.
+
+**The new scenario sits at the block's end**, after the four scenarios that were already there,
+which is where the proposal stage's splice repair put it. **That repair is why this promotion
+produced no incident at all**: an earlier splice placed it mid-list inside the previous scenario's
+bullets, where neither a heading count nor `openspec validate --strict` could see it.
+
+### 10.1 The rehearsal earned its place twice
+
+**The promotion was rehearsed on a throwaway copy of `openspec/` before it touched the real tree**,
+and the rehearsal caught a defect in the promoter that would otherwise have run against the real
+spec: its block reader demanded that a requirement *immediately follow* its `## ` section heading,
+which holds for the first requirement in a section and for none of the other thirteen. Scanning
+back from `extension-client`'s tenth requirement therefore hit the ninth one first and threw.
+
+**A reader that refuses to read the tree cannot damage it, which is the whole argument for
+rehearsing rather than promoting and then looking.** The repair stops at the nearest `## ` *or*
+`### ` heading above -- a sibling requirement is itself proof that a section heading is above us --
+and the second attempt caught a logic slip in the repair itself (breaking on the `### ` left the
+flag false when hitting a sibling is the proof). **Three runs to promote one block**, all three on
+copies.
+
+### 10.2 The two instruments share no code and no reader
+
+The promoter and the verifier were written from the file format upward in opposite directions, and
+neither imports the other. **This is structural rather than a promise**, because a past sync shipped
+two files that nonetheless spelled the block reader the same way, so the comparison was decoration.
+
+**Their SHA-256 values differ for the same block** (`fa92a74a...` from the promoter,
+`eaf27a4f...` from the verifier) **and that is expected rather than a discrepancy**: the promoter
+hashes the block exactly as it spliced it, the verifier trims trailing blank lines before hashing.
+The two **content** comparisons both report BYTE-IDENTICAL, which is the comparison that decides.
+
+### 10.3 The verifier was falsified before it was trusted
+
+**One word was changed inside the promoted block** (`is earned` -> `is NOT earned`) and the
+verifier reported `DIFFERENT`, naming **delta line 184** and both lines verbatim.
+
+**The measurement that makes this worth recording: the counts did not move.** `14 requirements /
+75 scenarios` before the corruption and `14 / 75` after it. **A count-based check cannot detect a
+wrong block**, and this is that fact demonstrated rather than asserted -- the block count is
+identical either way, so only a whole-block content comparison distinguishes them. The corrupted
+copy was restored and the verifier re-run green, so the control was restored rather than left in
+place.
+
+### 10.4 `6.4` is still open, and the half that is done is recorded
+
+Both `validate` commands have now run (`14 passed, 0 failed`; the change `valid`). **The re-count
+task 6.4 asks for is one *after the archive*, and there is no archive yet**, so the box stays open
+rather than half-ticked. **A box ticked for half its work is a box that will be read as done.**
