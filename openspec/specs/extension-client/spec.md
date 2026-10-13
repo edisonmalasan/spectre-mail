@@ -222,6 +222,69 @@ milestone working inside an already-declared surface did not need to touch the m
 which is the shape the clause asks for and **the opposite of the shape that would have required
 an amendment here.** Nothing is deleted, and no absence is asserted that is not true.
 
+**Amendment, recorded at proposal (2026-10-13), by `extension-permissions-review`. This
+requirement's manifest clause is about permissions, and its wording does not reach the one entry
+the extension actually declares.** The clause reads *"it SHALL request no permission that no
+shipped surface uses"*, and **`sidePanel` is reached by no shipped call** — the sole occurrence of
+the token under `apps/extension/src` is the word *"sidepanel"* inside a doc comment in
+`panel-main.tsx`, and a word differing from the token by case is not a call. It is earned, if at
+all, by the `side_panel` **manifest key**. **So the clause either already forbids this entry or
+fails to reach it, and nobody has had to say which** — and a clause whose reach is unknown cannot
+be relied on by the milestone whose job is to remove an unearned permission. The scenario below is
+what makes it say which, and it is added here rather than at the next amendment because **a gap in
+a boundary this requirement owns is this requirement's own defect**, not the next change's.
+
+**The paragraph above this one overstated its evidence, and the correction is narrower than it
+looks.** It records that `sidePanel`'s necessity *"was measured rather than assumed"*, citing
+`docs/PROVIDERS.md` §4.6's control-and-probe comparison — and **two of that comparison's four
+cells were measured**: a fixture declaring neither the permission nor the `side_panel` key, and one
+declaring both. *Permission without the key* and *key without the permission* were never run, and
+the probe's own `VARIANTS` list shows three entries where four cells are needed. **What was
+established is therefore narrower than the sentence says: that `chrome.sidePanel` exists when both
+entries are declared and does not when neither is.** **This is not a defect attributed to the
+milestone that added the entry** — that milestone recorded what had been measured and said plainly
+what could not be separated on this substrate, which is a different claim from claiming it had been
+settled. **It is a fixture with two cells unwritten, carried across four later changes as though
+the platform forbade the measurement**, and the two missing cells are two lines of a staged manifest
+in an instrument this repository already owns.
+
+**Amendment, recorded at apply (2026-10-13), by `extension-permissions-review`. The two cells the
+previous paragraph says were never run have now been run, and they separate the two entries: the
+`sidePanel` permission is what makes `chrome.sidePanel` exist, and the `side_panel` key is not.**
+Four cells were measured on this Chromium, in a service-worker context, each staged from one fixture
+manifest by a shallow top-level merge and each differing from the `with-permission__with-key` corner
+in exactly one entry:
+
+| cell | `sidePanel` permission | `side_panel` key | `chrome.sidePanel` |
+|---|---|---|---|
+| `no-permission__no-key` | absent | absent | **`undefined`** |
+| `no-permission__with-key` | absent | present | **`undefined`** |
+| `with-permission__no-key` | present | absent | **present** |
+| `with-permission__with-key` | present | present | **present** |
+
+**The entry stays, and `manifest.json` is unchanged by this change.** The cell that decided it is
+`no-permission__with-key`: **the key alone does not work**, so the permission is not redundant
+because the key is present beside it. **The other cell matters just as much and is the one nobody had
+run**: `with-permission__no-key` shows the permission alone is *sufficient* — the API exists, and
+`open` and `setPanelBehavior` are functions, with no `side_panel` key declared anywhere in that
+manifest. So of the two entries, **the permission is the one that earns the API and the key is the
+one that tells Chromium which document to mount** — they are not interchangeable and neither is
+redundant, which is the fact the two-cell comparison could not express.
+
+**This is not a defect attributed to the milestone that added the entry.** `side-panel-surface`
+recorded what it had measured and said plainly what could not be separated on this substrate; that
+is a different claim from claiming it had been settled, and the entry was traceable to the
+requirement below that cannot be met without a panel. **What was wrong was the fixture — two cells
+of a two-by-two that were never written — and it was wrong for four changes after the entry landed.**
+
+**What the four cells do not establish, and what the trace required by the scenario below therefore
+records.** Each cell's reading is the **API's existence in a service worker**, so this says that
+`chrome.sidePanel.open()` is unreachable from the worker without the permission — **and it says
+nothing about whether Chromium would mount a panel document in a window if a person opened one by
+some other route with the key alone**, which was not measured because no instrument here can see a
+panel dock (`docs/PROVIDERS.md` §4.6's limits). One engine, one machine, one fixture, and a staged
+merge rather than a hand-authored manifest.
+
 #### Scenario: The manifest is read
 
 - **WHEN** the extension's manifest is read
@@ -246,6 +309,27 @@ an amendment here.** Nothing is deleted, and no absence is asserted that is not 
 - **WHEN** the built extension is listed
 - **THEN** every document path the manifest names SHALL be among the files it emitted
 - **AND** a path naming a file the build does not emit SHALL be reported by name
+
+#### Scenario: A permission is earned by a manifest key rather than by a call
+
+- **GIVEN** the manifest declares a permission no shipped module calls
+- **WHEN** that permission is traced to the thing it is for
+- **THEN** the trace SHALL name the manifest key the permission is for and the requirement that
+      key serves
+- **AND** the trace SHALL record what was measured about that key without the permission, including
+      the case where nothing could be measured
+- **AND** a declared permission naming neither a `chrome.<name>` call nor a manifest key SHALL
+      fail the build and be reported by name
+
+
+<!-- Copied verbatim from `openspec/specs/extension-client/spec.md` by script. The
+     amendment paragraph is spliced at one named anchor required to be unique; the
+     ADDED scenario is appended at the block's end, which the script asserts is the
+     line its append assumes. Block SHA-256 before the splice was
+     b2c3ed1edad64197b73db5c0e71c8e31867562a781fd120eadf0cfeb13945c96
+     and after it is 2509c0bd9f7a9bee4ba8126ca588218e9cb07d7537c57a90564de5f2a9ed1b60
+     The two additions are the amendment paragraph and one ADDED scenario; every other
+     line is byte-identical to the promoted spec. -->
 
 ### Requirement: The extension's popup performs its first milestone's actions over the shared session
 
