@@ -789,6 +789,22 @@ is the one that would be *recorded* if a run failed — `HARNESS-INCONCLUSIVE`, 
 exit `1`, with the arm named. **All four logs were retained rather than reconciled away**, which is
 the whole of what "records the rate rather than fixing it" amounts to.
 
+**And those four retained logs are not logs of the instrument as committed, which is recorded because
+"the logs are retained" reads as stronger than "the logs are of an earlier build of the same
+instrument".** They print **`[object Object]`** in the `side_panel key` column, where the committed
+`printCells` prints **`present`** or **`absent`** — a rendering-only repair made after the four runs,
+so the *readings* in those logs are the committed instrument's readings while the *column* is not.
+**The independent check below is the one taken against the committed code.**
+
+**Independently re-measured on the committed probe, 2026-10-13.** One run, taken by the
+orchestrator rather than by the change's implementer, against the tree this branch ships: **exit `0`,
+`13/13` observations, `answerable: true`, and the same four cells** — `key-only` **`undefined`**,
+`permission-only` **present**, `control` **`undefined`**, `base` **present** — **and the same
+verdict: `side_panel key alone false`, `sidePanel permission alone true`.** So the reading that keeps
+the entry is **reproduced by a second reader on a second run of the shipped code**, and what changed
+between the retained logs and the shipped instrument is the table's rendering rather than any
+reading.
+
 **Instrument: `apps/extension/e2e/side-panel-runtime.mjs`**, quarantined with the three beside it.
 **Four deliberate violations were run against it and all four were caught**, with restoration verified
 by SHA-256 per file. **Three of its own defects are recorded because each produced a confident wrong
@@ -833,10 +849,14 @@ first false failure, and the repair would have been to declare it. Arm 5 plants 
 the map silent, and the case reports the permission anyway. Arm 6 plants a stale entry with a false
 justification for a permission the manifest does not declare, and the case stays green, because the
 loop is over `manifest.permissions` and never over the map's keys: **a repaired removal must be
-allowed to leave its own bookkeeping behind.** Arms 7 and 8 exist because **every `chrome.<name>`
-occurrence under `apps/extension/src` is inside a comment** — 14 in `extension-platform.ts`, 9 in
-`storage.ts` — so an unstripped scan would justify `storage`, `notifications` *and* `tabs` from prose,
-and `tabs` is a permission this extension deliberately does not declare.
+allowed to leave its own bookkeeping behind.** Arms 7 and 8 exist because **of the 71 `chrome.<name>`
+occurrences under `apps/extension/src`, 70 are inside comments** — 14 in `extension-platform.ts`, 9
+in `storage.ts` — so an unstripped scan would justify `storage`, `notifications` *and* `tabs` from
+prose, and `tabs` is a permission this extension deliberately does not declare. **The single
+occurrence in code is `service-worker.test.ts:100`'s `FORBIDDEN_IN_WORKER`, naming `"chrome.alarms"`
+in order to forbid it** — a test file, and a forbidden list even if the scan read one. **Every
+occurrence in a shipped runtime module is inside a comment**, which is the form of the claim this
+change originally stated too strongly and measured to its true value at apply.
 
 **The falsification instrument was itself wrong twice before it measured anything, and the second
 defect is the recorded `dist/`-outlives-the-restoration one, committed by the instrument that exists

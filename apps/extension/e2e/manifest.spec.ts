@@ -118,10 +118,14 @@ const PERMISSION_IS_EARNED_BY: Record<string, EarnedBy> = {
  * do not.
  *
  * **Stripping is what makes the scan above mean anything, and that is measured rather than
- * asserted.** Every `chrome.<name>` occurrence under `apps/extension/src` is **inside a comment** —
- * 14 in `extension-platform.ts`, 9 in `storage.ts` — so an unstripped scan would justify `storage`,
- * `tabs` *and* `notifications` from prose in files that reach no platform member at all, and
- * `tabs` is a permission this extension deliberately does not declare.
+ * asserted.** Of the 71 `chrome.<name>` occurrences under `apps/extension/src`, **70 are inside
+ * comments** — 14 in `extension-platform.ts`, 9 in `storage.ts` — so an unstripped scan would
+ * justify `storage`, `tabs` *and* `notifications` from prose in files that reach no platform
+ * member at all, and `tabs` is a permission this extension deliberately does not declare. **The one
+ * occurrence in code is `service-worker.test.ts:100`'s `FORBIDDEN_IN_WORKER`, which names
+ * `"chrome.alarms"` in order to *forbid* it** — a test file this scan excludes, and a forbidden
+ * list even if it did not. **Every occurrence in a shipped runtime module is inside a comment.**
+ * (Measured by an independently written region-tracker, not by this stripper.)
  *
  * **Known to be imperfect, in the direction this repository records for the original:** it does not
  * understand regex literals, and `apps/extension/src` contains two (both in `*.test.ts`, which this

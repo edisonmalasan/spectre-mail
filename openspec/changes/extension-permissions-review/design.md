@@ -12,12 +12,35 @@ Re-reading the recorded finding rather than trusting it is what produced the cha
 **What shipped code reaches.** Scanning every file under `apps/extension/src` for
 `chrome.<permission>` and for the bare token:
 
-| permission | a shipped `chrome.<name>` call | modules reaching it |
+> **Correction, recorded during apply (2026-10-13), by `extension-permissions-review`. The table
+> this replaces was wrong on all three of its "yes" rows, and it was wrong in the way that matters
+> most here — it substituted a different criterion for the requirement's.** The requirement asks
+> whether a declared permission is one *"no shipped surface uses"*, and this table answered a
+> narrower question — whether a shipped module spells `chrome.<name>` — and then reported that
+> narrower question's answer as though it were the answer. **Measured on the shipped tree,
+> comments stripped: `chrome.alarms` in `service-worker.test.ts:100` is the only `chrome.<name>`
+> occurrence in code anywhere under `apps/extension/src`, and it is a test's forbidden-token list.**
+> The other **70** are inside comments — 14 in `extension-platform.ts`, 9 in `storage.ts` — so a
+> scan for that spelling would report **all four** permissions unjustified, including the three
+> this table called reached.
+>
+> **The reason is a boundary rule this repository already enforces**: the bare `chrome` token is
+> confined to one module, so shipped code reaches the platform through that module's reflective
+> read — `Reflect.get(globalThis, "chrome")` — and passes each member's name as **data**. The
+> correct criterion is therefore the member name as a string beside that one read, and by it:
+
+| permission | a shipped read of the member, through the reflective read | where |
 |---|---|---|
-| `storage` | yes | ~30 files, incl. `App.tsx`, `Popup.tsx`, `Panel.tsx`, `create-mailbox.ts`, `entry.ts` |
-| `alarms` | yes | `alarms.ts`, `background-check.ts`, `extension-platform.ts` |
-| `notifications` | yes | `notification.ts`, `background-check.ts`, `extension-platform.ts` |
+| `storage` | **yes** | `extension-platform.ts` (`"storage"`, `.local`) |
+| `alarms` | **yes** | `extension-platform.ts` (`"alarms"`, twice) |
+| `notifications` | **yes** | `extension-platform.ts` (`"notifications"`) |
+| `tabs` | **yes — and deliberately not declared** | `extension-platform.ts` (`"tabs"`, twice); `tab.url` is withheld without it |
 | `sidePanel` | **no** | **none** |
+
+**So `sidePanel` is the only declared permission no shipped module reaches, and `tabs` is a member
+no shipped module reaches that the manifest deliberately withholds** — which is what makes the map
+in D6 the assertion rather than a scan for reads. A scan would have had `tabs` as its first false
+failure, and the repair would have been to declare it.
 
 **The one occurrence of `sidePanel` in shipped source is a doc comment.** It is the word
 *"sidepanel"* inside `"sidepanel.html" and "popup.html" are two documents Chromium loads
