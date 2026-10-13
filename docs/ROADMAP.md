@@ -53,7 +53,11 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > `spectre-storage` (M6 slice 1), `browser-verification`, `visual-system` (M7 slice
 > 1), `page-composition` (M7 slice 3), `extension-client` (M8) and
 > `in-page-integration` (M9 slice 1). Counted mechanically at each sync and again
-> after each archive, they hold **166 requirements and 527 scenarios** in total.
+> after each archive, they hold **168 requirements and 544 scenarios** in total
+> — **measured by heading across the tree after `extension-clear-data`'s archive on
+> 2026-10-13**, and *corrected* from the **166 / 527** this line carried until then,
+> which had been stale since `panel-verification-state`'s sync. See that change's
+> entry below for the per-commit trace.
 >
 > **The `alarms-packing-interval` spike declared `skip_specs` and promoted nothing, and
 > that was verified rather than assumed**: immediately after the archive the totals were
@@ -182,11 +186,132 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > the measurement it was**, because rewriting it would falsify what `side-panel-surface`'s archive
 > actually found - a record of a past measurement is not a stale figure.
 >
+> **`extension-clear-data` is APPLIED, VERIFIED, SYNCED and ARCHIVED** at
+> `openspec/changes/archive/2026-10-13-extension-clear-data/` — apply PR **#131** merged
+> `62eb976`, sync PR **#132** merged `908e555`. **M12 slice 1 is the extension's missing
+> clear-data control**, and it was taken ahead of the permissions review because the gap was
+> recorded *inside a promoted requirement* rather than merely suspected: `spectre-storage`
+> already required a whole-area removal through one contract and **no shipped surface called
+> it**. The panel now offers a two-step confirmed removal mirroring the website's
+> `LocalData.tsx`, reaching `clearAll` through the `SpectreStorage` contract rather than
+> naming any of the four keys `chrome.storage.local` holds. **`manifest.json` and
+> `styles.css` are byte-identical**, `packages/storage` is untouched at **86** tests, and
+> `packages/ui` is still **38** — which is `design.md` D5's declared failure made into a
+> measurement, since a rise would have meant visual surface no capability describes.
+>
+> **The sync promoted three blocks and moved the totals by one requirement and ten
+> scenarios. Re-counted by heading after the archive, not transcribed: 167 -> 168
+> requirements and 534 -> 544 scenarios, across the same fourteen capabilities**, with
+> `openspec validate --specs --strict` at **14 passed, 0 failed** and `openspec list`
+> reporting **No active changes**. **Per capability, re-counted the same way:
+> `browser-verification` 5/12, `build-and-verification` 10/28, `extension-client`
+> 14/74, `in-page-integration` 17/68, `mail-parsing` 9/31, `mailbox-session` 24/65,
+> `monorepo-foundation` 5/12, `page-composition` 6/20, `provider-abstraction` 9/20,
+> `provider-adapters` 12/30, `shared-domain-model` 9/23, `spectre-storage` 16/58,
+> `visual-system` 9/28, `website-client` 23/75.** **Only two capabilities moved —
+> `extension-client` 13 -> 14 and `spectre-storage` 16 -> 16** — and the other twelve are
+> identical to the figures above, which is the measurement the count exists for.
+>
+> **The baseline for that comparison is 167 and 534, and the headline above said 166 and 527 —
+> so the headline was stale by exactly one milestone and the first draft of this paragraph
+> inherited the error rather than the tree.** **It is worth being precise about what went
+> wrong, because the obvious description of it is wrong:** `panel-verification-state`'s sync
+> *did* record its own figure correctly, further down this block, at the sentence reading
+> *"the tree is 167 requirements / 534 scenarios / 14 capabilities"*. **The number nobody
+> re-read was the one at the top** — the standing headline, which no change has to touch in
+> order to record itself, and which is the one a reader copies. Counting `### Requirement:` /
+> `#### Scenario:` by heading at each merge commit that touched `openspec/specs/` traces it
+> precisely:
+
+> | merge | change | requirements | scenarios |
+> | --- | --- | --- | --- |
+> | `560410f` | archive `panel-mailbox-choice` (PR #121) | 166 | 527 |
+> | `28f1360` | apply `panel-verification-state` (PR #125) | 166 | 527 |
+> | **`b569ff6`** | **sync `panel-verification-state` (PR #126)** | **167** | **534** |
+> | `e723fba` | archive `panel-verification-state` (PR #128) | 167 | 534 |
+> | `62eb976` | apply `extension-clear-data` (PR #131) — **baseline** | 167 | 534 |
+> | `908e555` | sync `extension-clear-data` (PR #132) | **168** | **544** |
+
+> **`panel-verification-state`'s sync promoted one `ADDED` requirement carrying seven
+> scenarios in `extension-client` — exactly the `+1 / +7` step in the table above.** Its change
+> is archived at `openspec/changes/archive/2026-10-13-panel-verification-state/` and its delta
+> measures `sections=[ADDED] requirements=1 scenarios=7`, so the promotion is verifiable from
+> the archived artifact rather than inferred. **What the tree then cost this stage is the more
+> useful record.** The first draft of the paragraph above was written against the headline, and
+> published **+2 requirements and +17 scenarios** where the tree says **+1 and +10** — and every
+> individual statement in it was about *this* change and was true. **The headline was wrong, and
+> a number copied from a ledger is only ever as current as the last time somebody counted the
+> tree.** This is the recorded lesson arriving one more time in its plainest form, and the
+> version worth keeping is the narrow one: **a stale headline is worse than no headline,
+> because it is the one figure a reader does not think to re-derive.** The headline at the top
+> of this block is now corrected, and the correction carries its own baseline so the next reader
+> can check it rather than trust it.
+>
+> **So `extension-clear-data`'s own arithmetic is `+1` requirement and `+10` scenarios, and
+> both are measured against a baseline taken from the tree at `62eb976` rather than from
+> the ledger.** The consequence for the reader is worth stating plainly: **the two blocks
+> above this one, which report 166/527 and which were accurate when written, are now
+> contradicted by the tree** — and they are left as they are, because a record of a past
+> measurement is not a stale figure.
+>
+> **Three blocks promoted and one requirement added is the arithmetic working, not a
+> discrepancy**: the delta is one `ADDED` requirement in `extension-client` and two
+> `MODIFIED` in `spectre-storage`, and **a `MODIFIED` block replaces rather than adds**, so
+> `spectre-storage`'s requirement count holding at 16 is the *predicted* outcome and not a
+> promotion that missed. The scenario delta of **+10** is **`+9` and `+1`** across the two
+> capabilities — `extension-client` 65 -> 74 and `spectre-storage` 57 -> 58 — and it was
+> measured, not predicted. **The change predicted `+1` requirement and `+10` scenarios
+> before its sync ran and both held exactly.**
+>
+> **Two instrument defects were caught by rehearsing the promotion on a throwaway copy of
+> `openspec/` before the real tree was touched, and both were in the instruments.** The
+> promoter compared a **character offset against a line index** while classifying which
+> section a block sat under, so every block read as `UNKNOWN` — **and it refused to place a
+> block it could not classify rather than guessing.** The verifier searched for its heading
+> **with the leading newline**, so the forward boundary scan found **its own heading** and
+> sliced an empty block, reporting three differences with a **zero-character** promoted
+> side — **and it exited non-zero, which is why that was a typo and not a false green. A
+> shared reader would very likely have passed here**, which is the whole argument for the
+> independence being structural rather than a promise. A **third** defect was mine and
+> preceded both instruments: a one-liner asked whether the `ADDED` requirement was already
+> promoted and answered **yes, on a heading the spec does not contain**. **The check was
+> wrong, not the change** — trusted, it would have produced a sync that silently dropped
+> the one requirement this change exists to add.
+>
+> **All five archived files are byte-identical to their pre-archive digests** (recorded
+> *before* the move, compared after), **`openspec/specs/` is byte-identical throughout** —
+> `--skip-specs` applied nothing twice — and **all three promoted blocks are byte-identical
+> to their deltas re-verified against the archived copies**, since a move is the operation
+> most likely to quietly drop a file.
+>
+> **And the archived change carries no `.openspec.yaml`, which is a defect recorded rather
+> than repaired.** Its peer `2026-10-12-panel-mailbox-choice` carries one (`schema:
+> spec-driven`, `created: 2026-10-12`), so **the file was lost at this change's *proposal*
+> stage rather than at its archive** — the archive had nothing to keep, and the recorded
+> lesson that slice 1's archive dropped the file applies here one stage earlier.
+> `openspec list` and `openspec status` both work without it (the schema defaults to
+> `spec-driven`), so **this is metadata rather than function** — but an archived change that
+> differs from its siblings is a defect a later reader would have to rediscover, and it is
+> **not** hand-written here because the canonical generator owns that file.
+>
+> **M12's remaining items are the permissions review and the privacy document, and both
+> carry recorded findings rather than clean starting points.** The review is an **audit,
+> not a slice** — `manifest.spec.ts:246` hard-codes
+> `["storage","alarms","notifications","sidePanel"]`, and the `sidePanel` entry has **no
+> shipped module behind it**: zero files under `apps/extension/src` name `sidePanel`, while
+> the manifest declares both the permission and the `side_panel` key. `docs/PROVIDERS.md`
+> §4.6 measured permission and key together and cannot separate them, so resolving it needs
+> **a Chromium carrying the key without the permission**, which no instrument here can
+> provide. The privacy document (M12 item three) is **partly drafted**
+> (`README.md:602-613`, this file's §29) and publishing it before the extension can act on
+> its own data would assert a gap this change has just closed.
+>
 > M0's own capability spec was archived with
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor: M11 - Side Panel + Mailbox Context is COMPLETE IN SCOPE.** `panel-verification-state`
+**Roadmap cursor: M12 - Release Hardening. M11 - Side Panel + Mailbox Context is COMPLETE IN
+SCOPE.** `panel-verification-state`
 - proposal PR **#124** merged `7c56c83`, apply PR **#125** merged `28f1360`, sync PR **#126** merged
 `b569ff6`, archive PR **#128**, archived to
 `openspec/changes/archive/2026-10-13-panel-verification-state/`. The archive was run with
