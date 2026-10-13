@@ -232,6 +232,95 @@ Three surfaces already carry a privacy-adjacent claim, and none of them is chang
 other two. The requirement is agreement, checked from outside all three — which is also the only
 arrangement in which the check can catch any of them drifting.
 
+### D13 — `pnpm test` was **red on the shipped tree**, and the cause was a reader in another file that does not know what a regex literal is
+
+**The apply-stage report said the new file's 22 cases all passed on a first run. It never ran
+`pnpm test`, and `pnpm test` was red.** This is recorded first because it is the shape a reader
+will otherwise miss, and because the class of defect had already been recorded in this file and
+re-appeared anyway.
+
+The failure was `boundaries.test.ts` → *"confines provider adapters to `packages/providers`"*, six
+violations, every one naming `tests/architecture/privacy-disclosure.test.ts`:
+
+```text
+"tests/architecture/privacy-disclosure.test.ts references createMailTmAdapter"
+"tests/architecture/privacy-disclosure.test.ts references createGuerrillaAdapter"
+"tests/architecture/privacy-disclosure.test.ts references runProviderConformance"
+"tests/architecture/privacy-disclosure.test.ts defines adapter-shaped identifier createGuerrillaAdapter"
+"tests/architecture/privacy-disclosure.test.ts defines adapter-shaped identifier createMailTmAdapter"
+"tests/architecture/privacy-disclosure.test.ts defines adapter-shaped identifier createGuerrillaAdapter"
+```
+
+**Re-measured here rather than carried forward, because the remembered shape was wrong: the six are
+three identifier hits and three pattern hits, not four and two.** The total was right and the split
+was not, and the split is the part that explains the mechanism.
+
+**The mechanism, replicated.** `stripComments` in the boundary suite tracks line comments, block
+comments, and three string delimiters. It has **no state for a regular-expression literal**, so a
+backtick inside one opens a template string that runs to the *next* backtick in the file. The
+original `normaliseProse` carried `/[*_`]/g`; from that backtick the reader was desynchronised, the
+**doc comment immediately below it** — which names the three adapter identifiers while explaining
+this very defect — was emitted verbatim as if it were code, and the rule read three identifiers out
+of prose. The rule scans `collectSourceFiles(REPO_ROOT)`, so a file under `tests/` is in scope
+exactly as one under `packages/` is.
+
+Measured replication of the *cause*, with the pattern restored and only that restored:
+
+- `stripComments` re-implemented byte-for-byte from the rule's own source and run over the tree:
+  **235** files scanned, **1** file — this one — contains the literal;
+- the restored pattern makes that single boundary case red with **the six violations above, naming
+  this file**;
+- restoring the repaired form makes it green, and `tests/architecture` is back to **75 passed**
+  (53 + 22) with the file's SHA-256 **byte-identical** to its pre-experiment digest.
+
+**The repair is in this file and not in the reader, and that is a boundary decision.** The defect
+belongs to `stripComments`, which is out of this change's write scope. What was repaired here is
+the *cause*: `normaliseProse` now removes its three markers with `replaceAll` and string arguments,
+which **puts no quote character inside a pattern**, so this file can no longer desynchronise a reader
+that does not understand regex literals. Same removal, spelled so that a reader in another file
+cannot be desynchronised by it. The allow-list entry `"[*_`]"`,` went with the pattern, because
+**an allow-list entry is not a neutral list** — keeping it would have meant keeping the red gate.
+
+**What this does not fix, and is therefore a finding for the root orchestrator rather than a task
+completed here:** `stripComments` still cannot read a regex literal, so any future file that puts a
+backtick inside one is a live red gate with a green-looking cause. **A reader that cannot tell a
+pattern from a string is a reader that will one day report a comment as a declaration**, which is
+this repository's recorded *"a check fired on its own documentation"* shape in its reverse
+direction: the documentation was right and the **other file's** reader could not see it.
+
+### D14 — Two **declared counts**, and what a count cannot establish
+
+The falsification pass found one real gap and one real gap read out of it by reading rather than by
+mutation, both the same shape.
+
+`expect.arrayContaining([...PANEL_REMOVAL_COPY_KEYS])` is a **subset** assertion. Deleting
+`removalDoneMeans` from the list left the whole file green: the subset assertion is still satisfied
+by the nine remaining keys, the per-key loop covers one key fewer, and the specification-relevant
+sentence is read from `PANEL_COPY.removalDoneMeans` **by name** — so the check and the mutation were
+each individually correct and together proved nothing. `WEBSITE_REMOVAL_SURFACE.markers` had the
+same property for the same reason.
+
+So both now declare a count — `PANEL_REMOVAL_COPY_KEY_COUNT = 10` and `markerCount: 3` — and assert
+it **before** the loop they govern.
+
+**A declared count establishes non-silence, not completeness.** It proves the list is not being
+silently edited under the assertion; it does not prove the list is *right*. The **reverse** direction
+— a removal key added to `PANEL_COPY` and forgotten here — is **not enumerable** without a name
+predicate over `PANEL_COPY`, and a name predicate is exactly what D3 forbids, because a claim
+matched by pattern is a claim that can be satisfied by a plausible-looking string. **The instrument
+that would catch it is the instrument D3 rules out**, so the limit is stated rather than engineered
+away. That trade is D3's, and this is the price of it, paid in public.
+
+### D15 — The manifest is read from `static/`, and that is an apply-stage decision
+
+The specification says *"the built extension manifest"*. The check reads
+`apps/extension/static/manifest.json`, which **is** that manifest's content — `pnpm build` copies it
+into `dist/` unchanged — and it reads the source for one reason that is about the order of two
+commands: **`pnpm verify` runs `pnpm test` before `pnpm build`**, so a reader of `dist/` would report
+a failure caused by which command ran first, and would report a *different* one on a machine whose
+`dist/` was stale. D10's byte-identity prediction on that file is therefore checkable without a
+build, which is what makes it a prediction rather than a hope.
+
 ## Risks
 
 | risk | answer |
@@ -241,3 +330,5 @@ arrangement in which the check can catch any of them drifting.
 | A new storage key is added and not disclosed | D4's first direction — the check imports the key list rather than retyping it, so a fifth key fails without anyone editing the document |
 | The document overstates | D6, D9, D11: attribution in neither direction, every non-collect claim grounded, and no legal claim |
 | The check is vacuous | D4's positive control; a map that agrees with nothing passes every negative assertion, so agreement is asserted before any failure is claimed |
+| This file desynchronises a reader in another file, and takes a green gate red with it | D13: the **cause** is repaired here and replicated in both directions; the underlying reader defect (`stripComments` has no regex-literal state) is **recorded for the root orchestrator and not closed**, because that file is outside this change's write scope |
+| A declared count drifts from the list it governs | D14: the count is asserted **before** the loop it governs, so it catches a silent edit. It does **not** catch a key added to the source list and forgotten here, and that direction is not enumerable without the name predicate D3 forbids — so it is a stated limit, not a covered one |
