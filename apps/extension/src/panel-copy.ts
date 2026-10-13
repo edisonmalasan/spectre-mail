@@ -275,6 +275,133 @@ export const PANEL_COPY = {
    */
   couldNotConfirmCreation: "Could not confirm that an address was made.",
 
+  /**
+   * ## The removal region - ten entries, and every sentence it shows
+   *
+   * *Requirement: `extension-client` - **Every sentence the region shows SHALL be a `PANEL_COPY`
+   * entry.** That module exists so a claim is reviewable beside the requirement it serves and a test
+   * can read what the panel says without scraping rendered text for it, and a sentence written inline
+   * in the component is a claim a reviewer reads in its markup context rather than beside its
+   * requirement.*
+   *
+   * **The one thing every entry below is careful about is what it does NOT say.** The mailbox exists
+   * at the provider, and this product is not the provider's authority on when it discards one - so
+   * {@link PANEL_COPY.mailboxGone} above exists for a *measured* claim about a provider reporting
+   * `expired`, and reusing that wording here would import a claim about a provider into a sentence
+   * about a storage area. **Removal deletes this device's note of the mailbox, and nothing else**, and
+   * {@link PANEL_COPY.removalDoneMeans} says exactly that.
+   *
+   * **No entry below names a host or a provider**, for `design.md` D3's reason: this region is read
+   * three sections below the host sentence, which already carries the host, and a sentence here
+   * naming either would be the second spelling of a rule that lives in `resolve-for-host.ts`.
+   */
+
+  /**
+   * The heading above the whole region.
+   *
+   * **It names what the region is about rather than what it will do**, so the heading does not have
+   * to change when the region's shape does - it is the one string rendered in all four states.
+   */
+  removalHeading: "What this device keeps",
+
+  /**
+   * **The shape for a device holding nothing, and it is not the same sentence as
+   * {@link PANEL_COPY.removalDone}.**
+   *
+   * `apps/web/src/LocalData.tsx:24` - `:29` gives the reason and it is the requirement's *"SHALL
+   * report that it holds nothing"* rather than *whatever the button did*: this sentence is what a
+   * first visit always says, and a panel that used it after a removal would leave a person unable to
+   * tell whether the press had worked. **It names no address and no provider**, because this device
+   * is known to hold nothing and there is nothing to name.
+   */
+  removalHoldsNothingYet: "This device keeps nothing for SpectreMail.",
+
+  /**
+   * **The control that offers the removal, and it names the scope rather than one record.**
+   *
+   * *Requirement: ... **it SHALL NOT be removed by naming the record kinds this build recognises.***
+   * A button reading "Remove this address" beside four record kinds over one area would name one of
+   * them, so this names **everything SpectreMail keeps here** - which is what the confirmed step and
+   * the warning below both say as well.
+   */
+  removalOffers: "Remove everything SpectreMail keeps here",
+
+  /**
+   * **The irreversibility argument, and it is the whole reason the second step exists.**
+   *
+   * **It says *cannot be undone* rather than *will ask again*,** because the question after this
+   * press is not being asked: a removal that could be confirmed again would not need confirming.
+   */
+  removalConfirmWarning:
+    "This cannot be undone. Everything SpectreMail keeps on this device goes with it, including every address saved here.",
+
+  /**
+   * **The control that removes, and it exists only in this shape.**
+   *
+   * *Requirement: ... **the control that performs the removal SHALL exist only after a further
+   * explicit step** - a panel whose removal control was present before the further step would make
+   * the confirmation a formality.*
+   */
+  removalConfirm: "Remove everything now",
+
+  /**
+   * **The control that backs out, and it is a control rather than the absence of one.**
+   *
+   * The website's shape (`LocalData.tsx:135` - `:172`) offers the same second button and for the same
+   * reason: a confirmed region whose only way on is forward is a dialog in all but name, and the
+   * person who pressed the wrong control needs a way back that is as visible as the one forward.
+   */
+  removalKeep: "Keep what is here",
+
+  /** While the removal is in flight, on the control that started it. */
+  removing: "Removing what this device keeps",
+
+  /**
+   * **A refusal, and it says the removal did not happen and nothing else.**
+   *
+   * *Requirement: **WHEN** removal fails **THEN** the panel SHALL say it did not happen **AND** it
+   * SHALL NOT describe the data as removed **AND** it SHALL NOT state that the data remains.*
+   *
+   * **Both halves of the second and third clauses are the reason this is one sentence with nothing
+   * after it.** The website's refusal copy tells a person to close another SpectreMail tab, and that
+   * is true *only* of `deleteDatabase`, whose blocked removal is queued and completes on its own -
+   * `packages/storage/src/chrome.ts:218` records that `chrome.storage` provides no `deleteDatabase`
+   * and therefore no blocked-removal event at all. **On this substrate a rejection is the whole
+   * answer**, so a sentence in either direction would be inventing one.
+   *
+   * **The platform's own words are interpolated and never summarised**, for the same reason
+   * {@link PANEL_COPY.providerFailed} does it: a paraphrase of a refusal is a sentence this product
+   * invented while describing the platform's failure.
+   */
+  removalRefused: (reason: string): string => `This did not happen. The browser said: ${reason}`,
+
+  /**
+   * **The shape after a removal has happened, and it is not
+   * {@link PANEL_COPY.removalHoldsNothingYet}.**
+   *
+   * **The distinction is a requirement in its own right**, and it is the direction the reporting goes
+   * in: this sentence answers *"did that work?"* while {@link PANEL_COPY.removalHoldsNothingYet}
+   * answers *"is there anything here?"* - and a panel that answered the first with the second would
+   * leave a person who just pressed a button unable to tell.
+   */
+  removalDone: "Nothing is kept on this device for SpectreMail now.",
+
+  /**
+   * **What the removal was, and - in the same sentence - what it was not.**
+   *
+   * *Requirement: **AND** it SHALL say the address still works until the provider discards it **AND**
+   * it SHALL NOT state or imply that the address itself is gone.*
+   *
+   * **Three facts in one sentence, and each is load-bearing.** That this device's **note** was
+   * removed, so a later visit will not offer that address back; that the **address itself** still
+   * works, until the provider discards it - which is a claim about the provider's own lifetime, made
+   * as the limit of what is known rather than as a figure; and **what was removed is not the mailbox**,
+   * which is why this sentence is the one a `removalDoneMeans` reworded into *"the address is gone"*
+   * has to be caught by.
+   */
+  removalDoneMeans:
+    "This device's note of the address was removed, so a later visit will not offer it back. The address itself still works until the provider discards it.",
+
   /** The heading above the verification links found in an opened message. */
   linksHeading: "Verification links in this message",
   /** A message the parser read whole and found no verification link in. */
@@ -330,7 +457,7 @@ export const PANEL_COPY_KEYS = Object.keys(PANEL_COPY);
  * **It is a list and not a flag on the entries**, because a flag travels with a rename: a key
  * `heldGroup: CHOOSER` becomes `heldName: CHOOSER` and every sweep still passes while the entry a
  * reviewer reads by name is not the entry any rule looks at. **And it is not derived from "every
- * function-valued entry"** — eight entries here are functions, four of them about a *host*, and a
+ * function-valued entry"** — nine entries here are functions, four of them about a *host*, and a
  * chooser defined as "the function-valued ones" would sweep `hostHasMailbox` into a rule about the
  * chooser and then fail on the very host it is supposed to leave alone.
  */

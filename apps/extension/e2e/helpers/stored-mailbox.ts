@@ -66,7 +66,14 @@ const AREA_PATH = ["chrome", "storage", "local"] as const;
 
 /** The shape these operations need from the area, and nothing more. */
 interface StorageArea {
-  get(keys: string): Promise<Record<string, unknown>>;
+  /**
+   * **`null` is the platform's own spelling for "every key"**, and it is accepted here rather than
+   * widened away because {@link readWholeArea} has to ask the question in the platform's words:
+   * a reader that asked for each key this build knows about would answer *"nothing is left"* while a
+   * record kind this build cannot name sat in the area — which is the defect that reader exists to
+   * catch.
+   */
+  get(keys: string | null): Promise<Record<string, unknown>>;
   set(items: Record<string, unknown>): Promise<void>;
   clear(): Promise<void>;
 }
@@ -486,4 +493,79 @@ export async function readMailboxCollectionRecord(
   extension: LaunchedExtension,
 ): Promise<unknown | null> {
   return readRaw(extension, EXTENSION_MAILBOXES_KEY);
+}
+
+/**
+ * The key a record this build has **no code for** is planted under.
+ *
+ * **`chrome.test.ts:258`'s name, so the two tiers plant the same thing.** A browser spec and a unit
+ * spec planting two different names would be two fixtures, and a reader or an assertion widened for
+ * one of them would be invisible against the other.
+ *
+ * **Exported rather than inlined**, so the spec that asserts it *is* listed can name it in the
+ * assertion — a case that planted `"a-record-from-another-build"` and asserted against a hand-typed
+ * literal would be satisfied by a planter that wrote nothing at all under the name it was given.
+ */
+export const UNRECOGNISED_RECORD_KEY = "a-record-from-another-build";
+
+/**
+ * Write a record **this build has no code for**, and read it back before returning.
+ *
+ * **Why a browser spec needs it at all.** `chrome.storage.local` holds four kinds of record over one
+ * area, and `packages/storage`'s `clearAll` removes the whole area. An empty area is **also** what a
+ * removal that deleted the four keys this build *knows about* produces — which is precisely why
+ * `chrome.test.ts:235` asserts *"the call, not the result"*. **This is the browser tier's way of
+ * asking the same question through the platform**: a key-scoped removal would leave this one behind,
+ * and only a key no shipped code names can tell the two apart.
+ *
+ * **The value is not narrowable on purpose.** It is written raw, through
+ * {@link writeAndConfirm}, rather than through any of `packages/storage`'s writers — because the claim
+ * is that a record **this build cannot interpret** still goes, and a record written by a writer would
+ * be one the build *can* interpret.
+ *
+ * **Plant it *after* the mailbox is stored**, for `storage.spec.ts:228`–`:256`'s reason: a key-scoped
+ * removal would leave a key written before the seeding behind as well, so planting first would test
+ * the same thing twice and plant-after tests only the case that matters.
+ *
+ * @throws If the key is not readable through the platform's own API afterwards.
+ */
+export async function plantUnrecognisedRecord(extension: LaunchedExtension): Promise<void> {
+  await writeAndConfirm(extension, UNRECOGNISED_RECORD_KEY, { anything: true });
+}
+
+/**
+ * **Every key the platform says this device holds**, through the platform's own whole-area read.
+ *
+ * ## Why this is not "the keys this build knows about"
+ *
+ * `readRaw` and {@link readMailboxCollectionRecord} name **one key each**, and between them this file
+ * covers three of the four kinds living over one area. A reader built out of them would report *"the
+ * area is empty"* while a record kind this build has no name for sat in it — **which is the exact
+ * claim a removal case has to be able to make honestly**, and `chrome.test.ts:257`–`:263` is the unit
+ * tier's version of the same worry.
+ *
+ * So this asks the platform for everything (`get(null)`) and returns **the keys it listed**, sorted.
+ *
+ * ## It carries no positive control of its own, and that is deliberate
+ *
+ * A reader that answered `[]` for every device would satisfy a case asserting emptiness for ever — **a
+ * sweep matching nothing is the defect this repository records more often than any other**, so the
+ * control belongs in the case that reads it and nowhere else. `side-panel.spec.ts`'s B3 therefore
+ * asserts that {@link UNRECOGNISED_RECORD_KEY} **is** listed before the removal, and that is the
+ * half that makes its "is not listed afterwards" mean something.
+ */
+export async function readWholeArea(extension: LaunchedExtension): Promise<readonly string[]> {
+  const everything = await extension.worker.evaluate(
+    async (path) => {
+      const area = path.reduce<object>(
+        (node, key) => Reflect.get(node, key),
+        globalThis,
+      ) as StorageArea;
+
+      return Object.keys(await area.get(null));
+    },
+    [...AREA_PATH],
+  );
+
+  return [...everything].sort();
 }

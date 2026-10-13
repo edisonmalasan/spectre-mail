@@ -49,6 +49,29 @@
  * to remember to write, and **nothing is written anywhere** — see the note on
  * {@link PanelRecords.loadSiteMailboxId}, which is a read for that reason and stays one.
  *
+ * ## What it added twice: removing what this device holds
+ *
+ * *Requirement: `extension-client` — **Where the side panel has established that this device holds
+ * something, it SHALL offer a way to remove it and SHALL say what removing it means.***
+ *
+ * **Four hooks and no fifth — a `<section>`, an `<h2>`, `<p>`s, and `<button className="control">`
+ * — every one of which a rule already selects** (`design.md` D5, naming the four). **Adding a class
+ * hook or a stylesheet rule for this region is a declared failure of the change**, so the region's
+ * appearance is a human judgement no gate stands for, and the rules that style it are the ones that
+ * already styled the chooser above it.
+ *
+ * **Four shapes, chosen by what has been established rather than by what the person pressed**
+ * (`tasks.md` 2.3, modelling `apps/web/src/LocalData.tsx:14`–`:35`): **the region renders nothing at
+ * all until the boot read has finished**, because a branch reachable on an unknown value is a branch
+ * that will eventually assert something unverified. **And the shape after a removal is not the "this
+ * device holds nothing" shape**, because the first answers *"is there anything here?"* and the second
+ * answers *"did that press work?"* — a panel that answered the second with the first would leave a
+ * person who just pressed a button unable to tell.
+ *
+ * **The mailbox is untouched by the removal, and that is structural rather than a promise.** The
+ * callback reaches {@link PanelRecords.clearAll} and nothing else: no `session.destroy()`, no
+ * `closeMessage()`, no state that drives the inbox — see the note on {@link removeEverything}.
+ *
  * @module
  */
 
@@ -85,12 +108,37 @@ const COPY = POPUP_COPY;
  * {@link resolveForHost}. **`loadSiteMailboxId` is a read and never a write**, because recording a
  * host is the content script's job after an insertion: this panel never inserts anything, so it has
  * no insertion to remember.
+ *
+ * ## And the one member that removes rather than reads
+ *
+ * **`clearAll`, and it is the whole area rather than the records this panel knows.** The extension
+ * keeps four record kinds over one `chrome.storage.local` area — the singular mailbox record, the
+ * collection, the site associations, and the message ids this device has been told about
+ * (`storage.ts:68`–`:73`) — and *this* type names none of them beyond the two reads above. **A
+ * member named for the records it covers would name a subset**, and a removal that removed only the
+ * four kinds this build knows would pass every test written against those four.
+ *
+ * **It is named after the contract's own member** (`packages/storage/src/contract.ts:141`), which is
+ * the contract's own meaning, and `panel-main.tsx` passes it through the **singular** contract while
+ * the area holds four kinds — which is exactly the shape `chrome.test.ts:235` was written for.
+ *
+ * **And it is still not a write member.** A surface that could both remove and record is a surface
+ * whose write-back the next change could add without any rule noticing, so the property that the
+ * panel does not restore what a person removed is discharged by **the type having no outlet** —
+ * see the note on the chooser's state below, which this member must not weaken.
  */
 export interface PanelRecords {
   /** Every mailbox this device holds, newest first. */
   readonly loadMailboxes: () => Promise<readonly Mailbox[]>;
   /** The mailbox this host was last used with, or `null` when there is none. */
   readonly loadSiteMailboxId: (host: string) => Promise<string | null>;
+  /**
+   * Remove **everything** this device holds for SpectreMail, through the storage contract.
+   *
+   * **A promise, because a removal the panel cannot wait for is a removal it cannot report on** —
+   * and the report is the requirement's operative clause whatever the outcome.
+   */
+  readonly clearAll: () => Promise<void>;
 }
 
 /**
@@ -193,6 +241,67 @@ export interface PanelProps {
   readonly primaryProviderName: string;
 }
 
+/**
+ * Which shape the removal region is in.
+ *
+ * **Six variants and four rendered shapes**, and `unknown` is the one that renders **nothing at
+ * all** rather than a fifth shape: `LocalData.tsx:14`–`:35` gives the reason and it is the
+ * requirement's ninth scenario — *"a branch reachable on an unknown value is a branch that will
+ * eventually assert something unverified."* **So the panel may say neither that something is kept nor
+ * that nothing is** until the boot read has finished.
+ *
+ * **`holdsNothing` and `removed` are both "there is nothing here" and they are different sentences**,
+ * because they answer different questions — see {@link PANEL_COPY.removalDone}'s own note. Collapsing
+ * them is the defect `LocalData.tsx:24`–`:29` records.
+ *
+ * **`working` is a shape rather than a flag on `confirmed`,** so the control that removes is rendered
+ * from one place in both and the difference between *"you may press it"* and *"it is pressed"* is
+ * the `disabled` attribute rather than a second button that exists only sometimes.
+ */
+type RemovalView =
+  | { readonly kind: "unknown" }
+  | { readonly kind: "holdsNothing" }
+  | { readonly kind: "offering" }
+  | { readonly kind: "confirmed" }
+  | { readonly kind: "working" }
+  | { readonly kind: "removed" };
+
+/**
+ * The region's own `data-testid`, per shape.
+ *
+ * **Two names and both are named rather than derived from the copy**, for `Panel.tsx:783`–`:788`'s
+ * reason: a test that follows the wording rewords itself quietly. **`working` shares the confirmed
+ * shape's name deliberately** — the control that removes exists in both, and a case asserting
+ * *"it exists only after the further step"* wants to find it in either rather than to have it appear
+ * and disappear around the assertion.
+ */
+const REMOVAL_TESTID: Readonly<Partial<Record<RemovalView["kind"], string>>> = {
+  confirmed: "panel-removal-confirmed",
+  working: "panel-removal-confirmed",
+  removed: "panel-removal-removed",
+};
+
+/**
+ * The platform's own words for a refusal.
+ *
+ * **Never a sentence written here, and never a fallback that claims anything.** The three branches
+ * are *a message*, *a rejected string*, and *whatever the rejection was* — and the last is a last
+ * resort rather than a chosen shape: an `Error` with an empty message would otherwise render
+ * `"This did not happen. The browser said: "` and read as though the platform had said nothing at all,
+ * which is a claim about the platform made by this product.
+ */
+function platformWords(failure: unknown): string {
+  if (failure instanceof Error && failure.message.length > 0) {
+    return failure.message;
+  }
+
+  if (typeof failure === "string" && failure.length > 0) {
+    return failure;
+  }
+
+  return String(failure);
+}
+
 export function Panel({ session, records, primaryProviderName }: PanelProps) {
   const [state, setState] = useState<SessionState>(() => session.current());
   const [boot, setBoot] = useState<{ readonly done: boolean; readonly blocked: boolean }>({
@@ -206,6 +315,27 @@ export function Panel({ session, records, primaryProviderName }: PanelProps) {
   const [createRefusal, setCreateRefusal] = useState<string | null>(null);
   const [fill, setFill] = useState<FillReport>({ kind: "idle" });
   const [copies, setCopies] = useState<ReadonlyMap<string, CopyOutcome>>(() => new Map());
+
+  /**
+   * ## The removal, as three pieces of state rather than one
+   *
+   * **`confirming`, `working` and `removed` are separate booleans rather than one enum because they
+   * are three independent facts**: a person may confirm, a removal may be refused and the person may
+   * confirm again, and a removal that *has happened* is not undone by anything that happens after it.
+   * A single enum would make "a removal happened and then the person pressed offer again" a state
+   * the requirement never describes, and the region would need a rule about which of the two facts
+   * wins.
+   *
+   * **`removed` is the only one that is not a view of the others**, and it is what makes the region
+   * distinguish *"did that work?"* from *"is there anything here?"* — `removed` is a **derivation
+   * from a completed removal** rather than from `held`, which this panel does **not** re-read after a
+   * removal: re-reading would be a second claim about storage, and the mailbox must stay on screen
+   * (`tasks.md` 2.5).
+   */
+  const [confirming, setConfirming] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [removed, setRemoved] = useState(false);
+  const [removalRefusal, setRemovalRefusal] = useState<string | null>(null);
 
   /**
    * The mailbox a person chose for the host beside the panel, and **the host it was chosen for**.
@@ -469,6 +599,81 @@ export function Panel({ session, records, primaryProviderName }: PanelProps) {
     );
   }, [records]);
 
+  /**
+   * Remove everything this device holds, and report whichever way it went.
+   *
+   * ## What this deliberately does NOT do, and it is the requirement's sixth scenario
+   *
+   * *Requirement: **WHEN** removal has happened and the person does nothing further **THEN** the
+   * mailbox SHALL remain on screen **AND** its inbox SHALL remain usable **AND** the extension SHALL
+   * write no storage record of that mailbox again.*
+   *
+   * **So: no `session.destroy()`, no `session.closeMessage()`, no `session.close()`, and no state
+   * that drives the inbox is touched here or anywhere else on this path.** The mailbox is the
+   * session's, and the only thing the removal is allowed to reach is the storage area. **Nothing is
+   * written back either**, and that half is structural rather than promised: {@link PanelRecords} has
+   * no write member, so there is nothing here that *could* write.
+   *
+   * **`held` is deliberately not re-read after a removal**, for the same reason: the address section
+   * and the inbox are rendered from the session and from `held`, and a second `loadMailboxes()` after
+   * a whole-area clear is a second claim about storage that this panel would have to keep true.
+   *
+   * ## The refusal claims nothing in either direction
+   *
+   * `packages/storage/src/chrome.ts:218` records that `chrome.storage` provides **no
+   * `deleteDatabase` and therefore no blocked-removal event** — so unlike the website's IndexedDB
+   * removal there is nothing queued that might complete later, and a rejection **is** the whole
+   * answer. **A sentence saying the data is still here would be inventing a state the substrate
+   * cannot be in, and a sentence saying it is gone would be inventing the other one**, so the
+   * platform's own words are all this reports.
+   *
+   * **`confirming` goes back to false on a refusal** and the region returns to its offering shape with
+   * the report beside it: the person who pressed the wrong thing needs a way forward, and the shape
+   * that says *"this has not happened"* is a shape with a control on it.
+   */
+  const removeEverything = useCallback(async () => {
+    setRemoving(true);
+    setConfirming(false);
+    setRemovalRefusal(null);
+
+    try {
+      await records.clearAll();
+      setRemoved(true);
+    } catch (failure) {
+      setRemovalRefusal(platformWords(failure));
+    } finally {
+      setRemoving(false);
+    }
+  }, [records]);
+
+  /**
+   * The shape the removal region is in, decided by what has been established rather than by what the
+   * person pressed.
+   *
+   * **`unknown` first, and it renders nothing at all** — `tasks.md` 2.3, on `LocalData.tsx:14`–`:35`'s
+   * reasoning: before the boot read has finished this panel does not know whether this device holds
+   * anything, so it may say neither that something is kept nor that nothing is.
+   */
+  const removal = ((): RemovalView => {
+    if (!boot.done) {
+      return { kind: "unknown" };
+    }
+
+    if (removed) {
+      return { kind: "removed" };
+    }
+
+    if (removing) {
+      return { kind: "working" };
+    }
+
+    if (confirming) {
+      return { kind: "confirmed" };
+    }
+
+    return held.length === 0 ? { kind: "holdsNothing" } : { kind: "offering" };
+  })();
+
   const copyValue = useCallback(async (token: string, value: string) => {
     setCopies((before) => new Map(before).set(token, "working"));
 
@@ -655,7 +860,21 @@ export function Panel({ session, records, primaryProviderName }: PanelProps) {
         </button>
       )}
 
-      {held.length > 1 && (
+      {/**
+       * **The mailbox inventory is withheld after a removal, and the mailbox itself is not.**
+       *
+       * *Requirement: **After a completed removal the panel SHALL report that it holds nothing for
+       * SpectreMail, rather than continuing to render an inventory this device no longer has** **AND**
+       * the mailbox SHALL remain on screen and its inbox SHALL remain usable afterwards.*
+       *
+       * **Those two clauses name two different regions, and reading them as one is how a panel ends up
+       * either keeping a chooser over addresses this device has forgotten or taking the mailbox off
+       * screen.** The inventory is `panel-held` — the *"Addresses on this device"* list and the choice
+       * among them — and it is the half that would be an inventory of nothing. The mailbox is the
+       * address section above and the inbox below, and it is the half a person is reading mail
+       * through, so it stays exactly where it was.
+       */}
+      {held.length > 1 && !removed && (
         <section aria-labelledby="panel-held-heading">
           <h2 id="panel-held-heading">{PANEL_COPY.heldHeading}</h2>
 
@@ -716,6 +935,108 @@ export function Panel({ session, records, primaryProviderName }: PanelProps) {
            * nothing selects differently would be a rule added for its own sake.
            */}
           {resolution !== null && <p>{PANEL_COPY.showingMailbox(resolution.address)}</p>}
+        </section>
+      )}
+
+      {/**
+       * ## The removal region
+       *
+       * **Four hooks and no fifth (`design.md` D5):** a `<section>`, an `<h2>`, `<p>`s and
+       * `<button className="control">`. **Every one of those is already selected by a rule that
+       * exists** — `.panel section`, `.panel h2`, `.panel p` and `.control` — so this region adds no
+       * class hook and no stylesheet rule, **and a fifth hook here is a declared failure of this
+       * change** rather than a taste question. **The cost is stated rather than hidden: the region
+       * cannot be made prettier, and it will not be.**
+       *
+       * **The shape is decided by what has been established, and `unknown` renders nothing at all**
+       * (`tasks.md` 2.3) — before the boot read has finished the panel may say neither that something
+       * is kept nor that nothing is.
+       *
+       * **The control that removes exists only from `confirmed` onwards.** That is the requirement's
+       * *"the control that performs the removal SHALL exist only after a further explicit step"*,
+       * and it is a property of the render rather than of the person remembering a dialog.
+       *
+       * **The further step is this region and not a dialog the platform owns** — the requirement says
+       * so, and `chrome.windows`' own confirm is not reachable from here without a platform this
+       * panel has no seam for. `LocalData.tsx:135`–`:172` is the shape the model is copied from, and
+       * **not** its wording: every sentence below is `PANEL_COPY`'s.
+       */}
+      {removal.kind !== "unknown" && (
+        <section aria-labelledby="panel-removal-heading" data-testid={REMOVAL_TESTID[removal.kind]}>
+          <h2 id="panel-removal-heading">{PANEL_COPY.removalHeading}</h2>
+
+          {/**
+           * **A device holding nothing is told so and offered no removal at all**, rather than a
+           * disabled control: a control that cannot act is a control misreporting what is available,
+           * and this panel has refused that twice already (`createRefusal`, and the boot refusal above).
+           */}
+          {removal.kind === "holdsNothing" && <p>{PANEL_COPY.removalHoldsNothingYet}</p>}
+
+          {removal.kind === "offering" && (
+            <button
+              type="button"
+              className="control"
+              onClick={() => setConfirming(true)}
+              data-testid="panel-removal-offer"
+            >
+              {PANEL_COPY.removalOffers}
+            </button>
+          )}
+
+          {/**
+           * **Confirmed and in-flight render the same two controls, and differ only in `disabled`.**
+           * That is deliberate: the pair is one decision — *remove, or keep what is here* — and
+           * rendering it from one place means a change cannot add a third button to one shape and
+           * forget the other.
+           */}
+          {(removal.kind === "confirmed" || removal.kind === "working") && (
+            <>
+              <p>{PANEL_COPY.removalConfirmWarning}</p>
+
+              <button
+                type="button"
+                className="control"
+                disabled={removal.kind === "working"}
+                onClick={() => void removeEverything()}
+                data-testid="panel-removal-confirm"
+              >
+                {removal.kind === "working" ? PANEL_COPY.removing : PANEL_COPY.removalConfirm}
+              </button>
+
+              <button
+                type="button"
+                className="control"
+                disabled={removal.kind === "working"}
+                onClick={() => setConfirming(false)}
+                data-testid="panel-removal-keep"
+              >
+                {PANEL_COPY.removalKeep}
+              </button>
+            </>
+          )}
+
+          {/**
+           * **The removed shape, and it is two sentences rather than one** because they answer two
+           * different questions — *"did it work?"* and *"what did it do?"* — and the requirement makes
+           * both claims separately. **The second is the one that must never say the address is gone**,
+           * which is what {@link PANEL_COPY.removalDoneMeans} is for.
+           */}
+          {removal.kind === "removed" && (
+            <>
+              <p>{PANEL_COPY.removalDone}</p>
+              <p>{PANEL_COPY.removalDoneMeans}</p>
+            </>
+          )}
+
+          {/**
+           * **The refusal is an alert and lives inside the region**, so it is read in the context of the
+           * control that produced it. **`role="alert"` rather than plain text**, for the same reason
+           * every other failure in this panel carries it: a refusal a person cannot notice is a
+           * refusal that reported nothing.
+           */}
+          {removalRefusal !== null && (
+            <p role="alert">{PANEL_COPY.removalRefused(removalRefusal)}</p>
+          )}
         </section>
       )}
 
