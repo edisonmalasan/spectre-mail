@@ -566,3 +566,303 @@ describe("the panel's verdict wording", () => {
     expect(PANEL_CHOOSER_KEYS.filter((key) => !PANEL_COPY_KEYS.includes(key))).toEqual([]);
   });
 });
+
+/**
+ * ## The removal region's own sentences
+ *
+ * The ten entries the removal region added, and the four properties this file holds them to.
+ *
+ * **Why these are swept rather than asserted one by one.** Every one of them is rendered by
+ * `Panel.tsx` and none of them is a claim about a widget, so the failure mode is a **sentence** that
+ * changed — and a reader of the diff sees a changed string, not a changed component. A case per
+ * sentence would be a case per string that a copy edit breaks and repairs; a sweep plus a named
+ * pattern is a rule that survives the edit, which is what a requirement about wording wants.
+ *
+ * **And why the strongest of the four is a sweep over *every* `PANEL_COPY` entry rather than over the
+ * new ten.** The requirement is *"it SHALL NOT state or imply that the address itself is gone"*, and
+ * that is a property of what **the panel** renders. A sweep scoped to this change's entries would pass
+ * unchanged if the sentence were moved into an existing one — the `panel-copy.ts` note about the *No
+ * verification link* wording records exactly that repair, and `tasks.md` 4.5 forbids it here.
+ */
+describe("the removal region's own sentences", () => {
+  /**
+   * The ten entries, **spelled literally on this side**.
+   *
+   * *A list read off `PANEL_COPY_KEYS` would move with a rename and report two things agreeing about
+   * a shape nothing else fixes* — the reason `VERDICT_KINDS` above is written out rather than
+   * derived, and the reason `PANEL_CHOOSER_KEYS` is compared against a literal on both sides.
+   */
+  const REMOVAL_KEYS = [
+    "removalHeading",
+    "removalHoldsNothingYet",
+    "removalOffers",
+    "removalConfirmWarning",
+    "removalConfirm",
+    "removalKeep",
+    "removing",
+    "removalRefused",
+    "removalDone",
+    "removalDoneMeans",
+  ] as const;
+
+  /**
+   * The one platform sentence the refusal is expected to carry, so `removalRefused` is exercised for
+   * real rather than called with the empty string — **which would resolve to a sentence and satisfy
+   * a length check.**
+   */
+  const REMOVAL_REASON = "The extension context was invalidated.";
+
+  /** Every entry of the region, resolved, keyed the way the sweeps report them. */
+  function removalText(): ChooserText[] {
+    const declared = PANEL_COPY as Readonly<Record<string, unknown>>;
+
+    return REMOVAL_KEYS.map((key) => {
+      const value = declared[key];
+      const text =
+        key === "removalRefused"
+          ? (value as (reason: string) => string)(REMOVAL_REASON)
+          : String(value);
+
+      return { key, text };
+    });
+  }
+
+  /**
+   * The forbidden claims, **each named**, for the reason `FORBIDDEN` above is named.
+   *
+   * **Two patterns and not one, because they are two sentences and a pattern matching both would be
+   * a pattern no reader could act on**: one *asserts* a condition ("that address is gone") and the
+   * other *predicts* one ("the address will not work"). A copywriter reaching for either is making the
+   * same forbidden claim, and the repair is the same, but the words differ and a sweep that only knew
+   * one of them would pass a panel that used the other.
+   */
+  const CLAIMS_GONE = [
+    {
+      /**
+       * *Requirement: ... **it SHALL NOT state or imply that the address itself is gone.***
+       *
+       * **The copula is optional rather than required, and the reason is the sentence this sweep
+       * actually had to catch.** `PANEL_COPY.mailboxGone` reads *"That address no longer exists"* —
+       * **no copula at all** — so a pattern demanding `is`/`was` would have reported nothing on the
+       * one shipped entry that makes the exemption below load-bearing, and an exemption nothing is
+       * exempt from is the shape of a rule that appears to be working.
+       */
+      name: "a claim that the address is gone",
+      pattern:
+        /\b(?:address|mailbox)\b(?:\s+(?:is|are|was|were|has\s+been|have\s+been))?\s+(?:gone|deleted|closed|no\s+longer\s+(?:exists?|here|valid|usable|readable|open|working))\b/iu,
+      /** Planted into a **new** entry, so a reader reading only this change's copy is falsifiable. */
+      controlIntoNew: "The address is gone.",
+      /** Planted into an **existing** entry, so a reader reading only the new entries is falsifiable. */
+      controlIntoExisting: "Your mailbox has been deleted.",
+    },
+    {
+      name: "a claim that the address will not work",
+      pattern:
+        /\b(?:address|mailbox)\b\s+(?:will\s+not|will\s+no\s+longer|does\s+not|do\s+not|cannot|can\s+not|no\s+longer)\s+(?:works?|be\s+usable|be\s+used|be\s+opened|receives?|is\s+reachable)\b/iu,
+      controlIntoNew: "That mailbox will not work.",
+      controlIntoExisting: "The address no longer receives mail.",
+    },
+  ] as const;
+
+  /**
+   * The one entry exempt from {@link CLAIMS_GONE}, **by name and for a stated reason**.
+   *
+   * *`mailboxGone` renders a provider's **measured** `expired` — a claim about the provider, made where
+   * the provider said so.* The removal region is a sentence about **a storage area**, and reusing that
+   * wording there would import a claim about a provider into a place that has none. So the entry stays,
+   * its claim stays true, and this exemption exists to say which entry is allowed to make it.
+   *
+   * **It is the only one, and that is asserted below rather than assumed** — an exemption list that
+   * grew is a list nobody re-read.
+   */
+  const CLAIMS_GONE_EXEMPT = ["mailboxGone"] as const;
+
+  /** Every sentence the panel renders, minus the exempt names, in the shape the sweep reports. */
+  function claimsGoneScope(): ChooserText[] {
+    return everyPanelSentence().filter(({ key }) => !CLAIMS_GONE_EXEMPT.includes(key as never));
+  }
+
+  it("resolves each of the ten entries to real words, and the refusal to a sentence carrying the reason", () => {
+    // **The positive control.** Without it a declaration emptied to `{}` would resolve ten entries to
+    // the string `"undefined"` and every assertion below would pass on text nobody wrote.
+    expect(removalText().length).toBe(10);
+
+    for (const { key, text } of removalText()) {
+      expect(text.length, key).toBeGreaterThan(0);
+      expect(text, key).not.toContain("undefined");
+
+      /**
+       * **The unfilled-template check, and it is separate from the length check because a template
+       * entry that dropped its parameter still resolves to a non-empty string.**
+       *
+       * This is the same claim `chooserText`'s own case makes, and it is the one that would survive a
+       * copy edit: `${reason}` reaching the panel literally is a sentence a person would read.
+       */
+      expect(text, key).not.toContain("{");
+    }
+
+    /**
+     * **The refusal is checked against the reason it was handed, not merely for length.**
+     *
+     * `removalRefused` is the one entry here that takes an argument, and the panel interpolates the
+     * **platform's** words into it — so the claim is not "it has words" but "it carries what it was
+     * given unchanged". A paraphrase of a refusal is a sentence this product invented while describing
+     * the platform's failure, which is the reason `PANEL_COPY.providerFailed` interpolates too.
+     */
+    expect(PANEL_COPY.removalRefused(REMOVAL_REASON)).toContain(REMOVAL_REASON);
+
+    // **And the other direction: the reason is not the only thing in it.** A template that emitted the
+    // reason alone would satisfy the assertion above while saying nothing about the removal.
+    expect(PANEL_COPY.removalRefused(REMOVAL_REASON).length).toBeGreaterThan(REMOVAL_REASON.length);
+  });
+
+  it("declares each of the ten literally, and declares no entry the copy does not carry", () => {
+    // **The positive control on the enumeration itself**, for the reason stated above it.
+    expect(REMOVAL_KEYS.length).toBeGreaterThan(0);
+
+    // **Both directions.** A rename in `panel-copy.ts` leaves every sweep in this file reading a name
+    // that is not there; a key in `PANEL_COPY_KEYS` that this list does not name is a new entry that
+    // this change did not account for and the sweeps below would carry it unread.
+    expect(REMOVAL_KEYS.filter((key) => !PANEL_COPY_KEYS.includes(key))).toEqual([]);
+    expect(PANEL_COPY_KEYS.filter((key) => !REMOVAL_KEYS.includes(key as never)).length).toBe(
+      PANEL_COPY_KEYS.length - REMOVAL_KEYS.length,
+    );
+  });
+
+  it("claims nowhere that the address is gone, in the removal copy or in any sentence the panel renders", () => {
+    // **The positive control for the scope**, and without it a `PANEL_COPY_KEYS` emptied to nothing
+    // would leave a sweep over ten entries reading exactly the same.
+    expect(claimsGoneScope().length).toBeGreaterThan(REMOVAL_KEYS.length);
+
+    /**
+     * **The exemption is exactly one entry, and it is the entry that genuinely matches.**
+     *
+     * Both halves are load-bearing and they fail in opposite directions. A list that had grown would
+     * exempt a sentence nothing is holding to anything; a list whose entry **no longer matches** —
+     * because `mailboxGone` was reworded into something that claims nothing — would leave a
+     * permission to claim the address is gone with nothing behind it. **So the exemption is checked
+     * against the pattern, not merely declared.**
+     */
+    expect(CLAIMS_GONE_EXEMPT).toEqual(["mailboxGone"]);
+    expect(
+      CLAIMS_GONE.some(({ pattern }) => pattern.test(PANEL_COPY.mailboxGone)),
+      "the one exemption must match the sweep that exempts it",
+    ).toBe(true);
+
+    // **The claim, on the shipped copy.**
+    for (const { name, pattern } of CLAIMS_GONE) {
+      expect(forbiddenPhrasingsReport(claimsGoneScope(), pattern), name).toEqual([]);
+    }
+
+    /**
+     * **Two negative controls per pattern, planted into a new entry and into an existing one, and
+     * each asserted for exactly the key it was planted into.**
+     *
+     * *Two plants because one reader and two sources are two sweeps.* A control planted only into this
+     * change's ten entries would be satisfied by a reader reading only those, and one planted only
+     * into an existing entry only by a reader reading only those. **The existing entry chosen is a
+     * pre-existing one on purpose** — `removalOffers` is one of the ten, so planting into it would
+     * test neither direction.
+     */
+    for (const { name, pattern, controlIntoNew, controlIntoExisting } of CLAIMS_GONE) {
+      const intoNew = claimsGoneScope().map((entry) =>
+        entry.key === "removalOffers"
+          ? { ...entry, text: `${entry.text} ${controlIntoNew}` }
+          : entry,
+      );
+      expect(forbiddenPhrasingsReport(intoNew, pattern), name).toEqual([
+        expect.stringContaining("removalOffers"),
+      ]);
+
+      const intoExisting = claimsGoneScope().map((entry) =>
+        entry.key === "noMailboxHeld"
+          ? { ...entry, text: `${entry.text} ${controlIntoExisting}` }
+          : entry,
+      );
+      expect(forbiddenPhrasingsReport(intoExisting, pattern), name).toEqual([
+        expect.stringContaining("noMailboxHeld"),
+      ]);
+    }
+
+    /**
+     * **And the reader cannot pass for the wrong reason in the third direction either**: a reader that
+     * reported every entry would satisfy both controls above and this one.
+     */
+    expect(
+      forbiddenPhrasingsReport(
+        [{ key: "control", text: "This device keeps nothing for SpectreMail." }],
+        CLAIMS_GONE[0].pattern,
+      ),
+    ).toEqual([]);
+  });
+
+  it("tells a completed removal apart from a device that has nothing, and names the address nowhere in either", () => {
+    /**
+     * *Requirement: ... **the panel SHALL report that it holds nothing ... rather than continuing to
+     * render an inventory this device no longer has*** — and the two sentences answering that are
+     * different answers to **different questions**.
+     *
+     * `apps/web/src/LocalData.tsx:24`-`:29` is the recorded defect: one sentence served both the
+     * first visit and the removal, so a person who had just pressed a button could not tell whether
+     * the press had worked. **Collapsing these two is the defect, and asserting they differ is the
+     * cheapest instrument against it** — cheaper than a component case, because the failure here is a
+     * copy edit and the copy is what a reviewer reads.
+     */
+    expect(PANEL_COPY.removalDone).not.toBe(PANEL_COPY.removalHoldsNothingYet);
+
+    /**
+     * **And each says what it is about.** The first-visit sentence answers *"is there anything here?"*
+     * and the removal sentence answers *"did that work?"* — a panel that answered the first with the
+     * second would leave a person unable to tell a button they pressed from a button they never saw.
+     * Asserted as the two question-words rather than as full text, because a copy edit that keeps the
+     * sentence true is the edit this should tolerate.
+     */
+    expect(PANEL_COPY.removalHoldsNothingYet).toMatch(/nothing/i);
+    expect(PANEL_COPY.removalDone).toMatch(/\bnow\b/i);
+
+    /**
+     * **Neither sentence carries the mailbox's address, and the region as a whole carries none.**
+     *
+     * *Requirement: ... **it SHALL say the address still works until the provider discards it.*** A
+     * sentence naming the address would be the second place this panel states it, three sections below
+     * the one that owns it — and a removal region that reprinted the address would have to be edited
+     * every time the mailbox on screen changed.
+     *
+     * **Read over every one of the ten rather than over the two compared above**, because the
+     * requirement is about the region and the two sentences above are only the pair most likely to
+     * collide.
+     */
+    for (const { key, text } of removalText()) {
+      expect(text, key).not.toContain(ADDRESS);
+    }
+
+    /**
+     * **And the reader is falsifiable in this direction too**: `ADDRESS` is a real address, so an
+     * assertion over text that never carries one is satisfied by a sentence that carries nothing at
+     * all — which is why the one sentence that *is* about the address says so in words instead.
+     */
+    expect(PANEL_COPY.removalDoneMeans).toMatch(/still works/i);
+  });
+
+  it("puts all ten entries inside the sweep the forbidden-phrasing case reads", () => {
+    /**
+     * *tasks.md 4.4's case 5 — **a case asserting the enumeration grew, not a second sweep.** The
+     * existing case already forbids the four phrasings over `everyPanelSentence()`; what was missing is
+     * any statement that this change's entries are **inside its scope**, so an entry dropped from
+     * `PANEL_COPY_KEYS` would have left both this file's other cases green and the sweep reading one
+     * sentence fewer.
+     *
+     * **Read off the sweep's own output rather than off `PANEL_COPY_KEYS`,** because the claim is about
+     * what the sweep enumerates and the two are the same object only until someone edits one of them.
+     */
+    const swept = new Set(everyPanelSentence().map(({ key }) => key));
+
+    // **The positive control on the enumeration**, for the same reason every other one in this file.
+    expect(swept.size).toBeGreaterThan(0);
+
+    expect([...REMOVAL_KEYS].filter((key) => !swept.has(key))).toEqual([]);
+
+    // **And the direction that matters for a sweep: `everyPanelSentence` is not built from the ten.**
+    expect(REMOVAL_KEYS.length).toBeLessThan(swept.size);
+  });
+});

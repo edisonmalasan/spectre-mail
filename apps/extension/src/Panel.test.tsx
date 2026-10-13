@@ -215,15 +215,28 @@ function stubRecords(
     readonly associations?: Readonly<Record<string, string | null>>;
     readonly collectionFails?: boolean;
     readonly associationFails?: boolean;
+    /**
+     * What the whole-area removal answers with when it refuses, **as the platform's own words**.
+     *
+     * **A refusal is the one arm this tier can reach and the browser tier cannot**, and it is
+     * reached by the fixture *rejecting* rather than by the panel choosing to report one — so the
+     * reason is a string rather than a boolean, because what the panel then says is the platform's
+     * sentence and not its own.
+     */
+    readonly removeFails?: string;
   } = {},
-): PanelRecords & { askedForHost: string[]; collectionReads: number } {
+): PanelRecords & { askedForHost: string[]; collectionReads: number; removals: number } {
   const askedForHost: string[] = [];
   let collectionReads = 0;
+  let removals = 0;
 
   return {
     askedForHost,
     get collectionReads() {
       return collectionReads;
+    },
+    get removals() {
+      return removals;
     },
     loadMailboxes: async () => {
       if (options.collectionFails === true) {
@@ -245,6 +258,18 @@ function stubRecords(
       }
 
       return options.associations?.[host] ?? options.association ?? null;
+    },
+    clearAll: async () => {
+      removals++;
+
+      /**
+       * **The counter moves *before* the refusal is thrown**, so a case asserting the removal was
+       * not attempted after a refusal would read zero for the wrong reason. It was attempted; it
+       * was refused. `removeFails` is an answer, not an absence.
+       */
+      if (options.removeFails !== undefined) {
+        throw new Error(options.removeFails);
+      }
     },
   };
 }
@@ -1233,6 +1258,12 @@ describe("the panel names the page beside it", () => {
         return [MAILBOX];
       },
       loadSiteMailboxId: async () => MAILBOX.id,
+      // **It throws rather than resolving, so reaching it fails this case loudly instead of
+      // passing on a removal nothing checks.** A stub that resolved would let a panel which
+      // removed something before the boot read finish look identical to one which did not.
+      clearAll: async () => {
+        throw new Error("this panel removed something before its boot read had finished");
+      },
     };
 
     render(<Panel session={readySession()} records={records} primaryProviderName="Mail.tm" />);
@@ -1665,6 +1696,17 @@ describe("the panel names the page beside it", () => {
           reads.push(`loadSiteMailboxId:${host}`);
 
           return MAILBOX.id;
+        },
+        /**
+         * **It throws, and it is deliberately not in the recorder.**
+         *
+         * A removal is not a read, so adding it to `reads` would make this case's own claim — no
+         * *new* reads — true by being satisfied by a list that had swallowed something else. The
+         * panel reaching this at all fails the case by name, which is what a claim about writes
+         * wants: not a tally, a refusal.
+         */
+        clearAll: async () => {
+          throw new Error("this panel wrote where it was asked to read");
         },
       };
 
@@ -2123,5 +2165,463 @@ describe("the panel states, per message, what the session found", () => {
     );
 
     expect(screen.getAllByTestId("message-verdict")).toHaveLength(4);
+  });
+});
+
+/**
+ * ## Removing what this device keeps
+ *
+ * Nine cases, one per claim the removal region makes that a DOM can settle — and the browser tier's
+ * eight (`side-panel.spec.ts`) are the other seven scenarios plus two more, because **a refusal and an
+ * unfinished boot read are the two arms this tier owns** (`tasks.md` 5.5).
+ *
+ * **What is asserted here that is not asserted there.** Every case below names the **operation** rather
+ * than the outcome wherever the outcome is ambiguous: `clearAll` called once, the reads' counts
+ * unmoved, `removals` still one afterwards. That is `chrome.test.ts:251`–`:254`'s reason — **an empty
+ * `chrome.storage.local` area is what both a whole-area clear and a delete-every-known-key produce** — so
+ * a case asserting emptiness would be satisfied by an implementation the requirement forbids, and the
+ * browser tier's B2 is the case that asks the platform instead.
+ */
+describe("removing what this device keeps", () => {
+  const ORIGINAL_PLATFORM = Object.getOwnPropertyDescriptor(globalThis, "chrome");
+
+  afterEach(() => {
+    if (ORIGINAL_PLATFORM === undefined) {
+      Reflect.deleteProperty(globalThis, "chrome");
+    } else {
+      Object.defineProperty(globalThis, "chrome", ORIGINAL_PLATFORM);
+    }
+
+    cleanup();
+  });
+
+  /** A session holding `MAILBOX`, whose inbox carries one listing so "still usable" is observable. */
+  function session() {
+    return stubSession({
+      kind: "ready",
+      mailbox: MAILBOX,
+      inbox: { kind: "checked", listing: { messages: [LISTED], verdicts: new Map() } },
+      opened: null,
+    } as unknown as SessionState);
+  }
+
+  /**
+   * Mount and wait until the panel has finished asking the page about itself.
+   *
+   * **The wait is on the host line, not on the removal region**, so it holds for the case that holds the
+   * boot read open as well as for the eight that do not — one staging order rather than two, which is
+   * `in-page-fill.spec.ts`'s `open-mailbox.ts` reason restated for this tier.
+   */
+  async function mount(records: PanelRecords) {
+    installPlatform({ host: "signup.example.test" });
+    const own = session();
+
+    render(<Panel session={own} records={records} primaryProviderName="Mail.tm" />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("panel-host").textContent).not.toMatch(/asking/i);
+    });
+
+    return own;
+  }
+
+  /** The `<section>` a removal control is rendered inside, so a claim is read about the region. */
+  function regionOf(node: HTMLElement): HTMLElement {
+    const section = node.closest("section");
+
+    if (section === null) {
+      throw new Error("the removal control rendered outside any region");
+    }
+
+    return section;
+  }
+
+  /** The text of the whole removal region, which is what the "never claims" cases sweep. */
+  function regionText(): string {
+    return regionOf(screen.getByTestId("panel-removal-offer")).textContent ?? "";
+  }
+
+  /**
+   * Take the removal through both steps and wait for it to finish.
+   *
+   * **Waited on the removed shape rather than on a fixed number of ticks**, because `clearAll` is
+   * `await`-ed and the region republishes twice around it — the recorded *"waiting for the address to
+   * appear is not waiting for the write"* shape, one commit earlier.
+   */
+  async function removeEverything() {
+    fireEvent.click(await screen.findByTestId("panel-removal-offer"));
+    fireEvent.click(await screen.findByTestId("panel-removal-confirm"));
+
+    await screen.findByTestId("panel-removal-removed");
+  }
+
+  it("offers a way to remove what this device holds, and the control that removes is not on the page", async () => {
+    const records = stubRecords({ held: [MAILBOX] });
+    await mount(records);
+
+    const offer = await screen.findByTestId("panel-removal-offer");
+
+    // **Spelled as the copy entry rather than as a literal**, so a reworded button is reported here
+    // instead of silently answering to its own old wording.
+    expect(offer.textContent).toBe(PANEL_COPY.removalOffers);
+    expect(offer.tagName).toBe("BUTTON");
+
+    // **And the region says what it is about**, once, in words — the heading is the only string rendered
+    // in every shape, so it is the one the absence below can be read against.
+    expect(screen.getByRole("heading", { name: PANEL_COPY.removalHeading }).tagName).toBe("H2");
+
+    /**
+     * **The half that matters, and it is asserted by accessible name rather than by `data-testid`.**
+     *
+     * *Requirement: ... **the control that performs the removal SHALL exist only after a further
+     * explicit step.*** A `queryByTestId` would pass against a panel that rendered a removal control
+     * under a name this file had not been updated for, so the query is the one a person would use — and
+     * **two spellings of the same absence**, because the button's *label* and the region it renders in
+     * are two different claims: a control labelled "Remove everything now" that lived outside the
+     * region would satisfy the first.
+     */
+    expect(screen.queryByRole("button", { name: PANEL_COPY.removalConfirm })).toBeNull();
+    expect(screen.queryByText(PANEL_COPY.removalConfirmWarning)).toBeNull();
+
+    /**
+     * **The region itself never held the sentence**, and this reads the region rather than the page —
+     * the difference is that the page carries `PANEL_COPY.removalConfirm` nowhere else today, so a page
+     * sweep and a region sweep agree today and stop agreeing the day a second region reuses a word.
+     */
+    expect(regionOf(offer).textContent).not.toContain(PANEL_COPY.removalConfirm);
+    expect(regionOf(offer).textContent).not.toContain(PANEL_COPY.removalConfirmWarning);
+
+    // **And nothing was removed by being offered.** An offer is a shape, not an operation.
+    expect(records.removals).toBe(0);
+  });
+
+  it("offers no removal and says nothing is kept on a device that holds nothing", async () => {
+    await mount(stubRecords({ held: [] }));
+
+    // **Waited, because the sentence is what says the boot read has finished** — reading the page
+    // straight after mount is the weak precondition this repository has recorded three times.
+    await screen.findByText(PANEL_COPY.removalHoldsNothingYet);
+
+    expect(screen.queryByTestId("panel-removal-offer")).toBeNull();
+    expect(screen.queryByRole("button", { name: PANEL_COPY.removalOffers })).toBeNull();
+    expect(screen.queryByRole("button", { name: PANEL_COPY.removalConfirm })).toBeNull();
+
+    // **A control that cannot act is a control misreporting what is available**, so the region offers
+    // no disabled one either — **read off the region rather than off the page**, because the page has
+    // other buttons and a page-wide count would be satisfied by any of them changing.
+    expect(
+      regionOf(screen.getByRole("heading", { name: PANEL_COPY.removalHeading })).querySelectorAll(
+        "button",
+      ),
+    ).toHaveLength(0);
+
+    /**
+     * **The positive control, and it is what makes the four assertions above mean anything.**
+     *
+     * Without it, `queryByRole` returning null is satisfied by a panel whose removal region never
+     * renders — which is what a region gated on the wrong condition looks like, and it is the *fourth*
+     * recorded *precondition* shape rather than a new one. **The same device is then given one mailbox
+     * and the same four queries have to answer.**
+     */
+    cleanup();
+    await mount(stubRecords({ held: [MAILBOX] }));
+
+    expect(screen.getByRole("button", { name: PANEL_COPY.removalOffers })).toBeDefined();
+    expect(screen.queryByText(PANEL_COPY.removalHoldsNothingYet)).toBeNull();
+  });
+
+  it("withholds the whole region until the boot read has finished, and says neither kept nor not kept", async () => {
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    installPlatform({ host: "signup.example.test" });
+
+    render(
+      <Panel
+        session={session()}
+        records={{
+          loadMailboxes: async () => {
+            await gate;
+
+            return [MAILBOX];
+          },
+          loadSiteMailboxId: async () => MAILBOX.id,
+          clearAll: async () => undefined,
+        }}
+        primaryProviderName="Mail.tm"
+      />,
+    );
+
+    /**
+     * **The precondition is held open by this test rather than waited for by a delay** — so the absence
+     * below is read in a state this case put the panel into and did not have to catch it passing
+     * through (`tasks.md` 4.2).
+     *
+     * **Five separate queries, and they are separate claims.** The heading going alone would be satisfied
+     * by a region that renders its title and says nothing; the two sentences going alone would be
+     * satisfied by an untitled fragment. The requirement is that the region says *neither* thing, and
+     * only reading all of it can say that.
+     */
+    expect(screen.queryByRole("heading", { name: PANEL_COPY.removalHeading })).toBeNull();
+    expect(screen.queryByText(PANEL_COPY.removalHoldsNothingYet)).toBeNull();
+    expect(screen.queryByRole("button", { name: PANEL_COPY.removalOffers })).toBeNull();
+    expect(screen.queryByRole("button", { name: PANEL_COPY.removalConfirm })).toBeNull();
+
+    // **And the panel has not decided anything in either direction**, which is a stronger statement than
+    // "the region is absent" — the four queries above are satisfied by a `<section>` that renders
+    // nothing at all, because the shape is chosen *inside* the guard that renders the region. So this
+    // asserts the four shapes by their own names, rather than by a prefix: `offering` and
+    // `holdsNothing` carry no testid on their `<section>` (the map is `Partial` for exactly that
+    // reason — see `Panel.tsx:278`), so an offering region renders as a `<section>` with no hook and
+    // `panel-removal-offer` inside it. **A prefix sweep would read that absence as the claim**, which
+    // is the same shape as a reader that answers for every document.
+    for (const shape of [
+      "panel-removal-confirmed",
+      "panel-removal-offer",
+      "panel-removal-keep",
+      "panel-removal-removed",
+    ]) {
+      expect(screen.queryByTestId(shape)).toBeNull();
+    }
+
+    await act(async () => {
+      release?.();
+    });
+
+    // **Once the read lands the region appears and offers — and still does not claim the device was empty.**
+    expect(await screen.findByTestId("panel-removal-offer")).toBeDefined();
+    expect(screen.queryByText(PANEL_COPY.removalHoldsNothingYet)).toBeNull();
+  });
+
+  it("removes nothing before the further step, and the control that removes exists only in the confirmed shape", async () => {
+    const records = stubRecords({ held: [MAILBOX] });
+    await mount(records);
+
+    fireEvent.click(await screen.findByTestId("panel-removal-offer"));
+
+    const confirm = await screen.findByTestId("panel-removal-confirm");
+    expect(confirm.textContent).toBe(PANEL_COPY.removalConfirm);
+
+    /**
+     * **It is pressable, read from the attribute rather than from a `jest-dom` matcher** — this tier
+     * installs no `@testing-library/jest-dom`, and `toBeDisabled` would be an assertion the runner does
+     * not have. **The attribute is also the better claim:** it is what `fireEvent.click` will honour,
+     * so the property under test and the instrument that acts on it are the same one.
+     */
+    expect(confirm.getAttribute("disabled")).toBeNull();
+
+    // **The warning and the way back, and they are controls rather than the absence of one** — the
+    // website's `LocalData.tsx:135`–`:172` shape, and the reason the confirmed state is not a dialog.
+    expect(screen.getByText(PANEL_COPY.removalConfirmWarning)).toBeDefined();
+    expect(screen.getByTestId("panel-removal-keep").textContent).toBe(PANEL_COPY.removalKeep);
+
+    /**
+     * **The operation was not reached, and it is asserted on the fixture's own counter.**
+     *
+     * Asserting the DOM instead would be satisfied by a panel that renders the confirmed shape without
+     * ever having had a removing control — and *that* is exactly the second half of this case, so the
+     * two together are what "exists only after a further explicit step" means.
+     */
+    expect(records.removals).toBe(0);
+
+    /**
+     * **And pressing the way back returns to the offering shape with nothing removed.**
+     *
+     * **This is the half that makes "only in the confirmed shape" a property of the render rather than
+     * a moment**: a panel that merely *hid* the control after a removal would pass a case that only
+     * pressed forward, and would leave the person who pressed the wrong thing with no way on.
+     */
+    fireEvent.click(screen.getByTestId("panel-removal-keep"));
+
+    expect(screen.queryByTestId("panel-removal-confirm")).toBeNull();
+    expect(screen.queryByText(PANEL_COPY.removalConfirmWarning)).toBeNull();
+    expect(screen.getByTestId("panel-removal-offer")).toBeDefined();
+    expect(records.removals).toBe(0);
+  });
+
+  it("a confirmed removal reaches the contract's whole-area operation and no other member", async () => {
+    const records = stubRecords({ held: [MAILBOX] });
+    const own = await mount(records);
+
+    /**
+     * **The reading of the two reads taken *before* the press**, and that is the whole claim.
+     *
+     * *`chrome.test.ts:251`–`:254`'s reason: an empty `chrome.storage.local` area is what a whole-area
+     * clear **and** a delete-every-known-key both produce.* So an assertion about emptiness is satisfied
+     * by the implementation the requirement forbids, and the only instrument that tells them apart is
+     * **which member was called**. The reads are asserted to have moved **zero** times: a removal that
+     * enumerated the collection and deleted per key would move `collectionReads`, and one that
+     * re-looked-up the host would move `askedForHost`.
+     */
+    const readsBefore = records.collectionReads;
+    const askedBefore = [...records.askedForHost];
+
+    // **And the session is not the route either**, for the same reason one clause later.
+    expect(own.restore).not.toHaveBeenCalled();
+    expect(own.open).not.toHaveBeenCalled();
+
+    await removeEverything();
+
+    expect(records.removals).toBe(1);
+    expect(records.collectionReads).toBe(readsBefore);
+    expect(records.askedForHost).toEqual(askedBefore);
+    expect(own.restore).not.toHaveBeenCalled();
+    expect(own.open).not.toHaveBeenCalled();
+  });
+
+  it("reports holding nothing afterwards and offers no further removal", async () => {
+    await mount(stubRecords({ held: [MAILBOX] }));
+    await removeEverything();
+
+    // **The region says so in words**, and the two sentences it might have said are both absent — the
+    // empty shape's sentence would be a person unable to tell whether the press had worked.
+    expect(screen.getByTestId("panel-removal-removed").textContent).toContain(
+      PANEL_COPY.removalDone,
+    );
+    expect(screen.queryByText(PANEL_COPY.removalHoldsNothingYet)).toBeNull();
+
+    // **No control of any kind**, spelled three ways: the offer, the control that removes, and the way back.
+    expect(screen.queryByTestId("panel-removal-offer")).toBeNull();
+    expect(screen.queryByTestId("panel-removal-confirm")).toBeNull();
+    expect(screen.queryByTestId("panel-removal-keep")).toBeNull();
+    expect(screen.queryByRole("button", { name: PANEL_COPY.removalOffers })).toBeNull();
+
+    // **The whole page carries no removal control at all**, which is the claim and not the region: a
+    // second offer somewhere else would satisfy every query above.
+    expect(screen.queryAllByRole("button", { name: PANEL_COPY.removalOffers })).toHaveLength(0);
+  });
+
+  it("keeps the mailbox on screen and its inbox usable, and writes it back nowhere", async () => {
+    const records = stubRecords({ held: [MAILBOX] });
+    const own = await mount(records);
+
+    /**
+     * **The positive control: the address and the listing were on screen before anything was removed.**
+     *
+     * Without it, every assertion below — *still shows the address*, *the inbox still renders* — is
+     * satisfied by a panel that showed neither at any point, which is the recorded precondition shape and
+     * **the one this case would otherwise have been filed as coverage of**.
+     */
+    expect(screen.getByTestId("panel-address").textContent).toContain(MAILBOX.address);
+    expect(screen.getAllByRole("listitem")).toHaveLength(1);
+
+    await removeEverything();
+
+    // **The address section and the listing are both untouched** — two different regions, because
+    // reading the removal region alone would be satisfied by a panel that took everything off screen and
+    // replaced it with a sentence.
+    expect(screen.getByTestId("panel-address").textContent).toContain(MAILBOX.address);
+    expect(screen.getAllByRole("listitem")).toHaveLength(1);
+
+    /**
+     * **And nothing was written back.**
+     *
+     * **The counter and the read counts, both, and both directions.** `removals` staying at one says
+     * the removal ran once; `collectionReads` not moving says the panel did not re-read what it had just
+     * emptied **to write it back** — a panel that restored what it removed would be indistinguishable
+     * from one that did not, unless the read is watched. **This is the requirement's *"and SHALL NOT
+     * write any of it back"*, and it is the one clause a DOM cannot settle at all.**
+     */
+    expect(records.removals).toBe(1);
+    expect(own.restore).not.toHaveBeenCalled();
+    expect(own.open).not.toHaveBeenCalled();
+  });
+
+  it("states that this device's note was removed and that the address still works, and never says gone", async () => {
+    const records = stubRecords({ held: [MAILBOX] });
+    await mount(records);
+    await removeEverything();
+
+    const region = screen.getByTestId("panel-removal-removed");
+
+    // **Both facts, in words** — the note was removed, and the address still works. Asserted as the
+    // entry's own sentence so a reworded sentence is reported here rather than answering its old words.
+    expect(region.textContent).toContain(PANEL_COPY.removalDoneMeans);
+    expect(PANEL_COPY.removalDoneMeans).toMatch(/still works/i);
+
+    /**
+     * **And no sentence claims the address is gone, read over the whole region.**
+     *
+     * **Two plain words rather than a pattern imported from `panel-copy.test.ts`, and the reason is
+     * that a second spelling of a rule is what that file's own export case exists to prevent.** The
+     * narrow reading here is deliberate and it is the one this tier can make: *the region says neither
+     * word*. The full phrasing sweep — every sentence in the module, two named patterns, two controls
+     * each — is `panel-copy.test.ts`'s, and it runs over copy rather than over a rendered region.
+     *
+     * **Both words, because "no longer" is the one `mailboxGone` actually uses** and "gone" is the one a
+     * copywriter reaching for the forbidden claim would reach for.
+     */
+    expect(region.textContent ?? "").not.toMatch(/\bgone\b/i);
+    expect(region.textContent ?? "").not.toMatch(/\bno longer\b/i);
+
+    /**
+     * **And the one entry that does claim it is nowhere on the page**, because `mailboxGone` renders for
+     * a measured `expired` and this session is `ready` — a panel that reached for the wrong sentence
+     * would satisfy both patterns above while printing this one.
+     */
+    expect(screen.queryByText(PANEL_COPY.mailboxGone)).toBeNull();
+  });
+
+  it("reports a refused removal as one, and in neither direction about the data", async () => {
+    /**
+     * **The platform's own words, and they are the second operand of the sentence.**
+     *
+     * `removeFails` rejects with an `Error`, so what the panel renders is `platformWords(failure)` — and
+     * a case that staged a refusal with an empty message would have exercised the *fallback* branch
+     * rather than this one, which is the recorded shape of a test passing for a reason it did not name.
+     */
+    const reason = "The extension context was invalidated.";
+    const records = stubRecords({ held: [MAILBOX], removeFails: reason });
+    await mount(records);
+
+    fireEvent.click(await screen.findByTestId("panel-removal-offer"));
+    fireEvent.click(await screen.findByTestId("panel-removal-confirm"));
+
+    const alert = await screen.findByRole("alert");
+
+    // **It says the removal did not happen, and it carries the platform's words unparaphrased.**
+    expect(alert.textContent).toContain(PANEL_COPY.removalRefused(reason));
+    expect(alert.textContent).toContain(reason);
+
+    /**
+     * **The removal was attempted and refused, so the counter is one rather than zero.**
+     *
+     * This is why `stubRecords` increments before it throws: `removeFails` is an **answer**, and a case
+     * asserting "nothing was removed" from a counter reading zero would be satisfied by a panel that
+     * never pressed anything.
+     */
+    expect(records.removals).toBe(1);
+
+    /**
+     * **It claims nothing about the data in either direction — and the third direction is the region's
+     * own text rather than the alert's, because a panel could report a refusal accurately in an alert
+     * and contradict it in the sentence beside it.**
+     *
+     * **Neither the removed sentences nor their opposite shapes.** `removalDone` and
+     * `removalDoneMeans` are absent, and no sentence says the data *remains* — the shape `LocalData.tsx`
+     * does not reach, because on this substrate a rejection is the whole answer (`design.md` D6's
+     * substrate note: `chrome.storage` has no blocked-removal event at all).
+     */
+    expect(screen.queryByText(PANEL_COPY.removalDone)).toBeNull();
+    expect(screen.queryByText(PANEL_COPY.removalDoneMeans)).toBeNull();
+    expect(regionText()).not.toMatch(
+      /\b(?:is|are|was|were)\s+(?:still\s+)?(?:here|kept|held|saved)\b/i,
+    );
+    expect(regionText()).not.toMatch(/\bstill\s+(?:kept|here|on\s+this\s+device)\b/i);
+    expect(screen.queryByTestId("panel-removal-removed")).toBeNull();
+
+    /**
+     * **And the region offers a way forward**, because the shape that says *"this has not happened"*
+     * has to be a shape with a control on it — a region left in the confirmed state with nothing to
+     * press is a person told nothing happened and given nothing to do about it.
+     */
+    expect(screen.getByTestId("panel-removal-offer")).toBeDefined();
+    expect(screen.queryByTestId("panel-removal-confirm")).toBeNull();
+
+    // **And the refusal did not leave the mailbox off screen**, which is the clause the removed shape's
+    // absence above could otherwise have been satisfied by a panel that simply stopped rendering.
+    expect(screen.getByTestId("panel-address").textContent).toContain(MAILBOX.address);
   });
 });

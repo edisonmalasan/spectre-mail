@@ -73,6 +73,25 @@ if (container) {
              */
             loadMailboxes: () => loadInsertableMailboxes(storage.records),
             loadSiteMailboxId: storage.records.associations.loadSiteMailboxId,
+
+            /**
+             * **Through the singular contract, while the area holds four kinds** — which is exactly
+             * the shape `packages/storage/src/chrome.test.ts:235` was written for: one removal through
+             * one contract's whole-area operation, with a record planted through a different contract
+             * gone with it.
+             *
+             * **A `SpectreStorage` has no other member that removes anything**, so this line names
+             * the operation the requirement names and cannot narrow it to the records this build
+             * recognises (`design.md` D4).
+             *
+             * **Bound as an arrow and not passed by reference**, because `readSiteMailboxId` above is
+             * passed by reference because `ChromeStorage` builds these as closures over the area and
+             * `clearAll` happens to be too — **but the panel must not depend on that.** A seam that
+             * only works while the implementation happens to be a closure is a seam whose next
+             * implementation breaks it silently, and this is the one member whose failure is
+             * irreversible.
+             */
+            clearAll: () => storage.records.stored.clearAll(),
           }}
         />
       ) : (

@@ -47,8 +47,8 @@
 import { expect, test } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
 
-import { INBOX_POLL_CEILING_MS } from "../../../packages/mailbox/src/cadence";
-import { PANEL_VERDICT_WORDING } from "../src/panel-copy";
+import { INBOX_POLL_CEILING_MS, INBOX_POLL_PROMPT_MS } from "../../../packages/mailbox/src/cadence";
+import { PANEL_COPY, PANEL_VERDICT_WORDING } from "../src/panel-copy";
 import { launchExtension } from "./launch-extension";
 import type { LaunchedExtension } from "./launch-extension";
 import {
@@ -65,14 +65,17 @@ import { openFixturePage, reactState } from "./helpers/in-page-fixture";
 import {
   clearStoredMailbox,
   FIXTURE_HOST,
+  plantUnrecognisedRecord,
   readHeldAddresses,
   readSiteMap,
+  readWholeArea,
   seedMailboxCollection,
   seedSiteAssociation,
   SECOND_ADDRESS,
   SECOND_MAILBOX,
   STORED_ADDRESS,
   STORED_MAILBOX,
+  UNRECOGNISED_RECORD_KEY,
 } from "./helpers/stored-mailbox";
 
 let extension: LaunchedExtension;
@@ -1984,6 +1987,503 @@ test.describe("the side panel, in a real Chromium", () => {
        * asserted last so it covers the popup's own traffic too.
        */
       expect(traffic.unscripted).toEqual([]);
+    });
+  });
+
+  /**
+   * ## Removing what this device keeps
+   *
+   * Eight cases for seven browser-observable scenarios (`tasks.md` 5.5's arithmetic, stated rather than
+   * rounded). **The two scenarios this tier cannot hold are named rather than left to look like
+   * coverage**: *a removal is refused* — **the browser tier has no way to make a real
+   * `chrome.storage.local` reject a clear**, so a case for it would have to lie about the platform —
+   * and *what the panel knows before its boot read has finished* — the read is a real asynchronous read
+   * of a real area and **there is no window in which to catch it**, so a case for it would be a case
+   * about a race. **Both are carried by `Panel.test.tsx`'s cases 3 and 9**, which is why that file grew
+   * by nine and this one by eight.
+   */
+  test.describe("removing what this device keeps, in a real Chromium", () => {
+    /**
+     * **One mailbox this host was last used with, seeded before the panel is asked anything.**
+     *
+     * **`seedMailboxCollection` rather than `createHere`, and the difference is what these cases are
+     * about.** A created address arrives with a session the recorded provider serves, and the panel then
+     * adopts it and **starts polling on its own cadence** — which is exactly what B7 counts requests
+     * across, and a case that seeded nothing would leave a second surface's traffic inside a count it
+     * claims to own. A seeded mailbox whose reconcile the provider cannot satisfy leaves the panel
+     * holding it, rendering its address, offering its removal, and **making no further request**, so the
+     * request count is this case's own.
+     *
+     * **It is seeded before the stage for `resetStoredMailbox`'s reason**: the panel reads the device
+     * once, at boot.
+     */
+    async function seedOne(): Promise<void> {
+      await seedMailboxCollection(extension, [STORED_MAILBOX]);
+      await seedSiteAssociation(extension, { [FIXTURE_HOST]: STORED_MAILBOX.id });
+    }
+
+    /**
+     * Stage a panel that has finished reading this device, which is the precondition every case below
+     * needs and none of them establishes for itself.
+     *
+     * **Waiting on the host line is the boot read's own signal rather than a delay**, because the panel
+     * asks the page *only* after it knows what this device holds — the case
+     * *"never asks the page for a host before it knows what this device holds"* is what makes this wait
+     * a precondition rather than a hope. **Read it here once and passed in**, so eight cases do not
+     * each spell the same 20 000 ms.
+     */
+    async function stageWithTheDeviceRead(needsMailbox: boolean): Promise<{
+      readonly panel: Page;
+      readonly traffic: ProviderTraffic;
+    }> {
+      if (needsMailbox) {
+        await seedOne();
+      }
+
+      const staged = await stage();
+
+      await expect(staged.panel.locator('[data-testid="panel-host"]')).toContainText(FIXTURE_HOST, {
+        timeout: 20_000,
+      });
+
+      return staged;
+    }
+
+    /**
+     * The removal region's own text, **scoped to the region's own `data-testid`.**
+     *
+     * **Not a page-wide search, and `showingLine`'s note above is the reason**: the address is on this
+     * panel three sections up, so a reader searching the page for what the removal said would be
+     * answering about the wrong region — and a claim like *"no sentence claims the address is gone"* is
+     * a claim about **one region**. **B6 carries a positive and a negative control on this reader**, so
+     * a reader that returned the whole page, or the empty string, is reported by name rather than
+     * passing B6 for the wrong reason.
+     */
+    function removalRegionText(panel: Page): Promise<string> {
+      return panel.locator('[data-testid="panel-removal-removed"]').innerText();
+    }
+
+    /**
+     * The removal region's own paragraphs, **each one exactly as rendered.**
+     *
+     * **A second spelling of the same region, for the one claim a whole-region string cannot make.**
+     * `innerText` answers *"what does the region say"*; this answers *"how many paragraphs is it, and
+     * what is each"* — so `toEqual` on this list distinguishes *returned the two sentences* from
+     * *returned something containing them*. It is scoped to the same `data-testid` for the same
+     * reason, and it reads `textContent` per paragraph rather than the region's text, because a
+     * reader that trimmed or reworded inside a paragraph has to be visible here and nowhere else.
+     */
+    function removalRegionParagraphs(panel: Page): Promise<Array<string>> {
+      return panel
+        .locator('[data-testid="panel-removal-removed"] p')
+        .evaluateAll((nodes) => nodes.map((node) => node.textContent ?? ""));
+    }
+
+    /**
+     * The listing's rows, addressed as rows rather than as the list they sit in.
+     *
+     * **The same selector `rowsIn` spells in the verdict group above, and it is spelled again rather
+     * than shared because that one is declared inside that group's `test.describe`.** Moving it out to
+     * this file's scope would be the tidier repair and is deliberately *not* done: `rowsIn` is read by
+     * four cases that were falsified against it, and moving a helper those cases depend on, in a change
+     * about a removal region, is an edit to their instrument that no mutation here would justify. **So
+     * the duplication is deliberate and is the reason a drift between the two is possible** — which is
+     * recorded here rather than left for a reader to find two literals and assume the first was a
+     * mistake.
+     */
+    function listingRows(surface: Page): Locator {
+      return surface.locator('[data-testid="message-list"] > li');
+    }
+
+    /**
+     * How many **Mail.tm message listings** this panel has asked for.
+     *
+     * **Mail.tm and not Guerrilla, because this case is staged with a plain {@link stage} and the
+     * extension's provider is Mail.tm primary with Guerrilla as the fallback — so this panel lists
+     * through Mail.tm and a Guerrilla-only reader counts nothing, for ever.**
+     *
+     * **That was measured rather than reasoned, and it is the third instrument defect this falsification
+     * pass found.** The first spelling of this helper counted Guerrilla `check_email` calls, and the
+     * repaired assertion then sat at `Received: 0` on the *unmutated* tree — a 30-second wait for a
+     * poll that the reader was never able to see. **A reader pointed at the wrong provider is the same
+     * defect as a `-g` pointed at the wrong case**: the assertion runs, reports a confident number,
+     * and the number is about something else. **A count of zero is the tell**, and the repair was to
+     * read the provider this staging actually uses.
+     *
+     * **`/messages?page=1` and not `/messages`,** and `recorded-provider.ts:147` carries the reason:
+     * the route table lists `/messages/{id}` before the collection so the item route cannot shadow it,
+     * and a filter loose enough to match both would count every body read as a listing — which is
+     * exactly the *"per-operation rather than a total"* note on {@link guerrillaCalls} above, and
+     * `in-page-fill.spec.ts` already spells this same substring for the same reason.
+     *
+     * **A third spelling of that filter across the tier rather than a shared one**, for
+     * {@link listingRows}'s reason: the other two live in spec files this group cannot import from, and
+     * this change does not justify moving an instrument five falsified cases already read. **A URL that
+     * cannot be parsed is not evidence about any listing**, as with `guerrillaCalls`.
+     */
+    function listingsMade(urls: readonly string[]): number {
+      return urls.filter((url) => url.includes("/messages?page=1")).length;
+    }
+
+    test("offers a way to remove what this device holds, and the control that removes is not on the page", async () => {
+      const { panel } = await stageWithTheDeviceRead(true);
+
+      /**
+       * **Both halves, and they are separate claims.** The offer is named from the copy record rather
+       * than from a literal, so a reworded button is reported here instead of answering to its own old
+       * wording; and the absence is checked by accessible name, because a `data-testid` query would pass
+       * against a panel that rendered the control under a name this file had not been updated for.
+       */
+      await expect(panel.getByRole("button", { name: PANEL_COPY.removalOffers })).toBeVisible();
+
+      await expect(panel.locator('[data-testid="panel-removal-confirm"]')).toHaveCount(0);
+      await expect(panel.getByRole("button", { name: PANEL_COPY.removalConfirm })).toHaveCount(0);
+
+      /**
+       * **The region carries neither the confirmation's label nor its warning**, read as the region's
+       * own text — **the region has no `data-testid` in the offering shape**, so it is reached through
+       * the offer button's own section rather than by a selector that would resolve to nothing and
+       * satisfy the assertion below vacuously.
+       */
+      const regionText = await panel
+        .getByRole("button", { name: PANEL_COPY.removalOffers })
+        .evaluate((node) => node.closest("section")?.textContent ?? "");
+
+      expect(regionText.length).toBeGreaterThan(0);
+      expect(regionText).not.toContain(PANEL_COPY.removalConfirm);
+      expect(regionText).not.toContain(PANEL_COPY.removalConfirmWarning);
+
+      // **The positive control for the region lookup above**: the heading *is* in it.
+      expect(regionText).toContain(PANEL_COPY.removalHeading);
+    });
+
+    test("removes nothing until the further step is taken, read from the platform's own area", async () => {
+      /**
+       * **This is the case the change most needs**, and `tasks.md` 5.3 gives the reason: reading the
+       * DOM for "nothing was removed" is satisfied by a panel that never removed anything on either
+       * press — which is also a panel with no removal region at all. **So this asks the platform**, and
+       * it asks it twice.
+       */
+      await seedOne();
+      await plantUnrecognisedRecord(extension);
+
+      const { panel } = await stageWithTheDeviceRead(false);
+
+      /**
+       * **The reading before anything is pressed, and the planted key *is* in it.**
+       *
+       * **This half is the control for the whole case.** A reader that answered `[]` for every device
+       * would satisfy "nothing was removed after the first press" for ever — the sweep that matches
+       * nothing is the defect this repository records more often than any other — so the planted record
+       * this build has no code for is asserted **listed** first, and only then absent afterwards.
+       */
+      const before = await readWholeArea(extension);
+      expect(before, `the area held: ${before.join(", ")}`).toContain(UNRECOGNISED_RECORD_KEY);
+
+      await panel.getByRole("button", { name: PANEL_COPY.removalOffers }).click();
+
+      /**
+       * **After the *offering* press the area is byte-for-byte what it was**, and the assertion is an
+       * equality of the whole key list rather than a length: a length would be satisfied by a removal
+       * that removed one key and added another, and by a reader that reported the wrong device's keys.
+       */
+      expect(await readWholeArea(extension)).toEqual(before);
+
+      // **And the further step is visibly taken**, so the next assertion has a press to credit.
+      await expect(panel.locator('[data-testid="panel-removal-confirm"]')).toBeVisible();
+
+      await panel.getByRole("button", { name: PANEL_COPY.removalConfirm }).click();
+
+      /**
+       * **And this is the control for the assertion above**: a reader answering "empty" for every
+       * device passes the offering press and fails this one. **`site-associations`' *"a poll that
+       * starts satisfied passes immediately on a controller that never wrote anything"* — in a browser
+       * tier, against the platform rather than a fixture.**
+       */
+      expect(await readWholeArea(extension)).toEqual([]);
+    });
+
+    test("a confirmed removal empties the area, including a record this build does not recognise", async () => {
+      /**
+       * **Why a browser spec needs a record this build cannot read.** `chrome.storage.local` holds four
+       * kinds of record over one area and `clearAll` removes the whole area — **and an empty area is
+       * also what a removal of the four keys this build *knows about* produces.** That is why
+       * `packages/storage/src/chrome.test.ts:251`–`:254` asserts *"the call, not the result"*, and why
+       * `chrome.test.ts:257`–`:263` plants a key at all. **A key no shipped code names is the only
+       * thing that can tell a whole-area clear from a key-scoped one through the platform.**
+       */
+      await seedOne();
+      await plantUnrecognisedRecord(extension);
+
+      const { panel } = await stageWithTheDeviceRead(false);
+
+      // **Planted *after* the mailbox is stored**, for `storage.spec.ts:228`–`:256`'s ordering rule.
+      expect(await readWholeArea(extension)).toContain(UNRECOGNISED_RECORD_KEY);
+
+      await panel.getByRole("button", { name: PANEL_COPY.removalOffers }).click();
+      await panel.getByRole("button", { name: PANEL_COPY.removalConfirm }).click();
+
+      // **Waited on the panel's own report before reading the area**, because a synchronous read would
+      // be reading a removal still in flight — and `chrome.storage.clear()` is a round trip.
+      await expect(panel.locator('[data-testid="panel-removal-removed"]')).toBeVisible({
+        timeout: 20_000,
+      });
+
+      expect(await readWholeArea(extension)).toEqual([]);
+    });
+
+    test("reports holding nothing afterwards and offers no further removal", async () => {
+      const { panel } = await stageWithTheDeviceRead(true);
+
+      await panel.getByRole("button", { name: PANEL_COPY.removalOffers }).click();
+      await panel.getByRole("button", { name: PANEL_COPY.removalConfirm }).click();
+
+      const region = panel.locator('[data-testid="panel-removal-removed"]');
+      await expect(region).toBeVisible({ timeout: 20_000 });
+
+      /**
+       * **The removal's own sentence, and the empty device's sentence is absent.**
+       *
+       * `apps/web/src/LocalData.tsx:24`–`:29` is the recorded defect: one sentence served both the
+       * first visit and the removal, so a person who had just pressed a button could not tell whether
+       * the press had worked. **Asserting the absence is the half that catches it** — a panel that
+       * rendered both sentences would satisfy the first assertion.
+       */
+      await expect(region).toContainText(PANEL_COPY.removalDone);
+      await expect(region).not.toContainText(PANEL_COPY.removalHoldsNothingYet);
+
+      /** **No control of any kind, read three ways: the two test ids and the accessible name.** */
+      await expect(panel.locator('[data-testid="panel-removal-offer"]')).toHaveCount(0);
+      await expect(panel.locator('[data-testid="panel-removal-confirm"]')).toHaveCount(0);
+      await expect(panel.locator('[data-testid="panel-removal-keep"]')).toHaveCount(0);
+      await expect(panel.getByRole("button", { name: PANEL_COPY.removalOffers })).toHaveCount(0);
+    });
+
+    test("keeps the mailbox on screen and its inbox usable after the removal", async () => {
+      /**
+       * **A created mailbox rather than a seeded one, and this case is the only one of the eight that
+       * needs it** — *"its inbox SHALL remain usable"* is a claim about a **listing**, and a seeded
+       * mailbox's reconcile the provider cannot satisfy leaves no listing to keep.
+       *
+       * **So this case measures what the other seven deliberately do not, and the two shapes are not
+       * interchangeable**: this one runs the panel's own poll after the adoption, which is why it
+       * asserts the inbox's presence and shape rather than a request count.
+       */
+      const { panel, traffic } = await stage();
+      await expect(panel.locator('[data-testid="panel-host"]')).toContainText(FIXTURE_HOST, {
+        timeout: 20_000,
+      });
+      await createHere(panel);
+      await waitForTheArmingThenDisarm(extension, INBOX_POLL_CEILING_MS);
+
+      /**
+       * **The positive control: the address and the listing are on screen *before* anything is removed.**
+       *
+       * Without it, "still on screen" is satisfied by a panel that showed neither at any point — the
+       * recorded precondition shape, and the one this case would otherwise have been filed as coverage
+       * of.
+       */
+      await expect(panel.locator(".panel__address")).toHaveText(/@/u);
+      await expect(panel.locator('[data-testid="message-list"]')).toBeVisible({ timeout: 20_000 });
+      await expect(listingRows(panel)).toHaveCount(1);
+
+      /**
+       * **The listing count as it stands *before* the removal**, read only once the row above is on the
+       * page — so it is a count of a listing that has already happened and not of one still to come, and
+       * the assertion at the end is about a request made *afterwards*. **Read beside the removal it
+       * would be a count taken next to an action, which is this repository's most-recorded defect.**
+       *
+       * **The row assertion is in the positive control rather than only after the removal for that
+       * reason.** It was after the removal alone in the first version, which left `listingsBefore` free
+       * to be `0` — and a wait for *"more than 0 listings"* is then satisfied by the adoption's own
+       * listing, arriving after the removal, with the poll playing no part in it.
+       */
+      const listingsBefore = listingsMade(traffic.requested);
+      expect(listingsBefore).toBeGreaterThan(0);
+
+      await panel.getByRole("button", { name: PANEL_COPY.removalOffers }).click();
+      await panel.getByRole("button", { name: PANEL_COPY.removalConfirm }).click();
+      await expect(panel.locator('[data-testid="panel-removal-removed"]')).toBeVisible({
+        timeout: 20_000,
+      });
+
+      /**
+       * **The address, the listing and its rows, all still there** — three claims rather than one,
+       * because a panel that kept the address and emptied the inbox would satisfy "the mailbox stays on
+       * screen" in the only wording that case could have used.
+       */
+      await expect(panel.locator(".panel__address")).toHaveText(/@/u);
+      await expect(panel.locator('[data-testid="message-list"]')).toBeVisible();
+      await expect(listingRows(panel)).toHaveCount(1);
+
+      /**
+       * **And the inbox is still *checking itself*, which is the half of "usable" the three assertions
+       * above cannot reach.**
+       *
+       * **They cannot, because a destroyed session keeps rendering everything it was last given.**
+       * `inbox.test.ts` states this as its own measured fact — *"answers an explicit ask after being
+       * destroyed, but schedules nothing further"* — so a panel whose removal tore the session down
+       * still shows the address, still shows the list, and still shows the row: **all three pass on a
+       * panel whose inbox can never again report a message.** This is `in-page-fill`'s `closeMessage`
+       * defect in a browser tier, where a `reset()` that shed every reading was invisible to every
+       * assertion about whether the message was open.
+       *
+       * **So the wait is on the panel's own cadence producing a listing nobody asked for. An explicit
+       * press would settle nothing here**, since a destroyed session answers one; only a request nobody
+       * made distinguishes the two.
+       *
+       * **The ceiling is `INBOX_POLL_CEILING_MS + INBOX_POLL_PROMPT_MS`, and the addition is the point.**
+       * `INBOX_POLL_CEILING_MS` is *"the longest this package will wait between checks"* — so a wait of
+       * exactly that length races the check it is waiting for, and `motion-and-reduced-motion` recorded
+       * precisely that defect: a repair's ceiling red in six runs of ten because the wait and the poll
+       * were the same length. **One more prompt interval is the shortest honest bound**, since the
+       * assertion also has to *notice* the request; both terms are imported from
+       * `packages/mailbox/src/cadence`, so nothing here is a number picked to be large enough.
+       */
+      await expect
+        .poll(() => listingsMade(traffic.requested), {
+          timeout: INBOX_POLL_CEILING_MS + INBOX_POLL_PROMPT_MS,
+        })
+        .toBeGreaterThan(listingsBefore);
+    });
+
+    test("states what was removed and that the address still works, and never says the address is gone", async () => {
+      const { panel } = await stageWithTheDeviceRead(true);
+
+      await panel.getByRole("button", { name: PANEL_COPY.removalOffers }).click();
+      await panel.getByRole("button", { name: PANEL_COPY.removalConfirm }).click();
+      await expect(panel.locator('[data-testid="panel-removal-removed"]')).toBeVisible({
+        timeout: 20_000,
+      });
+
+      /**
+       * **The claim, through a reader scoped to the removed region's own `data-testid`** — and the
+       * reason for the scope is `showingLine`'s note: the address is on this panel three sections up.
+       */
+      const text = await removalRegionText(panel);
+
+      expect(text).toContain(PANEL_COPY.removalDoneMeans);
+      expect(text).toMatch(/still works/iu);
+
+      /**
+       * **No sentence claims the address is gone — two plain words rather than a pattern imported from
+       * `panel-copy.test.ts`.** The full phrasing sweep — every sentence in the module, two named
+       * patterns, two controls each — is that file's and it reads *copy*; this reads a *rendered
+       * region*, and a second spelling of the same rule is what that file's own export case exists to
+       * prevent. **Both words, because "no longer" is the one `mailboxGone` actually uses** and "gone"
+       * is the one a copywriter reaching for the forbidden claim would reach for.
+       */
+      expect(text).not.toMatch(/\bgone\b/iu);
+      expect(text).not.toMatch(/\bno longer\b/iu);
+
+      /**
+       * **And the reader's positive control: it returned the shipped sentences *unmodified***, read
+       * **before the plant below** and asserted as an **equality against the region's own
+       * paragraphs** rather than as a containment. A reader that returned every paragraph on the
+       * panel would satisfy the containment assertion above and fail this one — a reader that
+       * *reworded* or trimmed what it read would satisfy neither, and a region holding the two
+       * sentences plus a third would too.
+       *
+       * **The ordering is load-bearing and it is the whole reason this assertion sits here rather
+       * than at the foot of the case.** The negative control below plants into *this very region*,
+       * so a positive control read after it measures the planted paragraph as though the panel had
+       * shipped it — which is how this case first failed, on `toEqual` against a third paragraph
+       * reading `"The address is gone."` **that the product never rendered**. A control that mutates
+       * the thing a later assertion reads is not a control; it is a second subject.
+       */
+      expect(await removalRegionParagraphs(panel)).toEqual([
+        PANEL_COPY.removalDone,
+        PANEL_COPY.removalDoneMeans,
+      ]);
+
+      /**
+       * **The reader's negative control, planted into the running panel** — the forbidden sentence is
+       * added to the region this case just read, and the *same* reader has to report it. **Without
+       * this, a reader returning the empty string for every region satisfies the two assertions above**,
+       * which is the sweep that matches nothing in the direction where it looks rigorous. **It runs
+       * last for the reason the positive control's note gives**, and nothing after it reads the
+       * region again.
+       */
+      await panel.locator('[data-testid="panel-removal-removed"]').evaluate((node) => {
+        const planted = node.ownerDocument.createElement("p");
+        planted.textContent = "The address is gone.";
+        node.appendChild(planted);
+      });
+
+      expect(await removalRegionText(panel)).toContain("The address is gone.");
+    });
+
+    test("costs no provider request and reaches no origin the tier did not script", async () => {
+      const { panel, traffic } = await stageWithTheDeviceRead(true);
+
+      /**
+       * **The positive control, and it is the reason the count below means anything.** A recorder whose
+       * router was never installed reports zero requests for ever, and so does a panel that reached
+       * nothing — `waitForRequests` exists for this and is the file's own instrument.
+       *
+       * **The request that exists is this panel's own adoption of the seeded mailbox**, so the count is
+       * one this panel produced rather than a floor of zero.
+       */
+      await waitForRequests(traffic, 1);
+
+      const before = traffic.requested.length;
+
+      await panel.getByRole("button", { name: PANEL_COPY.removalOffers }).click();
+      await panel.getByRole("button", { name: PANEL_COPY.removalConfirm }).click();
+      await expect(panel.locator('[data-testid="panel-removal-removed"]')).toBeVisible({
+        timeout: 20_000,
+      });
+
+      /**
+       * **An equality, and not a ceiling.** A ceiling would be satisfied by a panel that re-read the
+       * provider, and *a removal is exactly the moment a panel might*, so the claim has to be that no
+       * request was made at all.
+       */
+      expect(traffic.requested.length).toBe(before);
+
+      /** **And the tier's standing claim, asserted over the removal's own traffic.** */
+      expect(traffic.unscripted, `unscripted origins: ${traffic.unscripted.join(", ")}`).toEqual(
+        [],
+      );
+    });
+
+    test("offers no removal and says nothing is kept on a device that holds nothing", async () => {
+      /**
+       * **A plain `stage()`, and the device is empty because `afterEach` cleared it** — the file's own
+       * standing rule (`tasks.md` B8). **Nothing is seeded and nothing is created**, so this is the
+       * only one of the eight whose subject is a first visit rather than a held device.
+       */
+      const { panel } = await stage();
+
+      await expect(panel.locator('[data-testid="panel-host"]')).toContainText(FIXTURE_HOST, {
+        timeout: 20_000,
+      });
+
+      // **The device-holds-nothing shape, waited for** — a synchronous read would be reading a panel
+      // whose boot read has not landed, which is the ninth scenario's subject and not this one's.
+      await expect(panel.getByText(PANEL_COPY.removalHoldsNothingYet)).toBeVisible();
+
+      await expect(panel.locator('[data-testid="panel-removal-offer"]')).toHaveCount(0);
+      await expect(panel.locator('[data-testid="panel-removal-confirm"]')).toHaveCount(0);
+      await expect(panel.getByRole("button", { name: PANEL_COPY.removalOffers })).toHaveCount(0);
+      await expect(panel.getByRole("button", { name: PANEL_COPY.removalConfirm })).toHaveCount(0);
+
+      /**
+       * **The positive control, and it is what makes the four counts above mean anything**: the region
+       * is on screen and is a region with **no button in it at all**, which is the claim — *a control
+       * that cannot act is a control misreporting what is available*, so there is no disabled one
+       * either. **A region that never rendered satisfies every count above.**
+       */
+      const regionText = await panel
+        .getByText(PANEL_COPY.removalHoldsNothingYet)
+        .evaluate((node) => node.closest("section")?.textContent ?? "");
+
+      expect(regionText).toContain(PANEL_COPY.removalHeading);
+      expect(
+        await panel
+          .getByText(PANEL_COPY.removalHoldsNothingYet)
+          .evaluate((node) => node.closest("section")?.querySelectorAll("button").length ?? -1),
+      ).toBe(0);
     });
   });
 });
