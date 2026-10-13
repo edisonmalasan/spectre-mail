@@ -53,7 +53,15 @@
 > **`extension-permissions-review` (M12's permissions review) has since run its whole lifecycle
 > and is APPLIED, VERIFIED, SYNCED and ARCHIVED** at
 > `openspec/changes/archive/2026-10-14-extension-permissions-review/` — proposal PR **#134**
-> merged `7c9be91`, apply PR **#135** merged `3d9bd05`, sync PR **#136** merged `00be929`.
+> merged `7c9be91`, apply PR **#135** merged `3d9bd05`, sync PR **#136** merged `00be929`, archive
+> PR **#137** merged `2b3ee7d` — **and that archive PR number was filled in by `gh pr view` after
+> the merge rather than predicted**, because a PR number in a document other stages cite by name
+> is a figure nobody counted. **Git's own rename detection confirmed the move's byte-identity
+> independently of the digests that measured it, and it named the one file this stage edited
+> after the move**: four renames at `100%` and `tasks.md` at **85%**, which is 6.4 ticked plus
+> the archive record. **A verification that is true only before the work that follows it is a
+> verification with an expiry date**, so the digest table is a claim about the instant the archive
+> command returned and says so.
 > **The finding it was built on was wrong in its reasoning, and that is the part worth
 > reading.** `docs/PROVIDERS.md` §4.6 had recorded that the `side_panel` key and the
 > `sidePanel` permission *"cannot be separated on this substrate"* — **which was two cells of
