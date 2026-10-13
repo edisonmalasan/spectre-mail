@@ -369,7 +369,54 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > differs from its siblings is a defect a later reader would have to rediscover, and it is
 > **not** hand-written here because the canonical generator owns that file.
 >
-> **`privacy-document` is M12's privacy-documentation item, and is PROPOSED.**
+> **`privacy-document` is APPLIED.** Proposal PR **#138** merged `86c2296`; apply PR left unfilled
+> here and filled in by `gh pr view` after the merge. `pnpm test` is **63 files / 1250 tests** —
+> that is `1228 + 22` and `62 + 1`, and both movements are accounted for by the one new file.
+>
+> **`pnpm test` was red on the shipped tree, and the cause was a reader in another file.**
+> The apply report said the new file's 22 cases passed on a first run — **it had never run
+> `pnpm test`** — and `pnpm test` was red. `boundaries.test.ts`'s *"confines provider adapters to
+> `packages/providers`"* reported **six violations, every one naming the new file**.
+> **The mechanism:** `stripComments` tracks line comments, block comments and three string
+> delimiters, and has **no state for a regular-expression literal** — so a backtick inside one
+> opened a template string that ran to the next backtick, the reader was desynchronised for the rest
+> of the file, and **the doc comment immediately below it — which names the three adapter
+> identifiers while explaining this very defect — was emitted verbatim as if it were code.**
+> Replicated rather than argued: `stripComments` re-implemented byte-for-byte over **235** files,
+> **one** containing the literal; restoring only the pattern turns that single case red with
+> **3 identifier hits + 3 pattern hits**, and repairing it makes the file green with its SHA-256
+> byte-identical. **The remembered split was 4+2 and the measured split is 3+3** — the total was
+> right and the split was wrong, and the split is what explains the mechanism.
+> **The cause was repaired; the reader defect is recorded and not fixed**, because
+> `boundaries.test.ts` is outside this change's write scope and **any future file putting a backtick
+> inside a regex literal will take a green gate red with a cause that reads as correct.**
+>
+> **The falsification pass found a real gap that was not a gap in the code.** `expect.arrayContaining`
+> over the panel's removal-copy keys is a **subset** assertion, and the specification-relevant
+> sentence is read from the copy object *by name* — so deleting a key left the whole file green.
+> **The check and the mutation were each individually correct and together proved nothing.** Both
+> that and its twin are now guarded by declared counts. **And the limit is stated rather than
+> engineered away**: a declared count proves non-silence, not completeness, because the reverse
+> direction needs a name predicate over the copy object — **and a name predicate is exactly what
+> this change's own design forbids**, so the instrument that would catch it is the instrument the
+> design rules out. That trade is the design's, and its price is paid in public.
+>
+> **`apps/web` is still 125, which is the load-bearing prediction**: the document and the page
+> agree, and the page was not edited until it matched the document. `packages/ui` 38,
+> `apps/extension` 465, `packages/storage` 86 with an **empty** diff, `boundaries.test.ts` **53**,
+> `extension-client` **14 / 75**, and `styles.css` and `manifest.json` **byte-identical** — all
+> measured from fresh runs rather than carried forward.
+>
+> **The orchestrator then nearly recorded a false finding against the same class.** Spot-checking the
+> document's *"does not collect"* pointers independently, a reader matching the phrase `### Requirement: `
+> immediately followed by the cited text returned **five MISS out of six** — and **all five
+> resolved**: every requirement heading carries a subject before the cited phrase, so the reader was
+> **narrower than the rule it was checking**. Re-run against the heading lines, all six resolve and
+> the slug `requirement-persistence-is-reached-through-one-contract` matches its heading exactly.
+> **This is the most-recorded defect in this repository, and the instance that produced the
+> instinct to record a finding here was caused by an instrument that could not fail in the direction
+> it was aimed at** — the lesson is not *"check carefully"* but that **a confident wrong answer from
+> an unnamed reader is indistinguishable from a real defect until the reader is read**.
 >
 > **The gap is recorded inside a promoted requirement rather than merely suspected**, which is
 > the same reason `extension-clear-data` was taken before this. `page-composition`'s *A section
@@ -441,11 +488,20 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
 
-**Roadmap cursor: M12 - Release Hardening, with two of its three items done. M11 - Side Panel +
+**Roadmap cursor: M12 - Release Hardening, with all three of its tracked items done. M11 - Side Panel +
 Mailbox Context is COMPLETE IN SCOPE.** `extension-permissions-review` is M12's permissions review
-and is archived. **`privacy-document` is M12's privacy documentation item and is PROPOSED** —
-its proposal PR is left unfilled here and filled in by `gh pr view` after the merge, because a
-PR number in a document other stages cite by name is a figure nobody counted.
+and is archived. **`privacy-document` is M12's privacy documentation item and is APPLIED** — its
+apply PR number is left unfilled here and filled in by `gh pr view` after the merge, because a PR
+number in a document other stages cite by name is a figure nobody counted.
+
+**M12 is not thereby closed, and the distinction is worth keeping.** Its section lists five items —
+security review, permissions review, provider review, privacy documentation, branding check — and
+**three** are the tracked ones the Project Status has been carrying. **The other two — the
+security review and the branding check — are not tracked items and have never been started**, so
+"three of three" is a statement about the tracked three and not about the milestone. **The next
+item is the security review**, which is the largest unstarted thing in the milestone: it reviews
+eight areas, and two of them — *storage boundaries* and *clear-data behaviour* — this program has
+since instrumented to a degree the roadmap's list could not have anticipated.
 `panel-verification-state`
 - proposal PR **#124** merged `7c56c83`, apply PR **#125** merged `28f1360`, sync PR **#126** merged
 `b569ff6`, archive PR **#128**, archived to

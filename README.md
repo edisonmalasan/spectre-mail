@@ -601,13 +601,24 @@ behavioural source of truth when the two disagree.
 
 ## Privacy model
 
+The full account of what this project keeps, reaches and does not collect — and the
+check that holds this page, the website's footer and the extension's side panel to it —
+is [`docs/PRIVACY.md`](docs/PRIVACY.md).
+
 SpectreMail reads disposable mailboxes and nothing else.
 
 - **No backend.** No SpectreMail-operated server, and no proxying of provider APIs.
 - **No account.** There is no sign-up and no user record.
-- **Client-side storage.** Mailboxes persist in IndexedDB on the web and extension
-  storage in the extension, behind a shared contract. Storage is the client's, not
-  the provider's and not ours.
+- **Client-side storage.** Four record kinds in the extension's `chrome.storage.local`
+  area and one in the website's IndexedDB, behind a shared contract. Storage is the
+  client's, not the provider's and not ours. One of the four is a **hostname
+  association** — which page a SpectreMail address was inserted on, and nothing else
+  about that page. A two-step control in each client removes the whole area; removing it
+  deletes this device's note of the address, not the address.
+
+A provider receives the mail itself, and its own retention is what applies to a
+message. Where a provider publishes no figure, this repository has not measured one and
+says so.
 
 Temporary addresses are disposable by design. Anything sent to one is readable by
 whoever holds the address, so it must never be used for anything that matters.
