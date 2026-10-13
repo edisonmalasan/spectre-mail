@@ -447,6 +447,39 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > it never performed; that refusal is falsified too, and refusing is what makes the tool safe to run
 > twice.
 
+> **`privacy-document` is APPLIED, SYNCED and ARCHIVED** at
+> `openspec/changes/archive/2026-10-14-privacy-document/` — proposal PR **#138** merged `86c2296`,
+> apply **#139** merged `6c4d0f2`, sync **#140** merged `b86c9af`, archive PR left unfilled here and
+> filled in by `gh pr view` after the merge. **The archive moved 4 files, every one byte-identical to
+> its pre-archive digest**, and **Git's own rename detection independently confirmed it: four renames
+> at `100%` and `0 insertions, 0 deletions`** — which is a cleaner result than the permissions
+> review's, where `tasks.md` sat at 85% because that stage edited it after the move. **This stage
+> deliberately did not touch the archived files at all**, so the digest table has no expiry date to
+> qualify. **All 16 spec files are byte-identical throughout**, checked against **Git** rather than
+> against digests I typed. **The promoted blocks re-verified BYTE-IDENTICAL against the *archived*
+> delta**, because archiving is a move and a move is the operation most likely to quietly drop a file
+> — and the verifier was pointed at the archived path deliberately, having first been shown to fail
+> loudly with `ENOENT` on the now-absent pre-archive path.
+>
+> **Two things about this archive that a figure copied from an earlier one would get wrong.** It
+> carries **4 files and no `.openspec.yaml`**, where five changes before it carried five including
+> the yaml — **nothing dropped it; it was never created**, and a reader comparing "5 files" to "4"
+> deserves the reason rather than the difference. And the archive command raised a **non-blocking
+> warning** that the proposal lacks a `## What Changes` section, which is **half wrong**: `## Why` is
+> present and the second section is called **`## What ships`**, so the warning is a header-naming
+> variance and not a missing section.
+>
+> **And this archive corrected a recorded figure that had stood for a whole milestone.**
+> `AGENTS.md` said `openspec validate <archived-change>`'s *"must have at least one delta"* error
+> *"did not reproduce"* on this same CLI `1.13.2`. **It reproduces — under `--type change` — and it
+> reproduces for a name that never existed at all.** The bare name reports `Unknown item`; the
+> flagged form reports `No deltas found` **for both an archived change and a name this repository has
+> never heard of**, with a long, specific, plausible-sounding complaint about a missing `specs/`
+> directory. **The previous measurement was taken on the bare name and generalised to the flagged
+> form**, and the conclusion is unchanged but now established on **both** invocations: **neither can
+> verify an archive.** The flagged form is the more dangerous of the two, and this is a **required
+> project command** answering confidently for the wrong reason.
+
 > **The gap is recorded inside a promoted requirement rather than merely suspected**, which is
 > the same reason `extension-clear-data` was taken before this. `page-composition`'s *A section
 > states only what the product does* says the footer ships *"the privacy and provider facts,

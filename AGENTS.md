@@ -204,6 +204,25 @@
 > nothing else; and the promoter refuses to run over an existing spec**, because the first sync
 > tool in this repository logged a deletion it never performed.
 >
+> **The archive moved 4 files, every one byte-identical to its pre-archive digest, and Git's own
+> rename detection independently confirmed it: four renames at `100%` and `0 insertions, 0
+> deletions`** — a cleaner result than `extension-permissions-review`'s, where `tasks.md` sat at 85%
+> because that stage edited it after the move. **This stage deliberately touched none of the archived
+> files**, so the digest table needs no expiry-date qualification. All **16** spec files byte-identical
+> throughout, checked against **Git** rather than against digests **I typed** — because on the first
+> attempt I transcribed one by hand, dropped a single character, and reported a file as differing that
+> `git status` never listed as modified. **The promoted blocks re-verified BYTE-IDENTICAL against the
+> *archived* delta**, with the verifier pointed at the archived path after being shown to fail loudly
+> with `ENOENT` on the absent pre-archive one. `openspec list` → **No active changes**;
+> `openspec validate --specs --strict` → **15 passed, 0 failed**; counts **re-counted after the move**
+> at **176 / 564 / 15**, unmoved by the archive.
+>
+> **Two figures a copy from an earlier archive would get wrong.** This change carries **4 files and no
+> `.openspec.yaml`**, where five changes before it carried five including the yaml — **nothing dropped
+> it; it was never created.** And the archive raised a **non-blocking** warning that the proposal
+> lacks a `## What Changes` section, which is **half wrong**: `## Why` **is** present and the second
+> section is called **`## What ships`**, so it is a header-naming variance and not a missing section.
+>
 > **`M12`'s three tracked items are done, and M12 is not thereby closed.** Its section lists five —
 > **the security review and the branding check were never among the three tracked ones** and have
 > never been started. The cursor is on **the security review**.
@@ -2771,21 +2790,34 @@ respond by deleting the promoted spec to make the bare name resolve again.
 **After archiving, `openspec validate <change> --type change --strict` fails — and the message
 does not identify what went wrong.** Verified 2026-10-05 at M6 slice 3: it reported
 *"Change must have at least one delta. No deltas found."* on an archived change whose deltas were
-present, complete, and byte-identical to the promoted specs. **Measured 2026-10-12 at
-`panel-mailbox-choice`'s archive on the same OpenSpec `1.13.2`, that message did not reproduce.**
-The bare name now reports ***"Unknown item '<change>'. Did you mean: …"*** and exits `1`.
+present, complete, and byte-identical to the promoted specs. **CORRECTED 2026-10-14 at `privacy-document`'s archive: the message reproduces after all, and
+"did not reproduce" was a measurement of the wrong invocation.** Measured on this same OpenSpec
+`1.13.2` across **five archived names and one name that never existed**:
 
-**The recorded reason for the older message is therefore no longer a claim about this CLI, and the
-new message is a worse instrument than the old one — so it is stated as a measurement rather than
-reworded.** Measured across six names on that date: `panel-mailbox-choice` and **every other
-archived change tried** — `mailbox-adoption` (the very name the older claim was generalised from),
-`side-panel-surface`, `incoming-mail-notification` — return *"Unknown item"*, and so does a name
-that **never existed at all**. **An archived change name and a name that was never a change are
-indistinguishable to this command**, which means **`openspec validate <archived-change>` cannot
-verify an archive and must not be cited as evidence that one is intact.** It is a spelling check
-that happens to fail. `openspec list` and `openspec status` both report no active changes, which
-is the correct end state and **is** worth something — unlike the per-change validate, they read
-the active set rather than guessing at a name's kind.
+| invocation | archived name | name that never existed |
+| --- | --- | --- |
+| `openspec validate <name>` | `Unknown item '<name>'. Did you mean: …` | `Unknown item '<name>'. Did you mean: …` |
+| `openspec validate <name> --type change --strict` | **`No deltas found`** | **`No deltas found`** |
+
+**So the older message was never a behaviour that came and went — it is what `--type change` reports
+when the name resolves to nothing at all**, and the 2026-10-12 reading must have been taken on the
+**bare** name, which reports `Unknown item`, and then generalised to the flagged form. **The
+conclusion is unchanged and is now established on both invocations: neither can verify an archive.**
+**And the `--type change` form is the more dangerous of the two**, because its message is a long,
+specific, plausible-sounding complaint that the change *"must have at least one delta"*, naming a
+missing `specs/` directory and offering a tip — **a diagnosis that reads as correct, for a name this
+repository has never heard of.**
+
+**An archived change name and a name that was never a change are indistinguishable to this command**,
+which means **`openspec validate <archived-change>` cannot verify an archive and must not be cited as
+evidence that one is intact.** It is a spelling check that happens to fail. **The 2026-10-12
+measurement across six names stands and is retained** — `panel-mailbox-choice` and every other
+archived change tried (`mailbox-adoption`, `side-panel-surface`, `incoming-mail-notification`) return
+*"Unknown item"*, and so does a name that never existed — **it is simply the *bare* invocation that
+was measured, and the correction above is what the flagged invocation does.** `openspec list` and
+`openspec status` both report no active changes, which is the correct end state and **is** worth
+something — unlike the per-change validate, they read the active set rather than guessing at a name's
+kind.
 
 The checks that still mean something **after** an archive are `openspec validate --specs
 --strict` and a **byte-for-byte** comparison of each archived delta block against the
