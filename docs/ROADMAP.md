@@ -234,14 +234,33 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > | `908e555` | sync `extension-clear-data` (PR #132) | **168** | **544** |
 > | `3d9bd05` | apply `extension-permissions-review` (PR #135) — **baseline** | 168 | 544 |
 > | `00be929` | sync `extension-permissions-review` (PR #136) | **168** | **545** |
-> | (this archive) | archive `extension-permissions-review` | 168 | 545 |
+> | `2b3ee7d` | archive `extension-permissions-review` (PR #137) | 168 | 545 |
 
 > **`extension-permissions-review` is APPLIED, VERIFIED, SYNCED and ARCHIVED** at
 > `openspec/changes/archive/2026-10-14-extension-permissions-review/` — proposal PR **#134**
-> merged `7c9be91`, apply PR **#135** merged `3d9bd05`, sync PR **#136** merged `00be929`. The
-> archive PR number is **left unfilled here rather than predicted** and is filled in by
-> `gh pr view` after the merge, because **a PR number in a document other stages cite by name is
-> a figure nobody counted**, and the honest order is to merge, then read it.
+> merged `7c9be91`, apply PR **#135** merged `3d9bd05`, sync PR **#136** merged `00be929`, archive
+> PR **#137** merged `2b3ee7d`. **The archive PR number was left unfilled by the archive stage
+> rather than predicted, and is filled in here by `gh pr view` — because a PR number in a document
+> other stages cite by name is a figure nobody counted, and the honest order is to merge, then
+> read it.**
+>
+> **Git's own rename detection confirmed the move's byte-identity independently of the digests
+> that measured it**, and the one file it did not call identical is the one this stage edited
+> after the move:
+>
+> ```text
+> rename .../.openspec.yaml                 (100%)
+> rename .../design.md                      (100%)
+> rename .../proposal.md                    (100%)
+> rename .../specs/extension-client/spec.md (100%)
+> rename .../tasks.md                       (85%)
+> ```
+>
+> **`tasks.md` at 85% is 6.4 ticked and the archive record appended, both after the archive
+> command returned.** So the digest table is a claim about *the instant the command returned*,
+> and the file now in `main` is that file plus the record. **A verification that is true only
+> before the work that follows it is a verification with an expiry date**, and this one is dated
+> in the commit message rather than left to be inferred.
 >
 > **It is M12's permissions review, and the recorded finding it was built on was wrong in its
 > reasoning rather than in its conclusion.** `docs/PROVIDERS.md` §4.6 said the `side_panel` key
@@ -350,6 +369,56 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > differs from its siblings is a defect a later reader would have to rediscover, and it is
 > **not** hand-written here because the canonical generator owns that file.
 >
+> **`privacy-document` is M12's privacy-documentation item, and is PROPOSED.**
+>
+> **The gap is recorded inside a promoted requirement rather than merely suspected**, which is
+> the same reason `extension-clear-data` was taken before this. `page-composition`'s *A section
+> states only what the product does* says the footer ships *"the privacy and provider facts,
+> which are true"* — and those facts are **two sentences** (`LIMITS` names one provider and
+> asserts no server is involved) while the product keeps **five records**. Nothing holds them to
+> one another.
+>
+> **The finding that makes it more than a document is one record nobody names.** Measured on the
+> shipped tree: `chrome.storage.local` holds `current`, `mailboxes`, **`site-mailboxes`** and
+> `seen-messages`, and the website holds a `mailbox` IndexedDB store. **`site-mailboxes` maps a
+> `hostname` to a mailbox id** — written at `content-script/controller.ts:348` and only after an
+> insertion lands — and it is **the only browsing-adjacent record the product keeps**, persisting
+> until the whole area is removed. `README.md`'s privacy section said *No backend / No account /
+> Client-side storage* and stopped; §29 says `local-first`. **Neither mentioned that the
+> extension remembers which sites an address was used on.** A privacy document that omits the
+> one record resembling browsing history is **worse than no privacy document**, because its
+> presence implies the omission was considered.
+>
+> **What ships is the instrument as much as the document**, and the instrument is a **new file**
+> (`tests/architecture/privacy-disclosure.test.ts`) carrying a **test-owned map rather than a
+> scan** — every enumerable claim compared against a constant the code itself exports, asserted
+> **in both directions**. The second direction is the one with no instance in this repository yet
+> and it is the likelier: **a stale key name left behind after a rename reads as authoritative
+> and is wrong**, and a privacy document is prose somebody edits without running anything.
+> `tabs` is why a scan would have been wrong here too — read twice in shipped code and
+> deliberately undeclared, so a pattern-based absence check over the manifest would have reported
+> a false failure whose obvious repair is to declare it.
+>
+> **`boundaries.test.ts` staying at 53 is a prediction, not an accident** — this change adds no
+> boundary, because every property it introduces is about a document and none is structural. The
+> same reasoning `extension-permissions-review` applied one stage earlier.
+>
+> **No client surface gains a link to the document**, and the reason is mechanical: a link is a
+> new interactive control, `visual-system` requires every control to draw a focus indicator, so
+> it would be a `styles.css` edit in a register where source order is load-bearing. **The
+> requirement is therefore *agreement*, not linkage** — the three surfaces that already carry a
+> privacy-adjacent claim are checked against the document from outside all three, so a drift in
+> any one is caught by something that is not that surface. **Attribution is stated in neither
+> direction**, because no terms page was located for Mail.tm and Guerrilla publishes nothing this
+> repository found, and **claiming no obligation is exactly as unsupported as claiming one**.
+>
+> **Predictions this change turns on**, each a claim that must hold rather than a promise:
+> `packages/ui` **38**, `apps/web` **125**, `apps/extension` **465**, `packages/storage` **86**
+> with an empty diff, `boundaries.test.ts` **53**, and `styles.css` and `manifest.json`
+> **byte-identical**. **`apps/web` staying at 125 is the load-bearing one** — it is the only
+> figure that distinguishes *the document and the page agree* from *the page was edited until it
+> matched the document*.
+>
 > **M12's remaining items were the permissions review and the privacy document, and both
 > carried recorded findings rather than clean starting points. The permissions review is now
 > APPLIED, VERIFIED, SYNCED and ARCHIVED** — see the entry above, which records that the
@@ -359,9 +428,14 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > can provide"; that was true of the instrument as it stood and false of what it could be
 > extended to do**, and the correction came from building the two missing cells rather than
 > from re-reading the two that existed. **The privacy document (M12 item three) is the only
-> M12 item left, and it is partly drafted** (`README.md:602-613`, this file's §29) — publishing
-> it before the extension can act on its own data would assert a gap this change has just
-> closed.
+> M12 item left, and it is now PROPOSED as `privacy-document`** — which closes a gap recorded
+> *inside a promoted requirement*, the same shape `extension-clear-data` was taken for.
+> `page-composition`'s *A section states only what the product does* already requires the
+> footer to ship *"the privacy and provider facts, which are true"*, and those facts are **two
+> strings** while the product keeps **five records**. The paragraph this replaces called the
+> document *"partly drafted"* at `README.md:602-613`; that was true and it is **deleted rather
+> than reworded**, because a three-bullet draft is not a draft of a document the requirement
+> demands — it is the absence of one, and calling it a draft implied the rest was assembly.
 >
 > M0's own capability spec was archived with
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
@@ -369,8 +443,9 @@ popup shares the same component and is forbidden by a promoted clause from stati
 
 **Roadmap cursor: M12 - Release Hardening, with two of its three items done. M11 - Side Panel +
 Mailbox Context is COMPLETE IN SCOPE.** `extension-permissions-review` is M12's permissions review
-and is archived — **so the cursor stays on M12 and the next item is the privacy document**, which
-`extension-clear-data` unblocked and which is partly drafted at `README.md:602-613` and §29.
+and is archived. **`privacy-document` is M12's privacy documentation item and is PROPOSED** —
+its proposal PR is left unfilled here and filled in by `gh pr view` after the merge, because a
+PR number in a document other stages cite by name is a figure nobody counted.
 `panel-verification-state`
 - proposal PR **#124** merged `7c56c83`, apply PR **#125** merged `28f1360`, sync PR **#126** merged
 `b569ff6`, archive PR **#128**, archived to
