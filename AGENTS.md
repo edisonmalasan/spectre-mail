@@ -4,9 +4,30 @@
 > in scope, and M12's three tracked items are done — **two of them as of
 > `extension-permissions-review` (PRs #134–#137) and the third as of `privacy-document`, which is
 > APPLIED. SYNCED and ARCHIVED (PRs #138–#141).** The cursor is on **M12's security review**,
-> which was never one of the three tracked items and is now **APPLIED and SYNCED** —
+> which was never one of the three tracked items and is now **APPLIED, SYNCED and ARCHIVED** —
 > `security-surface-review`, proposal PR **#142** merged `904a7a6`, apply PR **#143** merged
-> `a02de19b`.
+> `a02de19b`. **M12's security review is therefore done.**
+>
+> **`security-surface-review` is APPLIED, SYNCED and ARCHIVED** at
+> `openspec/changes/archive/2026-10-14-security-surface-review/` — proposal PR **#142** merged
+> `904a7a6`, apply PR **#143** merged `a02de19b`, sync PR **#144** merged `3ac06f9`, and the
+> **archive PR number left unfilled here and filled in by `gh pr view` at the next change's
+> proposal stage**, for the reason this file has recorded before: *a predicted PR number in a
+> document other stages cite by name is a figure nobody counted.*
+>
+> **The archive moved 7 files, every one byte-identical to a pre-archive digest taken
+> programmatically, with `.openspec.yaml` kept**, and Git's own rename detection independently
+> confirms it — **seven renames at `0 insertions, 0 deletions`**. That is cleaner than
+> `extension-permissions-review`'s archive, where `tasks.md` sat at 85% because that stage edited
+> it after the move, **and cleaner than `privacy-document`'s**, which carried no `.openspec.yaml`
+> at all because none was ever created. **This stage deliberately touched none of the archived
+> files**, so the digest table needs no expiry-date qualification. **All 16** files under
+> `openspec/specs/` are byte-identical throughout the archive — checked against **Git**, not
+> against digests **I typed**, because a hand-transcribed digest once reported a file as differing
+> that `git status` never listed as modified. All **3** promoted blocks re-verified
+> **BYTE-IDENTICAL against the *archived* delta**, with the verifier pointed at the archived path
+> **after being shown to fail loudly with `ENOENT` on the absent pre-archive one**. Counts
+> **re-counted after the move** at **179 / 577 / 15**, unmoved by the archive.
 >
 > **`security-surface-review` is M12's security review, and its finding is that the one rule
 > this repository never wrote is the one that matters most.** `chrome.storage.local` holds a
