@@ -129,7 +129,10 @@
 > recorded the second shape four times.
 >
 > **`privacy-document` is M12's privacy-documentation item, and is APPLIED and SYNCED.** Proposal PR
-> **#138** merged `86c2296`, apply PR **#139** merged `6c4d0f2`. **`docs/PRIVACY.md` is 221 lines and
+> **#138** merged `86c2296`, apply PR **#139** merged `6c4d0f2`, sync PR **#140** merged `b86c9af`,
+> archive PR **#141** merged `7476099` — **that last number filled in by `gh pr view` at the next
+> change's proposal stage rather than predicted at the archive stage, for the reason this file has
+> recorded before.** **`docs/PRIVACY.md` is 221 lines and
 > ships the one record nobody had named**:
 > `chrome.storage.local`'s `site-mailboxes`, a `hostname` → mailbox id map written at
 > `content-script/controller.ts:348` and **only after an insertion lands**. It is **the only
