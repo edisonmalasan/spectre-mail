@@ -3,8 +3,76 @@
 > **Current milestone state (reconciled against Git and OpenSpec 2026-10-14): M0-M11 are complete
 > in scope, and M12's three tracked items are done — **two of them as of
 > `extension-permissions-review` (PRs #134–#137) and the third as of `privacy-document`, which is
-> APPLIED.** The cursor is on **M12's security review**, which was never one of the three tracked
-> items.**
+> APPLIED. SYNCED and ARCHIVED (PRs #138–#141).** The cursor is on **M12's security review**,
+> which was never one of the three tracked items and is now **APPLIED and SYNCED** —
+> `security-surface-review`, proposal PR **#142** merged `904a7a6`, apply PR **#143** merged
+> `a02de19b`.
+>
+> **`security-surface-review` is M12's security review, and its finding is that the one rule
+> this repository never wrote is the one that matters most.** `chrome.storage.local` holds a
+> provider **session token** under `current` and again under `mailboxes`, and
+> `docs/PRIVACY.md:27` names it in one line — while **no requirement anywhere said where a
+> credential may travel.** The boundary that kept it correct was a **comment** at
+> `apps/extension/src/protocol.ts:160` explaining why a creation answer carries an address and
+> an id rather than the whole mailbox. **A true comment, and a comment is not a requirement: it
+> fails no gate and nothing notices its erosion.** Seven of the roadmap's **nine** areas were
+> already required and instrumented, which is the review's second finding — most of M12's
+> security work was already done, by changes written for other gaps. What ships is the
+> **instrument** rather than a code change: **zero production edits**, a **test-owned** map in
+> `apps/extension/src/protocol.test.ts` (**22** cases, the kind → may-it-carry-a-credential
+> question, asserted **both ways**) rather than a boundary rule — D1's reason is that a scan
+> would fire on that file's own forbidden-token list, the **fourth** recorded instance of this
+> shape — and `tests/architecture/security-audit.test.ts` (**18** cases) which resolves every
+> citation `docs/SECURITY.md` makes and **names one that resolves to nothing**.
+> **`boundaries.test.ts` staying at 53 is the measurement D1 turns on**: two of this change's
+> properties are about *values crossing a message boundary*, and a rule can only see which module
+> may import which, so a rule here would have been decoration. `packages/storage` is still **86**
+> with an **empty** `git diff --stat`, `packages/ui` still **38**, `apps/web` still **125**, and
+> `manifest.json` **byte-identical by Git blob hash**. **`pnpm test` is 1290 across 64 files**
+> (from **1250/63**), reconciled as **+22** in `protocol.test.ts` and **+18** in the new suite —
+> **and the standing figure in the Testing block below read `1228 across 62` until this stage
+> corrected it**, two changes stale, found by this change and *reported* rather than corrected
+> because its task 6.3 forbids it writing this file.
+>
+> **The sync promoted three `ADDED` requirements and no `MODIFIED` or `REMOVED`, moving the
+> totals by exactly three requirements and thirteen scenarios: 176 → 179 and 564 → 577 across the
+> same 15 capabilities** — `provider-abstraction` 9 → 10 and 20 → 25, `extension-client` 14 → 15
+> and 75 → 79, `build-and-verification` 10 → 11 and 28 → 32. **Requirements moving by three
+> because every one of the three blocks is `ADDED` is the arithmetic working, not a promotion
+> that missed** — the fifth milestone to produce this shape, after `incoming-mail-notification`,
+> `panel-mailbox-choice`, `extension-permissions-review` and `privacy-document`. Re-counted by
+> heading **after** the promotion rather than carried forward. The promotion was **rehearsed in
+> full on a throwaway copy of `openspec/`** before the real tree, and **the promoter and the
+> verifier share no reader** — one walks lines with a state machine and ends a block at the next
+> `### Requirement:` **or** any `## `, the other splits whole text by regex.
+>
+> **And the verifier's own self-test failed on its first run, which is why its tally was not
+> taken from it.** Case 3 built its mutation by replacing `"a "` inside its own **search
+> string** — `### Requirement: `, which contains no `a ` — so the mutation was a **no-op** and
+> the self-test reported *"one word changed inside a promoted block is reported by name"* as
+> **FAIL** for the right reason and **PASS** for the wrong one once repaired. **A self-test
+> whose mutation did not apply is a self-test that passed a comparison it never performed**, and
+> the repair was to build the mutant from the block's own text and **assert it applied**. The
+> repaired self-test is **4/4**, its first two cases being a known-resolving citation read before
+> any failure is claimed and a `## ADDED Requirements` planted between two requirements.
+> **The promoter's guard was falsified separately**: run twice, the second run **exited 1** with
+> `REFUSING: provider-abstraction already carries a requirement headed …` and left all three
+> specification files **SHA-256 unchanged** — because an `ADDED` block landing on a heading that
+> already exists is a silent replacement wearing the name of an addition.
+>
+> **And the apply stage carried a defect only the root review could see, and it is the finding
+> worth carrying forward.** `docs/SECURITY.md` cites two of this change's three requirements by
+> their path **inside the change directory**, because at apply time they do not exist in
+> `openspec/specs/`. Both resolve today and **only** today. **Measured, by performing the move
+> and putting it back:** moving the directory to `openspec/changes/archive/2026-10-14-security-surface-review/`
+> turned the suite **1 of 18 red**, naming both citations as `— no such file` — and **pointing
+> them at the archived copies would not resolve either**, because an archived delta path has
+> **seven** segments and the reader accepts **six**. **The promoted specification is the only
+> citation form that survives the archive**, so the repair belonged to the sync stage alone.
+> **The same one-command measurement re-run after the rewrite leaves it 18 of 18 green**, which
+> is the evidence the obligation was discharged rather than merely re-pointed. **An instrument
+> widened to accept a seven-segment path would have been the shape this repository records most
+> often: a check loosened to accommodate a document pointing at the wrong thing.**
 >
 > **M10 is complete in scope, and the history below is kept in the order the milestones
 > happened.** The `side-panel-runtime-facts` spike that unblocked
@@ -1163,22 +1231,28 @@ Pin versions when exact versions matter.
   no extension build step — that is M8" became false at M8 and is deleted rather than
   reworded.**
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running **1228 tests across
-  62 files** via `pnpm test` (2026-10-13, at `extension-clear-data`'s apply stage, and
-  **re-measured with `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory** on five separate
-  `pnpm verify` runs, each exit `0`), counted from a
+- Testing: Vitest `3.2.7` at the workspace root, verified running **1290 tests across
+  64 files** via `pnpm test` (2026-10-14, at `security-surface-review`'s sync stage, and
+  **re-measured with `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory** on three
+  separate `pnpm verify` runs, each exit `0`), counted from a
   JSON reporter **grouped by project** rather than read off a summary line, and **re-measured
-  at this archive stage from a fresh run rather than carried forward** — because the count a
+  at this stage from a fresh run rather than carried forward** — because the count a
   ledger carries is only worth what the last person to re-run it made it worth, and this
   repository has now had a standing figure in its own status block go stale by a whole
-  milestone for exactly that reason:
+  milestone for exactly that reason. **The figure this paragraph replaced read `1228 across
+  62`**, which was accurate at `extension-clear-data` and at `privacy-document` and was
+  **two changes stale** by this one; **`security-surface-review` found it, could not correct
+  it (its task 6.3 forbids it writing this file), and reported it instead** — which is the
+  same defect `panel-verification-state`'s archive found, *the figure a reader copies is the
+  headline, and the headline is the one number in the block no change has to touch to record
+  itself*, now for the third time:
   54 in `packages/core`, 92 in `packages/providers`, **149 in `packages/mail-parser`**,
   **166 in `packages/mailbox`**, **125 in `apps/web`**,
   **86 in `packages/storage`** (7 stored record, 11 mailbox collection, 30 IndexedDB adapter,
   11 site associations, 7 browser entry point, 12 `chrome.storage` adapter,
   **8 seen-message record**),
-  **465 in `apps/extension`** across **21** files (**25** in `content-script.test.ts`,
-  **101** in `protocol.test.ts`, **70** in `extension-platform.test.ts`, **23** in
+  **487 in `apps/extension`** across **21** files (**25** in `content-script.test.ts`,
+  **123** in `protocol.test.ts`, **70** in `extension-platform.test.ts`, **23** in
   `content-script-fill.test.ts`, **22** in `code-field.test.ts`, **25** in `Popup.test.tsx`,
   **53** in `Panel.test.tsx`, **17** in `panel-copy.test.ts`, **17** in
   `content-script-create.test.ts`, **9** in `content-script-associations.test.ts`, **11** in
