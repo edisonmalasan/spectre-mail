@@ -386,34 +386,39 @@ the reasons recorded there.
 **One task, and it is unticked because the apply stage is the wrong stage to tick
 it.** `design.md`'s A11 carries the measurement.
 
-- [ ] 8.1 **Rewrite the two change-local citations in `docs/SECURITY.md` to the
-      promoted specifications, in the same commit that promotes them.** The rows
-      concerned are **provider credentials** and **message rendering**, which cite
+- [x] 8.1 **Rewrite the two change-local citations in `docs/SECURITY.md` to the promoted
+      specifications, in the same commit that promotes them.** The rows
+      concerned are **provider credentials** and **message rendering**, which cited
       `openspec/changes/security-surface-review/specs/provider-abstraction/spec.md:5`
       and `openspec/changes/security-surface-review/specs/extension-client/spec.md:5`.
-      They must become `openspec/specs/provider-abstraction/spec.md` and
-      `openspec/specs/extension-client/spec.md`, **at the line the promotion puts the
-      heading on** rather than at `:5`.
+      They are now `openspec/specs/provider-abstraction/spec.md:260` and
+      `openspec/specs/extension-client/spec.md:1268` — **measured at the line the
+      promotion put each heading on**, not carried over from the delta.
 
-      **Why it cannot be done here.** Those two requirements do not exist in
-      `openspec/specs/` until the sync stage writes them, and writing them is the
-      sync stage's job alone — task 6.3 forbids this change from touching
-      `openspec/specs/` at all. **A citation is a promise about where a requirement
-      will be readable**, and this one is payable only after the promise is kept.
+      **Why it could not be done at apply.** Those two requirements did not exist in
+      `openspec/specs/` until this stage wrote them, and task 6.3 forbids the change
+      from touching `openspec/specs/` at all.
 
-      **Why it cannot be deferred either.** Measured: moving the change directory to
+      **Why it could not be deferred either.** Moving the change directory to
       `openspec/changes/archive/2026-10-14-security-surface-review/` and running the
-      suite turns **1 of 18 red**, naming both citations as `— no such file`, and the
-      directory was then moved back with `git status` clean. **Pointing the citations
-      at the archived copies would not resolve them either** — an archived delta path
-      has seven segments and the reader accepts six — so there is no repair that
-      avoids the promoted specification.
+      suite turned **1 of 18 red**, naming both citations as `— no such file`.
+      Pointing the citations at the archived copies would not have resolved them
+      either — an archived delta path has seven segments and the reader accepts six.
 
-      **What "done" is measured by, stated so it is not read as a tick.** After 8.1,
-      **every** citation in `docs/SECURITY.md` names a path under `openspec/specs/`,
-      `pnpm test` is green with the change directory still present, and the same
-      measurement above still turns it red — **because the archive will still move
-      the directory and by then nothing will be pointing into it.** That last clause
-      is the one worth running: it is the same one-command check, re-run after the
-      archive, as the evidence that 8.1 discharged the obligation rather than merely
-      changing which path is named.
+      **What "done" is, measured rather than ticked.** After the rewrite the **same
+      one-command measurement was re-run** — change directory moved to its archive
+      path, suite executed, directory moved back, `git status` clean:
+
+      ```text
+      --- change directory moved to its archive path
+      Test Files  1 passed (1)
+            Tests  18 passed (18)
+      --- restored
+      ```
+
+      **The identical check that turned the suite red now leaves it green**, and
+      that is the evidence the obligation was discharged rather than merely
+      re-pointed. Every citation in `docs/SECURITY.md`'s requirement column now
+      names a path under `openspec/specs/`; the only remaining
+      `openspec/changes/archive/…` mentions are two prose references to changes
+      archived months ago, which are correct and stable.

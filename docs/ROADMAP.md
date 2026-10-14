@@ -555,27 +555,41 @@ popup shares the same component and is forbidden by a promoted clause from stati
 
 **Roadmap cursor: M12 - Release Hardening, with all three of its tracked items done. M11 - Side Panel +
 Mailbox Context is COMPLETE IN SCOPE.** `extension-permissions-review` is M12's permissions review
-and is archived. **`privacy-document` is M12's privacy documentation item and is APPLIED** — its
-apply PR number is left unfilled here and filled in by `gh pr view` after the merge, because a PR
-number in a document other stages cite by name is a figure nobody counted.
+and is archived. `privacy-document` is M12's privacy documentation item and is **APPLIED, SYNCED and
+ARCHIVED** — apply PR **#139**, sync PR **#140**, archive PR **#141**, each number filled in by
+`gh pr view` after the merge rather than predicted at the stage that opened the PR.
+
+**`security-surface-review` is M12's security review, and it is APPLIED and SYNCED.** Proposal PR
+**#142** merged `904a7a6`; apply PR **#143** merged `a02de19b`. **Its sync promoted three `ADDED`
+requirements and no `MODIFIED` or `REMOVED`**, moving the tree from **176 requirements and 564
+scenarios to 179 and 577** across the same **15** capabilities — `provider-abstraction` 9 → 10 and
+20 → 25, `extension-client` 14 → 15 and 75 → 79, `build-and-verification` 10 → 11 and 28 → 32.
+**Three requirements rather than some other number because every one of the three blocks is
+`ADDED`** is the arithmetic working, not a promotion that missed, and it is the **fifth** milestone
+to produce this shape. **The two numbers that did not move are the measurement the change turned
+on**: `packages/storage` is still **86** with an **empty** `git diff --stat`, `packages/ui` still
+**38**, `apps/web` still **125**, and **`tests/architecture/boundaries.test.ts` still 53** — because
+the credential property is about *which values cross a message boundary* and a boundary rule can only
+see which module may import which, so a rule added there would have been decoration. **`pnpm test` is
+1290 across 64 files** (from **1250/63**), reconciled as **+22** in `apps/extension/src/protocol.test.ts`
+and **+18** in the new `tests/architecture/security-audit.test.ts`, with no file added to or removed
+from `apps/extension`.
 
 **M12 is not thereby closed, and the distinction is worth keeping.** Its section lists five items —
 security review, permissions review, provider review, privacy documentation, branding check — and
-**three** are the tracked ones the Project Status has been carrying. **The other two — the
-security review and the branding check — are not tracked items and have never been started**, so
-"three of three" is a statement about the tracked three and not about the milestone. **The next
-item is the security review**, which is the largest unstarted thing in the milestone: it names
-**nine** areas, and **two of them are already closed** — *extension permissions*
-(`extension-permissions-review`, archived) and *clear-data behaviour* (`extension-clear-data`,
-archived). **Counted from the section rather than recalled, because this file first said "eight"
-and a count nobody counted is a count nobody checked.** So the change that takes this item opens the
-other **seven** and has to say why these two do not reopen.
+**three** are the tracked ones the Project Status has been carrying. **Two more are now done — the
+security review and the privacy documentation — and one remains: the branding check**, which is not
+a tracked item and has never been started. **The next item is the branding check.** The **provider
+review** was scoped by `privacy-document` as not blocking M12 and is also unstarted; it is a
+separate item and is **not** claimed here as anything other than a statement of what is left.
 
-**`security-surface-review` takes it, and it is PROPOSED.** The audit ran against the shipped tree
-on 2026-10-14 and **seven of the nine were already required and instrumented** — the permissions and
-clear-data areas by their own archived changes, and URL handling by a `mail-parsing` requirement at
-`spec.md:82-86` that forbids surfacing any destination whose scheme is not `http` or `https`.
-**The two that are open are open in different ways, and that is the finding.**
+**The audit ran against the shipped tree on 2026-10-14 and found that seven of the nine areas were
+already required and instrumented** — the permissions and clear-data areas by their own archived
+changes, and URL handling by a `mail-parsing` requirement at `spec.md:82-86` that forbids surfacing
+any destination whose scheme is not `http` or `https`. **That is the review's second finding, and
+it is why the verdicts differ from what the milestone expected**: most of M12's security work was
+already done, by changes written for other gaps. **The two that are open were open in different
+ways, and that was the finding.**
 
 **One of them is a record this product has never been asked about.** `chrome.storage.local` holds a
 provider **session token** under `current` and again under `mailboxes`, `docs/PRIVACY.md:27` names it
