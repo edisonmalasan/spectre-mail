@@ -449,8 +449,11 @@ popup shares the same component and is forbidden by a promoted clause from stati
 
 > **`privacy-document` is APPLIED, SYNCED and ARCHIVED** at
 > `openspec/changes/archive/2026-10-14-privacy-document/` — proposal PR **#138** merged `86c2296`,
-> apply **#139** merged `6c4d0f2`, sync **#140** merged `b86c9af`, archive PR left unfilled here and
-> filled in by `gh pr view` after the merge. **The archive moved 4 files, every one byte-identical to
+> apply **#139** merged `6c4d0f2`, sync **#140** merged `b86c9af`, archive PR **#141** merged `7476099`.
+> **That archive number was left unfilled by the archive stage for the reason recorded at line 556 and
+> was filled in here by `gh pr view` during this change's proposal stage, because a PR number in a
+> document other stages cite by name is a figure nobody counted.** **The archive moved 4 files, every
+> one byte-identical to
 > its pre-archive digest**, and **Git's own rename detection independently confirmed it: four renames
 > at `100%` and `0 insertions, 0 deletions`** — which is a cleaner result than the permissions
 > review's, where `tasks.md` sat at 85% because that stage edited it after the move. **This stage
@@ -561,9 +564,42 @@ security review, permissions review, provider review, privacy documentation, bra
 **three** are the tracked ones the Project Status has been carrying. **The other two — the
 security review and the branding check — are not tracked items and have never been started**, so
 "three of three" is a statement about the tracked three and not about the milestone. **The next
-item is the security review**, which is the largest unstarted thing in the milestone: it reviews
-eight areas, and two of them — *storage boundaries* and *clear-data behaviour* — this program has
-since instrumented to a degree the roadmap's list could not have anticipated.
+item is the security review**, which is the largest unstarted thing in the milestone: it names
+**nine** areas, and **two of them are already closed** — *extension permissions*
+(`extension-permissions-review`, archived) and *clear-data behaviour* (`extension-clear-data`,
+archived). **Counted from the section rather than recalled, because this file first said "eight"
+and a count nobody counted is a count nobody checked.** So the change that takes this item opens the
+other **seven** and has to say why these two do not reopen.
+
+**`security-surface-review` takes it, and it is PROPOSED.** The audit ran against the shipped tree
+on 2026-10-14 and **seven of the nine were already required and instrumented** — the permissions and
+clear-data areas by their own archived changes, and URL handling by a `mail-parsing` requirement at
+`spec.md:82-86` that forbids surfacing any destination whose scheme is not `http` or `https`.
+**The two that are open are open in different ways, and that is the finding.**
+
+**One of them is a record this product has never been asked about.** `chrome.storage.local` holds a
+provider **session token** under `current` and again under `mailboxes`, `docs/PRIVACY.md:27` names it
+in one line, and **no requirement anywhere in this repository says where a credential may go.** The
+boundary that keeps it correct is `protocol.ts:160`'s explanation of why `CreateMailboxAnswer`
+carries an address and an id rather than the mailbox — **a true comment, and a comment is not a
+requirement.** `privacy-document` made **`site-mailboxes`** the headline of the privacy review on the
+grounds that it is the only browsing-adjacent record kept and no document named it; **a session token
+is a stricter sensitive record on the same device, and no review had looked at it.**
+
+**The other is a rule with no requirement behind it.** `website-client` requires the *website* to
+render provider data as text only, and the boundary rule *"keeps a markup escape hatch out of every
+client"* already enforces it for the extension too — **a rule that fires without a requirement behind
+it is a rule whose removal nobody would notice**, because the document justifying it names the other
+client. The delta therefore **ADDs** to `extension-client` rather than **MODIFYING** the website's,
+because a requirement filed under `website-client` that governs `apps/extension` is an assertion
+about the extension sitting in the wrong capability.
+
+**Three `ADDED` requirements, no `MODIFIED` and no `REMOVED**, so the promoted requirement count
+moves by exactly three — the fifth change in this repository to reach that shape. **D7 predicts zero
+production edits outside two test files, and the prediction is falsifiable in the useful direction:**
+a credential reaching a surface would make it wrong and would grow the change. **`boundaries.test.ts`
+is predicted to stay at 53**, because D1 rejects a boundary rule — the property is about what a value
+may contain crossing a message boundary, not about which module imports which.
 `panel-verification-state`
 - proposal PR **#124** merged `7c56c83`, apply PR **#125** merged `28f1360`, sync PR **#126** merged
 `b569ff6`, archive PR **#128**, archived to
