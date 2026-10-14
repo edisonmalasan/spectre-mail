@@ -214,3 +214,155 @@ carry a code is a property of the type rather than a filter — and that is stat
 - **Nothing in this change has been run against a live provider, and nothing in it
   could be.** Every provider response in this repository is a recorded one. That is
   the standing limit and this change neither narrows nor widens it.
+
+## Apply-stage record (2026-10-14)
+
+**D7's prediction held, and holding it is the finding rather than the absence of
+one.** The change edited **no file under `apps/*/src` or `packages/*/src`** outside
+the two test files it adds to. `git status` carries exactly three paths —
+`docs/SECURITY.md`, `tests/architecture/security-audit.test.ts`,
+`apps/extension/src/protocol.test.ts`. `apps/extension/static/manifest.json` is
+byte-identical by **Git blob hash** (`847ce07c…` against `HEAD:…`), and
+`git diff --stat -- packages/storage` is **empty**.
+
+**The three predictions in §5.3 that could have moved for the wrong reason did not
+move:** `packages/storage` **86**, `packages/ui` **38**, `apps/web` **125**, and
+`boundaries.test.ts` **53**. **53 staying at 53 is D1's measurement** — two of this
+change's properties are structurally about *values crossing a message boundary* and
+about *a citation resolving*, and **a rule can only see which module may import
+which**, so a rule added here would have been decoration. **Arm F18 adds a boundary
+rule to falsify that count**, so the prediction is falsifiable rather than merely
+stated.
+
+**Counts: baseline 1250 across 63 files, final 1290 across 64** — accounted for
+exactly as `+22` in `protocol.test.ts` (101 → 123) and `+18` in the new architecture
+suite. `pnpm verify` exited `0` `0` `0` with `PLAYWRIGHT_BROWSERS_PATH` pointed at a
+directory measured empty immediately before and immediately after; `pnpm test:browser`
+was **3 of 3 green** at **40 website and 98 extension cases** on every run.
+
+**Nineteen deliberate violations, nineteen caught, and four of the nineteen were
+found to be aimed at this stage's own controls rather than at the product.** Two
+were repaired in the controls (`protocol.test.ts`'s positive control read
+`toEqual([...])`, which bound it to the absence of every other credential
+declaration; `security-audit.test.ts`'s planted-citation case read `toHaveLength(1)`
+over the document's own rows **plus** the plant, so it asserted a property of the
+document and not of the reader). **A test written to catch a defect that has not
+arrived yet is exactly where this repository's own defect class shows up**, and the
+repair in both cases was to widen the assertion rather than to move its threshold.
+
+**A nineteenth arm did not exist when the plan was written.** `docs/SECURITY.md` §6
+said **"four"** over a table carrying **five** plain `closed` rows, found by counting
+the table rather than by reading it. **The guard added with it is the durable part**:
+§6's count is now asserted by a character-loop reader, because this document writes
+the count as a word and a reader that regexes a digit cannot tell `four` from `4`.
+
+**Three instrument defects, each of which produced a confident wrong answer and each
+of which is recorded for the direction it failed in.** A rate reader keyed its red
+off `numFailedTests > 0` and therefore reported a run in which **one file failed to
+collect** as green — measured as `numFailedTests=0, success=false` with the suite
+total falling 1289 → 1272. The first repair of the arm harness was **over-broad** in
+the opposite direction: Vitest marks a suite non-`passed` for ordinary assertion
+failures too, so all nineteen arms read `wrongcatch`. And the browser tier's first
+reader required the word `failed` on a summary line, **which Playwright omits
+entirely on a green run**, reporting **three green runs as three `HARNESS-ERROR`s** —
+the same shape `AGENTS.md` records twice already, once for a Vitest summary regexed
+against clean text and once for Playwright's summary parentheses, which hold a
+**duration** rather than a count. **The v2 reader anchors on `Running N tests using M
+workers`, where `N` is a real count, and self-tests against a green run, a red run
+and a run that never reached Playwright before any tally is trusted.**
+
+**One red, and it is not this change's.** `Panel.test.tsx` failed three times in six
+full-suite runs on this change's tree — and **the very first baseline run recorded
+the same case red**, at `1249 passed, 1 failed`, with the baseline's next three runs
+green at 1250. `Panel.test.tsx` alone is green **6 of 6** on this change's tree, and
+`Panel.tsx`, `Panel.test.tsx` and `protocol.ts` are all byte-identical to `HEAD`.
+**It is a pre-existing flake whose only coupling to this change is when the file is
+scheduled, and it is recorded rather than smoothed over** — "no gate was red" would
+have been false, and a flake repaired by a change that did not cause it is a repair
+nobody can attribute.
+
+**Two limits are stated rather than engineered away.** `tests/architecture/` has no
+`tsconfig.json` and is not a workspace member, so **`pnpm typecheck` does not check
+the types of the suite this change's audit rests on** — the same limit
+`privacy-document` recorded and declined to repair, because adding one would move
+every future gate's typecheck scope. And **the audit's instrument bounds citation
+rot only**: a row whose requirement was *weakened* rather than renamed resolves
+perfectly, which is why `docs/SECURITY.md` §4 says so in the document rather than
+leaving a green run to be read as "the audit is still true".
+
+**The cursor has not moved and nothing outside the change's write scope was
+touched.** `AGENTS.md`'s standing `1228 across 62 files` is **measured stale** — the
+figures are 1250/63 and 1290/64 — and task 6.3 forbids this change from writing it,
+so the correction is **reported here for the root orchestrator** rather than applied.
+That is the same defect `panel-verification-state`'s own archive found: *the figure
+a reader copies is the headline, and the headline is the one number in the block no
+change has to touch to record itself.*
+
+### A11 — the audit's own citations do not survive this change's own archive,
+and no spelling of them can
+
+**Found by the root orchestrator's review, after the implementation agent reported
+a clean tree, and measured rather than argued.** `docs/SECURITY.md` cites two of
+this change's three requirements by their path **inside the change directory**:
+
+- `openspec/changes/security-surface-review/specs/provider-abstraction/spec.md:5`
+- `openspec/changes/security-surface-review/specs/extension-client/spec.md:5`
+
+Both resolve today, and both resolve **only** today. At apply time those
+requirements do not exist in `openspec/specs/`, so a change-local path is the only
+honest citation available — the document is not wrong here, it is *early*. The
+archive is a **move**, so the directory stops existing and both citations rot on
+the commit after it.
+
+**Measured, on the shipped tree, by performing the move and putting it back.** The
+change directory was moved to
+`openspec/changes/archive/2026-10-14-security-surface-review/`, the suite was run,
+and it was then moved back — `git status` clean before and after:
+
+```text
+tests/architecture/security-audit.test.ts (18 tests | 1 failed)
++ "provider-abstraction / A provider credential reaches the transport and this
+   device's storage, and nothing else /
+   openspec/changes/security-surface-review/specs/provider-abstraction/spec.md:5
+   — no such file"
++ "extension-client / The extension renders provider-supplied content as text /
+   openspec/changes/security-surface-review/specs/extension-client/spec.md:5
+   — no such file"
+Test Files  1 failed (1)
+      Tests  1 failed | 17 passed (18)
+```
+
+**The instrument reported the failure correctly and named both citations.** That is
+the suite working; **the defect is in the document, and it is a defect the apply
+stage could not have avoided.**
+
+**The part that makes the repair unambiguous is that the reader accepts no archived
+path at all**, and this is arithmetic rather than judgement: `inAChange` requires
+`segments.length === 6`, and an archived change's delta path has **seven**
+segments (`openspec`, `changes`, `archive`, `<date>-<name>`, `specs`,
+`<capability>`, `spec.md`). So **rewriting the citations to point at the archived
+copies would not resolve either** — the suite would report *"not a path under
+openspec/specs or a change's specs"* instead of *"no such file"*.
+
+**There is therefore exactly one citation form that survives the archive, and it is
+the promoted specification.** The two requirements must be cited as
+`openspec/specs/provider-abstraction/spec.md` and
+`openspec/specs/extension-client/spec.md` — which is possible **only after the sync
+stage has promoted them**. So the repair is not this stage's to make, and the
+obligation is recorded as a task in `tasks.md` §8 rather than left to be
+rediscovered by a red gate.
+
+**Why this is worth a decision rather than a note.** The alternative repair —
+widening the reader to accept seven-segment paths — would be the shape this
+repository records most often: **an instrument widened to accommodate a document
+that is pointing at the wrong thing.** A citation that survives by resolving into
+an archive is a citation no longer naming the requirement that governs the product;
+it names the record of a change that once proposed it. **The reader is right and
+the document is early**, and an instrument that cannot tell those apart is an
+instrument that has stopped measuring.
+
+**A11 is also the reason this is written down at apply rather than at sync.** The
+sync stage is the only stage that can discharge it, and a finding recorded only in
+the stage that discovered it is a finding whose survival depends on somebody
+reaching the same conclusion later. **It is measured, it is reproducible in one
+command, and it is written into `tasks.md` §8 as an unticked obligation.**
