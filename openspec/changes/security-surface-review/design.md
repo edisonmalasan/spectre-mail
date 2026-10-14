@@ -297,3 +297,72 @@ so the correction is **reported here for the root orchestrator** rather than app
 That is the same defect `panel-verification-state`'s own archive found: *the figure
 a reader copies is the headline, and the headline is the one number in the block no
 change has to touch to record itself.*
+
+### A11 — the audit's own citations do not survive this change's own archive,
+and no spelling of them can
+
+**Found by the root orchestrator's review, after the implementation agent reported
+a clean tree, and measured rather than argued.** `docs/SECURITY.md` cites two of
+this change's three requirements by their path **inside the change directory**:
+
+- `openspec/changes/security-surface-review/specs/provider-abstraction/spec.md:5`
+- `openspec/changes/security-surface-review/specs/extension-client/spec.md:5`
+
+Both resolve today, and both resolve **only** today. At apply time those
+requirements do not exist in `openspec/specs/`, so a change-local path is the only
+honest citation available — the document is not wrong here, it is *early*. The
+archive is a **move**, so the directory stops existing and both citations rot on
+the commit after it.
+
+**Measured, on the shipped tree, by performing the move and putting it back.** The
+change directory was moved to
+`openspec/changes/archive/2026-10-14-security-surface-review/`, the suite was run,
+and it was then moved back — `git status` clean before and after:
+
+```text
+tests/architecture/security-audit.test.ts (18 tests | 1 failed)
++ "provider-abstraction / A provider credential reaches the transport and this
+   device's storage, and nothing else /
+   openspec/changes/security-surface-review/specs/provider-abstraction/spec.md:5
+   — no such file"
++ "extension-client / The extension renders provider-supplied content as text /
+   openspec/changes/security-surface-review/specs/extension-client/spec.md:5
+   — no such file"
+Test Files  1 failed (1)
+      Tests  1 failed | 17 passed (18)
+```
+
+**The instrument reported the failure correctly and named both citations.** That is
+the suite working; **the defect is in the document, and it is a defect the apply
+stage could not have avoided.**
+
+**The part that makes the repair unambiguous is that the reader accepts no archived
+path at all**, and this is arithmetic rather than judgement: `inAChange` requires
+`segments.length === 6`, and an archived change's delta path has **seven**
+segments (`openspec`, `changes`, `archive`, `<date>-<name>`, `specs`,
+`<capability>`, `spec.md`). So **rewriting the citations to point at the archived
+copies would not resolve either** — the suite would report *"not a path under
+openspec/specs or a change's specs"* instead of *"no such file"*.
+
+**There is therefore exactly one citation form that survives the archive, and it is
+the promoted specification.** The two requirements must be cited as
+`openspec/specs/provider-abstraction/spec.md` and
+`openspec/specs/extension-client/spec.md` — which is possible **only after the sync
+stage has promoted them**. So the repair is not this stage's to make, and the
+obligation is recorded as a task in `tasks.md` §8 rather than left to be
+rediscovered by a red gate.
+
+**Why this is worth a decision rather than a note.** The alternative repair —
+widening the reader to accept seven-segment paths — would be the shape this
+repository records most often: **an instrument widened to accommodate a document
+that is pointing at the wrong thing.** A citation that survives by resolving into
+an archive is a citation no longer naming the requirement that governs the product;
+it names the record of a change that once proposed it. **The reader is right and
+the document is early**, and an instrument that cannot tell those apart is an
+instrument that has stopped measuring.
+
+**A11 is also the reason this is written down at apply rather than at sync.** The
+sync stage is the only stage that can discharge it, and a finding recorded only in
+the stage that discovered it is a finding whose survival depends on somebody
+reaching the same conclusion later. **It is measured, it is reproducible in one
+command, and it is written into `tasks.md` §8 as an unticked obligation.**

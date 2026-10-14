@@ -380,3 +380,40 @@ the reasons recorded there.
       rather than this product's. **The platform side is already recorded as measured**
       in `docs/PROVIDERS.md` §4.4 and the quarantine list, and this change neither
       repeats nor extends it.
+
+## 8. Owed to the sync stage
+
+**One task, and it is unticked because the apply stage is the wrong stage to tick
+it.** `design.md`'s A11 carries the measurement.
+
+- [ ] 8.1 **Rewrite the two change-local citations in `docs/SECURITY.md` to the
+      promoted specifications, in the same commit that promotes them.** The rows
+      concerned are **provider credentials** and **message rendering**, which cite
+      `openspec/changes/security-surface-review/specs/provider-abstraction/spec.md:5`
+      and `openspec/changes/security-surface-review/specs/extension-client/spec.md:5`.
+      They must become `openspec/specs/provider-abstraction/spec.md` and
+      `openspec/specs/extension-client/spec.md`, **at the line the promotion puts the
+      heading on** rather than at `:5`.
+
+      **Why it cannot be done here.** Those two requirements do not exist in
+      `openspec/specs/` until the sync stage writes them, and writing them is the
+      sync stage's job alone — task 6.3 forbids this change from touching
+      `openspec/specs/` at all. **A citation is a promise about where a requirement
+      will be readable**, and this one is payable only after the promise is kept.
+
+      **Why it cannot be deferred either.** Measured: moving the change directory to
+      `openspec/changes/archive/2026-10-14-security-surface-review/` and running the
+      suite turns **1 of 18 red**, naming both citations as `— no such file`, and the
+      directory was then moved back with `git status` clean. **Pointing the citations
+      at the archived copies would not resolve them either** — an archived delta path
+      has seven segments and the reader accepts six — so there is no repair that
+      avoids the promoted specification.
+
+      **What "done" is measured by, stated so it is not read as a tick.** After 8.1,
+      **every** citation in `docs/SECURITY.md` names a path under `openspec/specs/`,
+      `pnpm test` is green with the change directory still present, and the same
+      measurement above still turns it red — **because the archive will still move
+      the directory and by then nothing will be pointing into it.** That last clause
+      is the one worth running: it is the same one-command check, re-run after the
+      archive, as the evidence that 8.1 discharged the obligation rather than merely
+      changing which path is named.
