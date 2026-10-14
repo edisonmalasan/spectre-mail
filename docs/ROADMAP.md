@@ -559,11 +559,21 @@ and is archived. `privacy-document` is M12's privacy documentation item and is *
 ARCHIVED** — apply PR **#139**, sync PR **#140**, archive PR **#141**, each number filled in by
 `gh pr view` after the merge rather than predicted at the stage that opened the PR.
 
-**`security-surface-review` is M12's security review, and it is APPLIED and SYNCED.** Proposal PR
-**#142** merged `904a7a6`; apply PR **#143** merged `a02de19b`. **Its sync promoted three `ADDED`
-requirements and no `MODIFIED` or `REMOVED`**, moving the tree from **176 requirements and 564
-scenarios to 179 and 577** across the same **15** capabilities — `provider-abstraction` 9 → 10 and
-20 → 25, `extension-client` 14 → 15 and 75 → 79, `build-and-verification` 10 → 11 and 28 → 32.
+**`security-surface-review` is M12's security review, and it is APPLIED, SYNCED and ARCHIVED** at
+`openspec/changes/archive/2026-10-14-security-surface-review/`. Proposal PR **#142** merged
+`904a7a6`; apply PR **#143** merged `a02de19b`; sync PR **#144** merged `3ac06f9`; **the archive PR
+number is left unfilled here** and is filled in by `gh pr view` at the next change's proposal stage,
+because a predicted PR number in a document other stages cite by name is a figure nobody counted.
+**The archive moved 7 files, every one byte-identical to a digest taken programmatically before the
+command ran, with `.openspec.yaml` kept**, and Git's own rename detection confirms it
+independently — **seven renames at `0 insertions, 0 deletions`**, because **this stage deliberately
+edited none of the archived files**. **All 16** files under `openspec/specs/` are byte-identical
+throughout, checked against **Git** rather than against digests typed by hand. **Its sync promoted
+three `ADDED` requirements and no `MODIFIED` or `REMOVED`**, moving the tree from **176 requirements
+and 564 scenarios to 179 and 577** across the same **15** capabilities — `provider-abstraction`
+9 → 10 and 20 → 25, `extension-client` 14 → 15 and 75 → 79, `build-and-verification` 10 → 11 and
+28 → 32, with `openspec validate --specs --strict` at **15 passed, 0 failed** and all **3**
+promoted blocks re-verified **byte-identical against the *archived* deltas**.
 **Three requirements rather than some other number because every one of the three blocks is
 `ADDED`** is the arithmetic working, not a promotion that missed, and it is the **fifth** milestone
 to produce this shape. **The two numbers that did not move are the measurement the change turned
