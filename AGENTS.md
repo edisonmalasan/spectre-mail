@@ -10,10 +10,28 @@
 >
 > **`security-surface-review` is APPLIED, SYNCED and ARCHIVED** at
 > `openspec/changes/archive/2026-10-14-security-surface-review/` — proposal PR **#142** merged
-> `904a7a6`, apply PR **#143** merged `a02de19b`, sync PR **#144** merged `3ac06f9`, and the
-> **archive PR number left unfilled here and filled in by `gh pr view` at the next change's
-> proposal stage**, for the reason this file has recorded before: *a predicted PR number in a
-> document other stages cite by name is a figure nobody counted.*
+> `904a7a6`, apply PR **#143** merged `a02de19b`, sync PR **#144** merged `3ac06f9`, archive PR
+> **#145** merged `281265a` — **and that last number was filled in by `gh pr view` at the next
+> change's proposal stage rather than predicted at the archive stage**, for the reason this file
+> has recorded before: *a predicted PR number in a document other stages cite by name is a figure
+> nobody counted.*
+>
+> **The next change is `branding-check`, M12's branding check, and it is PROPOSED.** Its six
+> checks were run against the sources themselves on 2026-10-16, and **the name stands**: GitHub,
+> npm, PyPI, crates.io, RubyGems, Packagist, Docker Hub and Mastodon all answer their own "this
+> does not exist", **0** of **924** Firefox add-ons carry the name, and the **Chrome Web Store**
+> returns its own *"No search results"* — with a `1password` control rendering **9** cards, because
+> **a zero from a reader whose control did not resolve is the absence of a measurement and not a
+> finding.** **The one loss is the one that matters: `spectremail.com` is registered**, since
+> 2020-06-03, held, with **no nameservers** — so **every DNS-based availability check reports it as
+> free** and only the registry's own **RDAP** endpoint says otherwise. That is the **fifth**
+> recorded instance of a substitute platform answering about the wrong question, and the **first**
+> where the substitute was **DNS itself**. **Three of the six checks produced no measurement at
+> all** and are recorded as unmeasured with no verdict attached. Nothing is renamed; what ships is
+> the record plus the instrument that makes *"public branding should be updated cleanly"* a property
+> of the tree — and **one of the eight surfaces naming the product already does it right**, because
+> `panel-copy.ts` holds the name as one copy constant that `Panel.tsx` renders in three places
+> while `Popup.tsx` spells the same heading as a bare literal three times.
 >
 > **The archive moved 7 files, every one byte-identical to a pre-archive digest taken
 > programmatically, with `.openspec.yaml` kept**, and Git's own rename detection independently
