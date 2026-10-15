@@ -559,6 +559,50 @@ and is archived. `privacy-document` is M12's privacy documentation item and is *
 ARCHIVED** — apply PR **#139**, sync PR **#140**, archive PR **#141**, each number filled in by
 `gh pr view` after the merge rather than predicted at the stage that opened the PR.
 
+**`branding-check` is M12's branding check, and it is PROPOSED.** Its six checks were run on
+**2026-10-16** against the sources themselves rather than a summary of them, and the result is
+not the shape the roadmap anticipated. **Every operational check came back clean** — GitHub, npm,
+PyPI, crates.io, RubyGems, Packagist, Docker Hub and Mastodon all answer their own "this does not
+exist"; **0** of **924** Firefox add-ons carry the name in a name or slug; and the **Chrome Web
+Store** returns its own *"No search results"*, with a `1password` control rendering **9** cards so
+the reader is known to see results when there are any. **The one thing that is taken is the one
+thing a mail product cannot do without**: `spectremail.com` is **registered**, since
+**2020-06-03**, renewed 2026-08-17, held — and a company directory lists a business of that name
+at that address describing itself as *"a cloud-based email management app"* whose features
+include **private domains, token assignment to emails, mailbox creation and syncing**.
+
+**And how that was nearly missed is the transferable part.** The domain has **no nameservers**.
+A resolver asked whether it is available answers *yes*, because it cannot resolve it; only the
+registry's own **RDAP** endpoint answers that it is registered. **A domain registered with no
+nameservers resolves nowhere, and every availability check built on DNS reports it as free** —
+the fifth recorded instance of a substitute platform answering about the wrong question, and the
+first one where the substitute was **DNS itself**.
+
+**Three of the six checks produced no measurement and are recorded as unmeasured with no verdict
+attached**: the trademark search (its control `SPECTRE` never resolved — the page printed both
+`170 results` and `0 results` for the same query, and later refused to load), Bluesky (its API
+answers `400` on a known-good control handle), and Product Hunt (which returns `HTTP 200` with
+**exactly 16 occurrences of the query string for a nonsense query** — it echoes rather than
+answers). **A control that does not resolve means the reader is not established, and a zero from
+an unestablished reader is the absence of a measurement, not a finding.**
+
+**Nothing is renamed.** What ships instead is the record and the instrument that makes *"public
+branding should be updated cleanly"* a property of the tree: the name is **one exported value**,
+and every surface that renders it renders that value. **Measured, that is 30 rendered occurrences
+across 16 shipped files out of 108 in 49**, with **eight** surfaces naming the product — **and
+one of the eight already does it right**, because `panel-copy.ts` holds the name as a copy
+constant that `Panel.tsx` renders in three places, while `Popup.tsx` spells the same heading as
+a bare literal three times in one component beside a `popup-copy.ts` that already exists. **The
+requirement generalises an instance this repository already got right** rather than asking for a
+new idea, and `manifest.json`'s `name` and `action.default_title` are related to each other for
+the first time — **they are the same string today by coincidence of authorship, and a rename that
+changed one and not the other would ship a store listing named one thing beside a toolbar named
+another with every test in the repository green.**
+
+**Three `ADDED` requirements and no `MODIFIED` or `REMOVED`** — `website-client`,
+`extension-client`, `build-and-verification` — so the promoted count moves by exactly three, the
+**sixth** milestone to reach that shape.
+
 **`security-surface-review` is M12's security review, and it is APPLIED, SYNCED and ARCHIVED** at
 `openspec/changes/archive/2026-10-14-security-surface-review/`. Proposal PR **#142** merged
 `904a7a6`; apply PR **#143** merged `a02de19b`; sync PR **#144** merged `3ac06f9`; **the archive PR
@@ -573,7 +617,10 @@ three `ADDED` requirements and no `MODIFIED` or `REMOVED`**, moving the tree fro
 and 564 scenarios to 179 and 577** across the same **15** capabilities — `provider-abstraction`
 9 → 10 and 20 → 25, `extension-client` 14 → 15 and 75 → 79, `build-and-verification` 10 → 11 and
 28 → 32, with `openspec validate --specs --strict` at **15 passed, 0 failed** and all **3**
-promoted blocks re-verified **byte-identical against the *archived* deltas**.
+promoted blocks re-verified **byte-identical against the *archived* deltas**. Its **archive PR
+number is #145**, merged `281265a` — filled in here by `gh pr view` at the next change's
+proposal stage rather than predicted at the archive stage, for the reason this file records
+above.
 **Three requirements rather than some other number because every one of the three blocks is
 `ADDED`** is the arithmetic working, not a promotion that missed, and it is the **fifth** milestone
 to produce this shape. **The two numbers that did not move are the measurement the change turned
@@ -588,10 +635,10 @@ from `apps/extension`.
 **M12 is not thereby closed, and the distinction is worth keeping.** Its section lists five items —
 security review, permissions review, provider review, privacy documentation, branding check — and
 **three** are the tracked ones the Project Status has been carrying. **Two more are now done — the
-security review and the privacy documentation — and one remains: the branding check**, which is not
-a tracked item and has never been started. **The next item is the branding check.** The **provider
-review** was scoped by `privacy-document` as not blocking M12 and is also unstarted; it is a
-separate item and is **not** claimed here as anything other than a statement of what is left.
+security review and the privacy documentation — and the last unstarted item, the branding check, is
+now PROPOSED.** What remains after it is the **provider review**, which `privacy-document` scoped as
+not blocking M12 and which is also unstarted; it is a separate item and is **not** claimed here as
+anything other than a statement of what is left.
 
 **The audit ran against the shipped tree on 2026-10-14 and found that seven of the nine areas were
 already required and instrumented** — the permissions and clear-data areas by their own archived
