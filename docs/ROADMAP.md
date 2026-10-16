@@ -559,6 +559,41 @@ and is archived. `privacy-document` is M12's privacy documentation item and is *
 ARCHIVED** — apply PR **#139**, sync PR **#140**, archive PR **#141**, each number filled in by
 `gh pr view` after the merge rather than predicted at the stage that opened the PR.
 
+**`provider-terms-review` is M12's provider review, and it is APPLIED, SYNCED and ARCHIVED** at
+`openspec/changes/archive/2026-10-16-provider-terms-review/`. Proposal PR **#150** merged `ff7082c`;
+apply PR **#151** merged `bd34511`; sync PR **#152** merged `9557e68`; **the archive PR number is left
+unfilled here**, for the reason this file records above. **The archive moved 6 files, every one
+byte-identical to a digest taken programmatically before the command ran**, and Git's own rename
+detection confirms it independently — **six renames at `0 insertions, 0 deletions`** — with all
+**16** files under `openspec/specs/` byte-identical throughout and all **3** promoted blocks
+re-verified **byte-identical against the *archived* deltas**. **All 118 architecture cases are green
+with the change directory permanently at its archive path**, and that matters more here than anywhere
+else: **this change's whole subject is documents, and neither `docs/PRIVACY.md` nor
+`docs/PROVIDERS.md` cites a path inside the change directory**, so the archive needed no citation
+repair where `security-surface-review`'s did.
+
+**Its sync promoted two `ADDED` and one `MODIFIED`, moving the tree from 182 requirements and 577
+scenarios to 184 and 597** — `provider-abstraction` 10 → 11 and 25 → 29, `mailbox-session` 24 → 25
+and 65 → 68, `privacy-disclosure` **8 → 8** and 19 → 20. **`privacy-disclosure` holding at 8 is the
+arithmetic working, not a promotion that missed** — a `MODIFIED` replaces rather than adds — and
+**19 → 20 is +3 replacing +2**. **`git diff --numstat -- openspec/specs` is 51/0, 49/0 and 44/10**:
+two files are pure additions and **the ten deletions are all inside the replaced block**, which is
+what a modification looks like and what an addition never produces. **It is the first milestone in
+four to carry a `MODIFIED`, and the shape is the finding** — the first change whose own review
+falsified a sentence inside an already-promoted requirement.
+
+**A `MODIFIED` needed a second guard the other kind never needed, and both were falsified.**
+`ADDED` onto an existing heading and `MODIFIED` onto a missing one are the same silent substitution
+wearing different names; the promoter refuses each before writing anything, measured by running it
+twice (**exit 1**, specs SHA-256 unchanged) and by planting a `MODIFIED` for a heading the spec does
+not carry (**exit 1**, all three specs unchanged). **The first attempt at that second falsification
+was a NO-OP that produced a green run** — PowerShell's `-replace` omitted `(?m)`, so `^` matched only
+the start of the file, the plant never applied, and the harness printed success while measuring
+nothing.
+
+**`openspec list` reports no active changes, which means M12's five listed items are all done** —
+three tracked and two untracked — **and M12's exit criteria are met in scope.**
+
 **`branding-check` is M12's branding check, and it is APPLIED, SYNCED and ARCHIVED** at
 `openspec/changes/archive/2026-10-16-branding-check/`. Proposal PR **#146** merged `e099ef5`;
 apply PR **#147** merged `76cd65e`; sync PR **#148** merged `41ed65a`; **the archive PR number is
@@ -681,12 +716,15 @@ see which module may import which, so a rule added there would have been decorat
 and **+18** in the new `tests/architecture/security-audit.test.ts`, with no file added to or removed
 from `apps/extension`.
 
-**M12 is not thereby closed, and the distinction is worth keeping.** Its section lists five items —
-security review, permissions review, provider review, privacy documentation, branding check — and
-**three** are the tracked ones the Project Status has been carrying. **Two more are now done — the
-security review and the privacy documentation — and the branding check is now APPLIED, SYNCED and
-ARCHIVED. **The last M12 item, the provider review, is now PROPOSED as `provider-terms-review`, and
-its finding is that the absence this repository has leaned on for its whole life is half wrong.**
+**M12 IS NOW CLOSED IN SCOPE, and the distinction that kept it open is worth keeping.** Its section
+lists five items — security review, permissions review, provider review, privacy documentation,
+branding check — and **three** are the tracked ones the Project Status had been carrying.
+**All five are now APPLIED, SYNCED and ARCHIVED**: the permissions review as
+`extension-permissions-review`, the privacy documentation as `privacy-document`, the security review
+as `security-surface-review`, the branding check as `branding-check`, and the provider review as
+`provider-terms-review`. **The two that were never tracked items were the reason the milestone could
+not be called closed before, and one of them turned out to carry the milestone's most consequential
+finding.**
 
 `docs/PROVIDERS.md:234` cites `https://mail.tm/terms` → `404` as the basis for *no terms page
 exists*, **and cites `https://mail.tm/en/faq/` → `200` in the next line** — so the repository knew
