@@ -4,6 +4,7 @@
   "description": "Reusable product UI and design tokens. Not marketing-only website sections.",
   "exports": {
     ".": "./src/index.ts",
+    "./name": "./src/name.ts",
     "./tokens.css": "./src/tokens.css"
   },
   "type": "module",

@@ -3,6 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!--
+      The document's title, and it is a build input: no module imports this file, so the
+      value `@spectre-mail/ui` exports as `PRODUCT_NAME` cannot be rendered here. The title
+      spells it, and `tests/architecture/branding-audit.test.ts` reads this file and compares
+      the two. Same arrangement as `index.html` and `sidepanel.html`, and same reason: a rename
+      that missed a build input would ship a popup whose own tab said the old name.
+    -->
     <title>SpectreMail</title>
     <!--
       The generated token stylesheet, imported by name.

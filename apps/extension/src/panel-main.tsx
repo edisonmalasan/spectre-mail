@@ -26,11 +26,29 @@
  * arms the alarm itself on that path — so a seam here would be a second way to ask for the same
  * thing. `App.tsx` needs one because *it* writes the mailbox itself.
  *
+ * ## The heading in the branch below is the panel's, and it renders the one name
+ *
+ * **This file renders a copy of the panel's `<h1>` that `panel-copy.ts` does not own** — the branch
+ * taken when this client's own storage could not be read at all, which is the same fourth heading
+ * `main.tsx` renders for the popup. `panel-copy.ts`'s `title` is the panel's own copy constant and
+ * `Panel.tsx` renders it three times; this branch renders the same value directly, because the
+ * branch is a different component and the copy object does not reach it.
+ *
+ * **Two ways of holding the same name in one directory, and the requirement asks for the value
+ * rather than for one mechanism.** `docs/BRANDING.md`'s surface table names both renderings and
+ * `tests/architecture/branding-audit.test.ts` resolves it in both directions, so the next one is
+ * reported by name. **The alternative — routing this branch's heading through `PANEL_COPY.title` —
+ * was not taken**, because it would make a copy module reachable from a composition root that has
+ * no other reason to import it, and `panel-copy.ts`'s own note says the module exists so a claim is
+ * reviewable beside the requirement it serves.
+ *
  * @module
  */
 
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+
+import { PRODUCT_NAME } from "@spectre-mail/ui/name";
 
 import "@spectre-mail/ui/tokens.css";
 import "./styles.css";
@@ -96,7 +114,7 @@ if (container) {
         />
       ) : (
         <main className="panel">
-          <h1 className="panel__heading">SpectreMail</h1>
+          <h1 className="panel__heading">{PRODUCT_NAME}</h1>
           <p role="alert">{storage.reason}</p>
         </main>
       )}

@@ -33,11 +33,23 @@
  * they are declared. A bundler concatenates in import order, which is the only mechanism
  * that guarantees it.
  *
+ * ## The heading in the branch below is the popup's, and it renders the one name
+ *
+ * **This file renders a fourth copy of the popup's `<h1>`**, in the branch taken when this
+ * client's own storage could not be read at all - a branch `Popup.tsx` has no equivalent of,
+ * which is why the three headings there were not the whole of the surface. It renders the value
+ * `@spectre-mail/ui` exports as `PRODUCT_NAME`, for `Popup.tsx`'s reason and `panel-main.tsx`'s.
+ * **The surface table in `docs/BRANDING.md` names all four renderings, and
+ * `tests/architecture/branding-audit.test.ts` resolves it against the tree in both directions** -
+ * so the next heading somebody adds is reported by name rather than waited for.
+ *
  * @module
  */
 
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+
+import { PRODUCT_NAME } from "@spectre-mail/ui/name";
 
 import "@spectre-mail/ui/tokens.css";
 import "./styles.css";
@@ -66,7 +78,7 @@ if (container) {
         />
       ) : (
         <main className="popup">
-          <h1 className="popup__heading">SpectreMail</h1>
+          <h1 className="popup__heading">{PRODUCT_NAME}</h1>
           <p role="alert">{storage.reason}</p>
         </main>
       )}
