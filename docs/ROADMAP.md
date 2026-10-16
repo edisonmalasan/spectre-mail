@@ -684,12 +684,47 @@ from `apps/extension`.
 **M12 is not thereby closed, and the distinction is worth keeping.** Its section lists five items —
 security review, permissions review, provider review, privacy documentation, branding check — and
 **three** are the tracked ones the Project Status has been carrying. **Two more are now done — the
-security review and the privacy documentation — and the last unstarted item, the branding check, is
-now APPLIED, SYNCED and ARCHIVED.** **What remains in M12 is the provider review**, which
-`privacy-document`
-scoped as not blocking M12 and which is also unstarted; it is a separate item and is **not** claimed
-here as anything other than a statement of what is left. **M12 is therefore one item from closed**,
-and that item is a review of provider terms rather than a change to anything this product ships.
+security review and the privacy documentation — and the branding check is now APPLIED, SYNCED and
+ARCHIVED. **The last M12 item, the provider review, is now PROPOSED as `provider-terms-review`, and
+its finding is that the absence this repository has leaned on for its whole life is half wrong.**
+
+`docs/PROVIDERS.md:234` cites `https://mail.tm/terms` → `404` as the basis for *no terms page
+exists*, **and cites `https://mail.tm/en/faq/` → `200` in the next line** — so the repository knew
+the site prefixes its real paths and probed an unprefixed one anyway. Re-measured at both shapes on
+**2026-10-16**: `https://mail.tm/en/privacy/` serves a **Privacy Policy** where
+`https://mail.tm/privacy` does not. **The conclusion that Mail.tm serves no terms survived; the
+method did not** — *a `404` on a guessed path is evidence that that path is not served, and not
+evidence about the site.*
+
+**And the finding with teeth: Guerrilla Mail publishes Terms of Service, linked from its own
+homepage at `/tos`, and this repository has never read them.** Verbatim: *"Guerrilla Mail acts as
+**Software Service Provider**, granting you a license for the use of the software provided by our
+website"*; the service prohibits *"**Over-use our resources by repeatedly making many requests to
+our servers**"*; and the licence is *"non-transferable, subject to change"*. **Its API document
+publishes two more sentences the record did not have**: *"The API may be rate limited, **but we do
+not publish our rate limits**"* and *"**The client should not check email too many times as to not
+overload the server**"* — **the second addressed to a client, which is what this product is**, and
+this product polls that provider every **5 seconds** while a mailbox's contents are changing.
+
+**Nothing here changes the cadence, and that restraint is the requirement.** A qualitative
+prohibition is not a limit, this repository does not invent figures it has not measured, and **the
+cadence has never run against a live provider at all**. What ships is the requirement that the
+cadence **state the guidance it was chosen against** — the product's footer already renders
+Mail.tm's verbatim `30; w=60`, so the mechanism exists and only the second provider's quote was
+missing. **The policy is now stated beside a terms page that has been read, instead of beside an
+assumption that none exists.**
+
+**Two `ADDED` and one `MODIFIED`, so the promoted requirement count moves by exactly two** — a
+`MODIFIED` block replaces rather than adds. **It is the first milestone in four to produce a
+`MODIFIED`, and the shape is the finding**: `privacy-disclosure`'s *Provider attribution is stated
+in neither direction* says in its body *"Guerrilla Mail publishes nothing this repository found"*,
+**and that is now measured false**, so the block is amended rather than shadowed by a neighbour
+that contradicts it. **`openspec validate` forced the amendment to carry its own scenario forward in
+full** — *"a MODIFIED requirement replaces the whole block, so archive refuses to drop them"* —
+which is the recorded reason the scenario came forward at all.
+
+**`docs/PROVIDERS.md`'s do-not-touch condition is satisfied explicitly**: the active task requires
+it, and nothing else on that list is touched.
 
 **The audit ran against the shipped tree on 2026-10-14 and found that seven of the nine areas were
 already required and instrumented** — the permissions and clear-data areas by their own archived

@@ -3,16 +3,57 @@
 > **Current milestone state (reconciled against Git and OpenSpec 2026-10-16): M0-M11 are complete
 > in scope, M12's three tracked items are done (`extension-permissions-review` PRs #134–#137,
 > `privacy-document` PRs #138–#141), and **two of M12's two untracked items are now done as
-> well** — `security-surface-review` (PRs #142–#145) and `branding-check` (PRs #146–#149), both now
+> well** — `security-surface-review` (PRs #142–#145) and `branding-check` (proposal **#146**, apply
+> **#147**, sync **#148**, archive **#149** merged `921858f` — **and that last number was a
+> prediction written before the archive PR existed, corrected here against `gh pr view`**, which is
+> this file's own recorded rule against a figure nobody counted, caught by the same reader that
+> wrote it), both now
 > **APPLIED, SYNCED and ARCHIVED**. **What remains in M12 is the provider review**, which
-> `privacy-document` scoped as not blocking it and which has never been started.**
+> `privacy-document` scoped as not blocking it, and it is now **PROPOSED** as
+> `provider-terms-review` — whose finding is that **the absence this repository has leaned on for
+> its whole life is half wrong**, and half wrong for a reason worth carrying. `docs/PROVIDERS.md`
+> cites `https://mail.tm/terms` -> `404` as the basis for *no terms page exists* **and cites
+> `https://mail.tm/en/faq/` -> `200` in the next line**, so the repository knew the site prefixes
+> its real paths and probed an unprefixed one anyway. Re-measured at both shapes:
+> **`https://mail.tm/en/privacy/` serves a Privacy Policy where `https://mail.tm/privacy` does
+> not.** The conclusion about *terms* survived; the method did not -- **a `404` on a guessed path
+> is evidence that that path is not served, and not evidence about the site.**
+>
+> **And the finding with teeth: Guerrilla Mail publishes Terms of Service at `/tos`, linked from
+> its own homepage, and this repository has never read them.** Verbatim: *"Guerrilla Mail acts as
+> **Software Service Provider**, granting you a license for the use of the software provided by our
+> website"*; the service prohibits *"**Over-use our resources by repeatedly making many requests to
+> our servers**"*; the licence is *"non-transferable, subject to change"*. Its API document
+> publishes two sentences the record did not have -- *"The API may be rate limited, **but we do not
+> publish our rate limits**"* and *"**The client should not check email too many times as to not
+> overload the server**"* -- **the second addressed to a client, which is what this product is**, and
+> this product polls that provider every **5 seconds** while a mailbox's contents are changing.
+> **Nothing changes the cadence and that restraint is the requirement**: a qualitative prohibition
+> is not a limit, this repository does not invent figures it has not measured, and **the cadence has
+> never run against a live provider at all**. What ships is the requirement that the cadence
+> **state the guidance it was chosen against** -- the product's footer already renders Mail.tm's
+> verbatim `30; w=60`, so the mechanism exists and only the second provider's quote was missing.
+>
+> **Two `ADDED` and one `MODIFIED`, so the promoted requirement count moves by exactly two** --
+> **the first milestone in four to produce a `MODIFIED`, and the shape is the finding.**
+> `privacy-disclosure`'s *Provider attribution is stated in neither direction* says in its body
+> *"Guerrilla Mail publishes nothing this repository found"*, **and that is now measured false**, so
+> the block is amended rather than shadowed by a neighbour that contradicts it. **`openspec validate`
+> forced the amendment to carry its own scenario forward in full** -- *"a MODIFIED requirement
+> replaces the whole block, so archive refuses to drop them"* -- which is the recorded reason that
+> scenario came forward at all.
+>
+> **`docs/PROVIDERS.md`'s do-not-touch condition is satisfied explicitly**: the active task requires
+> it, and nothing else on that list is touched.
 
 > **`branding-check` is APPLIED, SYNCED and ARCHIVED** at
 > `openspec/changes/archive/2026-10-16-branding-check/` — proposal PR **#146** merged `e099ef5`,
-> apply PR **#147** merged `76cd65e`, sync PR **#148** merged `41ed65a`, and the **archive PR number
-> left unfilled here** to be filled by `gh pr view` at the next change's proposal stage, for the
-> reason this file has recorded before: *a predicted PR number in a document other stages cite by
-> name is a figure nobody counted.*
+> apply PR **#147** merged `76cd65e`, sync PR **#148** merged `41ed65a`, archive PR **#149** merged
+> `921858f` — **and every one of those four numbers is measured, except that the archive number was
+> first written as a prediction before the PR existed**, which is this file's own recorded rule
+> against a figure nobody counted, broken by the reader that wrote it and corrected against
+> `gh pr view` in the same sentence. **Left unfilled is the only honest default**, and it was not
+> left unfilled.
 >
 > **The archive moved 6 files, every one byte-identical to a pre-archive digest taken
 > programmatically, and Git's own rename detection independently confirms it — six renames at
