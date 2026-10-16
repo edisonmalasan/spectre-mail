@@ -161,3 +161,88 @@
       without it.
 - [x] 9.2 The falsification table, the gate results and the two instrument defects the
       falsification pass found are recorded in `design.md` under "Apply-stage record".
+## 10. Sync-stage record (2026-10-16)
+
+### 10.1 One requirement figure was amended **before** it was promoted
+
+`extension-client`'s new requirement said the extension names the product in **six** surfaces,
+two of them components. **It is eight, four of them components**, and the two extra are
+``main.tsx:81`` and `panel-main.tsx:117` — a heading in the branch taken when that client's own
+storage could not be read, in each of the two composition roots.
+
+**The source of the wrong figure was the root orchestrator's own measured table**, not the
+instrument. The map's reverse direction found both places; the root's reading had listed the
+files it had read.
+
+**This is why the amendment was written into the delta rather than into the promoted spec.** A
+requirement's count is a claim about the tree, and promoting a claim the apply stage had already
+disproved would put a false figure into `openspec/specs/` permanently. Writing it into the delta
+is the recorded practice, and it is why an archived delta and a promoted spec are the same blocks.
+The amendment is in the delta with its reason, so the archive carries the correction too.
+
+### 10.2 The promotion, and the two instruments that made it
+
+Three `ADDED` blocks, no `MODIFIED` and no `REMOVED`. Re-counted by heading **after** the
+promotion rather than carried forward:
+
+    179 requirements / 577 scenarios / 15 capabilities
+ -> 182 requirements / 589 scenarios / 15 capabilities
+
+  website-client           23 -> 24    75 -> 79
+  extension-client         15 -> 16    79 -> 83
+  build-and-verification   11 -> 12    32 -> 36
+
+Rehearsed in full on a throwaway copy of `openspec/` before the real tree. The promoter and the
+verifier **share no reader and no function**: the promoter walks lines with a state machine and
+ends a block at the next `### Requirement:` **or** any `## `, while the verifier splits whole text
+by regex. Git's own diff is the independent confirmation that nothing existing was touched:
+`git diff --numstat -- openspec/specs` is **59/0, 81/0, 65/0** — three files, **zero deletions**.
+
+### 10.3 One instrument defect, and it is the second time this repository has made it
+
+The verifier's `--self-test` failed on its first run with `ENOENT` naming
+`.../--self-test/changes/branding-check/specs/build-and-verification/spec.md`. **It had read the
+openspec root as `process.argv[2]`, so with the flag passed first it resolved its own flag as a
+directory.**
+
+The repair reads the first argument that is not a flag, and the self-test was then run in **both**
+argument orders — `--self-test <root>` and `<root> --self-test` — with the same **4/4** each time.
+**Running it in both orders is the falsification of the fix rather than a demonstration of it**,
+because the defect was exactly that the order mattered.
+
+**The same mistake has now been made twice in this repository, by two instruments written on
+different days for different changes** — the apply stage's falsification harness last session, and
+this one. It is recorded here rather than fixed in silence, because the second instance is the
+evidence that "we fixed it once" is not the same as "it cannot happen again".
+
+### 10.4 The promoter's guard, falsified separately
+
+Run twice, the second run **exited 1** with
+`REFUSING: website-client already carries a requirement headed "The public name is one exported
+value, ..."` and left all three specification files **SHA-256 unchanged** — because an `ADDED`
+block landing on a heading that already exists is a silent replacement wearing the name of an
+addition.
+
+### 10.5 Root-owned figures corrected here
+
+`AGENTS.md`'s standing test figure is **1308 across 66**, measured from a `--reporter=json` run
+**grouped by project**: `packages/ui` **38 → 42**, `tests/architecture` **93 → 107**,
+`packages/storage` still **86**, `apps/web` still **125**, `apps/extension` still **487**, and
+**`boundaries.test.ts` still 53**.
+
+**`packages/ui` is no longer 38, and that ends a figure this file had carried through nine
+milestones.** The package's count was held steady by nine consecutive changes each of which
+declared it would add no token and no motion, and **a figure that stops moving for that long is
+indistinguishable from a figure nobody re-ran**. It was re-measured here and it had moved.
+
+### 10.6 The browser tier, and a red with no name
+
+`pnpm test:browser` was run **thirteen** times: **twelve green at 40 website and 98 extension,
+and one red** which failed the extension tier 1-of-98 and did not reproduce in twelve subsequent
+runs. **The reader written to name the failing case matched nothing**, so the red is
+**unattributed**.
+
+It is *consistent with* the two pre-existing unattributed reds in `security-surface-review`'s
+`tasks.md` 6.4, and **consistent with is not an attribution**. It is recorded as a red this
+change produced and cannot explain, which is the honest description, and it is not counted as a
+pass.

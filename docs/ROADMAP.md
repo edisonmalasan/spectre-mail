@@ -559,7 +559,43 @@ and is archived. `privacy-document` is M12's privacy documentation item and is *
 ARCHIVED** — apply PR **#139**, sync PR **#140**, archive PR **#141**, each number filled in by
 `gh pr view` after the merge rather than predicted at the stage that opened the PR.
 
-**`branding-check` is M12's branding check, and it is PROPOSED.** Its six checks were run on
+**`branding-check` is M12's branding check, and it is APPLIED and SYNCED.** Proposal PR **#146**
+merged `e099ef5`; apply PR **#147** merged `76cd65e`. **Its sync promoted three `ADDED`
+requirements and no `MODIFIED` or `REMOVED`**, moving the tree from **179 requirements and 577
+scenarios to 182 and 589** across the same **15** capabilities — `website-client` 23 → 24 and
+75 → 79, `extension-client` 15 → 16 and 79 → 83, `build-and-verification` 11 → 12 and 32 → 36,
+with `openspec validate --specs --strict` at **15 passed, 0 failed** and `git diff --numstat --
+openspec/specs` at **59/0, 81/0, 65/0** — **three files, zero deletions**, so Git's own diff
+confirms the promoter appended rather than rewrote. **`pnpm test` is 1308 across 66 files** (from
+**1290/64**): `packages/ui` **38 → 42** and `tests/architecture` **93 → 107**, with
+`packages/storage` still **86**, `apps/web` still **125**, `apps/extension` still **487** and
+**`boundaries.test.ts` still 53**.
+
+**One requirement figure was wrong in the change's own delta and was amended before promotion
+rather than promoted wrong.** `extension-client`'s new requirement said the extension names the
+product in **six** surfaces, two of them components; it is **eight**, four of them components.
+**The source of the wrong figure was this orchestrator's own measured table, not the instrument** —
+the two extra are `main.tsx:81` and `panel-main.tsx:117`, each a heading in the branch taken when
+the client's own storage could not be read, and the map's reverse direction found both. **A
+requirement's count is a claim about the tree, and promoting a claim the apply stage had already
+disproved would have put a false figure into `openspec/specs/` permanently**, so the amendment is
+written into the delta with its reason.
+
+**The apply stage also carried a defect only the root review could see, and the repair is the
+pattern the affected package had already written down.** Adding
+`import { PRODUCT_NAME } from "@spectre-mail/ui"` was **the first time either app had ever imported
+a value from that package** — `git grep` on `main` returns no matches, because the apps loaded
+`tokens.css` and nothing else and a stylesheet is not a member of a TypeScript program. It
+therefore pulled `index.ts`, and so `packages/ui/src/pairs.ts`, into both clients' typecheck
+programs, where `pairs.ts:31`'s `from "./contrast.ts"` — present since M7 slice 1 — failed
+`TS5097` in each. **The fix the implementation reached for was
+`"allowImportingTsExtensions": true` in `tsconfig.base.json`**, a compiler option widened for
+every workspace project with no requirement behind it. **`packages/ui`'s own documentation says
+*"the CSS subpath exists so a client asks for the file explicitly"*, so the repair is one line in
+the same `exports` map — `"./name": "./src/name.ts"` — and five modules asking for
+`@spectre-mail/ui/name`.** **`tsconfig.base.json` is byte-identical to `main`.**
+
+**Its six checks were run on
 **2026-10-16** against the sources themselves rather than a summary of them, and the result is
 not the shape the roadmap anticipated. **Every operational check came back clean** — GitHub, npm,
 PyPI, crates.io, RubyGems, Packagist, Docker Hub and Mastodon all answer their own "this does not
@@ -636,9 +672,10 @@ from `apps/extension`.
 security review, permissions review, provider review, privacy documentation, branding check — and
 **three** are the tracked ones the Project Status has been carrying. **Two more are now done — the
 security review and the privacy documentation — and the last unstarted item, the branding check, is
-now PROPOSED.** What remains after it is the **provider review**, which `privacy-document` scoped as
-not blocking M12 and which is also unstarted; it is a separate item and is **not** claimed here as
-anything other than a statement of what is left.
+now APPLIED and SYNCED.** **What remains in M12 is the provider review**, which `privacy-document`
+scoped as not blocking M12 and which is also unstarted; it is a separate item and is **not** claimed
+here as anything other than a statement of what is left. **M12 is therefore one item from closed**,
+and that item is a review of provider terms rather than a change to anything this product ships.
 
 **The audit ran against the shipped tree on 2026-10-14 and found that seven of the nine areas were
 already required and instrumented** — the permissions and clear-data areas by their own archived
