@@ -3,9 +3,37 @@
 > **Current milestone state (reconciled against Git and OpenSpec 2026-10-16): M0-M11 are complete
 > in scope, M12's three tracked items are done (`extension-permissions-review` PRs #134–#137,
 > `privacy-document` PRs #138–#141), and **two of M12's two untracked items are now done as
-> well** — `security-surface-review` (PRs #142–#145) and `branding-check` (PRs #146–#148), which is
-> **APPLIED and SYNCED**. **What remains in M12 is the provider review**, which
+> well** — `security-surface-review` (PRs #142–#145) and `branding-check` (PRs #146–#149), both now
+> **APPLIED, SYNCED and ARCHIVED**. **What remains in M12 is the provider review**, which
 > `privacy-document` scoped as not blocking it and which has never been started.**
+
+> **`branding-check` is APPLIED, SYNCED and ARCHIVED** at
+> `openspec/changes/archive/2026-10-16-branding-check/` — proposal PR **#146** merged `e099ef5`,
+> apply PR **#147** merged `76cd65e`, sync PR **#148** merged `41ed65a`, and the **archive PR number
+> left unfilled here** to be filled by `gh pr view` at the next change's proposal stage, for the
+> reason this file has recorded before: *a predicted PR number in a document other stages cite by
+> name is a figure nobody counted.*
+>
+> **The archive moved 6 files, every one byte-identical to a pre-archive digest taken
+> programmatically, and Git's own rename detection independently confirms it — six renames at
+> `0 insertions, 0 deletions`.** **This change carried no `.openspec.yaml`**, which makes it the
+> **second** archived change in a row without one, after `privacy-document` — while every earlier
+> archive that had one kept it, including this milestone's `security-surface-review`.
+> **Nothing dropped it — none was ever created.** All **16** files
+> under `openspec/specs/` are byte-identical throughout, checked against **Git** rather than
+> against digests **I typed**. All **3** promoted blocks re-verified **BYTE-IDENTICAL against the
+> *archived* delta**, with the verifier pointed at the archived path **after being shown to fail
+> loudly with `ENOENT` on the absent pre-archive one**. Counts **re-counted after the move** at
+> **182 / 589 / 15**, unmoved by the archive. **This stage deliberately edited none of the archived
+> files**, so the digest table needs no expiry-date qualification.
+>
+> **And this archive carries the one thing M11's and M12's earlier ones could not: a check that the
+> document survives the archive.** `docs/BRANDING.md` cites **no** path inside the change directory
+> — the previous change had to have its two citations rewritten mid-sync, because at apply time a
+> change-local path was the only honest citation available. **The whole architecture suite is 107 of
+> 107 green with the change directory permanently at its archive path**, which is the measurement
+> rather than a simulated move-and-restore, because nothing in the document needed rewriting for the
+> move to be survivable.
 
 > **`branding-check` is M12's branding check, and its verdict is that the name stands — while the
 > one thing a mail product cannot do without is the one thing that is taken.**
