@@ -3,12 +3,21 @@
  *
  * ## What this file is, and what it is not
  *
- * The failure this change exists to end is **eight surfaces naming the product with eight separate
- * spellings, and a review whose verdict rests on nothing a reader can re-run.** The instrument here is
+ * The failure this change exists to end is **ten surfaces naming the product, each with its own
+ * spelling, and a review whose verdict rests on nothing a reader can re-run.** The instrument here is
  * neither "does the document exist" nor "does the name appear". It is **a declared map of the surfaces
  * the product names itself from, resolved against the tree in both directions**, plus a check that the
  * review's own external claims are dated, controlled and, where they produced no measurement, carry no
  * verdict.
+ *
+ * **The count in this paragraph was eight until this file's own map found two the proposal's table had
+ * missed** - `main.tsx` and `panel-main.tsx` each render a heading in the branch taken when the
+ * client's own storage could not be read, and neither was in the table. The map declares **eleven**
+ * rows for **ten** surfaces, because the eleventh is the value's own declaration: the requirement's
+ * operative clause is that the name is declared *exactly once*, and a map that omitted the
+ * declaration could not see a second one. **A figure written into prose before the measurement that
+ * corrected it is the defect this repository has recorded three times**, and the correction belongs
+ * in the sentence that carries the figure rather than in a place a reader has to go looking.
  *
  * ## Three rules of the house, and why each exists
  *
@@ -18,7 +27,7 @@
  * - **It cannot tell the name from a sentence.** `"Use SpectreMail"` and `"Guerrilla Mail is asking
  *   SpectreMail to slow down"` both contain the name and neither *is* the name. A scan requiring every
  *   occurrence to equal the constant fails on correct copy; a scan requiring every occurrence to contain
- *   it passes on a rename that missed half the surfaces. **The property is about eight places where the
+ *   it passes on a rename that missed half the surfaces. **The property is about ten places where the
  *   product names itself, and it is not expressible as a property of occurrences.**
  * - **It would fire on the tests' own fixtures.** The browser tier plants
  *   `"A SpectreMail extension is on its way."` into a running page as a negative control - the fifth

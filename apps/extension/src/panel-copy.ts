@@ -50,7 +50,7 @@
  */
 
 import type { MessageVerdict } from "@spectre-mail/mailbox";
-import { PRODUCT_NAME } from "@spectre-mail/ui";
+import { PRODUCT_NAME } from "@spectre-mail/ui/name";
 
 /** Every sentence the panel can say that is its own rather than the message surface's. */
 export const PANEL_COPY = {

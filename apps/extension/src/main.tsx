@@ -49,7 +49,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
-import { PRODUCT_NAME } from "@spectre-mail/ui";
+import { PRODUCT_NAME } from "@spectre-mail/ui/name";
 
 import "@spectre-mail/ui/tokens.css";
 import "./styles.css";

@@ -387,3 +387,105 @@ reason the check is `git status` and not "did anything look wrong".
 - **No surface was read in a browser.** The values are checked by reading files and by parsing source; no
   test here reads a rendered pixel, so whether any surface *looks* right is still a human judgement, which
   is the same fourth limit `pnpm test:browser` carries for every other change in this repository.
+---
+
+## Root review record (2026-10-16)
+
+The implementation agent reported three files and one prediction corrected. Two findings from the
+root review are worth more than either.
+
+### R1 — An import added for one string widened the shared compiler config, and the package that
+### caused it already documented the pattern that avoids it
+
+The agent's change included **`tsconfig.base.json`, one line**:
+`"allowImportingTsExtensions": true`. That file is outside this change's write scope, and a
+compiler option widened for every workspace project is a shared-config change with no
+requirement behind it — *a check loosened to accommodate a document pointing at the wrong
+thing*, in its config form.
+
+**The root review reverted it and measured why it had been added.**
+
+```text
+pnpm typecheck   (tsconfig.base.json at main's content)
+apps/web typecheck: ../../packages/ui/src/pairs.ts(31,73): error TS5097: An import path can
+  only end with a '.ts' extension when 'allowImportingTsExtensions' is enabled.
+apps/extension typecheck: ../../packages/ui/src/pairs.ts(31,73): error TS5097: ...
+```
+
+So the option was genuinely required — **and the cause was this change's own import.**
+`packages/ui/src/pairs.ts:31` has read `from "./contrast.ts"` since M7 slice 1, and
+`packages/ui/tsconfig.json` sets the option locally **for that file's package**. It never broke
+the clients because **no application source had ever imported a value from
+`@spectre-mail/ui`** — verified on `main`:
+
+```text
+git grep -n 'from "@spectre-mail/ui"' origin/main -- apps/web/src apps/extension/src
+(no matches)
+```
+
+The apps loaded `@spectre-mail/ui/tokens.css` and nothing else; a stylesheet is a bundler
+concern, not a member of a client's TypeScript program. **Adding `import { PRODUCT_NAME } from
+"@spectre-mail/ui"` was therefore the first time either app pulled `index.ts` — and so
+`pairs.ts` — into its typecheck program**, and that is what produced `TS5097`.
+
+**The repair is the subpath the package already had a pattern for.** `packages/ui`'s own
+documentation says:
+
+> *"The stylesheet is not re-exported from here, and cannot be. A client cannot
+> `import "./tokens.css"` and have a bundler pick it up … **the CSS subpath exists so a client
+> asks for the file explicitly.**"*
+
+So `packages/ui/package.json` gains **one line**, `"./name": "./src/name.ts"`, in the same
+`exports` map as `"./tokens.css"`, and the five importing modules ask for
+`@spectre-mail/ui/name`. A client reaching one string now pulls **no** other module, so the
+compiler never sees `pairs.ts`.
+
+**Measured after the repair, with `tsconfig.base.json` byte-identical to `main`:**
+
+```text
+packages/core typecheck: Done      packages/mail-parser typecheck: Done
+packages/storage typecheck: Done   packages/providers typecheck: Done
+packages/ui typecheck: Done        packages/mailbox typecheck: Done
+apps/web typecheck: Done           apps/extension typecheck: Done
+```
+
+**`tsconfig.base.json` is unchanged from `main`.** A shared compiler option was about to be
+widened because one module imported a package's entry point instead of its one thing, and the
+package that would have paid for it had already written down the answer.
+
+### R2 — The proposal's eight-surface table was wrong, and the instrument's own map is what found it
+
+The proposal's table named **eight** surfaces. The instrument's **reverse** direction —
+every place the shipped tree holds the name must be declared — reported two more:
+**`main.tsx:81`** and **`panel-main.tsx:117`**, each a heading in the branch taken when the
+client's own storage could not be read, which the root's measurement had not listed.
+
+**Ten surfaces, eleven map rows, fifteen renderings**, and the count is now:
+
+| | count |
+| --- | --- |
+| map rows in `docs/BRANDING.md`'s surface table | **11** |
+| of those, surfaces of the product | **10** |
+| the eleventh | the value's own declaration, in the map because the requirement's operative clause is that the name is declared **exactly once** |
+| renderings across those rows | **15** |
+
+`SURFACE_COUNT = 11` in the instrument is **declared rather than derived, so the derivation can
+fail** — a reader returning the map's own length would satisfy the assertion that the map is
+exhaustive. That is the right shape and it is why the number is auditable at all.
+
+**Two figures in the instrument's own prose still said "eight"** after the map had moved to
+eleven, and the root review corrected both — *a figure written into a sentence before the
+measurement that corrected it is the defect this repository has recorded three times*, and the
+correction belongs in the sentence that carries the figure rather than in a place a reader has
+to go looking.
+
+### R3 — Two scope extensions the agent made rather than reporting
+
+`main.tsx` and `panel-main.tsx` were outside the write scope this stage was given, and editing
+them instead of stopping is a process failure even though the edits are right: **the finding was
+correct, the two files are real surfaces the requirement must cover, and the reason each was not
+routed through `panel-copy.ts` is recorded beside the code.** Recorded here so the process cost
+is not lost with the outcome — *a finding reported is worth more than a scope violation*, and
+this one was corrected rather than only reported.
+
+The `tsconfig.base.json` line is the other, and R1 is its repair.

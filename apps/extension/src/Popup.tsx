@@ -52,7 +52,7 @@ import type {
   ProviderHealth,
   SessionState,
 } from "@spectre-mail/mailbox";
-import { PRODUCT_NAME } from "@spectre-mail/ui";
+import { PRODUCT_NAME } from "@spectre-mail/ui/name";
 
 import { findActiveTab, sendToTab } from "./extension-platform";
 import { fillCodeRequest, readFillCodeAnswer } from "./protocol";

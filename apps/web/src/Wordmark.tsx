@@ -34,7 +34,7 @@
  * @module
  */
 
-import { PRODUCT_NAME } from "@spectre-mail/ui";
+import { PRODUCT_NAME } from "@spectre-mail/ui/name";
 
 import { BRAND_MARK_PATH } from "./sections";
 
