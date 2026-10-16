@@ -138,3 +138,108 @@ attributed to the wrong assertion.
   than answering it by argument.
 - **`docs/PROVIDERS.md` is on this repository's do-not-touch list.** The active task explicitly
   requires it, which is the condition that list states. Nothing else on that list is touched.
+
+## D8 — Apply-stage record (2026-10-16)
+
+### What shipped, and what it did not move
+
+**`docs/PROVIDERS.md` is +180 / -34 across five edits, and `tests/architecture/provider-terms.test.ts`
+is new at 11 cases.** No file under `apps/` or `packages/` changed, no `package.json` changed, and
+**`apps/extension/static/manifest.json` is byte-identical by Git blob hash**
+(`847ce07cfff39b00b4461067d12a6ffb0649a4a8` at `HEAD` and in the working tree — checked with
+`git rev-parse` and `git hash-object`, not with `git diff`, because `git diff` was empty and an empty
+diff is a claim about a *path* rather than a blob).
+
+**One edit is outside §1 and §2 and is called out rather than buried:** §3's
+`### Terms that affect the product` was a three-line stub reading *"Not re-verified by this spike"*,
+and tasks 1.4, 1.5 and 1.6 require Guerrilla Mail's terms, its API document and the absence of an
+attribution clause to be recorded. **That subsection is the document's own slot for the other
+provider's terms**, so it was filled in and nothing else in §3 was touched. A §6 cross-reference
+("see §2, which records that no Mail.tm terms page could be found") was corrected in the same pass,
+because it is a cross-reference *into* §2 and would otherwise be the one stale sentence in the file.
+
+### The instrument's shape, and why it is a map and not a sweep
+
+`termsCitationsIn` finds a sentence that attributes an obligation or a permission to a provider's
+terms, over **a closed set of fifteen verb forms in both grammatical orders**, and excludes
+blockquotes structurally — a provider's own sentence is not this repository's claim, and a keyword
+reader cannot tell the two apart.
+
+**Measured against the three decision documents it names, the reader finds exactly three candidate
+sentences**, and all three resolve: one in `docs/PROVIDERS.md` §1 and one in `AGENTS.md`'s
+architecture rules each carry a **declared disclaimer**, and `docs/ARCHITECTURE.md` carries **none**.
+That last fact is a measurement about the document, **not a fact about the reader**, so
+`docs/ARCHITECTURE.md` is not asked to carry a citation and the reader is instead shown a citation
+planted into architecture-shaped prose in the case below it. **Zero is never evidence that a reader
+worked.**
+
+**The verbs are spelled out and no `s?` is hung off a stem.** The first run of this file found
+nothing in `AGENTS.md`, and the reason is the sentence that states the standing rule: *"do not assume
+a required obligation is absent"*. `require` followed by a word boundary does **not** match *required* —
+the reader stopped one character short, matched nothing, and **reported a clean tree.** That is the
+most-recorded defect in this repository in its purest form, and it was caught only because the
+non-vacuity assertion *required* `AGENTS.md` to yield a citation rather than merely permitting it.
+
+**A fourth document carries a live violation of the rule this instrument checks.**
+`docs/ROADMAP.md:3187` reads *"its terms forbid proxying, so no compliant design lets a SpectreMail web
+page read it"* — **the exact withdrawn claim this change exists to end, stated as current rationale
+in the roadmap.** It is outside the instrument's declared scope (`tasks.md` 3.3 names only
+`docs/ARCHITECTURE.md`, `AGENTS.md` and `docs/PROVIDERS.md`) and outside the apply stage's write
+scope. **It is reported, not repaired.** A sweep pointed at four files would have caught it; a sweep
+pointed at three files and a list that says three looks identical from here, which is why the list is
+a declared constant rather than a directory glob.
+
+### Two pre-existing reds, and one finding this change produced
+
+**`pnpm verify` is red, three times out of three, and none of the three is a surprise.**
+
+1. **`docs/PRIVACY.md` §6 has drifted from what was read — this is the finding, and it is
+   BLOCKING.** `provider-terms.test.ts`'s attribution case reports four items: both rows carry
+   `2026-10-02` where the record carries `2026-10-16`, the Mail.tm row still reads *"No terms page
+   exists"* off a probed path, and the Guerrilla Mail row still reads *"Nothing this repository found"*
+   where `/tos` **was served and was read.** `tasks.md` 6.4 anticipated this and told the apply stage
+   to report it rather than rewrite the document whose claims the instrument resolves, so
+   **`docs/PRIVACY.md` was not edited and the instrument was not weakened.** The remedy is two table
+   cells and belongs to whoever owns that document.
+
+2. **`branding-audit.test.ts` is flaky, and it is NOT this change.** `shippedFiles()` calls
+   `statSync(child)` on line 389 **before** the `PROBE_FILE.test(entry)` guard on line 400 — so a probe
+   that `boundaries.test.ts` staged and then deleted in another worker dies with `ENOENT` on the
+   `statSync`, and the guard that was written for exactly this never runs. The file's own header
+   documents the failure it was repaired for; **the repair is one line too late.** Measured by
+   stashing this change and running the full suite four times on the clean tree: **4 of 4 red, 3 of 4
+   with the `ENOENT`**, against **1 of 3 red with the change applied.** Both files are outside this
+   stage's write scope.
+
+3. **`apps/extension/src/Panel.test.tsx` is flaky, and it is not this change either.** *"names the
+   mailbox this page resolves to and the provider that served it"* failed with *"Unable to find
+   role=heading and name guerrilla"* in the same runs, and is absent from every clean run. Also
+   outside this stage's write scope.
+
+**A red with no name is not a finding**, so all three are named, and **none was rounded away**.
+
+### The falsification pass: 9 of 9, caught by the assertion each was aimed at
+
+`wrongcatch`, `green`, `noop`, `nocompile` and `harness-error` are **all zero**. Two of the nine
+mutate the *reader* rather than the data (V02 disables the unserved filter; V04 deletes the
+`AGENTS.md` disclaimer so the sentence that states the rule becomes an unresolved citation), because a
+pass in which only the fixture moves is not evidence that the instrument reads. **Pre-mutation
+SHA-256 digests were taken before the first mutation and every file was verified byte-identical after
+the last**, and `pnpm build` was re-run from the restored source (exit `0`).
+
+**The harness's own self-test is 5/5 and was run in BOTH argument orders**, because reading `argv[2]`
+resolves `--self-test` as a directory and that mistake has been made twice in this repository already.
+**Its fifth case earned its keep on the first run**: it reported *"unresolved: V01"* because Prettier
+had reflowed the anchor the violation aimed at. **A harness that checks its own anchors before writing
+anything is what turned a silent no-op into a reported failure** — and the first version of a
+falsification harness in this repository shipped two mutations as uncaught for exactly that reason.
+
+### What the pass does not establish, added to D7 rather than replacing it
+
+- **Nothing here is a re-measurement.** Every figure in the record carries `2026-10-16` and **no spike
+  ran and no provider behaviour was re-probed**; this is a document review.
+- **The instrument cannot re-read a website**, by design. **A claim recorded as served here was read by
+  a person on a date**, and a terms page that changes tomorrow leaves this file green until a human
+  goes and looks.
+- **The quotes are checked for presence, not for accuracy.** The instrument asserts that the record
+  *carries* a clause; it cannot assert that the provider still *says* it.
