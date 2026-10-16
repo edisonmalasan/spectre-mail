@@ -50,11 +50,20 @@
  */
 
 import type { MessageVerdict } from "@spectre-mail/mailbox";
+import { PRODUCT_NAME } from "@spectre-mail/ui";
 
 /** Every sentence the panel can say that is its own rather than the message surface's. */
 export const PANEL_COPY = {
-  /** The panel's own title, which is its surface and not the popup's. */
-  title: "SpectreMail",
+  /**
+   * The panel's own title, which is its surface and not the popup's.
+   *
+   * **Already the pattern the other seven surfaces were asked to adopt**: one copy constant, three
+   * renderings, and a test reading the constant rather than scraping rendered text. `docs/BRANDING.md`
+   * records this entry as the one surface already correct before this change, and what changed here
+   * is what it reads and not how it is written - it held a bare literal of the same word, so making
+   * it the reference cost nothing and left the three renderings exactly as they were.
+   */
+  title: PRODUCT_NAME,
 
   /** While the boot read is outstanding. */
   booting: "Reading what this device saved",

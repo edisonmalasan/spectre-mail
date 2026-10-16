@@ -3,6 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      The document's own title, and it is a build input rather than a component.
+
+      No module imports this file, so nothing here can render the value `@spectre-mail/ui`
+      exports as `PRODUCT_NAME`. The title therefore spells it, and the two are held together
+      by `tests/architecture/branding-audit.test.ts`, which reads this file and compares its
+      title element against the imported value. That is the arrangement the requirement
+      describes: a build input is checked by reading it, because the alternative is a check
+      that cannot see a build input, which is a check that cannot fail on the rename it
+      exists for.
+
+      Why it matters here and nowhere else on the page: this string is what a browser tab, a
+      bookmark and a history entry show. A rename that missed it would ship a product whose
+      own tab said the old name.
+    -->
     <title>SpectreMail</title>
   </head>
   <body>

@@ -7,6 +7,11 @@
  * also owns the contract the tokens are emitted through: `tokens.css`, generated from
  * `tokens.ts` and checked against it by a test.
  *
+ * It also owns **`PRODUCT_NAME`**, the product's public name, and `name.ts` gives the argument
+ * for its being here in full — which is an application of the rule quoted three paragraphs
+ * below, not a second rule: *a palette is shared by definition and its interface is data, not
+ * behaviour*, and so is a name.
+ *
  * ## What it does not own, and why not yet
  *
  * The roadmap's approved design lists buttons, the mailbox card, the provider badge, the
@@ -52,6 +57,8 @@ export {
   relativeLuminance,
 } from "./contrast";
 export type { ContrastThreshold } from "./contrast";
+
+export { PRODUCT_NAME } from "./name";
 
 export {
   COLOUR_NAMES,

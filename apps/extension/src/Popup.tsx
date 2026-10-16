@@ -28,6 +28,17 @@
  * matters, because a fallback presented as the primary would tell the user their mail
  * lives somewhere it does not.
  *
+ * ## Why the heading renders a value in all three of its branches
+ *
+ * **This component used to spell the product's public name as a bare literal three times**, one
+ * per return branch, ten lines from a `popup-copy.ts` that already exists. It now renders the one
+ * value `@spectre-mail/ui` exports as `PRODUCT_NAME` in all three - **three references is the
+ * measurement, one is the claim**: a fourth branch added tomorrow and left alone is reported by name
+ * rather than counted. `main.tsx` owns a fourth heading, in the storage-not-ready branch this
+ * component does not have, and it renders the same value; both are declared in the surface table
+ * `docs/BRANDING.md` carries, and `tests/architecture/branding-audit.test.ts` resolves that table
+ * against the tree in both directions.
+ *
  * @module
  */
 
@@ -41,6 +52,7 @@ import type {
   ProviderHealth,
   SessionState,
 } from "@spectre-mail/mailbox";
+import { PRODUCT_NAME } from "@spectre-mail/ui";
 
 import { findActiveTab, sendToTab } from "./extension-platform";
 import { fillCodeRequest, readFillCodeAnswer } from "./protocol";
@@ -237,7 +249,7 @@ export function Popup({
   if (!boot.done) {
     return (
       <main className="popup" aria-busy="true">
-        <h1 className="popup__heading">SpectreMail</h1>
+        <h1 className="popup__heading">{PRODUCT_NAME}</h1>
         <p>{COPY.booting}</p>
       </main>
     );
@@ -249,7 +261,7 @@ export function Popup({
     // same reasoning `website-client` uses to forbid the website's provider selector.
     return (
       <main className="popup">
-        <h1 className="popup__heading">SpectreMail</h1>
+        <h1 className="popup__heading">{PRODUCT_NAME}</h1>
         <p role="alert">{COPY.bootFailed}</p>
       </main>
     );
@@ -257,7 +269,7 @@ export function Popup({
 
   return (
     <main className="popup">
-      <h1 className="popup__heading">SpectreMail</h1>
+      <h1 className="popup__heading">{PRODUCT_NAME}</h1>
 
       {mailbox === null ? (
         <section aria-labelledby="create-heading">

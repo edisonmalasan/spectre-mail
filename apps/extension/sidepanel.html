@@ -3,6 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!--
+      A build input, exactly as `popup.html` is: no module imports this file, so the value
+      `@spectre-mail/ui` exports as `PRODUCT_NAME` cannot be rendered here. The title spells
+      it, and `tests/architecture/branding-audit.test.ts` reads this file and compares the two.
+      The side panel is a tab as often as it is a docked strip, and a docked panel with the
+      old name in its title is the shape of surface a rename is most likely to miss.
+    -->
     <title>SpectreMail</title>
     <!--
       The side panel's document, and what makes it a *different document* rather than a
