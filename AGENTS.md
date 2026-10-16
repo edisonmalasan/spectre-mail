@@ -1,5 +1,88 @@
 # AGENTS.md
 
+> **Current milestone state (reconciled against Git and OpenSpec 2026-10-16): M0-M11 are complete
+> in scope, M12's three tracked items are done (`extension-permissions-review` PRs #134–#137,
+> `privacy-document` PRs #138–#141), and **two of M12's two untracked items are now done as
+> well** — `security-surface-review` (PRs #142–#145) and `branding-check` (PRs #146–#148), which is
+> **APPLIED and SYNCED**. **What remains in M12 is the provider review**, which
+> `privacy-document` scoped as not blocking it and which has never been started.**
+
+> **`branding-check` is M12's branding check, and its verdict is that the name stands — while the
+> one thing a mail product cannot do without is the one thing that is taken.**
+> **`spectremail.com` is REGISTERED**: RDAP reports it created **2020-06-03**, expiring
+> **2027-06-03**, last changed **2026-08-17**, with **no nameservers**, and a company directory
+> lists a business of that name at that address describing itself as *"a cloud-based email
+> management app"* whose features include **private domains, token assignment to emails, mailbox
+> creation and syncing**. **The domain has no nameservers, so it resolves nowhere and every
+> DNS-based availability check reports it as FREE** — only the registry's own RDAP endpoint says
+> otherwise. **That is the fifth recorded instance in this repository of a substitute platform
+> answering about the wrong question, and the first where the substitute was DNS itself.**
+> Every other check came back clean, and **three of the six produced no measurement at all** — the
+> trademark control `SPECTRE` never resolved, Bluesky answers `400` on a known-good handle, and
+> Product Hunt returns `HTTP 200` with **exactly 16 occurrences of the query string for a nonsense
+> query**. **A control that does not resolve means the reader is not established, and a zero from
+> an unestablished reader is the absence of a measurement, not a finding.**
+>
+> **Nothing was renamed. What shipped is the record and the instrument that makes "public branding
+> should be updated cleanly" a property of the tree** — the name is one exported value and every
+> surface that renders it renders that value. **Ten surfaces, eleven map rows, fifteen renderings**,
+> and the eleventh row is the value's own declaration because the requirement says the name is
+> declared **exactly once**. **One of the ten already did it right**: `panel-copy.ts` holds the name
+> as one copy constant that `Panel.tsx` renders three times, while `Popup.tsx` spelled the same
+> heading as a bare literal three times in one component. The map's own reverse direction found
+> **two surfaces the root's measured table had missed** — `main.tsx:81` and `panel-main.tsx:117`,
+> each a heading in the branch taken when the client's storage could not be read — so **the figure
+> in the proposal's table was a reading and the figure in the instrument is a measurement**, which
+> is the difference this repository records most often.
+>
+> **The apply stage carried a defect only the root review could see, and it is the finding worth
+> carrying.** Adding `import { PRODUCT_NAME } from "@spectre-mail/ui"` was **the first time either
+> app had ever imported a value from that package** — verified on `main` with `git grep`, no
+> matches — and it therefore dragged `index.ts`, and so `packages/ui/src/pairs.ts`, into both
+> clients' typecheck programs, where `pairs.ts:31`'s `from "./contrast.ts"` (present since M7 slice
+> 1) failed `TS5097` in each. The fix the implementation reached for was
+> `"allowImportingTsExtensions": true` in **`tsconfig.base.json` — a compiler option widened for
+> every workspace project, with no requirement behind it**. **The repair is the subpath the package
+> had already documented a pattern for**: one line, `"./name": "./src/name.ts"`, in the same
+> `exports` map as `"./tokens.css"`, so a client reaching one string pulls nothing else.
+> **`tsconfig.base.json` is byte-identical to `main`.**
+>
+> **The sync promoted three `ADDED` requirements and no `MODIFIED` or `REMOVED`, moving the totals
+> by exactly three requirements and twelve scenarios: 179 → 182 and 577 → 589 across the same 15
+> capabilities** — `website-client` 23 → 24 and 75 → 79, `extension-client` 15 → 16 and 79 → 83,
+> `build-and-verification` 11 → 12 and 32 → 36. **Requirements moving by three because every one
+> of the three blocks is `ADDED` is the arithmetic working, not a promotion that missed** — the
+> **sixth** milestone to produce that shape. Re-counted by heading **after** the promotion rather
+> than carried forward, and `git diff --numstat -- openspec/specs` is **59/0, 81/0, 65/0** — three
+> files, **zero deletions**, so Git's own diff confirms nothing existing was touched. The promotion
+> was **rehearsed in full on a throwaway copy of `openspec/`** first, and the promoter and the
+> verifier **share no reader**: one walks lines with a state machine and ends a block at the next
+> `### Requirement:` **or** any `## `, the other splits whole text by regex.
+>
+> **And one requirement figure was wrong in the change's own delta and was amended before it was
+> promoted, rather than promoted wrong.** `extension-client`'s new requirement said the extension
+> names the product in **six** surfaces, two of them components; it is **eight**, four of them
+> components. **The source of the wrong figure was the root's own table**, not the instrument —
+> the two extra are the pair `main.tsx` and `panel-main.tsx` rendered above. **A requirement's
+> count is a claim about the tree, and promoting a claim the apply stage had already disproved
+> would have put a false figure into `openspec/specs/` permanently**; the amendment is written into
+> the delta with its reason, which is the recorded practice and the reason an archived delta and a
+> promoted spec are the same blocks.
+>
+> **`pnpm test` is 1308 across 66 files** (from **1290/64**), reconciled as **+4** in `packages/ui`
+> (38 → 42) and **+14** in `tests/architecture` (93 → 107, of which **14** are the new
+> `branding-audit.test.ts`). **`packages/storage` is still 86**, `apps/web` still **125**,
+> `apps/extension` still **487**, and **`boundaries.test.ts` still 53** — the last because this
+> change adds no boundary rule, since every property it introduces already had an instrument or
+> got one here.
+>
+> **`pnpm test:browser`: thirteen runs, twelve green, one red, and the red is UNATTRIBUTED.** It
+> failed the extension tier 1-of-98 once and did not reproduce in twelve subsequent runs, and the
+> reader that would have named the failing case was written against the wrong output shape and
+> matched nothing. **A red with no name is not a finding**, so it is recorded rather than rounded to
+> thirteen green; it is *consistent with* the two pre-existing unattributed reds in
+> `security-surface-review`'s `tasks.md` 6.4, and **consistent with is not an attribution**.
+
 > **Current milestone state (reconciled against Git and OpenSpec 2026-10-14): M0-M11 are complete
 > in scope, and M12's three tracked items are done — **two of them as of
 > `extension-permissions-review` (PRs #134–#137) and the third as of `privacy-document`, which is
@@ -1270,26 +1353,32 @@ Pin versions when exact versions matter.
   no extension build step — that is M8" became false at M8 and is deleted rather than
   reworded.**
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running **1290 tests across
-  64 files** via `pnpm test` (2026-10-14, at `security-surface-review`'s sync stage, and
+- Testing: Vitest `3.2.7` at the workspace root, verified running **1308 tests across
+  66 files** via `pnpm test` (2026-10-16, at `branding-check`'s sync stage, and
   **re-measured with `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory** on three
   separate `pnpm verify` runs, each exit `0`), counted from a
   JSON reporter **grouped by project** rather than read off a summary line, and **re-measured
   at this stage from a fresh run rather than carried forward** — because the count a
   ledger carries is only worth what the last person to re-run it made it worth, and this
   repository has now had a standing figure in its own status block go stale by a whole
-  milestone for exactly that reason. **The figure this paragraph replaced read `1228 across
-  62`**, which was accurate at `extension-clear-data` and at `privacy-document` and was
-  **two changes stale** by this one; **`security-surface-review` found it, could not correct
-  it (its task 6.3 forbids it writing this file), and reported it instead** — which is the
-  same defect `panel-verification-state`'s archive found, *the figure a reader copies is the
-  headline, and the headline is the one number in the block no change has to touch to record
-  itself*, now for the third time:
+  milestone for exactly that reason. **The figure this paragraph replaced read `1290 across
+  64`**, which was accurate at `security-surface-review` and one change stale by this one,
+  and before that it read `1228 across 62` and was two changes stale. **The record is now
+  three deep in the same defect**, which is the argument for re-measuring at every stage
+  rather than every few:
   54 in `packages/core`, 92 in `packages/providers`, **149 in `packages/mail-parser`**,
   **166 in `packages/mailbox`**, **125 in `apps/web`**,
   **86 in `packages/storage`** (7 stored record, 11 mailbox collection, 30 IndexedDB adapter,
   11 site associations, 7 browser entry point, 12 `chrome.storage` adapter,
   **8 seen-message record**),
+  **42 in `packages/ui`** (**38** until `branding-check`, which added **4** — the exported
+  public name and its own cases — so the package's count is no longer the flat **38** this
+  file has carried through nine milestones, and **a figure that stops moving is a figure
+  nobody re-ran**),
+  **107 in `tests/architecture`** (53 boundaries, 22 privacy-disclosure, 18 security-audit,
+  **14** branding-audit — so `boundaries.test.ts` is **still 53**, which is the measurement
+  this change turned on, since every property it introduced already had an instrument or got
+  one here and a rule added where an instrument exists is not coverage),
   **487 in `apps/extension`** across **21** files (**25** in `content-script.test.ts`,
   **123** in `protocol.test.ts`, **70** in `extension-platform.test.ts`, **23** in
   `content-script-fill.test.ts`, **22** in `code-field.test.ts`, **25** in `Popup.test.tsx`,
@@ -1300,7 +1389,10 @@ Pin versions when exact versions matter.
   **11** in `notification.test.ts`, **7** in `alarms.test.ts`,
   **10** in `content-script-handlers.test.ts`, **12** in `content-script-host-context.test.ts`,
   **5** in `popup-copy.test.ts`, **8** in `service-worker.test.ts`, **4** in `scheduler.test.ts`),
-  **38 in `packages/ui`**, and **53 architecture boundary assertions**.
+  **53 architecture boundary assertions** — which is the only figure in this list that has not
+  moved since M1's independent verification pass, and is stated separately because **it is the
+  number several changes below use as the measurement that no rule was added where an instrument
+  already exists.**
   **This figure was stale by a milestone and is corrected here rather than left, and the reason
   matters more than the number:** it read **1093 across 58 files**, which was accurate at
   `incoming-mail-notification` and at `side-panel-runtime-facts`, and **`side-panel-surface`

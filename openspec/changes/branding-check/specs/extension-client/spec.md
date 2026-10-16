@@ -7,13 +7,25 @@
 Every extension surface that names the product SHALL render the exported public name,
 and the two distinct name fields in the extension's manifest SHALL both carry that value.
 
-**The extension names the product in six surfaces, and they are checked by two different
+**The extension names the product in eight surfaces, and they are checked by two different
 mechanisms because they are two different kinds of thing.** Four are **build inputs** —
 the manifest's `name`, the manifest's `action.default_title`, the popup's document title
-and the side panel's document title — and no module imports any of them. Two are
-**components**: the popup's heading, and the side panel's heading.
+and the side panel's document title — and no module imports any of them. Four are
+**components**: the popup's heading, the side panel's heading, and one heading in each of
+the two composition roots, in the branch taken when that client's own storage could not be
+read.
 
-**The side panel already does this and is the pattern the other five should adopt.**
+**Amendment, recorded during apply (2026-10-16).** This said *six* surfaces and *two*
+components. The extra two are `main.tsx` and `panel-main.tsx`, each rendering a heading as
+a bare literal in the storage-not-readable branch, and **the root orchestrator's own
+measurement is the source of the wrong figure** — the table this delta was written from
+listed the files it had read and did not read these two. The requirement's own instrument
+found them from the other direction: every place the shipped tree holds the name must be
+declared, and two places were not declared. **The count in a requirement is a measurement,
+and this one was a reading**, which is the difference this repository has recorded most
+often.
+
+**The side panel already does this and is the pattern the other seven should adopt.**
 `panel-copy.ts` holds the name as a copy constant and the panel renders it in three
 places, so **one value renders three times**. Ten lines away, in the same directory, the
 popup's heading is spelled as a bare literal **three times in one component**, beside a
