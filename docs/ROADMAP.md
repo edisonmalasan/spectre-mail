@@ -559,17 +559,30 @@ and is archived. `privacy-document` is M12's privacy documentation item and is *
 ARCHIVED** — apply PR **#139**, sync PR **#140**, archive PR **#141**, each number filled in by
 `gh pr view` after the merge rather than predicted at the stage that opened the PR.
 
-**`branding-check` is M12's branding check, and it is APPLIED and SYNCED.** Proposal PR **#146**
-merged `e099ef5`; apply PR **#147** merged `76cd65e`. **Its sync promoted three `ADDED`
-requirements and no `MODIFIED` or `REMOVED`**, moving the tree from **179 requirements and 577
-scenarios to 182 and 589** across the same **15** capabilities — `website-client` 23 → 24 and
-75 → 79, `extension-client` 15 → 16 and 79 → 83, `build-and-verification` 11 → 12 and 32 → 36,
-with `openspec validate --specs --strict` at **15 passed, 0 failed** and `git diff --numstat --
-openspec/specs` at **59/0, 81/0, 65/0** — **three files, zero deletions**, so Git's own diff
-confirms the promoter appended rather than rewrote. **`pnpm test` is 1308 across 66 files** (from
-**1290/64**): `packages/ui` **38 → 42** and `tests/architecture` **93 → 107**, with
-`packages/storage` still **86**, `apps/web` still **125**, `apps/extension` still **487** and
-**`boundaries.test.ts` still 53**.
+**`branding-check` is M12's branding check, and it is APPLIED, SYNCED and ARCHIVED** at
+`openspec/changes/archive/2026-10-16-branding-check/`. Proposal PR **#146** merged `e099ef5`;
+apply PR **#147** merged `76cd65e`; sync PR **#148** merged `41ed65a`; **the archive PR number is
+left unfilled here** and is filled in by `gh pr view` at the next change's proposal stage.
+**The archive moved 6 files, every one byte-identical to a digest taken programmatically before the
+command ran**, and Git's own rename detection confirms it independently — **six renames at
+`0 insertions, 0 deletions`**, because **this stage deliberately edited none of the archived
+files**. All **16** files under `openspec/specs/` are byte-identical throughout, checked against
+**Git** rather than against digests typed by hand, and all **3** promoted blocks re-verified
+**byte-identical against the *archived* deltas** with the verifier first shown to fail loudly with
+`ENOENT` on the absent pre-archive path. **`docs/BRANDING.md` cites no path inside the change
+directory, so the archive needed no citation repair** — the whole architecture suite is **107 of
+107** green with the change directory permanently at its archive path, which is the measurement
+rather than a simulated move-and-restore.
+
+**Its sync promoted three `ADDED` requirements and no `MODIFIED` or `REMOVED`**, moving the tree
+from **179 requirements and 577 scenarios to 182 and 589** across the same **15** capabilities —
+`website-client` 23 → 24 and 75 → 79, `extension-client` 15 → 16 and 79 → 83,
+`build-and-verification` 11 → 12 and 32 → 36, with `openspec validate --specs --strict` at
+**15 passed, 0 failed** and `git diff --numstat -- openspec/specs` at **59/0, 81/0, 65/0** —
+**three files, zero deletions**, so Git's own diff confirms the promoter appended rather than
+rewrote. **`pnpm test` is 1308 across 66 files** (from **1290/64**): `packages/ui` **38 → 42** and
+`tests/architecture` **93 → 107**, with `packages/storage` still **86**, `apps/web` still **125**,
+`apps/extension` still **487** and **`boundaries.test.ts` still 53**.
 
 **One requirement figure was wrong in the change's own delta and was amended before promotion
 rather than promoted wrong.** `extension-client`'s new requirement said the extension names the
@@ -672,7 +685,8 @@ from `apps/extension`.
 security review, permissions review, provider review, privacy documentation, branding check — and
 **three** are the tracked ones the Project Status has been carrying. **Two more are now done — the
 security review and the privacy documentation — and the last unstarted item, the branding check, is
-now APPLIED and SYNCED.** **What remains in M12 is the provider review**, which `privacy-document`
+now APPLIED, SYNCED and ARCHIVED.** **What remains in M12 is the provider review**, which
+`privacy-document`
 scoped as not blocking M12 and which is also unstarted; it is a separate item and is **not** claimed
 here as anything other than a statement of what is left. **M12 is therefore one item from closed**,
 and that item is a review of provider terms rather than a change to anything this product ships.
