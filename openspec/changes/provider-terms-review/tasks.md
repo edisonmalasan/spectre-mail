@@ -271,3 +271,100 @@ re-checks them twice.**
 
 **None of the above was edited.** They are reported because a finding reported is worth more than a
 scope violation.
+
+## 11. Sync-stage record (2026-10-16)
+
+### 11.1 The promotion
+
+Two `ADDED` and one `MODIFIED`, so the promoted requirement count moves by **exactly two**. Re-counted
+by heading **after** the promotion rather than carried forward:
+
+    182 requirements / 577 scenarios / 15 capabilities
+ -> 184 requirements / 597 scenarios / 15 capabilities
+
+  provider-abstraction   10 -> 11    25 -> 29
+  mailbox-session        24 -> 25    65 -> 68
+  privacy-disclosure      8 ->  8    19 -> 20
+
+**`privacy-disclosure`'s requirement count holding at 8 is the arithmetic working, not a promotion
+that missed** — a `MODIFIED` block replaces rather than adds — and **19 -> 20 is +3 replacing +2**,
+which accounts for the scenario delta exactly.
+
+`git diff --numstat -- openspec/specs` is **51/0, 49/0 and 44/10**: two files are pure additions, and
+**the ten deletions are all inside the replaced block**, which is what a modification looks like and
+what an addition never produces.
+
+### 11.2 **This is the milestone's first `MODIFIED`, and it needs a second guard**
+
+`ADDED` onto a heading that already exists is a silent replacement wearing the name of an addition.
+**`MODIFIED` onto a heading that does not exist is the same substitution wearing the other name**, and
+this promotion is the first in this repository to be able to commit it. The promoter therefore guards
+both directions and refuses before writing anything.
+
+Both were falsified separately:
+
+```text
+second run, unmodified delta
+  REFUSING: provider-abstraction already carries a requirement headed
+    "No provider decision rests on a terms claim ..."          exit 1
+  all three specification files SHA-256 unchanged
+
+planted MODIFIED for a heading the spec does not carry
+  REFUSING: provider-abstraction carries no requirement headed
+    "A requirement the specification does not carry.
+     A MODIFIED block must replace a requirement that exists, not add one."   exit 1
+  all three specification files SHA-256 unchanged
+```
+
+### 11.3 **The first attempt at that second falsification was a no-op that produced a green run**
+
+The plant used PowerShell's `-replace '(?m)^## ADDED Requirements$'` -- and **the first version omitted
+`(?m)`, so `^` matched only the start of the whole file**, which begins `# Spec Delta`. The
+substitution never applied, the promoter ran and promoted cleanly, and the harness printed success.
+
+**A mutation that did not apply is not evidence, and the instrument reporting success while measuring
+nothing is the exact shape a reader that found nothing produces.** The repair asserts the plant
+applied before the run, and the run was then repeated. **This is the fifth time this session that a
+reader said nothing in a way that looked exactly like a pass** -- after a rate reader reporting a
+collection failure as green, an arm harness filing nineteen correct arms as `wrongcatch`, a
+comment-stripper whose three errors cancelled onto the right total, and a promotion counting the wrong
+block. **Every one of them was a reader, and every one of them was caught by something other than the
+gate it belonged to.**
+
+### 11.4 The verifier was wrong three times before its tally was trusted, and its own self-test caught two
+
+The self-test failed **2 of 5** on its first run, then **1 of 5** after a repair.
+
+1. **It crashed instead of reporting.** `differences()` took delta *text* and re-parsed it, so the
+   caller that had already attached the retired-scenario list -- which is only derivable from the
+   current spec -- passed an array where text was expected and `text.matchAll` **threw**. **An
+   instrument that crashes is worse than one that reports nothing, because its exit code looks like a
+   verdict.** The parameter is now the parsed blocks, so the mistake cannot be made.
+2. **Its falsification was aimed at a file, not at the property.** Case 3 mutated
+   `blocksBySplit(specText)[0]`, which on an unmodified spec is a requirement the delta says nothing
+   about -- so the mutation was invisible to the comparison by construction and the case could never
+   have passed. It now takes the spec's copy of a block **the delta covers**.
+3. **Its `REMOVED` case asserted the opposite of the truth.** It named a heading the spec does not
+   carry, so the correct answer was "no difference" and the case demanded a difference. **A
+   falsification that asserts a defect where there is none is not a falsification.**
+4. And a real ordering defect the self-test then exposed: the retired-scenario check ran **after** the
+   whole-block comparison, which `continue`d on the first difference -- so a modification that had
+   *appended* its retired scenarios was reported as an unexplained text difference. **True and
+   useless. A specific diagnosis beats a correct one**, and the requirement is about replacement.
+
+**Repaired self-test is 5 of 5, in both argument orders** -- `--self-test <root>` and
+`<root> --self-test` -- because reading `argv[2]` resolves the flag as a directory, **and that
+mistake has now been made three times in this repository by three instruments.**
+
+The two checks with no precedent -- a `MODIFIED` that still carries a retired scenario, and a
+`REMOVED` heading the spec still carries -- are the ones this milestone needed and had never had.
+
+### 11.5 Root-owned figures
+
+`pnpm test` is **1319 across 67 files**, re-measured from a `--reporter=json` run **grouped by
+project**. **It does not move at this stage, and the first draft of this sentence said it did** --
+`tests/architecture` **118**, not "118 -> 129", because a sync promotes specifications and edits
+markdown and **adds no case**. Every project total is unchanged from the apply stage, and
+**`boundaries.test.ts` is still 53**. **A figure written before the run that measures it is the
+defect this repository has recorded three times in this file alone**, and here the number that would
+have shipped was wrong in the direction that flatters a stage.

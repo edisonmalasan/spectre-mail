@@ -1,5 +1,66 @@
 # AGENTS.md
 
+> **`provider-terms-review` — M12's provider review, the milestone's last item — is APPLIED and
+> SYNCED.** Proposal PR **#150** merged `ff7082c`; apply PR **#151** merged `bd34511`.
+>
+> **Its finding is that the absence this repository leaned on for its whole life is half wrong, and
+> the wrong half came from a method rather than from a document.** `docs/PROVIDERS.md:234` cited
+> `https://mail.tm/terms` -> `404` as the basis for *no terms page exists* **and cited
+> `https://mail.tm/en/faq/` -> `200` in the next line** — the repository knew the site prefixes its
+> real paths and probed an unprefixed one anyway. Re-measured at both shapes:
+> **`https://mail.tm/en/privacy/` serves a Privacy Policy where `https://mail.tm/privacy` does
+> not.** **The conclusion about *terms* survived; the method did not.**
+>
+> **And Guerrilla Mail publishes Terms of Service at `/tos`, linked from its own homepage, which
+> this repository had never read.** Verbatim, now in the record: *"Guerrilla Mail acts as
+> **Software Service Provider**"*; the service prohibits *"**Over-use our resources by repeatedly
+> making many requests to our servers**"*; the licence is *"non-transferable, subject to change"*.
+> Its API document publishes two sentences the record did not have — *"The API may be rate limited,
+> **but we do not publish our rate limits**"* and *"**The client should not check email too many
+> times as to not overload the server**"* — **the second addressed to a client, which is what this
+> product is**, while it polls that provider **every 5 seconds** while a mailbox's contents are
+> changing. **Nothing changes the cadence and that restraint is the requirement**: a qualitative
+> prohibition is not a limit, this repository does not invent figures it has not measured, and **the
+> cadence has never run against a live provider**. What ships is the requirement that the cadence
+> **state the guidance it was chosen against** — **the product's footer already renders Mail.tm's
+> verbatim `30; w=60`**, so the mechanism exists and only the second provider's quote was missing.
+>
+> **And the apply stage produced the sharpest instrument finding of the milestone: a rule that was
+> holding a falsehood in place.** The new suite reported `docs/PRIVACY.md`'s attribution rows as
+> claiming two things now measured false, and **did not edit the document and did not weaken the
+> instrument**. Correcting it then turned **that document's own suite** red, because
+> `privacy-disclosure.test.ts` asserted the row must *contain* `"No terms page exists."` and
+> `https://mail.tm/terms` — **so it would have failed any correction to that row's sentence,
+> including the correction that was true.** **That is the mirror of `security-surface-review`'s
+> "a rule that fires without a requirement behind it": here the rule fires against the correction,
+> because the rule encodes the falsehood.** A rule guarding a claim is only as good as the claim,
+> and one written in 2026-10-02 from a single probed path held a sentence in place ever since.
+> **What replaced the sentences is the property**: the row must name **the routes tried** — true
+> whatever any single route returns — the locale-prefixed routes, the date, and that the silence is
+> **neither a permission nor a prohibition**.
+>
+> **The sync promoted two `ADDED` requirements and one `MODIFIED`, moving the totals by exactly two
+> requirements and eight scenarios: 182 → 184 and 589 → 597 across the same 15 capabilities** —
+> `provider-abstraction` 10 → 11 and 25 → 29, `mailbox-session` 24 → 25 and 65 → 68,
+> `privacy-disclosure` **8 → 8** and 19 → 20. **`privacy-disclosure`'s requirement count holding at 8
+> is the arithmetic working, not a promotion that missed: a `MODIFIED` block replaces rather than
+> adds**, and the 19 → 20 is +3 replacing +2. **It is the first milestone in four to carry a
+> `MODIFIED`, and the shape is the finding** — this is the first change whose own review falsified a
+> sentence inside an already-promoted requirement. `git diff --numstat -- openspec/specs` is
+> **51/0, 49/0 and 44/10**: two pure additions and **ten deletions, all inside the replaced block**,
+> which is what a modification looks like and what an addition never produces.
+>
+> **And two guards were falsified separately, because a `MODIFIED` introduces a second way to
+> substitute silently.** `ADDED` onto an existing heading and `MODIFIED` onto a missing one are both
+> silent substitutions wearing the other kind's name, and the promoter now refuses each before
+> writing anything — measured by running it twice (**exit 1**, specs **SHA-256 unchanged**) and by
+> planting a `MODIFIED` for a heading the spec does not carry (**exit 1**, all three specs
+> **unchanged**). **The first attempt at that second falsification was a NO-OP that produced a green
+> run** — the PowerShell `-replace` omitted `(?m)`, so `^` matched only the start of the whole file,
+> the plant never applied, and the instrument reported success while measuring nothing. **A mutation
+> that did not apply is not evidence**, and that is the fifth time this session a reader said nothing
+> in a way that looked exactly like a pass.
+
 > **Current milestone state (reconciled against Git and OpenSpec 2026-10-16): M0-M11 are complete
 > in scope, M12's three tracked items are done (`extension-permissions-review` PRs #134–#137,
 > `privacy-document` PRs #138–#141), and **two of M12's two untracked items are now done as
