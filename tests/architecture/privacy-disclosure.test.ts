@@ -1261,13 +1261,37 @@ test("the attribution table names both absences and resolves in neither directio
   );
 
   // Both absences named as measurements rather than implied.
+  //
+  // **Three of these four assertions were wrong about the world, and this change is what proved it.**
+  // They used to read: `"No terms page exists."`, `toContain("https://mail.tm/terms")`,
+  // `"Nothing this repository found."` — **and the second of the three was a rule that fired to keep
+  // a false claim in place.** `https://mail.tm/terms` really does return 404, and the suite asserted
+  // the document must *contain that URL*, so correcting the row's sentence was enough to turn this
+  // suite red. That is the mirror of `security-surface-review`'s *"a rule that fires without a
+  // requirement behind it"*: **a rule that fires against the correction because the rule encodes
+  // the falsehood.**
+  //
+  // What replaced them is the property rather than the sentence. **A `404` on a probed path is
+  // evidence that that path is not served, and not evidence about the site** — so the assertion now
+  // requires the row to name the routes tried, which is what makes it true whatever any single
+  // route returns.
   const mailTm = rows.find((row) => row[0] === providerDisplayName("mailtm"))?.[1] ?? "";
-  expect(mailTm, "Mail.tm's terms page is named as not located").toContain("No terms page exists.");
-  expect(mailTm, "the 404 is the measurement, not an inference").toContain("https://mail.tm/terms");
-  const guerrilla = rows.find((row) => row[0] === providerDisplayName("guerrilla"))?.[1] ?? "";
-  expect(guerrilla, "Guerrilla Mail's absence is named as an absence").toContain(
-    "Nothing this repository found.",
+  expect(mailTm, "Mail.tm's terms are named as not located at the routes tried").toContain(
+    "No terms document was located at any of the routes tried.",
   );
+  expect(mailTm, "the 404 is the measurement, not an inference").toContain("https://mail.tm/terms");
+  expect(mailTm, "the locale-prefixed routes are named too").toContain("/en/terms/");
+  expect(mailTm, "the date the routes were tried is stated").toContain("2026-10-16");
+
+  const guerrilla = rows.find((row) => row[0] === providerDisplayName("guerrilla"))?.[1] ?? "";
+  expect(guerrilla, "Guerrilla Mail's terms are named as read").toContain(
+    "https://www.guerrillamail.com/tos",
+  );
+  expect(
+    guerrilla,
+    "the silence is stated, and stated as neither a permission nor a prohibition",
+  ).toContain("neither a permission nor a prohibition");
+  expect(guerrilla, "the date the terms were read is stated").toContain("2026-10-16");
 });
 
 test("the removal is declared as two steps, and the document is reachable from the project", () => {

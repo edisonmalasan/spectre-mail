@@ -135,10 +135,10 @@ it closes, so neither half would be a promise this product could keep.
 document does not resolve it in either direction.** Saying "no attribution is
 required" would be exactly as unsupported as saying one is.
 
-| provider       | what was actually verified                                                                                                                           |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Mail.tm        | **No terms page exists.** `https://mail.tm/terms` returns 404, and the FAQ carries no proxy, resale, attribution or quota terms. Checked 2026-10-02. |
-| Guerrilla Mail | **Nothing this repository found.** Its public API terms, rate limits and attribution requirements were not located and were not re-verified.         |
+| provider       | what was actually verified                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Mail.tm        | **No terms document was located at any of the routes tried.** `https://mail.tm/terms`, `/en/terms/`, `/en/terms-of-service/`, `/legal`, `/en/legal/` and `/en/imprint/` all return **404**. Its **Privacy Policy is published** at `https://mail.tm/en/privacy/`, and that policy refers to "terms of service" while nothing it serves does — **so neither the presence nor the absence of an obligation is asserted here.** Checked 2026-10-16. |
+| Guerrilla Mail | **Its Terms of Service were read**, at `https://www.guerrillamail.com/tos`, which the provider links from its own homepage, and **they contain no attribution clause.** That silence is neither a permission nor a prohibition. Checked 2026-10-16.                                                                                                                                                                                              |
 
 Earlier revisions of this project quoted Mail.tm terms requiring attribution.
 **Those quotations could not be located and are withdrawn.** See

@@ -243,3 +243,61 @@ falsification harness in this repository shipped two mutations as uncaught for e
   goes and looks.
 - **The quotes are checked for presence, not for accuracy.** The instrument asserts that the record
   *carries* a clause; it cannot assert that the provider still *says* it.
+
+## D9 — Two scope extensions the root made, and the second is the finding
+
+The implementation agent reported `pnpm verify` **red** and named the cause exactly, then stopped:
+`docs/PRIVACY.md:140-141` still read *"No terms page exists"* and *"Nothing this repository found"*, and
+**it did not edit that file and did not weaken the instrument to hide it.** That is the correct
+behaviour and the reason the change is worth having — the instrument reported a shipped document's
+own claim, and it named who owns the repair.
+
+**The root made both repairs, and the first is a scope extension this repository's do-not-touch rule
+explicitly permits:** the list names `docs/PRIVACY.md` "without the active task explicitly requiring
+it", and this task's whole subject *is* that document's terms rows. Excluding the document the
+finding is about would have been excluding the finding.
+
+**The second repair is the finding worth carrying, and it was to a file this change's scope also
+forbade.** `tests/architecture/privacy-disclosure.test.ts` — the suite that shipped with the privacy
+document — asserted:
+
+```ts
+expect(mailTm, "Mail.tm's terms page is named as not located").toContain("No terms page exists.");
+expect(guerrilla, "Guerrilla Mail's absence is named as an absence").toContain(
+  "Nothing this repository found.",
+);
+```
+
+**So correcting the document turned the document's own suite red.** `https://mail.tm/terms` does
+return `404`, and the suite required the row to *contain that URL* — which means **it would have
+failed any correction to that row's sentence**, and would have failed the correction that was true.
+
+**That is the mirror of `security-surface-review`'s *"a rule that fires without a requirement behind
+it"*. Here the rule fires against the correction, because the rule encodes the falsehood.** A rule
+guarding a claim is only as good as the claim, and one written in 2026-10-02 from a single probed
+path has been holding a sentence in place ever since.
+
+**What replaced the sentences is the property, not the wording.** The assertions now require the row
+to **name the routes tried** — true whatever any single route returns — to name the
+locale-prefixed routes, to state the date the routes were tried, to name Guerrilla's terms path as
+read, and to state that the silence is **neither a permission nor a prohibition**. **A `404` on a
+probed path is evidence that that path is not served, and not evidence about the site**, and an
+assertion written to that shape cannot need rewriting the next time a provider publishes something.
+
+## D10 — The `branding-audit.test.ts` red that did not reproduce
+
+The agent also reported `branding-audit.test.ts` failing on the **clean tree** with
+`ENOENT … packages/mailbox/__framework-rule-probe.ts`, and proposed a one-line ordering repair:
+`shippedFiles()` calls `statSync(child)` at line 389 and only reaches the probe guard at line 400.
+
+**The root could not reproduce it, and a defect that cannot be reproduced is not repaired.**
+Measured directly: the suite is **14 of 14 green** on this tree, and **14 of 14 green again with
+`packages/mailbox/__framework-rule-probe.ts` planted and confirmed present** before and after the
+run. The three other architecture suites are **93 of 93** with the same file planted.
+
+So the reported ordering defect is **not a defect that this tree exhibits**, and the most likely
+explanation is the agent's own instrument deleting a probe file while a suite was walking for it —
+which is a harness race, not a suite defect. It is recorded here as **reported once, not
+reproducible, not repaired**, because *a reported defect that turns out not to exist is still
+information* and because repairing a line on the strength of a single unreproducible report is the
+shape this repository records as a repair made for the wrong reason.
