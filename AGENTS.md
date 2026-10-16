@@ -1,8 +1,29 @@
 # AGENTS.md
 
-> **`provider-terms-review` — M12's provider review, the milestone's last item — is APPLIED and
-> SYNCED.** Proposal PR **#150** merged `ff7082c`; apply PR **#151** merged `bd34511`.
+> **`provider-terms-review` is APPLIED, SYNCED and ARCHIVED** at
+> `openspec/changes/archive/2026-10-16-provider-terms-review/` — proposal PR **#150** merged
+> `ff7082c`, apply PR **#151** merged `bd34511`, sync PR **#152** merged `9557e68`, and the **archive
+> PR number left unfilled here**, to be filled by `gh pr view` at the next change's proposal stage —
+> **because the last one was written as a prediction before the PR existed and had to be corrected
+> against `gh pr view` in the same sentence, which is this file's own recorded rule against a figure
+> nobody counted.**
 >
+> **The archive moved 6 files, every one byte-identical to a pre-archive digest taken
+> programmatically, with Git's own rename detection independently confirming it — six renames at
+> `0 insertions, 0 deletions`.** All **16** files under `openspec/specs/` are byte-identical
+> throughout, checked against **Git**. All **3** promoted blocks re-verified **BYTE-IDENTICAL against
+> the *archived* delta**, with the verifier pointed at the archived path **after being shown to fail
+> loudly with `ENOENT` on the absent pre-archive one**, and its self-test **5 of 5** there. Counts
+> **re-counted after the move** at **184 / 597 / 15**, unmoved by the archive. **This stage
+> deliberately edited none of the archived files.** **All 118 architecture cases are green with the
+> change directory permanently at its archive path** — and that matters more here than anywhere else,
+> because this change's whole subject is documents: `docs/PRIVACY.md` and `docs/PROVIDERS.md` both
+> carry claims an instrument resolves, **neither cites a path inside the change directory**, and so
+> **the archive needed no citation repair** where `security-surface-review`'s did.
+>
+> **`openspec list` reports no active changes, which means M12's five listed items are all done** —
+> three tracked and two untracked — and **the milestone's own exit criteria are met in scope.**
+
 > **Its finding is that the absence this repository leaned on for its whole life is half wrong, and
 > the wrong half came from a method rather than from a document.** `docs/PROVIDERS.md:234` cited
 > `https://mail.tm/terms` -> `404` as the basis for *no terms page exists* **and cited
