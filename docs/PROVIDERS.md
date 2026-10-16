@@ -14,9 +14,9 @@
 > **Harness:** `tests/provider-spike/` — disposable, not product code.
 > **Re-run before release.** Provider behaviour and terms change. Every claim below
 > traces to a probe in a run cited above, **except** where a section states its own
-> non-probe basis and retrieval date — §2's provider-terms and published-lifetime
-> findings, which no probe captures. Claims with no recorded evidence are labelled
-> as such.
+> non-probe basis and retrieval date - §2's and §3's provider-terms and
+> published-lifetime findings, which no probe captures. Claims with no recorded
+> evidence are labelled as such.
 >
 > **What follows from this document.** These are measurements, not requirements.
 > The behaviours they imply are specified separately in the `provider-abstraction`
@@ -55,9 +55,11 @@ browser.normal-web-page.mailtm [failed] blocked from http://127.0.0.1:PORT
 Mail.tm is therefore excluded from the website. A SpectreMail-operated proxy
 would technically make it reachable, and SpectreMail does not do that: relaying a
 provider API to work around an origin restriction is out of scope as a matter of
-policy, independent of what any provider's terms permit. See §2 for the
-unresolved question of what Mail.tm's terms actually say — no terms page exists
-and the FAQ is silent, so **no proxying decision may cite the provider's terms.**
+policy, independent of what any provider's terms permit. See §2 for
+what was looked for and what was found: **no terms document was located at any
+of the paths tried, and the one document this repository did find refers to
+"terms of service" without serving one** — so **no proxying decision may cite
+the provider's terms, and none does.**
 
 ---
 
@@ -114,6 +116,53 @@ a minute gets a `429` and a dead end. The spike enforces this budget itself by
 serialising account creation; production must do the same, and must design the UI
 around it (reuse the current mailbox, disable/queue regeneration, and treat rate
 limiting as a normal state rather than an error).
+
+#### The provider a browser can reach: published guidance, quoted
+
+Mail.tm is unreachable from a web page (§1), so the table above governs nothing
+this website does. **Guerrilla Mail is the only provider a browser page can
+reach, and the cadence in `packages/mailbox/src/cadence.ts` was chosen against
+it.**
+
+That cadence was chosen against a record saying the provider publishes nothing.
+**That is measured false.** Guerrilla Mail's API document publishes two sentences,
+read **2026-10-16** at `http://www.guerrillamail.com/GuerrillaMailAPI.html`:
+
+> *"Note: The API may be rate limited, **but we do not publish our rate limits**."*
+
+> *"**The client should not check email too many times as to not overload the
+> server.**"*
+
+**The cadence's own figure, beside the provider's own sentence:**
+
+| | value | whose figure it is |
+| --- | --- | --- |
+| delay while a mailbox's contents are changing | **5 000 ms** | this product's own choice, `INBOX_POLL_PROMPT_MS` |
+| delay, doubling per unchanged check | up to a **30 000 ms** ceiling | this product's own choice, `INBOX_POLL_CEILING_MS` |
+| what the provider publishes about any of it | **no figure at all** | Guerrilla Mail's, quoted above |
+
+**No figure was published, and none was invented.** The first sentence quoted above
+confirms this document's earlier finding — the provider publishes no rate limit —
+and the second is new: **a qualitative recommendation addressed to a client**, which
+is what this product is. A qualitative prohibition is not a limit, and this
+repository does not invent figures it has not measured, so **no number in the table
+above is the provider's.**
+
+**The cadence has never been run against a live provider at all.** Both browser
+tiers serve *recorded* responses, and the cadence assertions read the delay the
+scheduler was asked for — which proves this repository's arithmetic and nothing
+about a provider's patience (§5.2). **So nothing in this subsection says what five
+seconds costs anybody.**
+
+**The cadence is unchanged by the 2026-10-16 review, deliberately.** The finding a
+maintainer now has to weigh is that a provider this product polls every five seconds
+while a mailbox's contents are changing **has published a sentence asking clients not
+to check email too often, and has published no figure against which this product's
+numbers can be checked.** That is a risk to weigh, not a limit that has been met.
+The website's footer already renders Mail.tm's verbatim `30; w=60` with its scope
+disclaimed, so the mechanism for showing a provider's own statement on screen
+exists; **only the second provider's quote was missing**, and this subsection is that
+quote.
 
 ### Real-time delivery: **not available**
 
@@ -224,22 +273,61 @@ assume a **countdown**: no client can learn when the 7-day horizon passes for a
 given message, and the mailbox itself has no expiry to count down to. Expiry must
 remain driven by an observed signal.
 
-### Terms that affect the product — **NOT VERIFIED**
+### Terms that affect the product — **no terms document located; one other document is**
 
 Earlier revisions of this document quoted Mail.tm terms forbidding proxying,
 reselling, and requiring attribution. **Those quotations could not be located.**
-Checked on **2026-10-02**:
 
-```text
-https://mail.tm/terms      404 "Page not found" — there is no terms page
-https://mail.tm/en/faq/    200 — no proxy, resale, attribution or quota terms
-https://mail.tm/llms.txt   200 — site map: /en, /contact, /faq, /feedback, /privacy
-```
+**First checked on 2026-10-02**, at three paths:
 
-No spike probe ever fetched or captured provider terms, so no run artifact
-records them. **Treat every terms-derived claim below as unverified.** They are
-retained here only so the gap is visible rather than silently dropped, and none
-of them may be cited as a reason to make an architectural decision.
+| path | result on 2026-10-02 |
+| --- | --- |
+| `https://mail.tm/terms` | `404` "Page not found" |
+| `https://mail.tm/en/faq/` | `200` — no proxy, resale, attribution or quota terms |
+| `https://mail.tm/llms.txt` | `200` — site map: `/en`, `/contact`, `/faq`, `/feedback`, `/privacy` |
+
+**The first row was recorded as "there is no terms page", and the second row is
+why that sentence was half wrong.** The site serves its real paths
+locale-prefixed — the second row is a served path and the first is not — **so a
+`404` on the first row is evidence that *that path* is not served, and not
+evidence about the site.** This document wrote the guessed path and the prefixed
+path in consecutive lines of one section.
+
+**Re-probed 2026-10-16, every route tried at both shapes.** The table is the
+finding, because the unprefixed shape alone produces a wrong sentence:
+
+| path | served? | path | served? |
+| --- | --- | --- | --- |
+| `https://mail.tm/terms` | **`404`** | `https://mail.tm/en/terms/` | **`404`** |
+| `https://mail.tm/privacy` | **`404`** | `https://mail.tm/en/privacy/` | **`200` — "Privacy Policy - Mail.tm"** |
+| `https://mail.tm/legal` | **`404`** | `https://mail.tm/en/legal/` | **`404`** |
+| `https://mail.tm/about` | **`404`** | `https://mail.tm/en/about/` | **`404`** |
+| — | — | `https://mail.tm/en/terms-of-service/` | **`404`** |
+| — | — | `https://mail.tm/en/imprint/` | **`404`** |
+
+**The conclusion about terms survives the re-probe — no route tried for Mail.tm's
+terms is served — and the method does not.**
+
+**A privacy policy is served at a path this document had never tried**, and reading a
+`404` at the unprefixed one would have kept it invisible. Read 2026-10-16 at
+`https://mail.tm/en/privacy/`, titled *"Privacy Policy - Mail.tm"*.
+
+**The policy refers to a document this repository has not located.** Verbatim:
+
+> *"it is found that your use of this site violates the site editor's policy,
+> **terms of service**, or other usage guidelines"*
+
+Every route tried for a terms-of-service document returns `404`, at both shapes and
+at every spelling in the table above. **So the honest statement is that a document this
+repository refers to and has not found** — and **neither its presence nor its
+absence may be asserted.** Claiming an obligation is absent is exactly as
+unsupported as claiming one is present, and the standing rule against citing
+unverified provider terms cuts both ways.
+
+**No spike probe ever fetched or captured provider terms, so no run artifact
+records them.** This section is a document review and not a probe run:
+**no provider behaviour was re-probed on 2026-10-16, and every figure above
+carries its own date.**
 
 What the located pages *do* say, quoted:
 
@@ -250,17 +338,30 @@ What the located pages *do* say, quoted:
 
 **Consequences, stated carefully:**
 
-- **Proxying.** The measured CORS result already excludes Mail.tm from the
-  website, so no architectural decision currently depends on the terms. The
-  no-proxy *rule* stands on its own purpose: SpectreMail does not relay provider
-  APIs to work around an origin restriction. It is **not** justified by a
-  quotation that could not be found.
-- **Attribution.** No attribution obligation could be verified. The homepage and
-  FAQ are silent. Do not claim a visible mail.tm credit is required until
-  verified — and equally, do not assume one is not.
-- **Reselling.** Unverified. Any future paid tier needs this checked first.
-- **Message retention is published: 7 days.** See §5.2 — this partially closes
-  the TTL gap that was previously recorded as fully open.
+- **Proxying.** The measured CORS result already excludes Mail.tm from the website,
+  so no architectural decision currently depends on the terms. The no-proxy *rule*
+  stands on its own purpose: SpectreMail does not relay provider APIs to work around
+  an origin restriction. It is **not** justified by a quotation that could not be
+  found, **and it is not a terms judgement at all** — §1 records it as a product
+  policy, and `AGENTS.md`'s architecture rules ban proxying as a policy rather than
+  as a terms-compliance measure.
+- **Attribution.** No attribution clause has been found for Mail.tm, **because no
+  terms document was located.** That is the absence of a measurement, not a
+  measurement of absence. Do not claim a visible mail.tm credit is required until a
+  document is found and read — and equally, do not assume one is not.
+- **Reselling.** Unverified in both directions. Any future paid tier needs this
+  checked first.
+- **Message retention is published: 7 days.** See §5.2 — this partially closes the
+  TTL gap that was previously recorded as fully open.
+
+**Whether public extension distribution is compatible with provider policy is
+`UNMEASURED` here, and this document does not answer it.** It is one of roadmap M12's
+five re-check items. Answering it would take three things this change does not have:
+a located Mail.tm terms document; a statement from Mail.tm about third-party
+redistribution, which none of the routes above provides; and, for Guerrilla Mail, a
+statement about redistribution, which §3's terms read on 2026-10-16 did not find.
+**A provider's silence is not a permission**, and nothing in this section is a legal
+position.
 
 **Open action:** locate Mail.tm's actual terms, if they exist, and record the URL
 and retrieval date. Until then this section is a known gap, not a source.
@@ -370,11 +471,55 @@ browser.normal-web-page.guerrilla  [passed]  allowed from http://127.0.0.1:PORT
 
 This is why Guerrilla is the only provider the website can use today.
 
-### Terms that affect the product
+### Terms that affect the product — **read 2026-10-16**
 
-Not re-verified by this spike beyond the observations above. Guerrilla Mail's
-public API terms, rate limits, and attribution requirements must be re-checked
-before release, per roadmap M12.
+This spike never captured Guerrilla Mail's terms, and this section previously
+recorded that none had been read. **The first is still true and the second was a
+statement about a search nobody ran.** What follows is a **document review, not a
+probe run: no provider behaviour was re-measured on 2026-10-16**, and every figure
+below carries its own date.
+
+**Terms of Service exist and are linked from the provider's own homepage**, which
+links `/about` and `/tos`. Read **2026-10-16** at
+`https://www.guerrillamail.com/tos`. Verbatim:
+
+> *"Guerrilla Mail acts as **Software Service Provider**, granting you a license for
+> the use of the software provided by our website. Your rights to the license are
+> bound by the terms."*
+
+> *"Generally, this service prohibits: **Over-use our resources by repeatedly making
+> many requests to our servers**. Reverse engineer, circumvent or attack our website
+> for the purpose of gaining unauthorised privileges. Use of our service for purposes
+> other than intended."*
+
+> *"The license is non-transferable, subject to change, and Guerrilla Mail has the
+> right to change or revoke licenses at any time."*
+
+**What those words are about, stated without interpretation.** The licence runs
+between Guerrilla Mail and the person using its software; it is non-transferable,
+subject to change, and revocable at any time. **Nothing in the terms as read grants
+a third-party client anything**, and this product ships a client that calls the API.
+
+**Two further documents exist at paths this document did not look at.** The API
+document at `http://www.guerrillamail.com/GuerrillaMailAPI.html` publishes the two
+sentences quoted in §2, including *"we do not publish our rate limits"*. The site
+also publishes a privacy section. **A statement that this provider "publishes
+nothing" was a statement about a search nobody ran, and it was wrong.**
+
+**No attribution clause appears anywhere in the terms as read.** That is a
+statement about the document, **and it is neither a permission nor a prohibition** —
+a document that does not mention the subject is not a document that grants it.
+`docs/PRIVACY.md` §6 records the same measurement for attribution and must not drift
+from this one.
+
+**The terms can change and this record is a date.** Re-read before release.
+
+**Whether public extension distribution is compatible with these terms is
+`UNMEASURED`.** The terms as read are **silent on redistribution**, and silence is
+not a permission. Establishing it would take a question put to the provider and an
+answer recorded here — **which a document review cannot supply**, because answering
+it by argument is the thing §2's no-proxy rule exists to avoid. This is one of
+roadmap M12's five re-check items and it remains open.
 
 ---
 
@@ -1068,7 +1213,8 @@ decisions themselves belong to an OpenSpec change, not to this document.
    fallback path until a second web-reachable provider exists.
 2. **Mail.tm cannot be reached from the website without a relay, and SpectreMail
    does not build one.** This is a product policy, not a terms-compliance
-   judgement — see §2, which records that no Mail.tm terms page could be found.
+   judgement — see §2, which records every path tried for Mail.tm's terms and
+   that none of them was served.
    The roadmap's "do not introduce a fragile proxy" rule now binds Mail.tm.
 3. **"Generate a mailbox in seconds" is not achievable on Mail.tm.** The
    `1; w=60` creation budget forces either mailbox reuse or a queued
