@@ -594,6 +594,46 @@ nothing.
 **`openspec list` reports no active changes, which means M12's five listed items are all done** —
 three tracked and two untracked — **and M12's exit criteria are met in scope.**
 
+**`mailbox-history` is M13's first slice, and it is PROPOSED.** M12 is closed in scope and M13 is
+next, and **measured against M13's own two release lists, exactly one item has not shipped** — every
+website item and every extension item is delivered, and *mailbox history* is not. The roadmap defines
+it in one line: **"Allow multiple recent mailboxes where the provider session still permits access."**
+
+**The website holds exactly one mailbox today, and the contract that would let it hold several
+already exists** — `SpectreMailboxes`, newest first, with a `chrome.storage` adapter and **no
+IndexedDB one**, deliberately, because *"a record with no consumer is a schema to migrate rather than
+a feature."* **M13 is the change that gives it a consumer**, and the sentence that has to be retracted
+is why this is a change and not a task: `spectre-storage` currently ends that requirement with
+*"the current mailbox is left where it is rather than replaced by the collection's head … **nothing
+here changes what the website does**"* — **which was a decision about where the product was going,
+written by `site-associations`, and is now reversed.** So the block is **`MODIFIED`**, not shadowed
+by an `ADDED` sibling, because `openspec/specs/` holding both that sentence and a requirement about
+the website holding several mailboxes would be two requirements saying opposite things.
+
+**The measurement that decides the scope is that `MailboxSession.restore()` already takes whatever
+mailbox it is handed** — `session.ts:482` delegates straight to `adopt(stored, inbox.check)` — and
+`adopt` already maps `MAILBOX_EXPIRED` to `expired` and anything else to `restoreFailed`, which is
+**precisely the roadmap's phrase *"where the provider session still permits access"*.** So
+**`packages/mailbox` is predicted to be unmoved**, and that prediction is the change's falsifiable
+plan: a rise would mean the session layer needed something and the proposal was wrong.
+
+**`page-composition` is deliberately untouched, and that is the load-bearing decision.** Its
+requirement says **"no sixth region SHALL be added"**, so a sixth region for recent mailboxes would
+forbid itself. **The repository already answers this for the surface immediately beside it**:
+`App.tsx` renders `LocalData` at `:356` **inside** the `product` section that closes at `:358`, with
+its own comment — *"what this browser remembers has nothing to do with what the session is doing"* —
+**and that sentence is about removal where it needed to be about returning.**
+
+**Two consequences worth naming before the work starts.** The requirement's own scenario has been
+carrying **one word for two questions since the contract was written** — *insertable* is not *listed*,
+harmless while one client used it and not harmless now, so the amendment separates them rather than
+reusing one. And **`clearAll` gains its first real proof**: removal has been proved with a **planted
+store this build does not recognise**, and once the single-mailbox store and the collection's store
+both exist in the shipped database, **the proof becomes the product's own shape rather than a
+fiction planted beside it** — and it arrives as a consequence rather than as a goal.
+
+**One `ADDED` and one `MODIFIED`, so the promoted requirement count moves by exactly one.**
+
 **`branding-check` is M12's branding check, and it is APPLIED, SYNCED and ARCHIVED** at
 `openspec/changes/archive/2026-10-16-branding-check/`. Proposal PR **#146** merged `e099ef5`;
 apply PR **#147** merged `76cd65e`; sync PR **#148** merged `41ed65a`; **the archive PR number is
