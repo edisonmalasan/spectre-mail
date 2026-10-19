@@ -47,13 +47,17 @@ load-bearing rather than reassuring.
 
 ## 2. What this device keeps — the website
 
-The website keeps **one** kind of record, in IndexedDB.
+The website keeps **two** kinds of record, in IndexedDB.
 
-| database       | object store | key       | what it holds                                                                             |
-| -------------- | ------------ | --------- | ----------------------------------------------------------------------------------------- |
-| `spectre-mail` | `mailbox`    | `current` | One mailbox record: the address, the provider that issued it, and the credentials for it. |
+| database       | object store | key         | what it holds                                                                                                                                                                          |
+| -------------- | ------------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `spectre-mail` | `mailbox`    | `current`   | One mailbox record: the address, the provider that issued it, and the credentials for it.                                                                                              |
+| `spectre-mail` | `mailboxes`  | `mailboxes` | The mailboxes this device holds, newest first. Each one carries the same three things the current mailbox does — the address, the provider that issued it, and the credentials for it. |
 
-**There is no copy of it on a server**, because there is no server. There is no
+**The two records are written in one transaction**, so a mailbox this device
+holds is never in one of them and absent from the other.
+
+**There is no copy of them on a server**, because there is no server. There is no
 sign-in, and no record of who is signed in.
 
 ## 3. What providers receive

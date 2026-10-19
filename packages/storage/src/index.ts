@@ -110,5 +110,32 @@ export type {
   StoredSeenRead,
 } from "./record";
 
-export { createIndexedDbStorage, CURRENT_MAILBOX_KEY, SPECTRE_DATABASE_VERSION } from "./indexeddb";
-export type { IndexedDbStorageOptions } from "./indexeddb";
+export {
+  createIndexedDbStorage,
+  openSpectreDatabase,
+  deleteSpectreDatabase,
+  CURRENT_MAILBOX_KEY,
+  SPECTRE_DATABASE_VERSION,
+} from "./indexeddb";
+export type { IndexedDbStorageOptions, OpenSpectreDatabaseOptions } from "./indexeddb";
+
+/**
+ * **The collection's IndexedDB half, and the paired records the website writes.**
+ *
+ * `mailbox-history` gave the website a second record kind and therefore a second
+ * object store. These are exported beside the single-mailbox adapter rather than
+ * folded into it because `spectre-storage`'s amended requirement is about the two
+ * records *agreeing* — and an adapter that did both would make that a property of the
+ * adapter instead of a property of the layer. See `./indexeddb-mailboxes.ts` for the
+ * measurement that the transaction holding them in step is available on this platform
+ * and is not available on `chrome.storage`.
+ */
+export {
+  createIndexedDbMailboxes,
+  createIndexedDbMailboxRecords,
+  createBrowserMailboxes,
+  createBrowserMailboxRecords,
+  MAILBOXES_STORE_NAME,
+  MAILBOX_COLLECTION_KEY,
+} from "./indexeddb-mailboxes";
+export type { IndexedDbMailboxesOptions, MailboxRecords } from "./indexeddb-mailboxes";
