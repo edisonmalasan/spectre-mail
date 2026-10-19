@@ -439,3 +439,49 @@ red from a run that shared a tree with another is not a finding.** It is recorde
 alternative -- reporting those reds as this change's -- would have named a defect that does not exist,
 and because a reader of this file will meet the same red and deserves to know what it was.
 
+---
+
+### D10.6 The boundary suite's probes are left in the tree by an interrupted run, and one of them
+### lands **in a shipped document**
+
+**This is the finding behind every red gate in this change, and it is worse than the shape it was
+first recorded as.**
+
+`tests/architecture/boundaries.test.ts` proves its own rules by **planting violations in the shipped
+tree and removing them again**. Two kinds of artefact are involved:
+
+- **probe *files*** -- `packages/mail-parser/src/__fetch-rule-probe.ts`,
+  `packages/mailbox/__fetch-rule-probe.ts`, `apps/web/__client-storage-probe.ts`,
+  `apps/extension/__exempt.spec.ts` and its siblings; and
+- **an injection into a shipped document*** -- `boundaries.test.ts:3427` replaces the line
+  `<div id="root"></div>` in **`apps/web/index.html`** with
+  `<link href="https://fonts.example.invalid/geist.css" /><div id="root"></div>`, which is the
+  "no third-party asset from any origin" rule's own control.
+
+**A run that is interrupted leaves both behind, and the second one is worse than the first**: the
+injected `<link>` is in **the page the product ships**, where it is simultaneously a **`format:check`
+failure** and a **violation of the product's own rule about third-party assets** -- the very rule the
+plant exists to prove.
+
+**Measured on this change's tree, over the runs recorded above:**
+
+| what was left behind | what it broke |
+| --- | --- |
+| `packages/mail-parser/src/__fetch-rule-probe.ts` | a boundary rule's corpus |
+| `apps/web/index.html` carrying the injected `<link>` | **`format:check`**, and the third-party-asset rule |
+
+**And every red `pnpm verify` in this change's record is one of these two.** The tree was clean
+before the runs that were green and dirty before the runs that were not, and **restoring the file
+with `git checkout` made the red go away** -- which is the measurement, because a red that a
+`git checkout` fixes was never about the code.
+
+**So the honest account of this change's gates is: three green runs on a tree measured clean, and
+every red was a cancelled run's leftover.** The discipline this imposes is the one the repository has
+already written down twice over -- *a corpus that depends on when another suite deleted its probe
+files is a corpus that varies with timing* -- and the new part is that **the timing was the root's
+own cancelled runs**, and that **the artefact can be a modification to a shipped document rather than
+a stray file.**
+
+**It is recorded here rather than smoothed away, because a reader of this file will meet a red verify
+on a tree they believe is clean, and the first thing to check is `git status`.**
+
