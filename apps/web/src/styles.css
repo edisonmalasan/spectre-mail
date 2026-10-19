@@ -1000,3 +1000,33 @@ li {
     font-size: var(--type-lg);
   }
 }
+
+/*
+ * The report's lines, and a report reads as a list of label-and-value pairs.
+ *
+ * **A label and its value on one line, with the value in the monospace face the product already
+ * uses for anything a machine wrote.** The values are counts, names and durations, and they are
+ * read as figures rather than as prose -- the same treatment the address and the code get.
+ *
+ * **No new token.** `display`, `justify-content` and `gap` are in no swept category at all, and the
+ * one that is -- `gap` -- is `--space-3`, which this file already resolves. The rule the boundary
+ * suite enforces is that every class hook a client renders is selected by a stylesheet, and a
+ * report that rendered unstyled would have been reported by name.
+ */
+.diagnostic__entry {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-block: var(--space-1);
+  border-block-end: var(--width-hairline) solid var(--line-subtle);
+}
+
+.diagnostic__entry dt {
+  color: var(--ink-secondary);
+}
+
+.diagnostic__entry dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  color: var(--ink-primary);
+}

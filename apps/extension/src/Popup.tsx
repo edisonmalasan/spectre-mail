@@ -56,6 +56,15 @@ import { PRODUCT_NAME } from "@spectre-mail/ui/name";
 
 import { findActiveTab, sendToTab } from "./extension-platform";
 import { fillCodeRequest, readFillCodeAnswer } from "./protocol";
+import {
+  diagnosticReport,
+  emptyInPageAnswers,
+  EXTENSION_DIAGNOSTIC_LABELS,
+  observeInPageAnswer,
+  type InPageAnswers,
+} from "./diagnostic";
+import { PopupDiagnostic } from "./PopupDiagnostic";
+import { useSessionDiagnostic } from "./useSessionDiagnostic";
 import { MessageList, OpenedMessageView } from "./MessageSurface";
 import type { CopyState, FillReport } from "./MessageSurface";
 import { POPUP_COPY } from "./popup-copy";
@@ -133,6 +142,28 @@ export function Popup({
   const [copy, setCopy] = useState<CopyState>("idle");
   const [health, setHealth] = useState<ProviderHealth | null>(null);
   const [fill, setFill] = useState<FillReport>({ kind: "idle" });
+
+  /**
+   * The in-page answers this session has seen, counted.
+   *
+   * **A ref, and not state, because the count is read on demand and nothing re-renders for
+   * it** -- and because a count that re-rendered the popup on every answer would be a count
+   * that moved the control the person was about to press.
+   *
+   * **The answers are counted where they happen**, which is this popup: it is the surface that
+   * asks the page to fill a field, so it is the surface that is told what the page answered.
+   */
+  const [inPageAnswers, setInPageAnswers] = useState<InPageAnswers>(emptyInPageAnswers);
+  /**
+   * The session's own report, counted as the session goes.
+   *
+   * **Called here, beside the popup's other state, and not further down** -- the popup has
+   * early returns, and a hook called after one has a call order that depends on the props.
+   * That is this file's own rule, and it is the reason the storage and the session above are
+   * unconditional too.
+   */
+  const diagnostic = useSessionDiagnostic(state);
+
   const [boot, setBoot] = useState<{ readonly done: boolean; readonly blocked: boolean }>({
     done: false,
     blocked: false,
@@ -244,6 +275,15 @@ export function Popup({
     const answer = readFillCodeAnswer(await sendToTab(tabId, fillCodeRequest(code)));
 
     setFill(answer === null ? { kind: "unconfirmed" } : { kind: "answered", answer });
+
+    // **The answer is counted, and the answer is the whole of what happened.** The page is not
+    // read, the field is not named, and nothing about the document is kept -- the recogniser
+    // already answered in a closed vocabulary that says what it did and why.
+    setInPageAnswers((previous) =>
+      answer === null
+        ? observeInPageAnswer(previous, "unconfirmed")
+        : observeInPageAnswer(previous, answer.kind),
+    );
   }, []);
 
   if (!boot.done) {
@@ -270,6 +310,18 @@ export function Popup({
   return (
     <main className="popup">
       <h1 className="popup__heading">{PRODUCT_NAME}</h1>
+
+      {/* **The report of what this session did, and it renders in every state.**
+       * The popup has an address on screen a few lines below it, and **a report that could
+       * not hold an address cannot leak one** -- so the report's shape is the claim, and the
+       * claim is beside the thing it is about.
+       *
+       * **The in-page answers are counted here**, in the surface that is told them, and
+       * reported here for the same reason. **It holds counts, normalized outcomes and one
+       * elapsed duration, and nothing else.** */}
+      <PopupDiagnostic
+        entries={diagnosticReport(diagnostic, inPageAnswers, EXTENSION_DIAGNOSTIC_LABELS).entries}
+      />
 
       {mailbox === null ? (
         <section aria-labelledby="create-heading">

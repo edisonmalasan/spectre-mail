@@ -1,10 +1,10 @@
-/**
+﻿/**
  * Website client root component.
  *
  * ## What this milestone is, and is not
  *
  * M5 slice 2 added the inbox; M6 slice 2 added reload recovery. This is **structure,
- * not design** — there is no stylesheet, no design token, and no layout system here,
+ * not design** â€” there is no stylesheet, no design token, and no layout system here,
  * and that is deliberate. The visual milestone owns those, and building them now would
  * produce markup it rewrites. The approved design skills are not applied at this
  * milestone.
@@ -20,22 +20,22 @@
  *   and does not describe the absence as missing or forthcoming. Before this it was
  *   only a comment here, and `App.test.tsx` had to guard the condition itself.
  * - It **shows no cadence**. It says that it checks while the page is open, and never
- *   how often — no provider limit was measured for the only provider a browser page
+ *   how often â€” no provider limit was measured for the only provider a browser page
  *   can reach, so any figure would be an invention presented as a measurement.
  * - **It keeps this device's address, and it can be made to forget it.** One mailbox is
  *   written to this browser's own storage and offered back on the next visit, after the
  *   provider confirms it. `LocalData` states what is kept, where, and offers a confirmed
- *   removal — so this page no longer has the property slice 2 documented about it and
+ *   removal â€” so this page no longer has the property slice 2 documented about it and
  *   could only apologise for, which was that it stored an address and offered no way to
  *   take it back. That sentence in the limits list is **gone rather than reworded**;
  *   the comment where it stood records why, because a stale claim that reads like a
  *   security guarantee is the most damaging kind of wrong on a page.
  * - **A removal that is refused is reported as refused.** A second SpectreMail tab
  *   holding the database leaves the removal queued rather than cancelled, so the page
- *   says it did not happen and says nothing at all about whether the record survives —
+ *   says it did not happen and says nothing at all about whether the record survives â€”
  *   see `LocalData`'s note, which sets out both halves of that.
  * - **A stored address is never shown as working before the provider says so.** That
- *   is what `docs/PROVIDERS.md` §3's measured trap makes necessary: an unrecognised
+ *   is what `docs/PROVIDERS.md` Â§3's measured trap makes necessary: an unrecognised
  *   Guerrilla Mail session answers `HTTP 200` with an empty inbox and no error, so
  *   "nothing has arrived" and "this address is gone" are the same response.
  * - **Opening a message shows it, and acts on it only when asked.** A message's readable
@@ -44,8 +44,8 @@
  *   copying a code and opening a link happen because somebody activated something, and a
  *   link that navigated because a message had been rendered would be a side effect of
  *   reading someone's mail. `website-client`'s *`A detection is acted on only when the user
- *   asks`* states that, and it replaced the older requirement this bullet used to name —
- *   *"This slice shows what it found and does not act on it"* — which this slice REMOVES,
+ *   asks`* states that, and it replaced the older requirement this bullet used to name â€”
+ *   *"This slice shows what it found and does not act on it"* â€” which this slice REMOVES,
  *   because two of the three things it prohibited are what this page is for. `design.md` D1
  *   records why, including the conflict between this roadmap's M5 acceptance criteria and
  *   `AGENTS.md`'s assignment of OTP copy to the verification workflow milestone.
@@ -67,7 +67,7 @@
  *
  * **`blocked` is the safety gate.** A page that cannot read its own storage has never
  * asked the session to do anything, so there is nothing on screen that could be
- * mistaken for a mailbox — and showing a "no address yet" heading over it would be a
+ * mistaken for a mailbox â€” and showing a "no address yet" heading over it would be a
  * claim the page cannot support.
  *
  * **`reading` is not a gate, and this file got it wrong first.** It originally
@@ -76,7 +76,7 @@
  * session that has not been asked for anything *is* the page deciding whether to ask
  * it, and the copy is the same sentence. The cost of the extra gate was that
  * `SessionState`'s `idle` became **unreachable in the only client that renders
- * session states** — `boot` moved to `started` in the same microtask that `restore`
+ * session states** â€” `boot` moved to `started` in the same microtask that `restore`
  * published `adopting`, so React batched them into one render and `idle` never
  * appeared. A requirement to render a state the page cannot be in is a requirement no
  * test can satisfy, so the gate and the requirement were both wrong.
@@ -85,7 +85,7 @@
  * stating, because it is not obvious: the session is only ever asked to do something
  * *after* a successful read, so during `reading` it cannot hold a mailbox. The only
  * way to reach an address-bearing state before the page knows what it has is a
- * successful read followed by a failed restore, and that is `restoreFailed` — which
+ * successful read followed by a failed restore, and that is `restoreFailed` â€” which
  * names the address as unconfirmed rather than presenting it as working.
  *
  * @module
@@ -100,6 +100,7 @@ import type { Mailbox } from "@spectre-mail/core";
 import { Address } from "./Address";
 import { BootFailure } from "./BootFailure";
 import { Inbox } from "./Inbox";
+import { Diagnostic } from "./Diagnostic";
 import { LocalData } from "./LocalData";
 import { MailboxFailure } from "./MailboxFailure";
 import { MailboxLifetime } from "./MailboxLifetime";
@@ -107,6 +108,8 @@ import { MessageView } from "./MessageView";
 import { PageFooter } from "./PageFooter";
 import { Reasons } from "./Reasons";
 import { RecentMailboxes } from "./RecentMailboxes";
+import { diagnosticReport, WEBSITE_DIAGNOSTIC_LABELS } from "./session-diagnostic";
+import { useSessionDiagnostic } from "./useSessionDiagnostic";
 import type { UnreachableVerdict } from "./RecentMailboxes";
 import { ExtensionPreview } from "./ExtensionPreview";
 import { createWebsiteProviderManager } from "./provider-config";
@@ -135,8 +138,8 @@ function openedMessageId(opened: OpenedMessageState): string | null {
 /**
  * The mailbox this page is on right now, or `null` when it is on none.
  *
- * **The one variant that reads nothing is `creating`.** It deliberately carries no mailbox — the
- * compiler enforces it, and `App` had to ask rather than read a field — so a page that asked this
+ * **The one variant that reads nothing is `creating`.** It deliberately carries no mailbox â€” the
+ * compiler enforces it, and `App` had to ask rather than read a field â€” so a page that asked this
  * question during a creation is told it is on no address rather than being handed the last one.
  *
  * Used for one purpose: `RecentMailboxes` withholds its "use this address" control on the address
@@ -168,7 +171,7 @@ export interface AppProps {
    *
    * **Injected for the same reason as `session`, and it is not optional in practice.**
    * A default built by calling a factory in the component body would produce a new
-   * storage — and re-run the read — on every render, so the default goes through
+   * storage â€” and re-run the read â€” on every render, so the default goes through
    * `useWebsiteStorage`, which builds it once. A caller that already has one uses it,
    * and the hook still runs: a hook called only when a prop is absent is a hook whose
    * call order changes with its props.
@@ -178,7 +181,7 @@ export interface AppProps {
    * The mailboxes this device holds, or the reason there is none.
    *
    * **A second prop rather than a second field on {@link AppProps.storage}, and the reason is
-   * scope rather than design.** `storage-stub.ts` — a shipped module, not a `.test.tsx` — builds a
+   * scope rather than design.** `storage-stub.ts` â€” a shipped module, not a `.test.tsx` â€” builds a
    * `WebsiteStorage` to hand the page, so widening that type would have put this change's write scope
    * over a file it was told not to touch. Both props resolve to `./storage`, which is the module that
    * is *this page's only route to the storage layer*; two values from one module is still one route,
@@ -193,15 +196,15 @@ export function App({ session, storage, mailboxes }: AppProps = {}) {
   // **Both built once.** Calling `createMailboxSession` in the component body produced a
   // *new* session on every render, which was harmless while the session only ever held
   // a mailbox and quietly wrong now: the binding keys its first listing on the
-  // mailbox's id, so a fresh session per render would reset the poller — and its
-  // verdict cache — on every state change. A fresh storage per render is the same
+  // mailbox's id, so a fresh session per render would reset the poller â€” and its
+  // verdict cache â€” on every state change. A fresh storage per render is the same
   // hazard one layer out, and it additionally re-reads the store.
   const [ownSession] = useState(() =>
     createMailboxSession(createWebsiteProviderManager(), webScheduler),
   );
   // **Unconditional, and then chosen between.** `useWebsiteStorage` is called whether
   // or not a `storage` prop arrived, because a hook whose call order depends on its
-  // props is the failure React's rules exist to prevent — and because the builder never
+  // props is the failure React's rules exist to prevent â€” and because the builder never
   // throws: where the platform has nothing, the result is `blocked` and the injected
   // value is used instead.
   const ownStorage = useWebsiteStorage();
@@ -228,19 +231,33 @@ export function App({ session, storage, mailboxes }: AppProps = {}) {
 
   useInboxVisibility(active);
 
+  /** The session's own report, counted as the session goes. */
+  const diagnostic = useSessionDiagnostic(state);
+  /**
+   * The report's lines, in the page's own words.
+   *
+   * **The labels are the page's and the values are the shared shape's**, and that is the division
+   * `packages/ui` draws: the *shape* of a reportable value belongs to the package both clients
+   * read, and the *wording* belongs to the client saying it.
+   */
+  const diagnosticEntries = useMemo(
+    () => diagnosticReport(diagnostic, WEBSITE_DIAGNOSTIC_LABELS).entries,
+    [diagnostic],
+  );
+
   /**
    * Return to a mailbox this device holds.
    *
    * **The session's own `restore`, not `open`, and that is the whole of the return path.**
    * `restore` reconciles the mailbox it is handed against the provider that owns it and already
-   * distinguishes the two ways that can fail — `expired` against `restoreFailed` — which is precisely
+   * distinguishes the two ways that can fail â€” `expired` against `restoreFailed` â€” which is precisely
    * the roadmap's condition for offering a mailbox at all. `open` would create one, and a return that
    * quietly created an address would strand anything already sent to the old one.
    *
    * **Called here rather than added to `useMailboxSession`, and the reason is that the binding is the
    * session's mirror.** It subscribes for the life of the component, so every state this call
    * publishes reaches the page without the binding knowing anything about it; the one thing the
-   * binding does own is whether to *store*, and it decides that on the mailbox id it was handed — so a
+   * binding does own is whether to *store*, and it decides that on the mailbox id it was handed â€” so a
    * return is recorded, which is what makes it the address a reload brings back.
    */
   const returnToMailbox = useCallback(
@@ -253,7 +270,7 @@ export function App({ session, storage, mailboxes }: AppProps = {}) {
   /**
    * What the provider said about the mailboxes this page has asked about.
    *
-   * **At most one entry, and that is not a limitation being worked around — it is the truth.** The page
+   * **At most one entry, and that is not a limitation being worked around â€” it is the truth.** The page
    * has asked the provider about the mailbox it holds and about nothing else, so this maps the session's
    * own two verdicts onto the two words the surface marks with. A mailbox with no entry is one the page
    * has not asked about, and it is offered plainly rather than marked.
@@ -267,7 +284,7 @@ export function App({ session, storage, mailboxes }: AppProps = {}) {
   return (
     // **A fragment, because the footer is a page-level landmark and must not be a
     //   descendant of `<main>`.** ARIA forbids `contentinfo` inside `main`, and that is
-    //   not a formality — Chromium was measured on 2026-10-06 exposing this footer as
+    //   not a formality â€” Chromium was measured on 2026-10-06 exposing this footer as
     //   `sectionfooter` with **zero** `contentinfo` landmarks, while jsdom's role mapping
     //   said `contentinfo` and `App.test.tsx` passed. The first version of this change
     //   put the footer inside `<main>` and the client suite was green on a role no user
@@ -281,7 +298,7 @@ export function App({ session, storage, mailboxes }: AppProps = {}) {
           hero* and the roadmap then says *"The product itself should remain the main hero"*;
           both hold because there is no marketing block between here and the address. */}
         {/* **No class hook, and the one this carried first is gone.** It read
-          `className="product"` with nothing in `styles.css` matching it — and a hero needs no
+          `className="product"` with nothing in `styles.css` matching it â€” and a hero needs no
           rule of its own to be first on the page. `data-region="product"` is what the order
           assertion reads this section by, and it is the hook that earns its name. Caught by
           the boundary rule *"uses every class hook a client renders"*, which is the rule's
@@ -296,7 +313,7 @@ export function App({ session, storage, mailboxes }: AppProps = {}) {
             // **This region is also the page's "looking for a stored address" state**, and
             // the two are the same moment: a session that has not been asked for anything
             // is a session the page is still deciding whether to ask. Gating it behind
-            // `boot === "started"` — which is what this file did first — made `idle`
+            // `boot === "started"` â€” which is what this file did first â€” made `idle`
             // unreachable, and a requirement to render a state the page cannot be in is a
             // requirement no test can satisfy.
             //
@@ -366,7 +383,7 @@ export function App({ session, storage, mailboxes }: AppProps = {}) {
                 onRetry={() => {
                   // **The id is read here, from the state this render already has.** It used
                   // to be handed to `MessageView` as a prop, on the strength of a comment
-                  // promising "a test asserting a retry carries the right id" — and no such
+                  // promising "a test asserting a retry carries the right id" â€” and no such
                   // test existed. The independent verification pass found the span it fed had
                   // exactly one reader: the span itself. So the prop and the hidden element
                   // are gone, and this closure is the only place an id is needed.
@@ -377,13 +394,13 @@ export function App({ session, storage, mailboxes }: AppProps = {}) {
               {/* **The primary action, and it is filled.**
               The Accent block asks for an accent on a *primary action*, and slice 1
               deliberately deferred this surface because nothing on the page was a primary
-              action yet. **This page has no submit** — it creates an address on load — so the
+              action yet. **This page has no submit** â€” it creates an address on load â€” so the
               only control that moves a visitor forward is the one that replaces the address.
 
               The filled treatment needs an ink the palette did not have: measured against
               `--accent`, no other ink in the palette reaches the body threshold in either
               scheme, so `--ink-on-accent` was declared and paired rather than one being
-              borrowed and mislabelled. Nothing else on the page takes the fill —
+              borrowed and mislabelled. Nothing else on the page takes the fill â€”
               `LocalData`'s removal is destructive, and a destructive control wearing the
               product's most emphatic treatment would be a design error. */}
               <button type="button" className="control control--primary" onClick={replace}>
@@ -416,7 +433,7 @@ export function App({ session, storage, mailboxes }: AppProps = {}) {
           {boot.kind === "started" && (
             // **Own region, gated on the boot having *finished*, and that gate is the
             // second version of this decision.** It was first written as "anything but
-            // blocked", which rendered the region while the read was still out — and the
+            // blocked", which rendered the region while the read was still out â€” and the
             // region's honest `none` branch then said *"Nothing is kept in this browser"*
             // on a page that had not yet looked. That is the same class of false claim as
             // `boot: blocked` making the session's `idle` unreachable, one layer down: a
@@ -424,36 +441,57 @@ export function App({ session, storage, mailboxes }: AppProps = {}) {
             //
             // Two reasons for the gate that replaced it. During the read the page knows
             // nothing, so it may assert neither that something is stored nor that nothing
-            // is — and the session's own region is already telling the user a read is in
+            // is â€” and the session's own region is already telling the user a read is in
             // flight, so nothing is left unsaid. And where storage is blocked it does not
             // know either, for the same reason; `BootFailure` says that instead.
             //
             // It renders in **every session state** once the boot is done, because what this
-            // browser remembers has nothing to do with what the session is doing — a user
+            // browser remembers has nothing to do with what the session is doing â€” a user
             // looking at a creation failure with a stored address still needs to remove it.
             <LocalData localData={localData} clearStored={clearStored} />
           )}
 
           {boot.kind === "started" && (
-            // **Beside `LocalData`, inside the product region, and *not* a region of its own.**
-            // `page-composition` requires: *"No region SHALL be added that has no heading of its own,
-            // and no sixth region SHALL be added."* A sixth region for the mailboxes this device holds
-            // would forbid itself, and the answer for the surface immediately beside this one is the
-            // precedent. `PAGE_ORDER` therefore still names five regions, and the browser tier's
-            // per-region sweeps still find five — which is `design.md` D3's falsifiable claim.
-            //
-            // **Gated on the same `boot`, for the same reason, and it renders in every session state
-            // once the boot is done** — including a creation failure and a failed inbox check. A
-            // person whose address could not be created still has other addresses on this device and
-            // still needs to reach one, which is `LocalData`'s own sentence turned from removal to
-            // returning.
-            <RecentMailboxes
-              held={held}
-              current={currentMailbox(state)}
-              unreachable={unreachable}
-              storageState={localData}
-              onReturnTo={returnToMailbox}
-            />
+            <>
+              {/* **Beside `LocalData`, inside the product region, and *not* a region of its own.**
+                `page-composition` requires: *"No region SHALL be added that has no heading of its
+                own, and no sixth region SHALL be added."* A sixth region for the mailboxes this
+                device holds would forbid itself, and the answer for the surface immediately beside
+                this one is the precedent. `PAGE_ORDER` therefore still names five regions, and the
+                browser tier's per-region sweeps still find five — which is `design.md` D3's
+                falsifiable claim.
+
+                **Gated on the same `boot`, for the same reason, and it renders in every session
+                state once the boot is done** — including a creation failure and a failed inbox
+                check. A person whose address could not be created still has other addresses on this
+                device and still needs to reach one, which is `LocalData`'s own sentence turned from
+                removal to returning. */}
+              <RecentMailboxes
+                held={held}
+                current={currentMailbox(state)}
+                unreachable={unreachable}
+                storageState={localData}
+                onReturnTo={returnToMailbox}
+              />
+              {/* **And beside that, the report of what this session did.**
+                `page-composition` still forbids a sixth region, and the answer for a surface that
+                belongs to the product region is the one `LocalData` and `RecentMailboxes` already
+                give: **inside the product region, not a region of its own.**
+
+                **It is gated on the same `boot`, for the same reason, and it renders in every
+                session state once the boot is done** — including a creation failure and a failed
+                inbox check. **A report of what the session did is exactly that**: a person whose
+                address could not be created still has a report to read.
+
+                **The report holds counts, normalized outcomes and one elapsed duration, and nothing
+                else.** There is no field in it for an address, a message id, a sender, a subject, a
+                hostname, a URL or content, **and the page has an address on screen two hundred
+                pixels away** — a report that could not hold an address cannot leak one. And it
+                **persists nothing**: the counts live in a ref for as long as the tab is open, so
+                `docs/PRIVACY.md`'s claim that nothing is kept outside two named areas stays true
+                because this never reaches a store at all. */}
+              <Diagnostic diagnostic={diagnostic} entries={diagnosticEntries} />
+            </>
           )}
         </section>
 
@@ -461,7 +499,7 @@ export function App({ session, storage, mailboxes }: AppProps = {}) {
           Their order is not incidental: the roadmap's sequence puts *what happens* before
           *why*, because a visitor who has just been handed an address has a question about
           what it will do before they have a question about whether to trust it. The order
-          itself is data — `PAGE_ORDER` in `sections.ts` — so that "the stated order" is a
+          itself is data â€” `PAGE_ORDER` in `sections.ts` â€” so that "the stated order" is a
           requirement a browser check can read rather than a description. */}
         <Steps />
         <Reasons />
@@ -482,7 +520,7 @@ export function App({ session, storage, mailboxes }: AppProps = {}) {
 
       {/** The limits moved here unchanged. The storage bullet that used to stand between
           the product and the end of the page was removed rather than reworded at the slice
-          that made it false — it stored an address and said no button could take it back —
+          that made it false â€” it stored an address and said no button could take it back â€”
           and what this device keeps now belongs to `LocalData`, beside the control that
           removes it. */}
       <PageFooter />

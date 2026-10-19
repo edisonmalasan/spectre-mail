@@ -16,12 +16,30 @@ answer is exactly the "email-field injection failures" the roadmap's beta goals 
 already produced, already normalized, and **already says why**, which is the whole of what a
 failure count is worth.
 
-**The extension can also see a UI conflict, and it can see only part of one.** Its own control lives
-in a **shadow root**, and a shadow root is exactly what lets a page's stylesheet reach a control —
-so the extension can read that control's visibility from inside the root and report that a conflict
-happened. **It cannot say whose it was**, because the page's stylesheet is the page's business and a
-diagnostic naming a selector would be holding a piece of the page. **A measurement and a fingerprint
-are different things, and this one is a measurement.**
+**Amendment, recorded during apply (2026-10-19).** This requirement previously carried a clause
+about **a UI conflict** — the extension's control living in a shadow root, and the control being
+able to tell that it is not visible on the page it is beside.
+
+**That clause is withdrawn, and the reason is a channel rather than a difficulty.** The content
+script is the only party that can see its own control, and **the extension has no existing message
+kind that asks it about anything but the host it is beside or a field to fill.** Adding one is a
+protocol change, and **a protocol change is a different change from this one** — the same argument
+`mailbox-history` used when it recorded that the browser tier could not produce a provider
+delivery this repository has never received.
+
+**The measurement is real and the gap is recorded rather than dropped.** The conflict is
+**partly collectable** — the control can see that it is not visible — and `docs/BETA.md` says so,
+in the *"what is not collected and why"* section, with what would be needed to collect it. **A goal
+recorded as unmeasured with its reason is a goal the next reader can pick up; a goal quietly
+dropped is a goal that looks collected.**
+
+**And a second amendment, recorded during apply (2026-10-19): the shape is two, not three.** The
+shared definition this requirement names once carried **an elapsed duration** as a third kind, and
+it is withdrawn. **The website's page forbids any interval of the product's own** -- its own test
+says so: *"any figure here would be an invention presented as a measurement"* -- **and the panel
+had never shown one either**, so **a report would have been the first place the product showed a
+figure of its own.** The shape is removed rather than kept and unused, **because a shape with no
+consumer is a schema to migrate rather than a feature.**
 
 **The extension's stored records are unaffected by this requirement.** A mailbox, a site
 association and a seen-message id are **records the product keeps for the product's own reasons**;
@@ -34,11 +52,6 @@ a diagnostic is a report of what happened, and the two are not the same kind of 
   field found, the field already held text, the frame was not the top one
 - **AND** it SHALL report a count for each of those answers
 
-#### Scenario: A conflict is visible
-
-- **WHEN** the extension's own control is not visible on the page it is beside
-- **THEN** the extension SHALL report that a conflict happened
-- **AND** it SHALL NOT report which rule on the page caused it
 
 #### Scenario: The diagnostic is read for what it must not hold
 
