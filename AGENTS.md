@@ -1,9 +1,8 @@
 # AGENTS.md
 
-> **`beta-diagnostics` is M13's second slice, and it is PROPOSED.** M13's two release lists are
-> complete — `mailbox-history` shipped the last unshipped item — so what M13 still owes is its
-> **Beta goals**: seven metrics to collect, and one instruction that decides their shape, *"Do not
-> optimize around vanity metrics yet."*
+> **`beta-diagnostics` is M13's second slice, and it is APPLIED and SYNCED.** Proposal PR
+> **#158** merged `4e77cca`; apply PR **#159** merged `4c2569e`; **the sync PR number is left
+> unfilled here**, for the reason this file records above.
 >
 > **Measured, four of the seven are already observable from what the product knows, and two are not
 > observable at all.** Creation success is `session.open()` reaching `ready` or `failed` with one of
@@ -34,9 +33,74 @@
 > to be stored**, and the difference between this design and one that persisted counters is the
 > difference between a feature and a schema.
 >
-> **Three `ADDED` requirements and no `MODIFIED` or `REMOVED`** — `website-client`,
-> `extension-client`, `privacy-disclosure` — so the promoted count moves by exactly three, the
-> **seventh** milestone to reach that shape.
+> **Its sync promoted three `ADDED` requirements and no `MODIFIED` or `REMOVED`** —
+> `website-client`, `extension-client`, `privacy-disclosure` — **moving the tree from 185 to
+> 188 requirements and from 605 to 615 scenarios** across the same **15** capabilities:
+> `website-client` 25 → 26 and 84 → 88, `extension-client` 16 → 17 and 83 → 86,
+> `privacy-disclosure` 8 → 9 and 20 → 23, with `openspec validate --specs --strict` at **15
+> passed, 0 failed** and `git diff --numstat -- openspec/specs` at **64/0, 48/0 and 74/0** —
+> three files and **zero deletions**, so Git's own diff confirms nothing existing was touched.
+> **The count is the seventh milestone to move by three requirements**, because every one of
+> its three blocks is `ADDED`, and it is **re-counted by heading after the promotion** rather
+> than carried forward.
+>
+> **And the promotion was rehearsed in full on a throwaway copy of `openspec/`** before it
+> touched the real tree, and the **promoter and the verifier share no reader** — the promoter
+> walks lines with a state machine, the verifier splits whole text by regex — so neither can
+> inherit the other's blind spot.
+>
+> **And the promoter's two guards were falsified separately**, because an `ADDED` landing on a
+> heading that exists and a `MODIFIED` landing on one that does not are two different ways to
+> substitute silently, wearing each other's names. Run twice, the second run **exited 1** with
+> *"REFUSING: website-client already carries a requirement headed … An ADDED block must not
+> land on a heading that exists"*, and every specification file's SHA-256 was unchanged; and a
+> planted `MODIFIED` for a heading no specification carries **exited 1** with *"A MODIFIED
+> block must replace a requirement that exists, not add one"*, with all three unchanged. **A
+> guard that refuses and still writes is not a guard**, so each arm measured the files' digests
+> and not the exit code alone.
+>
+> **And the verifier's own self-test failed on a legitimate change**, which is the sixth time
+> this repository has recorded that shape. Its fourth case looked for a `MODIFIED` block in the
+> change's own delta and reported *"no MODIFIED block"* — **and this change's delta is entirely
+> `ADDED`**, which is a perfectly legitimate change to promote. **A self-test that fails
+> because its fixture is the wrong shape** is a self-test of the fixture, not of the reader,
+> and the repair was to make the case **build its own** `MODIFIED` block and its own pair of
+> specification texts, so it asks the same question whatever the change under test happens to
+> contain. **The negative control is in the same case**: the unsabotaged text must report no
+> retired scenario, or a reader that named one for everything would satisfy the case. It is **5
+> of 5** in **both argument orders** — the flag first and the flag last — because a reader that
+> only parses one order is half a reader.
+>
+> **And the apply stage's finding was that the repository's own gate fails at random on
+> `main`**, which is why the reds in its gate record are not about it.
+> `tests/architecture/boundaries.test.ts` proves its own rules by **planting violations in the
+> shipped tree** — `packages/mailbox/__framework-rule-probe.ts`,
+> `packages/core/__storage-import-probe.ts`, `apps/web/src/__BoundaryProbe.tsx` and more — and
+> **vitest runs the architecture files in parallel workers**, so the tree is shared filesystem
+> state between cases written to be independent. **Measured on a pristine `origin/main`
+> checkout, two consecutive runs of the architecture suite fail, each with a different set of
+> failures** — four `ENOENT`s on the boundary suite's own probe files, *"the rule should report
+> all 5 packages: expected 4 to be 5"*, *"chrome storage should be caught in apps/web"*, and
+> the `branding-audit` 5000 ms timeout.
+> `git diff origin/main -- tests/architecture/boundaries.test.ts` is **empty**, and the suite
+> alone is green. **So `pnpm test` is a coin flip on `main` itself, and therefore CI is a coin
+> flip too**, and every red in this change's gate record is one of two things: the suite's own
+> probes left in the tree by a cancelled run, or the suite's probes interfering with each other
+> inside a run. **The repair belongs to the instrument and not to this change** —
+> `boundaries.test.ts` is on this change's forbidden list — and **it is the next thing worth
+> doing.**
+>
+> **And the third shape was withdrawn rather than shipped**, because the page's own tests
+> refused it twice and the page was right both times. The report's first shape carried an
+> **elapsed duration**, and the page forbids any interval of the product's own — its own test
+> says why: *"any figure here would be an invention presented as a measurement."* **And the
+> report's own sentence used the word *gone***, which the page forbids in the state where a
+> provider merely failed, because a word that reads as *"gone"* tells a person something false
+> about the only copy of their address — **and a test cannot tell whose *"gone"* it is.** **The
+> third shape is removed rather than kept and unused**, because *a shape with no consumer is a
+> schema to migrate rather than a feature*, and the panel had never shown an interval of its
+> own either — so **a report would have been the first place the product showed a figure of its
+> own.** Mail arrival reliability is reported as **counts**, which is what the goal asks for.
 
 > **`mailbox-history` is APPLIED, SYNCED and ARCHIVED** at
 > `openspec/changes/archive/2026-10-20-mailbox-history/` — proposal PR **#154** merged `c99f00c`,
@@ -1655,33 +1719,33 @@ Pin versions when exact versions matter.
   no extension build step — that is M8" became false at M8 and is deleted rather than
   reworded.**
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running **1308 tests across
-  66 files** via `pnpm test` (2026-10-16, at `branding-check`'s sync stage, and
-  **re-measured with `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory** on three
-  separate `pnpm verify` runs, each exit `0`), counted from a
-  JSON reporter **grouped by project** rather than read off a summary line, and **re-measured
-  at this stage from a fresh run rather than carried forward** — because the count a
-  ledger carries is only worth what the last person to re-run it made it worth, and this
-  repository has now had a standing figure in its own status block go stale by a whole
-  milestone for exactly that reason. **The figure this paragraph replaced read `1290 across
-  64`**, which was accurate at `security-surface-review` and one change stale by this one,
-  and before that it read `1228 across 62` and was two changes stale. **The record is now
-  three deep in the same defect**, which is the argument for re-measuring at every stage
-  rather than every few:
+- Testing: Vitest `3.2.7` at the workspace root, verified running **1377 tests across
+  74 files** via `pnpm test` (2026-10-20, at `beta-diagnostics`'s sync stage, counted
+  from a JSON reporter **grouped by project** rather than read off a summary line, and
+  **re-measured at this stage from a fresh run rather than carried forward** — because the
+  count a ledger carries is only worth what the last person to re-run it made it worth,
+  and this repository has now had a standing figure in its own status block go stale by a
+  whole milestone for exactly that reason. **The figure this paragraph replaced read `1308
+  across 66`**, which was accurate at `branding-check` and **two changes stale by this
+  one** — `provider-terms-review` added **11** and this change added **7** without either
+  touching this paragraph — and before that it read `1290 across 64` and `1228 across 62`.
+  **The record is now five deep in the same defect**, which is the argument for
+  re-measuring at every stage rather than every few:
   54 in `packages/core`, 92 in `packages/providers`, **149 in `packages/mail-parser`**,
-  **166 in `packages/mailbox`**, **125 in `apps/web`**,
-  **86 in `packages/storage`** (7 stored record, 11 mailbox collection, 30 IndexedDB adapter,
+  **172 in `packages/mailbox`**, **143 in `apps/web`**,
+  **103 in `packages/storage`** (7 stored record, 11 mailbox collection, 30 IndexedDB adapter,
   11 site associations, 7 browser entry point, 12 `chrome.storage` adapter,
   **8 seen-message record**),
-  **42 in `packages/ui`** (**38** until `branding-check`, which added **4** — the exported
-  public name and its own cases — so the package's count is no longer the flat **38** this
-  file has carried through nine milestones, and **a figure that stops moving is a figure
-  nobody re-ran**),
-  **107 in `tests/architecture`** (53 boundaries, 22 privacy-disclosure, 18 security-audit,
-  **14** branding-audit — so `boundaries.test.ts` is **still 53**, which is the measurement
-  this change turned on, since every property it introduced already had an instrument or got
-  one here and a rule added where an instrument exists is not coverage),
-  **487 in `apps/extension`** across **21** files (**25** in `content-script.test.ts`,
+  **49 in `packages/ui`** (**38** until `branding-check` added **4** and this change added
+  **7** — the shared diagnostic's own cases — so the package's count is no longer the flat
+  **38** this file has carried through nine milestones, and **a figure that stops moving is
+  a figure nobody re-ran**),
+  **125 in `tests/architecture`** (53 boundaries, 22 privacy-disclosure, 18 security-audit,
+  14 branding-audit, 11 provider-terms, **7** beta-diagnostics — so `boundaries.test.ts` is
+  **still 53**, which is the measurement this change turned on, since every property it
+  introduced already had an instrument or got one here and a rule added where an instrument
+  exists is not coverage),
+  **490 in `apps/extension`** across **22** files (**25** in `content-script.test.ts`,
   **123** in `protocol.test.ts`, **70** in `extension-platform.test.ts`, **23** in
   `content-script-fill.test.ts`, **22** in `code-field.test.ts`, **25** in `Popup.test.tsx`,
   **53** in `Panel.test.tsx`, **17** in `panel-copy.test.ts`, **17** in
@@ -1690,7 +1754,8 @@ Pin versions when exact versions matter.
   `provider-config.test.ts`, **17** in `background-check.test.ts`,
   **11** in `notification.test.ts`, **7** in `alarms.test.ts`,
   **10** in `content-script-handlers.test.ts`, **12** in `content-script-host-context.test.ts`,
-  **5** in `popup-copy.test.ts`, **8** in `service-worker.test.ts`, **4** in `scheduler.test.ts`),
+  **5** in `popup-copy.test.ts`, **8** in `service-worker.test.ts`, **4** in `scheduler.test.ts`,
+  **3** in `diagnostic.test.ts`),
   **53 architecture boundary assertions** — which is the only figure in this list that has not
   moved since M1's independent verification pass, and is stated separately because **it is the
   number several changes below use as the measurement that no rule was added where an instrument
@@ -2576,15 +2641,17 @@ pnpm test:browser
 
 ```
 
-Playwright `1.63.0`, **two configurations, 14 spec files and 107 test cases** - **Chromium
+Playwright `1.63.0`, **two configurations, 17 spec files and 149 test cases** - **Chromium
 only**. The command builds **both** clients, then the in-page fixture, and then runs the two
-suites in order: the website's **40** in `apps/web/e2e/`, and the extension's **67** in
+suites in order: the website's **51** in `apps/web/e2e/`, and the extension's **98** in
 `apps/extension/e2e/`.
 
-**The website's 5 spec files and 40 cases** - `storage.spec.ts`
+**The website's 7 spec files and 51 cases** - `storage.spec.ts`
 (**6**), `focus.spec.ts` (**6**, added by M7 slice 1), `motion.spec.ts` (**9**, added by
 M7 slice 2), `sections.spec.ts` (**16**; **13** added by M7 slice 3 and **three** added by
-M7 slice 4) and **`verification-actions.spec.ts` (3**, added by M10 slice 1**)**. The
+M7 slice 4), **`verification-actions.spec.ts` (3**, added by M10 slice 1**)**,
+`mailbox-history.spec.ts` (**8**, added by M13's first slice) and **`diagnostic.spec.ts`
+(3**, added by M13's second slice**)**. The
 command serves `apps/web/dist` with `vite preview` on
 `http://127.0.0.1:4173` with `--strictPort`, because the page under test is the **built**
 `<App />` with no props - the page a user receives, not a composition mounted by a test.
