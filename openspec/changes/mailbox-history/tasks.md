@@ -350,3 +350,105 @@ repository records about guards generally: **a guard that outlived the thing it 
 guard, and a test written because a duplication could not be merged should not be deleted because the
 duplication was.** It now proves the stronger claim -- that the two entry points still agree on one
 IndexedDB -- which is a statement about the product rather than about a known duplication.
+
+## 12. Sync-stage record (2026-10-19)
+
+### 12.1 The promotion
+
+One `ADDED` and one `MODIFIED`, so the promoted requirement count moves by **exactly one**. Re-counted
+by heading **after** the promotion rather than carried forward:
+
+    184 requirements / 597 scenarios / 15 capabilities
+ -> 185 requirements / 605 scenarios / 15 capabilities
+
+  website-client     24 -> 25    79 -> 84
+  spectre-storage    16 -> 16    58 -> 61
+
+**`spectre-storage` holding at 16 is the arithmetic working, not a promotion that missed** -- a
+`MODIFIED` block replaces rather than adds -- and **58 -> 61 is +8 replacing +5**.
+
+`git diff --numstat -- openspec/specs` is **60/0 and 68/41**: one file is a pure addition, and
+**the forty-one deletions are all inside the replaced block**, which is what a modification looks
+like and what an addition never produces.
+
+### 12.2 Both guards, falsified separately, with measured digests
+
+```text
+second run, unmodified delta
+  REFUSING: website-client already carries a requirement headed
+    "The page offers the mailboxes this device holds, and returns a person to one"   exit 1
+  both specification files SHA-256 unchanged
+
+planted MODIFIED for a heading the spec does not carry
+  REFUSING: website-client carries no requirement headed
+    "A requirement the specification does not carry.
+     A MODIFIED block must replace a requirement that exists, not add one."           exit 1
+  both specification files SHA-256 unchanged
+```
+
+**The digest comparison is run through a node script rather than the shell's `Get-FileHash`**,
+because that cmdlet was **not recognised** in one shell invocation during this stage -- and a
+comparison that silently compares two empty arrays reports *"unchanged"* for anything. **A digest
+comparison that cannot fail is not a comparison**, and the fallback was written for the same reason
+the falsification harness was: a measuring instrument that is *certain* has to be certain of the right
+thing.
+
+### 12.3 The verifier's self-test was wrong twice before its tally was trusted
+
+**The first run reported an `ENOENT` naming the change as a directory**, because the self-test branch
+passed `positional[0]` -- the **root** -- as the change name. The positional arguments are
+`<root> <change> <capability> [...]`, so the change is the second and the capabilities are the rest.
+
+**And the second run failed a case with the message "self-test 4 has a MODIFIED block and a scenario
+to resurrect"** -- because the case took `capabilities[0]`, and that capability held only an `ADDED`
+block. **A self-test that fails because its fixture is the wrong shape is not a self-test**; it now
+**looks** for the capability carrying a `MODIFIED` rather than assuming the first one has it.
+
+**The repaired self-test is 5 of 5, in both argument orders** -- `--self-test <root> ...` and
+`<root> ... --self-test` -- and the two checks with no precedent in this repository are the ones this
+milestone needed: a modification that still carries a retired scenario, and a `REMOVED` heading the
+spec still carries.
+
+### 12.4 Root-owned figures
+
+`pnpm test` is **1351 across 69 files**: `packages/storage` **86 -> 103**, `apps/web` **125 -> 140**,
+`tests/architecture` **118**, and **every other package unmoved** -- `packages/mailbox` **166**,
+`packages/providers` 92, `packages/core` 54, `packages/mail-parser` 149, `packages/ui` 42,
+`apps/extension` **487** -- with **`boundaries.test.ts` still 53**, counted from its own source. The
+browser tier is **48 website and 98 extension**.
+
+### 12.5 A second forward-compat defect, of a second kind, caught by another change's instrument
+
+`pnpm verify` went **red** at this stage, and the red was **not** in anything this change wrote.
+
+```text
+FAIL  tests/architecture/security-audit.test.ts
+  > every citation the audit makes resolves, and each is reported by name when it does not
+  AssertionError: citations that resolve to nothing. The window is declared in this file, not
+  chosen per citation.: expected [ Array(1) ] to deeply equal []
+    + "spectre-storage / A site association is a record kind of its own, keyed by an exact host /
+       openspec/specs/spectre-storage/spec.md:629 - names a line above the heading it cites"
+```
+
+**`docs/SECURITY.md` cites a requirement by its line number, and the `MODIFIED` promotion moved
+every heading below the block it replaced.** The cited requirement moved from **629** to **656**,
+and the citation now named a line **above** the heading it cited. The other two citations into the
+same file, at 247 and 288, sit **above** the modified block and were unaffected.
+
+**This is the second forward-compat defect in this repository of a second kind, and the two are
+different shapes.** `security-surface-review`'s was a **path** that rotted when the archive moved the
+directory. **This one is a line that rotted when a promotion replaced a block above it** -- and it
+rotted **at the sync stage**, in a document this change never touched, checked by an instrument this
+change never touched.
+
+**The repair is the line the promotion actually put the heading on, re-measured rather than carried
+over**, and the generalisation is worth writing down: **a citation that names a line number is a claim
+about a file, and any edit above it falsifies the claim.** That is the same shape as the path, and
+the same answer: the number has to be re-measured when the file changes.
+
+**And the reader deserves the credit it earned.** It did not report *"the requirement is missing"* --
+it reported **"names a line above the heading it cites"**, which distinguishes **the line is wrong**
+from **the requirement is absent**. That distinction is the difference between a citation that has
+drifted and a requirement that has gone, and **a reader that cannot tell them apart reports the
+second when the first is true**, which sends the next reader to look for a deleted requirement
+instead of a moved one.
