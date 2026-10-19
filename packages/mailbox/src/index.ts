@@ -1,14 +1,14 @@
-/**
- * `@spectre-mail/mailbox` — mailbox session orchestration.
+﻿/**
+ * `@spectre-mail/mailbox` â€” mailbox session orchestration.
  *
  * Owns: creating a mailbox through the provider abstraction, replacing it,
  * reporting the owning provider's health, and normalizing a failure.
  *
  * ## Why this package exists
  *
- * M0–M4 built a provider abstraction, a domain model, and a parser. None of them
- * is the thing a user touches, and the sequence that turns them into one — create
- * a mailbox, show it, replace it, ask how the provider is doing — had no home.
+ * M0â€“M4 built a provider abstraction, a domain model, and a parser. None of them
+ * is the thing a user touches, and the sequence that turns them into one â€” create
+ * a mailbox, show it, replace it, ask how the provider is doing â€” had no home.
  *
  * The roadmap's shared-package list assigns "mailbox lifecycle" and "mailbox
  * manager" to `@spectre-mail/core`, but `shared-domain-model`'s approved purpose
@@ -21,7 +21,7 @@
  * ## What it deliberately does not do
  *
  * - **No framework, no DOM, no storage, no network.** The package's `tsconfig`
- *   sets `lib: ["ES2023"]` with no `DOM`, so a browser global fails to compile —
+ *   sets `lib: ["ES2023"]` with no `DOM`, so a browser global fails to compile â€”
  *   the compiler enforces that half of the boundary, not only the source scan in
  *   `tests/architecture/boundaries.test.ts`. It reads no storage, no cookie, and
  *   nothing from the URL.
@@ -38,7 +38,7 @@
  *
  * ## Polling, since slice 2
  *
- * The package polls, because there is no push transport to subscribe to — five SSE
+ * The package polls, because there is no push transport to subscribe to â€” five SSE
  * paths and two WebSocket paths were probed and none connected. Two consequences
  * are worth knowing before changing anything here:
  *
@@ -52,15 +52,15 @@
  *   invisibly is the silent retry `provider-abstraction` forbids, so the caller is
  *   given the failure and decides.
  *
- * The parser is reached in exactly one direction — this package calls
- * `@spectre-mail/mail-parser`, and no client calls the parser directly — and the
+ * The parser is reached in exactly one direction â€” this package calls
+ * `@spectre-mail/mail-parser`, and no client calls the parser directly â€” and the
  * boundary scan asserts that direction rather than trusting it.
  *
  * ## Opening a message, since slice 3
  *
  * The inbox already reads every new arrival to decide its verdict, so a message the
  * session has seen can be opened **without a provider request at all**. That retention
- * is deliberately bounded to the current listing and holds only *readable* text — never
+ * is deliberately bounded to the current listing and holds only *readable* text â€” never
  * the body as received, which is an HTML document in the one case that was measured. A
  * client cannot reach the parser to do its own reading, so the projection here is the
  * only way a client sees a message's contents, and a message view cannot become a
@@ -99,6 +99,8 @@ export {
   openedOf,
   verdictFor,
 } from "./state";
+export { emptySessionDiagnostic, isNewSessionState, observeSessionState } from "./diagnostic";
+export type { SessionDiagnostic } from "./diagnostic";
 export type {
   InboxListing,
   InboxState,

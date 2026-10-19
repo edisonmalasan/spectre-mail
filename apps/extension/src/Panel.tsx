@@ -92,6 +92,9 @@ import {
 } from "./protocol";
 import type { CreateMailboxAnswer } from "./protocol";
 import { MessageList, OpenedMessageView } from "./MessageSurface";
+import { PanelDiagnostic } from "./PanelDiagnostic";
+import { diagnosticReport, emptyInPageAnswers, EXTENSION_DIAGNOSTIC_LABELS } from "./diagnostic";
+import { useSessionDiagnostic } from "./useSessionDiagnostic";
 import type { CodeClipboardActions, FillReport, LinkCopyLabels } from "./MessageSurface";
 import { POPUP_COPY } from "./popup-copy";
 import { PANEL_COPY, PANEL_VERDICT_WORDING } from "./panel-copy";
@@ -304,6 +307,23 @@ function platformWords(failure: unknown): string {
 
 export function Panel({ session, records, primaryProviderName }: PanelProps) {
   const [state, setState] = useState<SessionState>(() => session.current());
+  /**
+   * The session's own report, counted as the session goes.
+   *
+   * **Called here, beside the panel's other state, and not further down** -- the panel has early
+   * returns, and a hook called after one has a call order that depends on the props. That is
+   * the panel's own rule, and it is the reason the session above is unconditional.
+   *
+   * **The fold is shared with the website** -- it is in `@spectre-mail/mailbox`, beside the
+   * `SessionState` it reads -- so the two clients cannot drift on what they count. **The labels
+   * are the panel's own**, because a report reads in the voice of the surface saying it.
+   */
+  const diagnostic = useSessionDiagnostic(state);
+  const diagnosticEntries = diagnosticReport(
+    diagnostic,
+    emptyInPageAnswers(),
+    EXTENSION_DIAGNOSTIC_LABELS,
+  ).entries;
   const [boot, setBoot] = useState<{ readonly done: boolean; readonly blocked: boolean }>({
     done: false,
     blocked: false,
@@ -1122,6 +1142,22 @@ export function Panel({ session, records, primaryProviderName }: PanelProps) {
           )}
         </>
       )}
+      {/*
+       * **And last in the panel, the report of what this session did.**
+       *
+       * **Last, because it is the only section here that is about the session rather than about
+       * the device or the page** -- the panel's other sections answer "what is on this device"
+       * and "what is this page", and this one answers "what has happened", which is a different
+       * question and belongs after the others rather than among them.
+       *
+       * **It holds counts, normalized outcomes and one elapsed duration, and nothing else.** There
+       * is no field in it for an address, a message id, a sender, a subject, a hostname, a URL or
+       * content, **and the panel has an address on screen a few lines above** -- a report that could
+       * not hold an address cannot leak one. And it **persists nothing**: the counts live in a ref
+       * for as long as the panel is open, so `docs/PRIVACY.md`'s claim that nothing is kept outside
+       * two named areas stays true because this never reaches a store at all.
+       */}
+      <PanelDiagnostic entries={diagnosticEntries} />
     </main>
   );
 }

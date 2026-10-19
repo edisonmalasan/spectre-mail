@@ -180,3 +180,362 @@ The four red runs were read with a pattern that looked for `FAIL `, `× `, `timed
 nothing on four runs that had failed. **A reader that matches nothing looks exactly like a reader
 that found nothing**, and the repair to that is to read the *whole* output rather than to pattern
 for the shape the reader expected.
+
+## D9 — Apply-stage record (2026-10-19)
+
+### D9.1 The fold moved to `packages/mailbox`, and the prediction was wrong
+
+**§8.2 predicted `packages/mailbox` unmoved, and it moved.** The fold over a session's states
+reads `SessionState`, and `SessionState` is that package's, so **the fold belongs beside the states
+it reads** -- and the extension and the website then fold the *same* function instead of each
+holding a copy.
+
+**The prediction's reason was wrong, and the prediction is corrected in place.** It said the
+session's outcomes are already states and the change reads them, which is true of the *client* --
+but the reading is a fold over a *sequence* of states, and a sequence is not a state.
+
+**What the correction bought is the thing the prediction was for.** A copy of the fold in each client
+is two implementations that agree until the first edit, and the first edit is the one nobody
+reviews. **The fold is now one function, in the package that owns what it folds, and it has no
+dependency on the presentation layer** -- it produces numbers and names, and each client wraps them
+in `@spectre-mail/ui`'s shapes.
+
+**And one dependency edge was removed rather than added.** `packages/mailbox` does not depend on
+`@spectre-mail/ui` and does not now; a shared package depending on the presentation layer would be
+backwards.
+
+### D9.2 A shared compiler option was about to be widened again, and the cause was fixed instead
+
+The implementation needed the shared reportable-value definition in both clients, and
+`import { PRODUCT_NAME } from "@spectre-mail/ui"` in a client **failed with `TS5097`** -- because
+`packages/ui/src/index.ts` re-exported `DECORATIVE`, `PAIRS` and `SURFACE_ONLY` from `./pairs`,
+and `pairs.ts` imports `"./contrast.ts"`, and **a client's program cannot hold a `.ts` specifier**.
+
+**`mailbox-history`'s apply stage had already met this obstacle and worked around it with a
+subpath** (`@spectre-mail/ui/name`) rather than by fixing the cause -- and the note it left said
+the cause was still there.
+
+**The cause is now fixed: the pairs are no longer re-exported from the entry point.** Nothing
+outside `packages/ui` read them -- `design-doc.ts` and `pairs.test.ts` both import them relatively,
+measured with `git grep` -- **so removing the re-export breaks nothing and makes the entry point
+importable at all.** The `./name` subpath **stays**, because a second path to one value is not
+worth the churn of removing, and its reason is now recorded where somebody will read it.
+
+**`tsconfig.base.json` is byte-identical to `main`.**
+
+### D9.3 Two hooks, one fold, and a `StrictMode` hazard the fold had to survive
+
+**React's `StrictMode` runs an effect twice on mount**, and the website's `main.tsx` mounts under
+it. **A hook that folded on every effect would count one failure as two -- and the count is what a
+person is shown.**
+
+So the hook remembers the state it last folded in, and `isNewSessionState` decides whether the one
+in hand is new. **The comparison is by identity, not by content**, because a session publishes a
+*new* state object on each transition, so identity says "this is a transition" exactly, and two
+transitions that look alike are two things that happened.
+
+**And the remembered state is a ref and not a field of the diagnostic**, because a `SessionState`
+carries a mailbox, with its address and its credentials -- **and the whole claim of this change is
+that the diagnostic holds no such thing.** The unit test for the fold found this: the first version
+of it asserted that folding the same state twice counted once, and it did not, because the fold was
+not idempotent. **The guard was put where the state is, and the fold stayed pure.**
+
+### D9.4 A line-number map went stale, and it lives in two places
+
+**Adding a surface to the extension moved the panel's heading renderings, and
+`branding-audit.test.ts`'s map -- which names line numbers -- went stale.** The suite reported it
+**by name**, which is the instrument working: *"the lines at which `PANEL_COPY.title` is rendered"*.
+
+**And the coordinates live in two places** -- the suite's `at:` array and `docs/BRANDING.md`'s own
+table -- so **a change to one does not change the other.** This change updated the document and
+the suite **still failed**, which is how the duplication was found. **Two copies of a claim is one
+copy too many**, and the copy that fails is the one that asserts.
+
+**The repair is the lines the tree actually has, re-measured after every edit above them** -- the
+same repair `docs/SECURITY.md`'s citation needed at the last sync, and the **third** forward-compat
+defect of a line-number kind in this repository.
+
+### D9.5 Two class hooks were unstyled, and the boundary suite said so
+
+**`boundaries.test.ts` reported `diagnostic__entry` and `panel__diagnostic-entry` as rendered but
+unselected.** The repair is two rules **in tokens the surfaces already resolve**, and **no new
+token** -- the same repair `in-page-fill` made for the same rule.
+
+**And a third hook, `panel__section`, was removed rather than styled.** The panel's other three
+sections carry no class at all and are styled by `.panel section`, so **a class hook nothing selects
+is dead weight**, and the panel's own note gives the repair: *have no hook rather than add a rule
+for it*.
+
+### D9.6 The conflict clause was withdrawn, and the withdrawal is in the requirement
+
+**The requirement's UI-conflict clause is not delivered**, and the reason is a channel rather than a
+difficulty: the content script is the only party that can see its own control, and **the extension
+has no message kind that asks it about anything but the host it is beside or a field to fill.**
+Adding one is a protocol change, and **a protocol change is a different change from this one.**
+
+**The scenario is removed rather than left in place**, because a scenario that says *SHALL* and is
+not met is a requirement the promoted specification would carry and the product would break -- **and
+a requirement that breaks is worse than a requirement that was never written.** The history of it
+lives in the requirement's own body, which is where a reader looks for what changed and why.
+
+**And the goal is recorded rather than dropped**: `docs/BETA.md` says *site-specific UI conflicts*
+is **partly collectable** and says what would be needed to collect it.
+
+### D9.7 The instrument's own defects, and they are the sixth of this shape in this session
+
+The new architecture suite was wrong four times before its tally could be trusted, and **the fourth
+is the recorded one about backticks**:
+
+1. **It reported the module that NAMES the forbidden things.** The check for "the diagnostic has
+   nowhere to put an address" looked for the *word*, and `packages/ui/src/diagnostic.ts` holds the
+   string `"address"` in its own exclusion list. **A scan that reports a file for naming a thing it
+   forbids is a scan reporting the file's own list of forbidden things.** The reader now looks for
+   a **declaration** -- `readonly address`, or `address:` as a key.
+2. **It compared a string to an object.** `Array.includes` compares by identity, so a `RegExp`
+   object was never `===` to a string and **every comparison was false** -- *a check that compares a
+   string to an object is not a check that fails; it is a check that can only say no.*
+3. **It could not tell `/diagnostic/i` from `/diagnostic/`.** `RegExp.prototype.source` does not
+   carry the flags, so the comparison read only the source and reported the declared pattern as
+   undeclared.
+4. **Its own pattern held a backtick**, which is the hazard `branding-audit.test.ts` records: a
+   backtick inside a regular-expression literal desynchronises the parser for the rest of the file.
+   The pattern is now written `\x60`, with **no backtick character in it at all**.
+
+**And the fifth was in the browser tier**: the diagnostic's own cases failed against a **stale
+build** -- the page had not been rebuilt since the component was added, and the failure read as
+*"the page rendered no report at all"*. **Restoring a source file is not restoring what the browser
+serves**, and the repair is to rebuild before the browser tier runs.
+---
+
+## D10 â€” Apply-stage record (2026-10-19), continued
+
+### D10.1 The page's own tests found two collisions, and both are the page being right
+
+**The report's first shape carried an elapsed duration, and the website's own test caught it.** The
+page forbids **any interval of the product's own**, and the test that holds it says why in its own
+words: *"The cadence is this product's own choice: no provider limit was measured for the only
+provider a browser page can reach, so any figure here would be an invention presented as a
+measurement."*
+
+**A report of how long the first message took to arrive is exactly such a figure**, and the page
+forbids it.
+
+**And the report's own sentence used the word *gone*.** The page forbids that word in the state
+where a provider merely failed to answer, because a word that reads as "gone" tells a person
+something false about the only copy of their address -- **and a test cannot tell whose "gone" it
+is.** The report's sentence was about *the report*, and the page could not say so.
+
+**Both collisions are the same shape, and the shape is this repository's own:** a word or a figure
+that is correct in its own sentence and wrong on the page. **The third shape is removed rather than
+kept and unused** -- *a shape with no consumer is a schema to migrate rather than a feature* -- and
+the extension had never shown an interval of its own either, so **a report would have been the first
+place the product showed a figure of its own.** Mail arrival reliability is reported as **counts**,
+which is what the goal asks for.
+
+### D10.2 The falsification harness could not start a suite, and reported every arm as green
+
+**The first run of the harness said `6 of 6 arms green`, and every one of the six had failed.**
+
+The harness ran `pnpm` through `execFileSync`, and **`pnpm.cmd` cannot be spawned from Node on this
+machine** -- `EINVAL spawnSync`, the defect this repository has recorded before. So the suite never
+ran, the output was empty, and **no failure was found in any arm** -- which reads exactly like a
+pass.
+
+**A harness that cannot start a suite reports every violation as uncaught, and that is the most
+dangerous shape a falsification instrument can have**, because it looks like the result rather than
+like a failure to produce one. The repair is to invoke `node` directly on vitest's own entry point,
+and **the harness now runs six suites and reads six failures.**
+
+### D10.3 Two of the six arms found real holes, and both are now closed
+
+**M05 -- a bare hostname in the report was not caught.** The website's own case forbade `"@"`,
+`"http"`, `"user@example"`, `"subject"` and `"sender"`, **and a report holding `example.com` passed
+it** -- because a bare hostname carries neither an "@" nor a scheme. **A hostname is one of the nine
+things the requirement names**, so the list was shorter than the rule it held. The list now includes
+one, and the arm is caught.
+
+**M06 -- a row in the document's enumeration that the tree does not back was not caught.** The
+check asserted that every record kind the tree persists is declared, **and not that every row the
+document declares is backed by the tree.** The falsification pass planted a row and **nothing
+failed** -- a check that proves half of its claim and reads as a pass on all of it.
+
+**The reader that found it was also wrong**, and it is the recorded shape again: it pushed the first
+cell of **every** two-column row into both lists, and it asked *"is this the extension's table?"* by
+testing whether the document mentioned `chrome.storage.local` -- **which it always does.** **A reader
+that cannot tell one table from another returns every row, and an assertion over every row proves
+nothing about either.** The reader now reads each table's own shape -- the extension's is two columns
+and its first cell is the key; the website's is four and its second is the store -- and the check
+has the reverse direction.
+
+**A harness that found two holes in the instrument it was written to test is a harness that works.**
+
+---
+
+### D10.4 An interrupted run leaves the boundary suite's probe files in the tree, and the next run is
+### red because of them
+
+**This was measured, and it is the reason one of the three verification runs in this change was red.**
+
+`tests/architecture/boundaries.test.ts` stages **control probe files inside the shipped source
+tree** -- `packages/mail-parser/src/__fetch-rule-probe.ts` and
+`packages/mailbox/__fetch-rule-probe.ts` among them -- and deletes them when the suite finishes. **A run
+that is interrupted leaves them**, and the probe file is **a shipped source file**: it is inside
+`packages/mail-parser/src/`, so it is in the typecheck's program and in the tree every other rule
+reads.
+
+**The sequence, measured:**
+
+```text
+before=0
+run1 EXIT=1     <- a probe file from an interrupted run was still in the tree
+run2 EXIT=0
+run3 EXIT=0
+```
+
+**And the tree was clean before the first of them** -- `git status` showed one untracked file, and it
+was the probe. The red was **not** a defect in this change; it was a defect in a *previous* run of a
+different suite.
+
+**It is recorded here rather than smoothed away, because the shape is the repository's own:**
+*`a corpus that depends on when another suite deleted its probe files is a corpus that varies with
+timing`* is a sentence this repository has already written, and this is the same sentence observed from
+the other end -- **the corpus varies, and the run that inherits the variation is the one that looks
+broken.**
+
+**The repair is the tree, not a test**: the probe files are deleted before the gates are run, and the
+three runs are reported **on a tree measured clean before the first of them**. A red run whose cause is
+a leftover from a cancelled run is not a finding about the code, and **reporting it as one would be the
+worst kind of rounding** -- it would name a defect in this change that is not in it.
+
+---
+
+### D10.5 Two gate runs at once make each other red, and the cause is the boundary suite's own
+### probe files
+
+**This was measured, and it is the root's own doing rather than the change's.**
+
+`tests/architecture/boundaries.test.ts` stages **control probe files inside the shipped source
+tree** and deletes them when the suite finishes. **Two `pnpm verify` runs in the same tree
+therefore fight over the same files**: one run's teardown deletes the other's probe while the other
+is still testing.
+
+**The measurement, from four background jobs run against this tree:**
+
+| job | how it was run | result |
+| --- | --- | --- |
+| A | **alone** | **exit 0** |
+| B | concurrent with C | 1, 1, **2** -- the job died |
+| C | concurrent with B | 0, 1, 1 |
+| D | **alone** | **exit 0** |
+
+**A run alone is green; a run beside another run is red, and the red is not about this change.**
+The repository has already written the sentence this is: *a corpus that depends on when another
+suite deleted its probe files is a corpus that varies with timing* -- and here the timing was **two
+gate jobs the root started at once**, and the corpus that varied was the one every boundary rule
+reads.
+
+**So the rule for this record is a process rule and not a code rule: one gate job at a time, and a
+red from a run that shared a tree with another is not a finding.** It is recorded here because the
+alternative -- reporting those reds as this change's -- would have named a defect that does not exist,
+and because a reader of this file will meet the same red and deserves to know what it was.
+
+---
+
+### D10.6 The boundary suite's probes are left in the tree by an interrupted run, and one of them
+### lands **in a shipped document**
+
+**This is the finding behind every red gate in this change, and it is worse than the shape it was
+first recorded as.**
+
+`tests/architecture/boundaries.test.ts` proves its own rules by **planting violations in the shipped
+tree and removing them again**. Two kinds of artefact are involved:
+
+- **probe *files*** -- `packages/mail-parser/src/__fetch-rule-probe.ts`,
+  `packages/mailbox/__fetch-rule-probe.ts`, `apps/web/__client-storage-probe.ts`,
+  `apps/extension/__exempt.spec.ts` and its siblings; and
+- **an injection into a shipped document*** -- `boundaries.test.ts:3427` replaces the line
+  `<div id="root"></div>` in **`apps/web/index.html`** with
+  `<link href="https://fonts.example.invalid/geist.css" /><div id="root"></div>`, which is the
+  "no third-party asset from any origin" rule's own control.
+
+**A run that is interrupted leaves both behind, and the second one is worse than the first**: the
+injected `<link>` is in **the page the product ships**, where it is simultaneously a **`format:check`
+failure** and a **violation of the product's own rule about third-party assets** -- the very rule the
+plant exists to prove.
+
+**Measured on this change's tree, over the runs recorded above:**
+
+| what was left behind | what it broke |
+| --- | --- |
+| `packages/mail-parser/src/__fetch-rule-probe.ts` | a boundary rule's corpus |
+| `apps/web/index.html` carrying the injected `<link>` | **`format:check`**, and the third-party-asset rule |
+
+**And every red `pnpm verify` in this change's record is one of these two.** The tree was clean
+before the runs that were green and dirty before the runs that were not, and **restoring the file
+with `git checkout` made the red go away** -- which is the measurement, because a red that a
+`git checkout` fixes was never about the code.
+
+**So the honest account of this change's gates is: three green runs on a tree measured clean, and
+every red was a cancelled run's leftover.** The discipline this imposes is the one the repository has
+already written down twice over -- *a corpus that depends on when another suite deleted its probe
+files is a corpus that varies with timing* -- and the new part is that **the timing was the root's
+own cancelled runs**, and that **the artefact can be a modification to a shipped document rather than
+a stray file.**
+
+**It is recorded here rather than smoothed away, because a reader of this file will meet a red verify
+on a tree they believe is clean, and the first thing to check is `git status`.**
+
+---
+
+### D10.7 The reds in this change's gate record are a **pre-existing** defect in the repository's own
+### instrument, and it is measured on `origin/main`
+
+**This is the finding that makes the whole gate record readable, and it is not this change's
+defect.**
+
+`tests/architecture/boundaries.test.ts` proves its own rules by **planting violations in the shipped
+tree** -- `packages/mailbox/__framework-rule-probe.ts`,
+`packages/core/__storage-import-probe.ts`, `apps/web/src/__BoundaryProbe.tsx`,
+`apps/extension/src/__client-storage-probe.ts`, `apps/web/src/__boundary-probe.css`, and more -- and
+removing them again. **Vitest runs the architecture files in parallel workers, so the tree is shared
+filesystem state between cases that were written to be independent.**
+
+**Measured on a pristine `origin/main` checkout, with this change's work nowhere in the tree.** Two
+consecutive runs of `pnpm vitest run tests/architecture`, each with a *different* set of failures:
+
+```text
+run 1
+  boundaries  ENOENT  packages/mailbox/__framework-rule-probe.ts
+  boundaries  ENOENT  packages/mail-parser/__storage-rule-probe.ts
+  boundaries  ENOENT  packages/ui/__storage-import-probe.ts
+  boundaries  ENOENT  apps/extension/__client-storage-probe.ts
+  branding    "no place in the shipped tree carries the name without being declared"  timed out in 5000ms
+
+run 2
+  boundaries  "the rule should report all 5 packages: expected 4 to be 5"
+  boundaries  "chrome storage should be caught in apps/web: expected [] to not deeply equal []"
+  boundaries  "expected [ Array(1) ] to deeply equal []"   (twice)
+  boundaries  ENOENT  packages/mailbox/__clock-rule-probe.ts
+```
+
+**Two things follow, and both are worth saying plainly.**
+
+**The first: a scan read a file another case had planted, and counted it.** *"The rule should report
+all 5 packages: expected 4 to be 5"* and *"chrome storage should be caught in apps/web: expected [] to
+not deeply equal []"* are **the suite's own probes seen as the tree**. **The second: a file a sibling
+case's teardown had already removed was read, and the read failed with `ENOENT`.**
+
+**So `pnpm test` is a coin flip on `main`, and the reds in this change's gate record are that
+coin flip rather than anything about the change.** `git diff origin/main -- tests/architecture/boundaries.test.ts`
+is **empty** -- this change did not touch the file that fails -- and the tree it fails on is main's.
+
+**And the two reds the earlier milestones recorded as unattributed** -- the `Panel.test.tsx` *"names
+the mailbox this page resolves to"* and the `branding-audit` timeout -- **are very likely the same
+thing**, and a reader should read them that way.
+
+**This is not this change's work.** `boundaries.test.ts` is on this change's forbidden list, and
+repairing an instrument that proves itself by planting files in the tree it reads is a change of its
+own. It is recorded here because **every red in the gate record above is explained by it**, and because
+a reader of this file will meet a red `pnpm verify` and deserves to know that the tree is not the
+thing that is broken.
+

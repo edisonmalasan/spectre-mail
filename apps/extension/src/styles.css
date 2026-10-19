@@ -299,3 +299,33 @@ body {
    * rediscover that the stylesheet has no removal path.
    */
 }
+
+/*
+ * The report's lines, and the same shape the panel's other figures take.
+ *
+ * **A label and its value on one line, with the value in the monospace face the panel already uses
+ * for anything a machine wrote.** The values are counts, names and durations, and they are read as
+ * figures rather than as prose.
+ *
+ * **No new token**, for the reason the website's own rule gives.
+ */
+.panel__diagnostic-entry {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+/*
+ * The report's lines, and the same shape the popup's other figures take.
+ *
+ * **A label and its value on one line, with the value in the monospace face the popup already uses
+ * for anything a machine wrote.**
+ *
+ * **No new token**, for the reason the website's own rule gives.
+ */
+.popup__diagnostic-entry {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+}

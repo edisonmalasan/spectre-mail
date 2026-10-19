@@ -768,9 +768,9 @@ const SURFACES: readonly Surface[] = [
   {
     name: "popup heading",
     sites: [
-      { file: "apps/extension/src/Popup.tsx", at: "252", form: "jsx-reference" },
-      { file: "apps/extension/src/Popup.tsx", at: "264", form: "jsx-reference" },
-      { file: "apps/extension/src/Popup.tsx", at: "272", form: "jsx-reference" },
+      { file: "apps/extension/src/Popup.tsx", at: "292", form: "jsx-reference" },
+      { file: "apps/extension/src/Popup.tsx", at: "312", form: "jsx-reference" },
+      { file: "apps/extension/src/Popup.tsx", at: "304", form: "jsx-reference" },
     ],
   },
   {
@@ -783,7 +783,13 @@ const SURFACES: readonly Surface[] = [
     renderedBy: {
       file: "apps/extension/src/Panel.tsx",
       constant: "PANEL_COPY",
-      at: [716, 729, 794],
+      // **Re-measured, not carried over.** These are the lines the panel's heading renders on
+      // *now*, and they moved because a surface was added above them. **A line number is a claim
+      // about a file, and any edit above it falsifies the claim** -- and this map's coordinates
+      // live in **two** places, this array and `docs/BRANDING.md`'s own table, so a change to one
+      // does not change the other. **Two copies of a claim is one copy too many**, and the copy
+      // that fails is the one that asserts.
+      at: [736, 749, 814],
     },
   },
   {
