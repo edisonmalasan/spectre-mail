@@ -66,6 +66,30 @@ export const CURRENT_MAILBOX_KEY = "current";
  */
 export const MAILBOXES_STORE_NAME = "mailboxes";
 
+/**
+ * The name of the database every adapter in this package opens, and the name of the object store
+ * holding the single current mailbox.
+ *
+ * ## One declaration, because the alternative produced two products
+ *
+ * `browser.ts` and `indexeddb-mailboxes.ts` each held a private copy of these two strings, and
+ * **that is exactly the duplication that produces two databases for one product the day one of them
+ * is edited.** The copy in `indexeddb-mailboxes.ts` is recorded in its own note as *a second
+ * spelling this stage could not merge*, and the duplication was guarded rather than left to memory
+ * by a two-directional test.
+ *
+ * **This module is the owner** because it already declares the third name -- the collection's store
+ * -- and because a name that lives beside the database version it has to move with is a name
+ * somebody will keep together.
+ *
+ * **They are exported rather than kept private for the same reason `MAILBOXES_STORE_NAME` is**: a
+ * client has no reason to know them, but **this package's own modules do**, and a constant that two
+ * modules in the same package each spell for themselves is a constant this package will spell
+ * differently one day.
+ */
+export const SPECTRE_DATABASE_NAME = "spectre-mail";
+export const SINGLE_MAILBOX_STORE_NAME = "mailbox";
+
 /** Everything the adapter needs, and nothing it could invent for itself. */
 export interface IndexedDbStorageOptions {
   /**

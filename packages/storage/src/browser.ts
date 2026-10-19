@@ -61,9 +61,15 @@ import type { SpectreStorage } from "./contract";
  * *a* storage — and an argument it could vary is an argument a client will eventually
  * vary, at which point this stops being one entry point and becomes a second storage
  * contract.
+ *
+ * **The two names themselves are declared once, in `indexeddb.ts`.** They used to be private
+ * constants here *and* a second private spelling in `indexeddb-mailboxes.ts`, and **that is exactly
+ * the duplication that produces two databases for one product the day one of them is edited.** A
+ * client still has no reason to know them -- they are not exported from this module, and nothing
+ * outside `packages/storage` may name them -- but **the two modules inside this package that open
+ * the database must agree**, and agreeing by importing one declaration is the way they agree.
  */
-const DATABASE_NAME = "spectre-mail";
-const STORE_NAME = "mailbox";
+import { SINGLE_MAILBOX_STORE_NAME, SPECTRE_DATABASE_NAME } from "./indexeddb";
 
 /**
  * Build a {@link SpectreStorage} backed by this environment's own IndexedDB.
@@ -109,7 +115,7 @@ export function createBrowserStorage(): SpectreStorage {
   // user experiences, was handled above rather than being left to a constructor.
   return createIndexedDbStorage({
     indexedDB: provided as IDBFactory,
-    databaseName: DATABASE_NAME,
-    storeName: STORE_NAME,
+    databaseName: SPECTRE_DATABASE_NAME,
+    storeName: SINGLE_MAILBOX_STORE_NAME,
   });
 }

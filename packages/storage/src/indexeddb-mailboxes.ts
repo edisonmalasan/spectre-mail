@@ -71,6 +71,8 @@ import {
   deleteSpectreDatabase,
   MAILBOXES_STORE_NAME,
   openSpectreDatabase,
+  SINGLE_MAILBOX_STORE_NAME,
+  SPECTRE_DATABASE_NAME,
 } from "./indexeddb";
 import type { SpectreMailboxes } from "./mailboxes";
 import {
@@ -463,22 +465,20 @@ export function createIndexedDbMailboxRecords(options: IndexedDbMailboxesOptions
 /**
  * The names the browser entry points use, which a client has no reason to know.
  *
- * ## Two of them are a second spelling, and that is recorded rather than hidden
+ * ## They are declared once, in `indexeddb.ts`, and that was not always true
  *
- * `browser.ts` holds `DATABASE_NAME` and `STORE_NAME` as module-private constants, and
- * **this stage could not edit that file**. So the two strings are written twice in this
- * package, which is exactly the duplication that produces two databases for one product
- * the day one of them is edited.
+ * This module and `browser.ts` each held a private copy of the database's name and the single
+ * mailbox store's name, and **that is exactly the duplication that produces two databases for one
+ * product the day one of them is edited.**
  *
- * **It is guarded rather than left to memory:** `indexeddb-mailboxes.test.ts` runs
- * `createBrowserStorage` and this module's browser entry point against **one** IndexedDB
- * and requires a mailbox saved through either to be the mailbox the other reads. A
- * rename on one side turns that case red, so the duplication cannot silently become two
- * products. Merging the two constants into one declaration is a one-line change for a
- * stage allowed to edit `browser.ts`.
+ * **The two modules now import one declaration**, and the two-directional test that guarded the
+ * duplication stays: `indexeddb-mailboxes.test.ts` runs `createBrowserStorage` and this module's
+ * browser entry point against **one** IndexedDB and requires a mailbox saved through either to be
+ * the mailbox the other reads. **A guard that outlived the thing it guarded is not a guard, and a
+ * test that was written because a duplication could not be merged should not be deleted because the
+ * duplication was** -- it is now proving that the two entry points still agree, which is the
+ * stronger claim.
  */
-const DATABASE_NAME = "spectre-mail";
-const SINGLE_STORE_NAME = "mailbox";
 
 /**
  * Build a {@link SpectreMailboxes} over this environment's own IndexedDB.
@@ -527,8 +527,8 @@ function browserRecordsOptions(): IndexedDbMailboxesOptions {
     // the compiler cannot verify that an arbitrary value is one. The *absence* case, which
     // is the one a user experiences, was handled above rather than left to a constructor.
     indexedDB: provided as IDBFactory,
-    databaseName: DATABASE_NAME,
-    storeName: SINGLE_STORE_NAME,
+    databaseName: SPECTRE_DATABASE_NAME,
+    storeName: SINGLE_MAILBOX_STORE_NAME,
     mailboxesStoreName: MAILBOXES_STORE_NAME,
   };
 }

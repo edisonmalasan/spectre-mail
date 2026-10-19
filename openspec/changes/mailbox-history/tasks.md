@@ -266,11 +266,17 @@
 - [x] 8.5 **`AGENTS.md` and `docs/ROADMAP.md` are not written by this stage** — they are the root
       orchestrator's and the sync stage's, and the standing figures this change's gate results will
       move are theirs to correct.
-- [ ] 8.6 **`docs/PRIVACY.md` is not rewritten by this stage.** It enumerates what this device keeps,
+- [x] 8.6 **`docs/PRIVACY.md` is not rewritten by this stage.** It enumerates what this device keeps,
       and this change adds a record kind — **which makes it a document the apply stage must be told
       about**, and the instruction that the enumeration is checked by
       `privacy-disclosure.test.ts` is the thing that will say so. If that suite goes red on a
       disclosure this change adds, **the disclosure is the change's work and not a stale document.**
+      — **The suite did not go red, and that was itself the finding.** See §9.3: **the suite was
+      watching an entry point no client uses any more**, so it could not see the second object store,
+      and a document that had become wrong was still passing. **A green suite over a product that
+      changed is a suite that stopped measuring**, and the root repaired the reader, the document and
+      the suite together — in that order, because the reader is what tells you which of the other two
+      is stale.
       — **NOT DONE, AND THIS IS THE BLOCKER. The document is now stale and the stage could not
       repair it.** Section 2 says *"The website keeps **one** kind of record, in IndexedDB"* and
       declares one row, and this change makes the website create **two** object stores.
@@ -288,3 +294,59 @@
       **all three are in a file outside this stage's write scope**. The edit was reverted and the
       document left as it is, which is a choice: a red suite is worse than a stale document the
       root can see. See `design.md` **D9.7** and **D9.10**.
+
+### 9.3 The root's repair: a green suite over a product that had changed
+
+The implementation stage reported `docs/PRIVACY.md` as **stale** -- section 2 said the website
+keeps *"**one** kind of record, in IndexedDB"* and declared one row, while the product now creates
+two object stores -- and reported the suite that checks that enumeration as **three defects**, all in
+`tests/architecture/privacy-disclosure.test.ts`, which was outside its write scope. It restored the
+document byte-identically rather than leave the tree red, and it was right to stop.
+
+**The root repaired all three, and the order matters: the reader first, then the document.**
+
+**The three defects, as reported and as confirmed.**
+
+1. **The observer drove `createBrowserStorage()`** -- the entry point for a **single** record. The
+   website now asks the **paired** factory for both. **A reader that watches an entry point no client
+   uses is a reader watching nothing**, and the symptom was a document that stayed accurate about a
+   product that had changed.
+2. **Its `transaction` stub took a `string`.** The paired adapter opens **one** transaction over
+   **two** object stores -- `db.transaction([storeName, mailboxesStoreName], "readonly")` -- so the
+   array was recorded as one element and `observed.stores[0]` was an array. **A stub that does not
+   accept the shape the platform is actually asked for records the caller's mistake, not the
+   platform's.**
+3. **The document declared one row** and the suite required one.
+
+**The corrected observer now reports 2 stores and 2 keys, and the suite went red on the document
+alone** -- which is the right order for a failure, because it says the instrument is measuring the
+product and the *document* is the stale thing.
+
+**And the document was then corrected, and the suite went green.** `docs/PRIVACY.md` section 2 now
+declares two object stores, with the collection's row saying what each of the mailboxes it holds
+carries, and the prose says the two records are written **in one transaction** so a mailbox is never
+in one and absent from the other.
+
+**A green suite over a product that changed is a suite that stopped measuring, and nothing in the
+repository would have said so.** The change that made the product different and the instrument that
+watched it were in the same milestone, and the instrument was watching the old product. **That is the
+recorded shape of a precondition defect at the largest scale this repository has:** the reader's
+precondition -- *which entry point does the page use* -- was written when the page used a different
+one, and nothing re-asked it.
+
+### 9.4 One duplication merged, which the stage could not merge
+
+`packages/storage/src/browser.ts` and `packages/storage/src/indexeddb-mailboxes.ts` each held a
+**private copy** of the database's name and the single mailbox store's name, and the stage's own note
+recorded it as *"a second spelling this stage could not merge"* -- **which is exactly the duplication
+that produces two databases for one product the day one of them is edited.**
+
+**The root merged it.** `packages/storage/src/indexeddb.ts` now owns `SPECTRE_DATABASE_NAME` and
+`SINGLE_MAILBOX_STORE_NAME`, beside the collection's store name it already declared, and both other
+modules import them.
+
+**The two-directional test that guarded the duplication stays**, and the reason is the one the
+repository records about guards generally: **a guard that outlived the thing it guarded is not a
+guard, and a test written because a duplication could not be merged should not be deleted because the
+duplication was.** It now proves the stronger claim -- that the two entry points still agree on one
+IndexedDB -- which is a statement about the product rather than about a known duplication.

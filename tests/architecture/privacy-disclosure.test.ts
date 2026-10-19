@@ -81,7 +81,10 @@ import { EXTENSION_PROVIDER_IDS } from "../../apps/extension/src/provider-config
 import { PANEL_COPY, PANEL_COPY_KEYS } from "../../apps/extension/src/panel-copy";
 import { WEBSITE_PROVIDER_IDS } from "../../apps/web/src/provider-config";
 import { LIMITS } from "../../apps/web/src/sections";
-import { createBrowserStorage } from "../../packages/storage/src/browser";
+import {
+  createBrowserMailboxRecords,
+  MAILBOX_COLLECTION_KEY,
+} from "../../packages/storage/src/indexeddb-mailboxes";
 import {
   EXTENSION_MAILBOX_KEY,
   EXTENSION_MAILBOXES_KEY,
@@ -666,6 +669,17 @@ function fakeRequest(result: () => unknown = () => undefined): {
 
 /** Records the platform calls `createBrowserStorage()` makes while reading a stored mailbox. */
 async function observeWebsiteRecord(): Promise<PlatformRecord> {
+  // **It drives the page's own entry point, and that changed with the product.** It used to drive
+  // `createBrowserStorage()`, the entry point for a SINGLE record. The website now asks the PAIRED
+  // factory for both records, so this reader drives that -- **a reader that watches an entry point
+  // no client uses is a reader watching nothing**, and the symptom was a document that stayed
+  // accurate about a product that had changed.
+  //
+  // **And the stub accepts a transaction over a list.** The paired adapter opens ONE transaction
+  // over TWO object stores, so the platform is asked for `transaction([a, b])`. The stub took a
+  // `string`, so the array was recorded as one element and `observed.stores[0]` was an array.
+  // **A stub that does not accept the shape the platform is actually asked for records the
+  // caller's mistake, not the platform's.**
   const seen = { databases: [] as string[], stores: [] as string[], keys: [] as string[] };
 
   const factory = {
@@ -682,8 +696,10 @@ async function observeWebsiteRecord(): Promise<PlatformRecord> {
         },
         close: (): void => undefined,
         onversionchange: null as (() => void) | null,
-        transaction: (store: string): unknown => {
-          seen.stores.push(store);
+        transaction: (asked: string | string[]): unknown => {
+          // **A list is a list.** The paired adapter opens one transaction over both stores, and a
+          // stub that took only a string recorded the array as one element.
+          for (const store of Array.isArray(asked) ? asked : [asked]) seen.stores.push(store);
 
           const transaction = {
             objectStore: (asked: string): unknown => {
@@ -716,7 +732,7 @@ async function observeWebsiteRecord(): Promise<PlatformRecord> {
   const previous = Reflect.get(globalThis, "indexedDB");
   Reflect.set(globalThis, "indexedDB", factory);
   try {
-    await createBrowserStorage().loadMailbox();
+    await createBrowserMailboxRecords().storage.loadMailbox();
   } finally {
     Reflect.set(globalThis, "indexedDB", previous);
   }
@@ -1063,17 +1079,42 @@ test("the website's declared record agrees with what its adapter asks the platfo
   const observed = await observeWebsiteRecord();
 
   expect(observed.databases.length, "one database is opened").toBe(1);
-  expect(observed.stores.length, "one object store is used").toBe(1);
-  expect(observed.keys, "one key is read").toEqual([CURRENT_MAILBOX_KEY]);
+  expect(
+    observed.stores.length,
+    "both object stores are used: the single record and the collection",
+  ).toBe(2);
+  expect(
+    [...observed.keys].sort(),
+    "both keys are read: the current mailbox and the collection",
+  ).toEqual([CURRENT_MAILBOX_KEY, MAILBOX_COLLECTION_KEY].sort());
 
   const rows = rowsIn(SECTION.website, ["database", "object store", "key", "what it holds"]);
 
-  expect(rows.length, "one declared row").toBe(1);
-  expect(rows[0]?.slice(0, 3), "database, store and key, as observed from the adapter").toEqual([
-    observed.databases[0] ?? "",
-    observed.stores[0] ?? "",
-    CURRENT_MAILBOX_KEY,
-  ]);
+  expect(rows.length, "one declared row per object store the adapter uses").toBe(2);
+
+  // **The declaration and the observation are compared as sets, and the reason is that the order
+  // is not a product property.** Which object store an IndexedDB database creates first is the
+  // platform's business; what this document claims is *which* records this device holds and where.
+  // **A comparison that insisted on an order would be asserting a fact about the platform's
+  // implementation rather than about the product.**
+  const declared = rows.map((row) => (row.slice(0, 3) as string[]).join("|")).sort();
+  const used = [...new Set(observed.stores)]
+    .map((store) => `${observed.databases[0] ?? ""}|${store}`)
+    .sort();
+  const withKeys = declared.map((row) => {
+    const [database, store, key] = row.split("|");
+    void database;
+    void store;
+    return key;
+  });
+
+  expect(
+    used.every((entry) => declared.some((row) => row.startsWith(`${entry}|`))),
+    "every object store the adapter uses is declared",
+  ).toBe(true);
+  expect(withKeys.sort(), "every declared row names a key the adapter reads").toEqual(
+    [CURRENT_MAILBOX_KEY, MAILBOX_COLLECTION_KEY].sort(),
+  );
 });
 
 test("the declared provider origins agree with the manifest and with each client's configured list", () => {
