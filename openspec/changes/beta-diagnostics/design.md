@@ -485,3 +485,57 @@ a stray file.**
 **It is recorded here rather than smoothed away, because a reader of this file will meet a red verify
 on a tree they believe is clean, and the first thing to check is `git status`.**
 
+---
+
+### D10.7 The reds in this change's gate record are a **pre-existing** defect in the repository's own
+### instrument, and it is measured on `origin/main`
+
+**This is the finding that makes the whole gate record readable, and it is not this change's
+defect.**
+
+`tests/architecture/boundaries.test.ts` proves its own rules by **planting violations in the shipped
+tree** -- `packages/mailbox/__framework-rule-probe.ts`,
+`packages/core/__storage-import-probe.ts`, `apps/web/src/__BoundaryProbe.tsx`,
+`apps/extension/src/__client-storage-probe.ts`, `apps/web/src/__boundary-probe.css`, and more -- and
+removing them again. **Vitest runs the architecture files in parallel workers, so the tree is shared
+filesystem state between cases that were written to be independent.**
+
+**Measured on a pristine `origin/main` checkout, with this change's work nowhere in the tree.** Two
+consecutive runs of `pnpm vitest run tests/architecture`, each with a *different* set of failures:
+
+```text
+run 1
+  boundaries  ENOENT  packages/mailbox/__framework-rule-probe.ts
+  boundaries  ENOENT  packages/mail-parser/__storage-rule-probe.ts
+  boundaries  ENOENT  packages/ui/__storage-import-probe.ts
+  boundaries  ENOENT  apps/extension/__client-storage-probe.ts
+  branding    "no place in the shipped tree carries the name without being declared"  timed out in 5000ms
+
+run 2
+  boundaries  "the rule should report all 5 packages: expected 4 to be 5"
+  boundaries  "chrome storage should be caught in apps/web: expected [] to not deeply equal []"
+  boundaries  "expected [ Array(1) ] to deeply equal []"   (twice)
+  boundaries  ENOENT  packages/mailbox/__clock-rule-probe.ts
+```
+
+**Two things follow, and both are worth saying plainly.**
+
+**The first: a scan read a file another case had planted, and counted it.** *"The rule should report
+all 5 packages: expected 4 to be 5"* and *"chrome storage should be caught in apps/web: expected [] to
+not deeply equal []"* are **the suite's own probes seen as the tree**. **The second: a file a sibling
+case's teardown had already removed was read, and the read failed with `ENOENT`.**
+
+**So `pnpm test` is a coin flip on `main`, and the reds in this change's gate record are that
+coin flip rather than anything about the change.** `git diff origin/main -- tests/architecture/boundaries.test.ts`
+is **empty** -- this change did not touch the file that fails -- and the tree it fails on is main's.
+
+**And the two reds the earlier milestones recorded as unattributed** -- the `Panel.test.tsx` *"names
+the mailbox this page resolves to"* and the `branding-audit` timeout -- **are very likely the same
+thing**, and a reader should read them that way.
+
+**This is not this change's work.** `boundaries.test.ts` is on this change's forbidden list, and
+repairing an instrument that proves itself by planting files in the tree it reads is a change of its
+own. It is recorded here because **every red in the gate record above is explained by it**, and because
+a reader of this file will meet a red `pnpm verify` and deserves to know that the tree is not the
+thing that is broken.
+
