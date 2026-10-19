@@ -18,8 +18,27 @@ import type { StoredMailboxRecord } from "./record";
  * questions — one is "what shape is a record", the other is "what shape is the
  * database" — and a change to either does not imply a change to the other. A
  * record added to a store needs no `IDB` upgrade; an index added to one does.
+ *
+ * ## It is 2, and that was measured rather than chosen
+ *
+ * Version 1 held one object store. `mailbox-history` added a **second store** for
+ * the collection of mailboxes this device holds, and **an object store can only be
+ * created inside a version-change transaction** — so the version had to move whether
+ * or not the existing store changed shape. The earlier note above said "a record
+ * added to a store needs no `IDB` upgrade", which is true of a *value* and was read
+ * here as covering a *store*; it does not, and the correction is recorded rather than
+ * quietly absorbed.
+ *
+ * **The consequence is measured on this repository's own substrate, and it is a real
+ * one:** while a second connection holds version 1 open, `factory.open(name, 2)` fires
+ * **`onblocked` and nothing else** — measured `{ one: [], two: [] }` for the rollback
+ * probe and `blocked` for the upgrade probe. So a visitor with an old SpectreMail tab
+ * open gets the `openDatabase` refusal below rather than a slower page, and
+ * `BootFailure` is what they see. The alternative — a second store in a second
+ * database — would have kept the version at 1 and produced **two** databases for one
+ * product, which is exactly the shape `clearAll`'s requirement is about.
  */
-export const SPECTRE_DATABASE_VERSION = 1;
+export const SPECTRE_DATABASE_VERSION = 2;
 
 /**
  * The key the current mailbox is written under.
@@ -28,6 +47,24 @@ export const SPECTRE_DATABASE_VERSION = 1;
  * kinds get their own key when they get a consumer.
  */
 export const CURRENT_MAILBOX_KEY = "current";
+
+/**
+ * The object store the **collection of mailboxes this device holds** is written under.
+ *
+ * ## It lives here rather than in the collection's own module, and that is the point
+ *
+ * This is the **database's** shape, not one adapter's, and the two come apart the moment
+ * they do not: an object store can only be created inside a version-change transaction,
+ * so whichever adapter opens the database first would otherwise decide whether the other
+ * store exists — and `spectre-storage`'s removal requirement is proved against the
+ * database's contents. **A proof taken against a shape that depends on which operation a
+ * visitor performed first is not a proof.**
+ *
+ * So every adapter in this package creates both stores on upgrade, and this module is
+ * where the name of the second one is declared, next to the database version that has to
+ * move for it to exist at all.
+ */
+export const MAILBOXES_STORE_NAME = "mailboxes";
 
 /** Everything the adapter needs, and nothing it could invent for itself. */
 export interface IndexedDbStorageOptions {
@@ -53,7 +90,29 @@ export interface IndexedDbStorageOptions {
 }
 
 /**
- * A {@link SpectreStorage} over one IndexedDB database.
+ * What {@link openSpectreDatabase} needs, and nothing it could invent for itself.
+ */
+export interface OpenSpectreDatabaseOptions {
+  /** The IndexedDB implementation to use. Required, for the reason above. */
+  readonly indexedDB: IDBFactory;
+  /** The database to open. */
+  readonly databaseName: string;
+  /**
+   * Every object store this build's database has.
+   *
+   * **A list rather than one name, and that is the collection adapter's whole reason
+   * for sharing this rather than writing its own opener.** An object store can only be
+   * created inside a version-change transaction, so whichever adapter opens the
+   * database first would otherwise decide whether the *other* store exists — and the
+   * shipped database's shape would then depend on which operation a visitor happened
+   * to perform first. `spectre-storage`'s removal requirement is proved against that
+   * shape, so a shape that varies is a proof that varies.
+   */
+  readonly storeNames: readonly string[];
+}
+
+/**
+ * Open this build's database, creating every object store it declares.
  *
  * ## One connection per operation
  *
@@ -64,6 +123,130 @@ export interface IndexedDbStorageOptions {
  * upgrade. Opening per operation cannot leak a connection, at the cost of an open
  * per save. A page saves a mailbox when it changes, not on a timer, so that is the
  * right way round.
+ *
+ * ## The caller closes it
+ *
+ * **No close here, deliberately.** Every operation that opens needs to close on the
+ * failure path as well as the success one, and closing inside this function would
+ * close a connection whose transaction has not finished — which is the durability
+ * guarantee the writes below wait on `oncomplete` to provide.
+ */
+export function openSpectreDatabase(options: OpenSpectreDatabaseOptions): Promise<IDBDatabase> {
+  const { indexedDB: factory, databaseName, storeNames } = options;
+
+  return new Promise<IDBDatabase>((resolve, reject) => {
+    const request = factory.open(databaseName, SPECTRE_DATABASE_VERSION);
+
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      for (const storeName of storeNames) {
+        if (!db.objectStoreNames.contains(storeName)) {
+          db.createObjectStore(storeName);
+        }
+      }
+    };
+
+    // A blocked open means another connection is holding an older version open.
+    // Reported rather than waited on: an open that never resolves would leave a
+    // caller with no address and no explanation, and "no explanation" is the one
+    // outcome `SpectreStorage` exists to prevent. Measured, not assumed: an upgrade
+    // blocked by a version-1 connection fires this event and completes nothing,
+    // which is why `SPECTRE_DATABASE_VERSION` moving to 2 has a user-visible cost.
+    request.onblocked = () => {
+      reject(
+        new Error(
+          `Opening the "${databaseName}" database was blocked: another connection is ` +
+            `holding an older version open.`,
+        ),
+      );
+    };
+
+    request.onerror = () => {
+      reject(request.error ?? new Error(`Opening the "${databaseName}" database failed.`));
+    };
+
+    request.onsuccess = () => {
+      const db = request.result;
+      // Another tab upgrading must not be blocked by this connection. The
+      // connection is per-operation, so closing here is the whole of the
+      // lifecycle this adapter needs.
+      db.onversionchange = () => {
+        db.close();
+      };
+      resolve(db);
+    };
+  });
+}
+
+/**
+ * Remove the database.
+ *
+ * ## The whole database, and that is the requirement rather than an implementation
+ * detail
+ *
+ * Deleting `CURRENT_MAILBOX_KEY` would be the smaller function and would pass every
+ * test written against today's single record — and it would quietly stop clearing
+ * everything the moment a later build added a second record kind, with nothing failing
+ * to notice. `deleteDatabase` removes anything that was there, **including the
+ * collection's own store**, which is what a control described to the user as clearing
+ * all local data means.
+ *
+ * **`onblocked` rejects rather than waits, and the reason is not "it would hang".**
+ * That was the reason originally recorded here and it was wrong — it was read off a
+ * probe whose promise had already resolved on `onblocked`, so it could not have
+ * observed what the request did afterwards. Measured properly, a blocked removal is
+ * *queued*: while it is pending a fresh `open` is blocked too, and once the holding
+ * connection closes the removal goes through on its own.
+ *
+ * The real reason to report is that the wait ends when some **other** tab closes — a
+ * page can neither cause that nor predict it, and the user would be watching a
+ * button that does nothing for as long as they left another tab open.
+ * `openSpectreDatabase` rejects on the same event for the same class of reason, and
+ * these two paths behaving alike is the point.
+ *
+ * **And rejecting does not cancel anything**, which is the part a caller has to be
+ * told: the queued removal still lands. The message says what blocked it, because
+ * the fix is something the user can do.
+ *
+ * `fake-indexeddb` is not a browser. The behaviour above is why this path is
+ * exercised rather than trusted, not a claim about what a real browser does — and
+ * rejecting is correct whichever way a real browser goes.
+ */
+export function deleteSpectreDatabase(options: {
+  readonly indexedDB: IDBFactory;
+  readonly databaseName: string;
+}): Promise<void> {
+  const { indexedDB: factory, databaseName } = options;
+
+  return new Promise<void>((resolve, reject) => {
+    const request = factory.deleteDatabase(databaseName);
+
+    request.onsuccess = () => {
+      resolve();
+    };
+
+    request.onerror = () => {
+      reject(request.error ?? new Error(`Removing the "${databaseName}" database failed.`));
+    };
+
+    request.onblocked = () => {
+      reject(
+        new Error(
+          `Removing the "${databaseName}" database was blocked: another connection is ` +
+            `holding it open. Close other SpectreMail tabs and try again.`,
+        ),
+      );
+    };
+  });
+}
+
+/**
+ * A {@link SpectreStorage} over one IndexedDB database.
+ *
+ * ## One connection per operation
+ *
+ * Through {@link openSpectreDatabase}, which states why the connection is opened per
+ * operation and why the caller closes it.
  *
  * ## A write waits for the transaction, not for the request
  *
@@ -77,43 +260,14 @@ export function createIndexedDbStorage(options: IndexedDbStorageOptions): Spectr
   const { indexedDB: factory, databaseName, storeName } = options;
 
   function openDatabase(): Promise<IDBDatabase> {
-    return new Promise<IDBDatabase>((resolve, reject) => {
-      const request = factory.open(databaseName, SPECTRE_DATABASE_VERSION);
-
-      request.onupgradeneeded = () => {
-        const db = request.result;
-        if (!db.objectStoreNames.contains(storeName)) {
-          db.createObjectStore(storeName);
-        }
-      };
-
-      // A blocked open means another connection is holding an older version open.
-      // Reported rather than waited on: an open that never resolves would leave a
-      // caller with no address and no explanation, and "no explanation" is the one
-      // outcome `SpectreStorage` exists to prevent.
-      request.onblocked = () => {
-        reject(
-          new Error(
-            `Opening the "${databaseName}" database was blocked: another connection is ` +
-              `holding an older version open.`,
-          ),
-        );
-      };
-
-      request.onerror = () => {
-        reject(request.error ?? new Error(`Opening the "${databaseName}" database failed.`));
-      };
-
-      request.onsuccess = () => {
-        const db = request.result;
-        // Another tab upgrading must not be blocked by this connection. The
-        // connection is per-operation, so closing here is the whole of the
-        // lifecycle this adapter needs.
-        db.onversionchange = () => {
-          db.close();
-        };
-        resolve(db);
-      };
+    return openSpectreDatabase({
+      indexedDB: factory,
+      databaseName,
+      // **Both stores, even though this adapter reads and writes one of them.** The
+      // database's shape belongs to the database; see `MAILBOXES_STORE_NAME`. An adapter
+      // that created only its own store would make the shipped contents depend on which
+      // operation ran first, and `clearAll`'s removal requirement is proved against them.
+      storeNames: [storeName, MAILBOXES_STORE_NAME],
     });
   }
 
@@ -177,58 +331,16 @@ export function createIndexedDbStorage(options: IndexedDbStorageOptions): Spectr
   }
 
   /**
-   * Remove the database.
+   * Remove the database, through {@link deleteSpectreDatabase}.
    *
-   * **The whole database, and that is the requirement rather than an
-   * implementation detail.** Deleting `CURRENT_MAILBOX_KEY` would be the smaller
-   * function and would pass every test written against today's single record — and
-   * it would quietly stop clearing everything the moment a later build added a
-   * second record kind, with nothing failing to notice. `deleteDatabase` removes
-   * anything that was there, including a store this build has never heard of, which
-   * is what a control described to the user as clearing all local data means.
-   *
-   * **`onblocked` rejects rather than waits, and the reason is not "it would hang".**
-   * That was the reason originally recorded here and it was wrong — it was read off a
-   * probe whose promise had already resolved on `onblocked`, so it could not have
-   * observed what the request did afterwards. Measured properly, a blocked removal is
-   * *queued*: while it is pending a fresh `open` is blocked too, and once the holding
-   * connection closes the removal goes through on its own.
-   *
-   * The real reason to report is that the wait ends when some **other** tab closes — a
-   * page can neither cause that nor predict it, and the user would be watching a
-   * button that does nothing for as long as they left another tab open. `openDatabase`
-   * above rejects on the same event for the same class of reason, and these two paths
-   * behaving alike is the point.
-   *
-   * **And rejecting does not cancel anything**, which is the part a caller has to be
-   * told: the queued removal still lands. The message says what blocked it, because
-   * the fix is something the user can do.
-   *
-   * `fake-indexeddb` is not a browser. The behaviour above is why this path is
-   * exercised rather than trusted, not a claim about what a real browser does — and
-   * rejecting is correct whichever way a real browser goes.
+   * **And it now covers a second store this build does create.** The collection of
+   * mailboxes this device holds lives in its own object store in the same database,
+   * so this removal is no longer proved by a planted store alone - it removes the
+   * product's own shape. `deleteSpectreDatabase` states why the whole database and
+   * why a refusal is reported rather than waited on.
    */
   function deleteDatabase(): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-      const request = factory.deleteDatabase(databaseName);
-
-      request.onsuccess = () => {
-        resolve();
-      };
-
-      request.onerror = () => {
-        reject(request.error ?? new Error(`Removing the "${databaseName}" database failed.`));
-      };
-
-      request.onblocked = () => {
-        reject(
-          new Error(
-            `Removing the "${databaseName}" database was blocked: another connection is ` +
-              `holding it open. Close other SpectreMail tabs and try again.`,
-          ),
-        );
-      };
-    });
+    return deleteSpectreDatabase({ indexedDB: factory, databaseName });
   }
 
   return {

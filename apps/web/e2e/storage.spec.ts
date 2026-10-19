@@ -32,6 +32,8 @@
 
 import { expect, test, type Page } from "@playwright/test";
 
+import { SPECTRE_DATABASE_VERSION } from "@spectre-mail/storage";
+
 import { deferred, serveRecordedProvider } from "./recorded-provider";
 import { openFreshMailbox } from "./open-mailbox";
 
@@ -233,7 +235,14 @@ test.describe("the storage a page actually uses", () => {
 
     // Plant a store this build has no code for, **after** the page has stored its
     // mailbox, so a removal that only deletes the known key would leave it behind.
-    await plantUnrecognisedStore(page, name, 1);
+    //
+    // **The version is this build's own rather than a literal.** An object store can only be
+    // created during an upgrade, so the plant has to open *above* the version the page uses -
+    // and `mailbox-history` moved that version from 1 to 2 when the collection's store arrived.
+    // A literal `1` here would open at the page's own version, no upgrade would fire, the store
+    // would never be created, and the case would still be green with nothing planted. **That is
+    // the control below, and it is why the control is not optional.**
+    await plantUnrecognisedStore(page, name, SPECTRE_DATABASE_VERSION);
     const beforeRemoval = await readWholeDatabase(page, name);
     expect(beforeRemoval.some((record) => JSON.stringify(record) === '"not mine"')).toBe(true);
 

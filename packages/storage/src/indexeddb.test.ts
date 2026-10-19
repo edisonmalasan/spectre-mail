@@ -36,7 +36,13 @@ import { createMailbox } from "@spectre-mail/core";
 import type { Mailbox } from "@spectre-mail/core";
 
 import type { SpectreStorage } from "./contract";
-import { createIndexedDbStorage, CURRENT_MAILBOX_KEY, SPECTRE_DATABASE_VERSION } from "./indexeddb";
+import {
+  createIndexedDbStorage,
+  CURRENT_MAILBOX_KEY,
+  MAILBOXES_STORE_NAME,
+  SPECTRE_DATABASE_VERSION,
+} from "./indexeddb";
+import { createIndexedDbMailboxRecords } from "./indexeddb-mailboxes";
 
 const DATABASE = "spectre-mail-test";
 const STORE = "mailboxes";
@@ -803,24 +809,73 @@ describe("removing what this device holds", () => {
     // distinguishes them.
     const { storage, factory } = newStorage();
     await storage.saveMailbox(MAILBOX);
-    await upgradeTo(factory, 2, (db) => {
+    await upgradeTo(factory, SPECTRE_DATABASE_VERSION + 1, (db) => {
       if (!db.objectStoreNames.contains("preferences")) {
         db.createObjectStore("preferences");
       }
     });
-    await putIntoStore(factory, 2, "preferences", "locale", "en-GB");
+    await putIntoStore(factory, SPECTRE_DATABASE_VERSION + 1, "preferences", "locale", "en-GB");
 
     // **The control.** Before anything is removed, both the store and its contents
     // are verifiably there.
-    expect(await storeNames(factory, 2)).toContain("preferences");
-    expect(await getFromStore(factory, 2, "preferences", "locale")).toBe("en-GB");
+    expect(await storeNames(factory, SPECTRE_DATABASE_VERSION + 1)).toContain("preferences");
+    expect(await getFromStore(factory, SPECTRE_DATABASE_VERSION + 1, "preferences", "locale")).toBe(
+      "en-GB",
+    );
 
     await storage.clearAll();
 
     // At the same version, on a database that is now gone and so is recreated empty
     // by this read. An implementation that deleted only the key would still find
     // `preferences` here.
-    expect(await storeNames(factory, 2)).not.toContain("preferences");
+    expect(await storeNames(factory, SPECTRE_DATABASE_VERSION + 1)).not.toContain("preferences");
+  });
+
+  it("removes the collection's own store, so the proof is the product's shape and not a planted one", async () => {
+    /**
+     * The case the requirement's strongest sentence asks for, added by `mailbox-history`.
+     *
+     * **The case above proves the requirement against a store this build does not
+     * recognise, which is the right proof for a database that holds one record kind and a
+     * fiction about the rest.** Since this build writes **two** record kinds - the single
+     * current mailbox and the collection of mailboxes this device holds - the database now
+     * holds a second store *this build does recognise*, and a removal is proved against the
+     * product's own shape rather than beside it.
+     *
+     * The store names come from the module that declares them rather than from literals
+     * here, because a literal would let a rename make this case pass against a store the
+     * product no longer writes.
+     */
+    const factory = new FakeIndexedDbFactory();
+    const records = createIndexedDbMailboxRecords({
+      indexedDB: factory,
+      databaseName: DATABASE,
+      /**
+       * **A store name of its own, and that is a finding rather than a preference.** This
+       * file's `STORE` constant is `"mailboxes"` - the same string the product now uses for
+       * the collection - so the first version of this case declared two stores with the same
+       * name, the platform created one, and the control below caught it. A case whose own
+       * fixture collides with the product's naming is a case that can pass for the wrong
+       * reason, and the control is what turned it red rather than green.
+       */
+      storeName: "current-mailbox",
+      mailboxesStoreName: MAILBOXES_STORE_NAME,
+    });
+
+    await records.storage.saveMailbox(MAILBOX);
+
+    // **The control**, for the reason the case above carries one: an assertion that the
+    // stores were there before the removal is what makes "they are gone afterwards" mean
+    // something.
+    expect((await storeNames(factory, SPECTRE_DATABASE_VERSION)).sort()).toEqual(
+      [MAILBOXES_STORE_NAME, "current-mailbox"].sort(),
+    );
+
+    await records.storage.clearAll();
+
+    // **The database is gone**, so the second store is unreachable rather than merely
+    // unread. A key-scoped removal would leave it sitting there and this would fail.
+    expect(await storeNames(factory, SPECTRE_DATABASE_VERSION)).toEqual([]);
   });
 
   it("succeeds when nothing is stored", async () => {

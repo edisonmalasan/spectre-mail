@@ -91,10 +91,11 @@
  * @module
  */
 
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { createMailboxSession } from "@spectre-mail/mailbox";
-import type { MailboxSession, OpenedMessageState } from "@spectre-mail/mailbox";
+import type { MailboxSession, OpenedMessageState, SessionState } from "@spectre-mail/mailbox";
+import type { Mailbox } from "@spectre-mail/core";
 
 import { Address } from "./Address";
 import { BootFailure } from "./BootFailure";
@@ -105,13 +106,15 @@ import { MailboxLifetime } from "./MailboxLifetime";
 import { MessageView } from "./MessageView";
 import { PageFooter } from "./PageFooter";
 import { Reasons } from "./Reasons";
+import { RecentMailboxes } from "./RecentMailboxes";
+import type { UnreachableVerdict } from "./RecentMailboxes";
 import { ExtensionPreview } from "./ExtensionPreview";
 import { createWebsiteProviderManager } from "./provider-config";
 import { webScheduler } from "./scheduler";
 import { Steps } from "./Steps";
 import { Wordmark } from "./Wordmark";
-import { useWebsiteStorage } from "./storage";
-import type { WebsiteStorage } from "./storage";
+import { useWebsiteMailboxes, useWebsiteStorage } from "./storage";
+import type { WebsiteMailboxes, WebsiteStorage } from "./storage";
 import { StoredAddressGone } from "./StoredAddressGone";
 import { StoredAddressUnchecked } from "./StoredAddressUnchecked";
 import { useInboxVisibility } from "./useInboxVisibility";
@@ -127,6 +130,28 @@ import { useMailboxSession } from "./useMailboxSession";
  */
 function openedMessageId(opened: OpenedMessageState): string | null {
   return opened.kind === "opening" || opened.kind === "openFailed" ? opened.messageId : null;
+}
+
+/**
+ * The mailbox this page is on right now, or `null` when it is on none.
+ *
+ * **The one variant that reads nothing is `creating`.** It deliberately carries no mailbox — the
+ * compiler enforces it, and `App` had to ask rather than read a field — so a page that asked this
+ * question during a creation is told it is on no address rather than being handed the last one.
+ *
+ * Used for one purpose: `RecentMailboxes` withholds its "use this address" control on the address
+ * already on screen, because a control that cannot do anything is the fake-UI defect this page has
+ * removed twice.
+ */
+function currentMailbox(state: SessionState): Mailbox | null {
+  switch (state.kind) {
+    case "ready":
+    case "expired":
+    case "restoreFailed":
+      return state.mailbox;
+    default:
+      return null;
+  }
 }
 
 export interface AppProps {
@@ -149,9 +174,22 @@ export interface AppProps {
    * call order changes with its props.
    */
   readonly storage?: WebsiteStorage;
+  /**
+   * The mailboxes this device holds, or the reason there is none.
+   *
+   * **A second prop rather than a second field on {@link AppProps.storage}, and the reason is
+   * scope rather than design.** `storage-stub.ts` — a shipped module, not a `.test.tsx` — builds a
+   * `WebsiteStorage` to hand the page, so widening that type would have put this change's write scope
+   * over a file it was told not to touch. Both props resolve to `./storage`, which is the module that
+   * is *this page's only route to the storage layer*; two values from one module is still one route,
+   * and the boundary rule still has exactly one place to point at in `apps/web`.
+   *
+   * Production leaves it unset and gets the real one, through `useWebsiteMailboxes`.
+   */
+  readonly mailboxes?: WebsiteMailboxes;
 }
 
-export function App({ session, storage }: AppProps = {}) {
+export function App({ session, storage, mailboxes }: AppProps = {}) {
   // **Both built once.** Calling `createMailboxSession` in the component body produced a
   // *new* session on every render, which was harmless while the session only ever held
   // a mailbox and quietly wrong now: the binding keys its first listing on the
@@ -167,8 +205,12 @@ export function App({ session, storage }: AppProps = {}) {
   // throws: where the platform has nothing, the result is `blocked` and the injected
   // value is used instead.
   const ownStorage = useWebsiteStorage();
+  // **Unconditional for the same reason as the storage above, and chosen between the same way.** A hook
+  // called only when a prop is absent is a hook whose call order depends on its props.
+  const ownMailboxes = useWebsiteMailboxes();
   const active = session ?? ownSession;
   const store = storage ?? ownStorage;
+  const held = mailboxes ?? ownMailboxes;
   const {
     state,
     boot,
@@ -185,6 +227,42 @@ export function App({ session, storage }: AppProps = {}) {
   } = useMailboxSession(active, store);
 
   useInboxVisibility(active);
+
+  /**
+   * Return to a mailbox this device holds.
+   *
+   * **The session's own `restore`, not `open`, and that is the whole of the return path.**
+   * `restore` reconciles the mailbox it is handed against the provider that owns it and already
+   * distinguishes the two ways that can fail — `expired` against `restoreFailed` — which is precisely
+   * the roadmap's condition for offering a mailbox at all. `open` would create one, and a return that
+   * quietly created an address would strand anything already sent to the old one.
+   *
+   * **Called here rather than added to `useMailboxSession`, and the reason is that the binding is the
+   * session's mirror.** It subscribes for the life of the component, so every state this call
+   * publishes reaches the page without the binding knowing anything about it; the one thing the
+   * binding does own is whether to *store*, and it decides that on the mailbox id it was handed — so a
+   * return is recorded, which is what makes it the address a reload brings back.
+   */
+  const returnToMailbox = useCallback(
+    (mailbox: Mailbox) => {
+      void active.restore(mailbox);
+    },
+    [active],
+  );
+
+  /**
+   * What the provider said about the mailboxes this page has asked about.
+   *
+   * **At most one entry, and that is not a limitation being worked around — it is the truth.** The page
+   * has asked the provider about the mailbox it holds and about nothing else, so this maps the session's
+   * own two verdicts onto the two words the surface marks with. A mailbox with no entry is one the page
+   * has not asked about, and it is offered plainly rather than marked.
+   */
+  const unreachable: UnreachableVerdict = useMemo(() => {
+    if (state.kind === "expired") return { [state.mailbox.id]: "gone" };
+    if (state.kind === "restoreFailed") return { [state.mailbox.id]: "unchecked" };
+    return {};
+  }, [state]);
 
   return (
     // **A fragment, because the footer is a page-level landmark and must not be a
@@ -354,6 +432,28 @@ export function App({ session, storage }: AppProps = {}) {
             // browser remembers has nothing to do with what the session is doing — a user
             // looking at a creation failure with a stored address still needs to remove it.
             <LocalData localData={localData} clearStored={clearStored} />
+          )}
+
+          {boot.kind === "started" && (
+            // **Beside `LocalData`, inside the product region, and *not* a region of its own.**
+            // `page-composition` requires: *"No region SHALL be added that has no heading of its own,
+            // and no sixth region SHALL be added."* A sixth region for the mailboxes this device holds
+            // would forbid itself, and the answer for the surface immediately beside this one is the
+            // precedent. `PAGE_ORDER` therefore still names five regions, and the browser tier's
+            // per-region sweeps still find five — which is `design.md` D3's falsifiable claim.
+            //
+            // **Gated on the same `boot`, for the same reason, and it renders in every session state
+            // once the boot is done** — including a creation failure and a failed inbox check. A
+            // person whose address could not be created still has other addresses on this device and
+            // still needs to reach one, which is `LocalData`'s own sentence turned from removal to
+            // returning.
+            <RecentMailboxes
+              held={held}
+              current={currentMailbox(state)}
+              unreachable={unreachable}
+              storageState={localData}
+              onReturnTo={returnToMailbox}
+            />
           )}
         </section>
 

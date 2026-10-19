@@ -21,6 +21,20 @@
  * "where does this page keep its mailbox", and the rule above could no longer tell
  * which of them mattered.
  *
+ * ## Why the collection is a second hook and not a second route
+ *
+ * `mailbox-history` gave this page a second record kind, and it reaches the storage
+ * layer through **this module** — the same one, which is the point. `useWebsiteMailboxes`
+ * is a second *hook* rather than a second module, so the boundary rule still has exactly
+ * one place to point at in `apps/web`, and the page still asks one question of one file.
+ *
+ * **It is a separate value rather than a second field on {@link WebsiteStorage}, and the
+ * reason is `storage-stub.ts`.** That module builds a `WebsiteStorage` to hand the page
+ * in a test, and it is a *shipped* module — not a `.test.tsx` — so a required third
+ * field would have put this change's write scope over a file it was told not to touch.
+ * Two values, each built by the same factory shape and each refusing rather than
+ * storing nothing, is what the scope allowed and nothing about the product needed more.
+ *
  * ## What the website will not do here
  *
  * It will not choose *which* store to use. The database and object-store names belong
@@ -33,8 +47,8 @@
 
 import { useState } from "react";
 
-import { createBrowserStorage } from "@spectre-mail/storage";
-import type { SpectreStorage } from "@spectre-mail/storage";
+import { createBrowserMailboxRecords, createBrowserMailboxes } from "@spectre-mail/storage";
+import type { SpectreMailboxes, SpectreStorage } from "@spectre-mail/storage";
 
 /**
  * The website's storage, or the reason there is none.
@@ -52,9 +66,38 @@ export type WebsiteStorage =
   | { readonly kind: "blocked"; readonly reason: string };
 
 /**
+ * The website's single-mailbox storage, over this environment's own IndexedDB.
+ *
+ * ## Why the *paired* factory and not `createBrowserStorage`
+ *
+ * **One write records a mailbox in two record kinds**, and the requirement is that the head of the
+ * collection and the mailbox the single-mailbox contract reports are the same mailbox. That is held by
+ * a transaction spanning both object stores, and the only thing in the workspace that can open one is
+ * `createBrowserMailboxRecords`.
+ *
+ * **The singular write stays, and that is the decision rather than the default.** Dropping it would
+ * leave a stored record naming a mailbox this device has stopped using, so the two records would
+ * disagree on disk and anything reading the singular record directly would be reading a stale answer.
+ * Dropping the collection write instead would mean a page listing what this device holds has nothing to
+ * list after the first visit. So both are written, together, by the factory above — and the rule the
+ * extension needs for the same question is **not** needed here, because the platform refuses the
+ * disagreement rather than a scan having to look for it.
+ *
+ * **Not `createBrowserStorage` any more, and that is a real change to this module's default.** It
+ * still exists and is still tested; what changed is that the website no longer uses it, so the
+ * duplication between the two browser entry points has one consumer instead of two.
+ *
+ * @throws {Error} If the environment provides no `indexedDB`, which
+ *   {@link createWebsiteStorage} turns into a reported value rather than a blank page.
+ */
+export function websiteStorage(): SpectreStorage {
+  return createBrowserMailboxRecords().storage;
+}
+
+/**
  * Build the website's storage, reporting an absent platform rather than throwing.
  *
- * **The catch here is the whole point of the function.** `createBrowserStorage`
+ * **The catch here is the whole point of the function.** The browser entry point
  * throws on purpose, and the alternative to catching it is a React render that throws,
  * which shows the user a blank page and says nothing about why. The reason travels
  * with the value instead, so the page can render it.
@@ -64,11 +107,9 @@ export type WebsiteStorage =
  * object — which is what makes this function's failure branch testable at all, since
  * the test environment does have a way to install a platform and removing it again
  * from module scope is the kind of shared mutable state this repository avoids.
- * Defaults to the real factory, so production passes nothing.
+ * Defaults to {@link websiteStorage}, so production passes nothing.
  */
-export function createWebsiteStorage(
-  build: () => SpectreStorage = createBrowserStorage,
-): WebsiteStorage {
+export function createWebsiteStorage(build: () => SpectreStorage = websiteStorage): WebsiteStorage {
   try {
     return { kind: "ready", storage: build() };
   } catch (cause) {
@@ -99,6 +140,55 @@ export function createWebsiteStorage(
 export function useWebsiteStorage(build?: () => SpectreStorage): WebsiteStorage {
   const [store] = useState(() => createWebsiteStorage(build));
   return store;
+}
+
+/**
+ * The mailboxes this device holds, or the reason there is none.
+ *
+ * **`blocked` covers both "this browser cannot store anything" and "the collection could not be
+ * read", and it is deliberately one variant** for the reason {@link WebsiteStorage}'s is: both mean
+ * the same thing to the surface — **this page cannot say what this device holds, so it offers
+ * nothing**. A surface that offered an address it could not read would be offering something the
+ * page cannot support, which is the failure `spectre-storage`'s `null` clause exists to prevent.
+ */
+export type WebsiteMailboxes =
+  | { readonly kind: "ready"; readonly mailboxes: SpectreMailboxes }
+  | { readonly kind: "blocked"; readonly reason: string };
+
+/**
+ * Build the website's mailbox collection, reporting an absent platform rather than throwing.
+ *
+ * **The same shape as {@link createWebsiteStorage} and for the same reason**: the browser entry point
+ * refuses rather than quietly storing nothing, and a refusal nobody catches is a blank page.
+ */
+export function createWebsiteMailboxes(
+  build: () => SpectreMailboxes = createBrowserMailboxes,
+): WebsiteMailboxes {
+  try {
+    return { kind: "ready", mailboxes: build() };
+  } catch (cause) {
+    return { kind: "blocked", reason: describeCause(cause) };
+  }
+}
+
+/**
+ * The website's mailbox collection, built once for the life of the component.
+ *
+ * **A hook for the reason {@link useWebsiteStorage} is one, applied to the collection**: a factory
+ * called in a component body would be constructed on every render, and constructing this one re-reads
+ * nothing but does re-check the platform — so the "once" is what makes the construction countable.
+ *
+ * **Not conditional**, and `App` calls it whether or not a `mailboxes` prop arrived: a hook called only
+ * when a prop is absent is a hook whose call order changes with its props, which is the failure React's
+ * rules exist to prevent. `createWebsiteMailboxes` never throws, so calling it in a test environment
+ * with no IndexedDB is harmless — the result is `blocked` and the caller ignores it.
+ *
+ * @param build Overrides the factory. A parameter so a test can supply a collection without a
+ *   platform to construct from; production passes nothing.
+ */
+export function useWebsiteMailboxes(build?: () => SpectreMailboxes): WebsiteMailboxes {
+  const [held] = useState(() => createWebsiteMailboxes(build));
+  return held;
 }
 
 /**
