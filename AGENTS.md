@@ -1,7 +1,28 @@
 # AGENTS.md
 
-> **`mailbox-history` is M13's first slice, and it is APPLIED and SYNCED.** Proposal PR **#154**
-> merged `c99f00c`; apply PR **#155** merged `df4776d`.
+> **`mailbox-history` is APPLIED, SYNCED and ARCHIVED** at
+> `openspec/changes/archive/2026-10-20-mailbox-history/` — proposal PR **#154** merged `c99f00c`,
+> apply PR **#155** merged `df4776d`, sync PR **#156** merged `05401e7`, and the **archive PR number
+> left unfilled here** to be filled by `gh pr view` at the next change's proposal stage.
+>
+> **The archive moved 5 files, every one byte-identical to a pre-archive digest taken
+> programmatically, with Git's own rename detection independently confirming it — five renames at
+> `0 insertions, 0 deletions`.** All **16** files under `openspec/specs/` are byte-identical
+> throughout, checked against **Git**. All **2** promoted blocks re-verified **BYTE-IDENTICAL against
+> the *archived* delta**, with the verifier pointed at the archived path **after being shown to fail
+> loudly with `ENOENT` on the absent pre-archive one**, and its self-test **5 of 5** there. Counts
+> **re-counted after the move** at **185 / 605 / 15**, unmoved by the archive. **This stage
+> deliberately edited none of the archived files.**
+>
+> **And the verifier's self-test could not be run against the archived copy until it was repaired** —
+> the self-test branch hardcoded the pre-archive path while the verify branch honoured
+> `SSR_DELTA_ROOT`, so **two readers of one instrument looked in different places**, and the
+> self-test reported a missing file for a file that was there. **The same delta, read from two
+> places, is two readers**, and the fix was to make the self-test read from the same place the
+> verify does.
+>
+> **What the apply and sync stages said, kept because the record of a decision is not the decision.**
+> Proposal PR **#154** merged `c99f00c`; apply PR **#155** merged `df4776d`.
 >
 > **It is the first change whose product is a capability the roadmap named and the repository had
 > already half-built.** The website held exactly one mailbox, and `SpectreMailboxes` — newest first,

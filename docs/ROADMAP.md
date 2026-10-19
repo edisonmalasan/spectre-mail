@@ -594,13 +594,34 @@ nothing.
 **`openspec list` reports no active changes, which means M12's five listed items are all done** —
 three tracked and two untracked — **and M12's exit criteria are met in scope.**
 
-**`mailbox-history` is M13's first slice, and it is APPLIED and SYNCED.** Proposal PR **#154** merged
-`c99f00c`; apply PR **#155** merged `df4776d`. **Its sync promoted one `ADDED` and one `MODIFIED`,
+**`mailbox-history` is M13's first slice, and it is APPLIED, SYNCED and ARCHIVED** at
+`openspec/changes/archive/2026-10-20-mailbox-history/`. Proposal PR **#154** merged `c99f00c`;
+apply PR **#155** merged `df4776d`; sync PR **#156** merged `05401e7`; **the archive PR number is left
+unfilled here**, for the reason this file records above. **The archive moved 5 files, every one
+byte-identical to a digest taken programmatically before the command ran**, and Git's own rename
+detection confirms it independently — **five renames at `0 insertions, 0 deletions`** — with all **16**
+files under `openspec/specs/` byte-identical throughout and both promoted blocks re-verified
+**byte-identical against the *archived* deltas**. Counts **re-counted after the move** at
+**185 / 605 / 15**.
+
+**Its sync promoted one `ADDED` and one `MODIFIED`,
 moving the tree from 184 requirements and 597 scenarios to 185 and 605** across the same **15**
 capabilities — `website-client` 24 → 25 and 79 → 84, `spectre-storage` **16 → 16** and 58 → 61, with
 `openspec validate --specs --strict` at **15 passed, 0 failed** and `git diff --numstat --
 openspec/specs` at **60/0 and 68/41** — one file a pure addition and **forty-one deletions all inside
 the replaced block**, which is what a modification looks like and what an addition never produces.
+
+**And the sync found a second forward-compat defect, of a second kind, in a document and an
+instrument it never touched.** `docs/SECURITY.md` cites a requirement by its **line number**, and a
+`MODIFIED` promotion **moves every heading below the block it replaced** — the cited requirement moved
+from **629** to **656** and the citation went red. **`security-surface-review`'s defect of the same
+family was a *path* that rotted at the archive; this one is a *line* that rotted at the sync**, and
+**a citation that names a line number is a claim about a file that any edit above it falsifies.**
+The repair is the line the promotion actually put the heading on, **re-measured rather than carried
+over** — and **the reader earned its keep by saying so precisely**: it reported *"names a line above
+the heading it cites"*, which distinguishes **the line is wrong** from **the requirement is absent**,
+and a reader that cannot tell those apart sends the next reader looking for a deleted requirement
+instead of a moved one.
 
 **The measurement that decided the scope held: `packages/mailbox` is unmoved at 166.**
 `MailboxSession.restore()` already takes whatever mailbox it is handed — `session.ts:482` delegates
