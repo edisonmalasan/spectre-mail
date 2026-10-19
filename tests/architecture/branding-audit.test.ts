@@ -361,6 +361,11 @@ function shippedNameSites(): {
   readonly sites: NameSite[];
   readonly unreadable: readonly string[];
 } {
+  // **Parsed once, for the same reason the walk is done once.** The two cases that use this
+  // function are the two directions of the same claim, and each was paying for a full parse of
+  // the shipped tree. **The second one to run was the one that timed out.**
+  if (cachedNameSites !== null) return cachedNameSites;
+
   const sites: NameSite[] = [];
   const unreadable: string[] = [];
 
@@ -375,16 +380,41 @@ function shippedNameSites(): {
     sites.push(...nameSitesIn(file, source));
   }
 
-  return { sites, unreadable };
+  cachedNameSites = { sites, unreadable };
+  return cachedNameSites;
 }
+
+/** The one parse, computed once. `null` until it has been computed. */
+let cachedNameSites: { readonly sites: NameSite[]; readonly unreadable: readonly string[] } | null =
+  null;
 
 /** Every shipped file the surface scan walks, as repository-relative paths with forward slashes. */
 function shippedFiles(): string[] {
+  // **The walk happens once for the whole file, and that is a repair rather than an optimisation.**
+  //
+  // This function walked and parsed the whole shipped tree **three times** -- twice through
+  // `shippedNameSites()` and once directly -- and the second scan was the one that timed out.
+  // **The case is not slow because the work is hard; it is slow because the work is done more than
+  // once**, and a gate that fails under load because it does the same work twice is a gate that
+  // reports the machine's mood rather than the tree's state.
+  if (cachedShippedFiles !== null) return cachedShippedFiles;
+
   const collected: string[] = [];
 
   const walk = (absolute: string): void => {
     for (const entry of readdirSync(absolute)) {
       const child = join(absolute, entry);
+
+      // **The probe file is skipped BEFORE the filesystem is touched.**
+      //
+      // The guard used to sit four lines below this one, after `statSync(child)`, and the scan is
+      // concurrent with `boundaries.test.ts`, which stages and deletes probe files in this same
+      // tree. **A file deleted between the read and the stat makes `statSync` throw**, and the
+      // file it throws on is precisely the one the guard was written to skip. That is the
+      // `ENOENT ... packages/mailbox/__framework-rule-probe.ts` this file's cases were reported
+      // failing with, and the repair is to ask the question the guard already answers **before**
+      // asking the filesystem anything.
+      if (PROBE_FILE.test(entry)) continue;
 
       if (statSync(child).isDirectory() === true) {
         if ((GENERATED_DIRECTORIES as readonly string[]).includes(entry)) continue;
@@ -397,15 +427,18 @@ function shippedFiles(): string[] {
         entry.endsWith(suffix),
       );
       if (wanted === false || /\.test\.|\.spec\./.test(entry)) continue;
-      if (PROBE_FILE.test(entry)) continue;
 
       collected.push(relative(REPO_ROOT, child).split("\\").join("/"));
     }
   };
 
   for (const root of SHIPPED_ROOTS) walk(join(REPO_ROOT, root));
-  return collected.sort();
+  cachedShippedFiles = collected.sort();
+  return cachedShippedFiles;
 }
+
+/** The one walk, computed once. `null` until it has been computed. */
+let cachedShippedFiles: string[] | null = null;
 
 /** The text of a document's `title` element, or `null` when it declares none. */
 function htmlTitleIn(source: string): string | null {

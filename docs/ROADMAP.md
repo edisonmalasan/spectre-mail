@@ -594,6 +594,44 @@ nothing.
 **`openspec list` reports no active changes, which means M12's five listed items are all done** —
 three tracked and two untracked — **and M12's exit criteria are met in scope.**
 
+**`beta-diagnostics` is M13's second slice, and it is PROPOSED.** M13's two release lists are
+complete — `mailbox-history` shipped the last unshipped item — so what M13 still owes is its **Beta
+goals**: seven metrics to collect, and one instruction that decides their shape, *"Do not optimize
+around vanity metrics yet."*
+
+**Measured, four of the seven are already observable from what the product knows, and two are not
+observable at all.** Creation success is `session.open()` reaching `ready` or `failed` with one of
+the eight normalized codes; mail arrival is `InboxState` reaching `checked` with a listing; provider
+failure rates are those same eight codes; and email-field injection failures are **the in-page
+recogniser's own answers** — `noField`, `fieldHoldsText`, `notTopFrame`, `filled`, `notActedOn` —
+which the product already produces and already explains. **"OTP detection accuracy" needs ground
+truth this repository does not have**: it has never received verification mail from any service and
+its corpus is authored, so a number computed against it would measure the corpus. **"Extension
+compatibility issues" is a report, not a metric**, and a channel to receive one is a server, an
+account or an address — all three of which the product does not have.
+
+**And the collision that makes this a change and not a task.** `docs/PRIVACY.md`'s *does not
+collect* list ends with *"No persisted state anywhere outside the two areas named in sections 1 and
+2"*, and its pointer resolves to a requirement that **permits exactly what the claim forbids** —
+*"a client SHALL reach its own persisted state only through the storage layer's contracts"*, **plural**,
+and amended to add a second and a third record kind as their own contracts. **The grounding check
+proves a pointer resolves; it cannot prove the requirement says what the claim asserts**, and the
+requirement's own note says *"Grounding is not completeness."* **This is not a completeness gap. It
+is a support gap**, and the check has no shape for it.
+
+**And the resolution reaches the one that makes the check unnecessary: the measurements are
+per-session.** Did creation succeed, did a message arrive and how long after, which provider code
+failed, was the field filled and why not — **none of that needs to outlive the tab.** So the product
+can show a person their own session's outcomes, **persist nothing, transmit nothing**, and the
+privacy claim **stays true as written** — no third area, no new record kind, no adapter, no
+migration. **A measurement that does not outlive the session it happened in does not need a place to
+be stored**, and the difference between this design and one that persisted counters is the difference
+between a feature and a schema.
+
+**Three `ADDED` requirements and no `MODIFIED` or `REMOVED`** — `website-client`,
+`extension-client`, `privacy-disclosure` — so the promoted count moves by exactly three, the
+**seventh** milestone to reach that shape.
+
 **`mailbox-history` is M13's first slice, and it is APPLIED, SYNCED and ARCHIVED** at
 `openspec/changes/archive/2026-10-20-mailbox-history/`. Proposal PR **#154** merged `c99f00c`;
 apply PR **#155** merged `df4776d`; sync PR **#156** merged `05401e7`; **the archive PR number is left
