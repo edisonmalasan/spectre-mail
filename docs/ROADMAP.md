@@ -594,7 +594,40 @@ nothing.
 **`openspec list` reports no active changes, which means M12's five listed items are all done** —
 three tracked and two untracked — **and M12's exit criteria are met in scope.**
 
-**`mailbox-history` is M13's first slice, and it is PROPOSED.** M12 is closed in scope and M13 is
+**`mailbox-history` is M13's first slice, and it is APPLIED and SYNCED.** Proposal PR **#154** merged
+`c99f00c`; apply PR **#155** merged `df4776d`. **Its sync promoted one `ADDED` and one `MODIFIED`,
+moving the tree from 184 requirements and 597 scenarios to 185 and 605** across the same **15**
+capabilities — `website-client` 24 → 25 and 79 → 84, `spectre-storage` **16 → 16** and 58 → 61, with
+`openspec validate --specs --strict` at **15 passed, 0 failed** and `git diff --numstat --
+openspec/specs` at **60/0 and 68/41** — one file a pure addition and **forty-one deletions all inside
+the replaced block**, which is what a modification looks like and what an addition never produces.
+
+**The measurement that decided the scope held: `packages/mailbox` is unmoved at 166.**
+`MailboxSession.restore()` already takes whatever mailbox it is handed — `session.ts:482` delegates
+straight to `adopt(stored, inbox.check)` — and `adopt` already maps `MAILBOX_EXPIRED` to `expired`
+and anything else to `restoreFailed`, **which is precisely the roadmap's phrase *"where the provider
+session still permits access"*.** **A rise would have meant the session layer needed something and
+the proposal was wrong.**
+
+**And the apply stage produced the milestone's finding, which is that a suite can be green over a
+product that has changed.** `docs/PRIVACY.md` said the website keeps *"**one** kind of record"* while
+the product now creates two object stores — **and the suite that checks that enumeration did not say
+so, because its observer drove `createBrowserStorage()`, an entry point no client uses any more.**
+**The root repaired the reader first**, and it then reported **2 stores and 2 keys** and went red
+**on the document alone** — the right order for a failure, because it says the instrument measures the
+product and the *document* is stale. **Then the document was corrected and the suite went green.**
+**That is the recorded shape of a precondition defect at the largest scale this repository has**:
+the reader's precondition — *which entry point does the page use* — was written when the page used a
+different one, and nothing re-asked it.
+
+**`pnpm test` is 1351 across 69 files** (from 1319/66) — `packages/storage` **86 → 103**,
+`apps/web` **125 → 140**, and **every other package unmoved**: `packages/mailbox` **166**,
+`packages/providers` 92, `packages/core` 54, `packages/mail-parser` 149, `packages/ui` 42,
+`apps/extension` **487** — with **`boundaries.test.ts` still 53**. The browser tier is **48 website
+and 98 extension**, and **`PAGE_ORDER` still names five regions**, which is the claim
+`page-composition` was left untouched to make.
+
+**What the proposal said, kept because the record of a decision is not the decision.** M12 is closed in scope and M13 is
 next, and **measured against M13's own two release lists, exactly one item has not shipped** — every
 website item and every extension item is delivered, and *mailbox history* is not. The roadmap defines
 it in one line: **"Allow multiple recent mailboxes where the provider session still permits access."**

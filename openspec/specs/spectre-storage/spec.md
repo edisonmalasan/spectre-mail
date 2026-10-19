@@ -554,53 +554,57 @@ existing note already refuses.
 
 ### Requirement: The mailboxes this device can insert are a record kind of their own
 
-The storage layer SHALL offer a contract for **the mailboxes this device holds**, distinct from the
-one that holds the single current mailbox, and it SHALL report them newest first so that the first is
-unambiguously the current one. Adding a mailbox SHALL be one operation against one record, and a
-client SHALL NOT have to write two records to record a mailbox it was handed.
+The storage layer SHALL offer a contract for **the mailboxes this device holds**, distinct from
+the one that holds the single current mailbox, and it SHALL report them newest first so that the
+first is unambiguously the current one. Adding a mailbox SHALL be one operation against one record,
+and a client SHALL NOT have to write two records to record a mailbox it was handed.
 
-**Why a collection rather than a second mailbox field, recorded because the reason is the product's
-own.** This product stores **one** mailbox per device: both adapters write it under one key, and a
-second creation overwrites the first, which `create-mailbox.test.ts` already asserts by expecting
-the save called twice. That is right for the website, which is one page holding one address, and it
-is what makes a `hostname -> mailbox ID` mapping meaningless — **the roadmap's site mapping presumes
-more than one mailbox per device, and a map written against one can only ever name it.** So the
-collection is added rather than the mapping being narrowed to fit, and the current mailbox is left
-where it is rather than replaced by the collection's head: the website's requirement names a single
-stored address, and nothing here changes what the website does.
+**Every platform a client reaches SHALL be served by an adapter for this contract.** A client that
+holds a mailbox on a platform where only the single-mailbox record is writable SHALL NOT be left
+with a contract it cannot use, and the reason an adapter is absent SHALL NOT be that no client
+needed one.
 
-**One write, and that is not only a convenience.** `chrome.storage` has no transactions, so a design
-that wrote "the current mailbox" and "the mailbox is in the collection" as two operations could leave
-the device holding an address its own collection does not know. One record removes the question, and
-the requirement says so because the cost of finding out otherwise is a client that offers an address
-nothing can account for.
+**The current mailbox and the head of this collection SHALL agree, and a client SHALL NOT be able to
+write them apart.**
 
-**Amendment, recorded during apply (2026-10-09).** Two things are added here, and both were found by
-reading this delta against the code after twenty-one mutations and a green `pnpm verify` had already
-passed against it.
+**Amendment, recorded during sync (2026-10-18).** Two things change here, and both were found by
+measuring what this repository had decided rather than by reading the requirement as a description.
 
-**The single-mailbox record is read but not written, and the collection is not merged with it.**
-Every write in the extension moved onto `addMailbox`, so a device that recorded its mailboxes
-through this build has them in the collection and **nowhere else**. Two consequences are now stated
-rather than left for a reader to derive: the single-mailbox contract is the **only** place a mailbox
-recorded by an earlier build can be found, and it is therefore consulted **only** while the
-collection is empty; and **a mailbox recorded before this build stops being offered once this device
-records another one** — still stored, still readable, and no longer insertable, because no surface
-in this milestone can present a second address to choose from. Merging the two records is refused
-because a merged second entry would sit in a list with no surface to put it on, while costing every
-read a second lookup; it becomes right the day a surface lists them.
+**The first is a decision reversed.** This requirement previously ended with:
 
-**The newest is unambiguously the current one, and it is stated without naming a second contract
-because the two contracts cannot be compared.** The requirement text above already carries that
-phrase; what is removed is the pairing. **The reason is one write and not two**: writing both
-records is what the paragraph above refuses, and `chrome.storage` has no transaction that would make
-two writes atomic.
+> *"the current mailbox is left where it is rather than replaced by the collection's head: the
+> website's requirement names a single stored address, and **nothing here changes what the website
+> does**."*
+
+**That sentence was a decision about where the product was going**, written by `site-associations`
+when the collection existed to make the `hostname -> mailbox id` mapping possible, and it is now
+reversed: M13's release list carries *mailbox history* — *"Allow multiple recent mailboxes where the
+provider session still permits access"* — and the website is the client that item is about. **A
+decision that has been reversed cannot be left standing beside the reversal**, so it is withdrawn
+rather than softened, and what replaces it is narrower and testable: **the head of this collection
+and the mailbox the single-mailbox contract reports are the same mailbox**, so one read answers both
+questions.
+
+**The second is a word doing two jobs.** *Insertable* — what this contract's name says — is not
+*listed*, and the scenario below has been carrying one meaning as both since the contract was
+written. That was harmless while one client used it; with a website holding several mailboxes it is
+not, because **a mailbox can be listed and not offerable and offerable and not listed**, and a rule
+that says the first SHALL be insertable would, read the other way, say a website may stop listing an
+address it still holds.
+
+**And a consequence the amendment adds by removing the fiction.** This requirement's sibling requires
+that removal not be satisfied by clearing only the records this build recognises, and that has been
+proved with a **planted store this build does not recognise**. Once the single-mailbox store and
+this collection's store both exist **in the shipped database**, the proof is the product's own shape
+rather than a store planted beside it.
 
 #### Scenario: A mailbox this device was handed
 
 - **WHEN** a client records a mailbox on this device
 - **THEN** one operation SHALL record it
 - **AND** the mailbox SHALL be readable back through the same contract
+- **AND** the head of this collection and the mailbox the single-mailbox contract reports SHALL be
+  that mailbox
 
 #### Scenario: Several mailboxes are held
 
@@ -613,6 +617,10 @@ two writes atomic.
 - **WHEN** the collection holds at least one mailbox and the single-mailbox record holds another
 - **THEN** the collection's answer SHALL be the whole answer
 - **AND** the earlier mailbox SHALL NOT be reported as insertable
+- **AND** **that limit is about what a client offers as an address to use, and is not a statement
+  that the mailbox has been removed or may be forgotten**
+- **AND** a client listing what this device holds SHALL NOT narrow that list by the same rule, because
+  **listed and insertable are different questions and a mailbox may answer one and not the other**
 
 #### Scenario: Nothing is held
 
@@ -625,6 +633,25 @@ two writes atomic.
 - **WHEN** a mailbox already held by this device is recorded again
 - **THEN** it SHALL appear once in the collection
 - **AND** it SHALL be reported as the newest
+
+#### Scenario: A client holds a mailbox on a platform
+
+- **WHEN** a client records a mailbox on a platform this repository serves
+- **THEN** an adapter for this contract SHALL exist for that platform
+- **AND** a client SHALL NOT be left unable to use a record kind the layer offers
+- **AND** the reason an adapter is absent SHALL NOT be that no client needed one yet
+
+#### Scenario: A mailbox was recorded before this build
+
+- **WHEN** a device holds a mailbox that predates this collection
+- **THEN** the record kind holding it SHALL be reachable for as long as the provider permits access
+- **AND** a client offering what this device holds SHALL NOT lose the mailbox
+
+#### Scenario: Removal is asked for
+
+- **WHEN** a client asks the layer to remove what this device holds
+- **THEN** both the single-mailbox record and this collection SHALL be removed
+- **AND** the proof SHALL rest on stores this build creates rather than on a planted one alone
 
 ### Requirement: A site association is a record kind of its own, keyed by an exact host
 

@@ -1,6 +1,58 @@
 # AGENTS.md
 
-> **`mailbox-history` is M13's first slice, and it is PROPOSED.** M12 is closed in scope;
+> **`mailbox-history` is M13's first slice, and it is APPLIED and SYNCED.** Proposal PR **#154**
+> merged `c99f00c`; apply PR **#155** merged `df4776d`.
+>
+> **It is the first change whose product is a capability the roadmap named and the repository had
+> already half-built.** The website held exactly one mailbox, and `SpectreMailboxes` — newest first,
+> a `chrome.storage` adapter, **no IndexedDB one** — existed with the note that *"a record with no
+> consumer is a schema to migrate rather than a feature."* **M13 gave it a consumer, and the
+> sentence that had to be retracted is why it is a change and not a task.**
+>
+> **The measurement that decided the scope held: `packages/mailbox` is unmoved at 166.**
+> `MailboxSession.restore()` already takes whatever mailbox it is handed — `session.ts:482` delegates
+> straight to `adopt(stored, inbox.check)` — and `adopt` already maps `MAILBOX_EXPIRED` to `expired`
+> and anything else to `restoreFailed`, **which is precisely the roadmap's phrase *"where the provider
+> session still permits access"*.** **A rise would have meant the session layer needed something and
+> the proposal was wrong.**
+>
+> **And the apply stage produced the finding of the milestone, which is that a suite can be green
+> over a product that has changed.** `docs/PRIVACY.md` said the website keeps *"**one** kind of
+> record"* while the product now creates two object stores — **and the suite that checks that
+> enumeration did not say so, because its observer drove `createBrowserStorage()`, an entry point no
+> client uses any more.** A reader that watches an entry point no client uses is a reader watching
+> nothing. **The root repaired the reader first**, and it then reported **2 stores and 2 keys** and
+> went red **on the document alone** — the right order for a failure, because it says the instrument
+> measures the product and the *document* is stale. **Then the document was corrected and the suite
+> went green.** That is the recorded shape of a precondition defect at the largest scale this
+> repository has: **the reader's precondition — which entry point does the page use — was written
+> when the page used a different one, and nothing re-asked it.**
+>
+> **And one duplication the stage could not merge was merged by the root.**
+> `browser.ts` and `indexeddb-mailboxes.ts` each held a **private copy** of the database's name and
+> the single store's name — *"exactly the duplication that produces two databases for one product the
+> day one of them is edited."* **`indexeddb.ts` now owns both**, and **the two-directional test that
+> guarded the duplication stays**, because a guard that outlived the thing it guarded is not a guard;
+> it now proves the stronger claim that the two entry points still agree on one IndexedDB.
+>
+> **The sync promoted one `ADDED` and one `MODIFIED`, moving the totals by exactly one requirement
+> and eight scenarios: 184 → 185 and 597 → 605 across the same 15 capabilities** — `website-client`
+> 24 → 25 and 79 → 84, `spectre-storage` **16 → 16** and 58 → 61. **`spectre-storage` holding at 16
+> is the arithmetic working, not a promotion that missed** — a `MODIFIED` block replaces rather than
+> adds — and **58 → 61 is +8 replacing +5**. `git diff --numstat -- openspec/specs` is **60/0 and
+> 68/41**: one file is a pure addition and **the forty-one deletions are all inside the replaced
+> block**, which is what a modification looks like and what an addition never produces.
+>
+> **`pnpm test` is 1351 across 69 files** (from 1319/66), reconciled as **+17** in
+> `packages/storage` (86 → 103) and **+15** in `apps/web` (125 → 140), with **every other package
+> unmoved** — `packages/mailbox` **166**, `packages/providers` 92, `packages/core` 54,
+> `packages/mail-parser` 149, `packages/ui` 42, `apps/extension` **487** — and
+> **`boundaries.test.ts` still 53**. The browser tier is **48 website and 98 extension**, and
+> **`PAGE_ORDER` still names five regions** and the per-region sweeps still find five, which is the
+> claim `page-composition` was left untouched to make.
+
+> **What the proposal said, kept because the record of a decision is not the same thing as the
+> decision.** M12 is closed in scope;
 > `openspec list` reports no active changes and all five of its listed items have run their whole
 > lifecycle. M13 is next, and **measured against its own two release lists exactly one item has not
 > shipped** — every website item and every extension item is delivered, and *mailbox history* is not.
