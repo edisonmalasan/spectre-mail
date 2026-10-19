@@ -369,3 +369,73 @@ has the reverse direction.
 
 **A harness that found two holes in the instrument it was written to test is a harness that works.**
 
+---
+
+### D10.4 An interrupted run leaves the boundary suite's probe files in the tree, and the next run is
+### red because of them
+
+**This was measured, and it is the reason one of the three verification runs in this change was red.**
+
+`tests/architecture/boundaries.test.ts` stages **control probe files inside the shipped source
+tree** -- `packages/mail-parser/src/__fetch-rule-probe.ts` and
+`packages/mailbox/__fetch-rule-probe.ts` among them -- and deletes them when the suite finishes. **A run
+that is interrupted leaves them**, and the probe file is **a shipped source file**: it is inside
+`packages/mail-parser/src/`, so it is in the typecheck's program and in the tree every other rule
+reads.
+
+**The sequence, measured:**
+
+```text
+before=0
+run1 EXIT=1     <- a probe file from an interrupted run was still in the tree
+run2 EXIT=0
+run3 EXIT=0
+```
+
+**And the tree was clean before the first of them** -- `git status` showed one untracked file, and it
+was the probe. The red was **not** a defect in this change; it was a defect in a *previous* run of a
+different suite.
+
+**It is recorded here rather than smoothed away, because the shape is the repository's own:**
+*`a corpus that depends on when another suite deleted its probe files is a corpus that varies with
+timing`* is a sentence this repository has already written, and this is the same sentence observed from
+the other end -- **the corpus varies, and the run that inherits the variation is the one that looks
+broken.**
+
+**The repair is the tree, not a test**: the probe files are deleted before the gates are run, and the
+three runs are reported **on a tree measured clean before the first of them**. A red run whose cause is
+a leftover from a cancelled run is not a finding about the code, and **reporting it as one would be the
+worst kind of rounding** -- it would name a defect in this change that is not in it.
+
+---
+
+### D10.5 Two gate runs at once make each other red, and the cause is the boundary suite's own
+### probe files
+
+**This was measured, and it is the root's own doing rather than the change's.**
+
+`tests/architecture/boundaries.test.ts` stages **control probe files inside the shipped source
+tree** and deletes them when the suite finishes. **Two `pnpm verify` runs in the same tree
+therefore fight over the same files**: one run's teardown deletes the other's probe while the other
+is still testing.
+
+**The measurement, from four background jobs run against this tree:**
+
+| job | how it was run | result |
+| --- | --- | --- |
+| A | **alone** | **exit 0** |
+| B | concurrent with C | 1, 1, **2** -- the job died |
+| C | concurrent with B | 0, 1, 1 |
+| D | **alone** | **exit 0** |
+
+**A run alone is green; a run beside another run is red, and the red is not about this change.**
+The repository has already written the sentence this is: *a corpus that depends on when another
+suite deleted its probe files is a corpus that varies with timing* -- and here the timing was **two
+gate jobs the root started at once**, and the corpus that varied was the one every boundary rule
+reads.
+
+**So the rule for this record is a process rule and not a code rule: one gate job at a time, and a
+red from a run that shared a tree with another is not a finding.** It is recorded here because the
+alternative -- reporting those reds as this change's -- would have named a defect that does not exist,
+and because a reader of this file will meet the same red and deserves to know what it was.
+
