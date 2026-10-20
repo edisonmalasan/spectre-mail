@@ -1,9 +1,23 @@
 # AGENTS.md
 
-> **`architecture-suite-isolation` is APPLIED and SYNCED.** Proposal PR **#163** merged
-> `5ae8977`; apply PR **#164** merged `05308df`; **the sync PR number is left unfilled
-> here**, for the reason this file records above.
+> **`architecture-suite-isolation` is APPLIED, SYNCED and ARCHIVED** at
+> `openspec/changes/archive/2026-10-20-architecture-suite-isolation/`. Proposal PR **#163**
+> merged `5ae8977`; apply PR **#164** merged `05308df`; sync PR **#165** merged `7d57b75`;
+> **the archive PR number is left unfilled here**, for the reason this file records above.
 >
+> **And the archive moved 4 files, every one byte-identical to a pre-archive digest taken
+> programmatically**, and Git's own rename detection confirms it independently — **four renames
+> at `100%`** and **`0 insertions, 0 deletions`**. All **16** files under `openspec/specs/` are
+> byte-identical throughout, checked against **Git**. All **2** promoted blocks re-verified
+> **BYTE-IDENTICAL against the *archived* delta**, with the verifier pointed at the archived path
+> **after being shown to fail loudly with `ENOENT` on the absent pre-archive one**, and its
+> self-test **5 of 5** there in **both argument orders**. Counts **re-counted after the move**
+> at **189 / 620 / 15**, unmoved by the archive, and `openspec validate --specs --strict` at
+> **15 passed, 0 failed**. **This stage deliberately edited none of the archived files** — and
+> the archive's own output said *Task status: ✓ Complete*, with every one of the change's
+> **21** tasks ticked, **which is the difference between this archive and `beta-diagnostics`'s**,
+> whose `tasks.md` sat at `91%` because a withdrawal was written under its unticked box after
+> the move.
 > **And the change's finding is that the repository's own gate shared a mutable corpus, and
 > the repair for it is a vocabulary rather than a pattern.** `boundaries.test.ts` stages a
 > deliberately illegal module into `apps/` or `packages/`, runs the real rule over it, and
