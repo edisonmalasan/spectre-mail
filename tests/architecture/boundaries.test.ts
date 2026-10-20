@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import { STAGED_PROBES } from "./staged-probes";
+import { SCAN_ASSERTION_TIMEOUT_MS } from "./scan-budget";
 import {
   cpSync,
   existsSync,
@@ -68,7 +70,6 @@ import { EXTENSION_PREVIEW } from "../../apps/web/src/sections";
  * 60s is roughly 250x the measured single-test cost, so it cannot hide a regression —
  * a rule that stopped matching does not get *slower*, it gets wrong.
  */
-const SCAN_ASSERTION_TIMEOUT_MS = 60_000;
 
 // Applied here rather than per `it`, because the argument would then have to be repeated
 // on the sixteen assertions that write a probe file — and an assertion that is easy to
@@ -1409,7 +1410,7 @@ function clientViolationsWithIntroducedModule(
   moduleSource: string,
   match: (contents: string) => string[],
 ): string[] {
-  const probePath = join(APPS_DIR, "web", "src", "__rule-probe.tsx");
+  const probePath = join(APPS_DIR, "web", "src", `${STAGED_PROBES.rule}.tsx`);
 
   try {
     writeFileSync(probePath, moduleSource, "utf8");
@@ -1898,7 +1899,7 @@ const NETWORK_FORBIDDEN_PACKAGES = ["providers", "mail-parser", "mailbox"] as co
  * probe never survives the test, whether the assertion passes or throws.
  */
 function scanWithIntroducedModule(packageDir: string, moduleSource: string): string[] {
-  const probePath = join(REPO_ROOT, packageDir, "__fetch-rule-probe.ts");
+  const probePath = join(REPO_ROOT, packageDir, `${STAGED_PROBES.fetchRule}.ts`);
 
   try {
     writeFileSync(probePath, moduleSource, "utf8");
@@ -1923,7 +1924,7 @@ function scanWithIntroducedModule(packageDir: string, moduleSource: string): str
  * only a control **per form** proves the rule.
  */
 function frameworkViolationsWithIntroducedModule(moduleSource: string): string[] {
-  const probePath = join(PACKAGES_DIR, "mailbox", "__framework-rule-probe.ts");
+  const probePath = join(PACKAGES_DIR, "mailbox", `${STAGED_PROBES.frameworkRule}.ts`);
 
   try {
     writeFileSync(probePath, moduleSource, "utf8");
@@ -1948,8 +1949,11 @@ function frameworkViolationsWithIntroducedModule(moduleSource: string): string[]
  * survives the test, whether the assertion passes or throws.
  */
 function clockViolationsWithIntroducedModule(moduleSource: string): string[] {
-  return scanPackageWithProbe("mailbox", "__clock-rule-probe.ts", moduleSource, (contents) =>
-    collectClockViolations(contents),
+  return scanPackageWithProbe(
+    "mailbox",
+    `${STAGED_PROBES.clockRule}.ts`,
+    moduleSource,
+    (contents) => collectClockViolations(contents),
   );
 }
 
@@ -2415,7 +2419,7 @@ describe("architecture boundaries", () => {
       for (const packageName of SHARED_PACKAGES) {
         planted.push(packageName);
         writeFileSync(
-          join(PACKAGES_DIR, packageName, "__storage-rule-probe.ts"),
+          join(PACKAGES_DIR, packageName, `${STAGED_PROBES.storageRule}.ts`),
           INDEXED_DB_PROBE,
           "utf8",
         );
@@ -2437,7 +2441,7 @@ describe("architecture boundaries", () => {
       expect(mustScan.length).toBe(SHARED_PACKAGES.length - 1);
 
       const reported = storageApiViolations().filter((hit) =>
-        hit.includes("__storage-rule-probe.ts"),
+        hit.includes(`${STAGED_PROBES.storageRule}.ts`),
       );
 
       expect(reported.length, `the rule should report all ${mustScan.length} packages`).toBe(
@@ -2453,7 +2457,7 @@ describe("architecture boundaries", () => {
       ).toEqual(mustScan);
     } finally {
       for (const packageName of planted) {
-        rmSync(join(PACKAGES_DIR, packageName, "__storage-rule-probe.ts"), { force: true });
+        rmSync(join(PACKAGES_DIR, packageName, `${STAGED_PROBES.storageRule}.ts`), { force: true });
       }
     }
 
@@ -2488,7 +2492,7 @@ describe("architecture boundaries", () => {
       indexedDB: INDEXED_DB_PROBE,
     };
 
-    const path = join(PACKAGES_DIR, "core", "__storage-rule-probe.ts");
+    const path = join(PACKAGES_DIR, "core", `${STAGED_PROBES.storageRule}.ts`);
     try {
       for (const [name, source] of Object.entries(forms)) {
         writeFileSync(path, source, "utf8");
@@ -2550,7 +2554,7 @@ describe("architecture boundaries", () => {
       for (const packageName of SHARED_PACKAGES) {
         planted.push(packageName);
         writeFileSync(
-          join(PACKAGES_DIR, packageName, "__storage-import-probe.ts"),
+          join(PACKAGES_DIR, packageName, `${STAGED_PROBES.storageImport}.ts`),
           forms["a named import"],
           "utf8",
         );
@@ -2567,7 +2571,7 @@ describe("architecture boundaries", () => {
       // form the rule genuinely missed with an unrelated package's violation. Falsifying
       // this change found exactly that: narrowing the rule's pattern to
       // `from "…"` left the suite **green**.
-      const path = join(PACKAGES_DIR, "core", "__storage-import-probe.ts");
+      const path = join(PACKAGES_DIR, "core", `${STAGED_PROBES.storageImport}.ts`);
       for (const [name, source] of Object.entries(forms)) {
         writeFileSync(path, source, "utf8");
         expect(
@@ -2589,7 +2593,7 @@ describe("architecture boundaries", () => {
       expect(mustScan.length).toBe(SHARED_PACKAGES.length - 1);
 
       const reported = storageImportViolations().filter((hit) =>
-        hit.includes("__storage-import-probe.ts"),
+        hit.includes(`${STAGED_PROBES.storageImport}.ts`),
       );
 
       expect(reported.length, `the rule should report all ${mustScan.length} packages`).toBe(
@@ -2601,7 +2605,9 @@ describe("architecture boundaries", () => {
       ).toEqual(mustScan);
     } finally {
       for (const packageName of planted) {
-        rmSync(join(PACKAGES_DIR, packageName, "__storage-import-probe.ts"), { force: true });
+        rmSync(join(PACKAGES_DIR, packageName, `${STAGED_PROBES.storageImport}.ts`), {
+          force: true,
+        });
       }
     }
 
@@ -2656,14 +2662,14 @@ describe("architecture boundaries", () => {
         // matter — and that is worth stating, because a probe's placement is the usual
         // reason a scan silently misses it.
         writeFileSync(
-          join(APPS_DIR, app, "__client-storage-probe.ts"),
+          join(APPS_DIR, app, `${STAGED_PROBES.clientStorage}.ts`),
           CLIENT_STORAGE_PROBE,
           "utf8",
         );
       }
 
       const reported = clientStorageApiViolations().filter((hit) =>
-        hit.includes("__client-storage-probe.ts"),
+        hit.includes(`${STAGED_PROBES.clientStorage}.ts`),
       );
 
       // **By name, not only as a count** — a count is satisfied by reporting one app
@@ -2676,7 +2682,9 @@ describe("architecture boundaries", () => {
       // transcribed literals leaves the claim intact — *these exact apps, each once* —
       // where comparing in walk order would only be testing `readdirSync`.
       expect(
-        reported.map((hit) => hit.split("/__client-storage-probe")[0]?.split("/").pop()).sort(),
+        reported
+          .map((hit) => hit.split(`/${STAGED_PROBES.clientStorage}`)[0]?.split("/").pop())
+          .sort(),
         "the rule should report each client that must be scanned",
       ).toEqual([...mustScan].sort());
       expect(reported).toHaveLength(mustScan.length);
@@ -2694,11 +2702,17 @@ describe("architecture boundaries", () => {
       // satisfies both unreported assertions and fails the reported one.
       for (const app of mustScan) {
         for (const kind of ["spec", "test"]) {
-          writeFileSync(join(APPS_DIR, app, `__exempt.${kind}.ts`), CLIENT_STORAGE_PROBE, "utf8");
+          writeFileSync(
+            join(APPS_DIR, app, `${STAGED_PROBES.exempt}.${kind}.ts`),
+            CLIENT_STORAGE_PROBE,
+            "utf8",
+          );
         }
       }
 
-      const exemptions = clientStorageApiViolations().filter((hit) => hit.includes("__exempt."));
+      const exemptions = clientStorageApiViolations().filter((hit) =>
+        hit.includes(`${STAGED_PROBES.exempt}.`),
+      );
       expect(
         exemptions,
         "a test may reach a store in order to verify it, and the shipped browser specs do",
@@ -2722,7 +2736,7 @@ describe("architecture boundaries", () => {
       const parents = harness.map((dir) => dir.replace(/\/[^/]+$/, ""));
 
       for (const [dir, parent] of harness.map((d, i) => [d, parents[i] ?? d] as const)) {
-        const inside = `${dir}/__harness-probe.ts`;
+        const inside = `${dir}/${STAGED_PROBES.harness}.ts`;
         const outside = `${parent}/__outside-harness-probe.ts`;
         planted.push(inside, outside);
         writeFileSync(join(REPO_ROOT, inside), CLIENT_STORAGE_PROBE, "utf8");
@@ -2740,14 +2754,16 @@ describe("architecture boundaries", () => {
       ).toEqual([]);
       expect(
         harnessReported
-          .filter((hit) => hit.includes("__outside-harness-probe.ts"))
+          .filter((hit) => hit.includes(`${STAGED_PROBES.outsideHarness}.ts`))
           // **Both trimmed and de-slashed, because a violation is spelled
           // `<repoPath> <hit> (<reason>)`** - the separator is a space, and the repo path
           // keeps its trailing separator. Comparing the raw prefix would couple this
           // assertion to the message's punctuation in both directions: a reworded reason
           // would read as a rule change, and a rule change could hide behind a reworded
           // reason. The claim is *which directory*, so both are stripped.
-          .map((hit) => (hit.split("__outside-harness-probe")[0] ?? "").trim().replace(/\/$/, ""))
+          .map((hit) =>
+            (hit.split(STAGED_PROBES.outsideHarness)[0] ?? "").trim().replace(/\/$/, ""),
+          )
           .sort(),
         "one directory above a suite's testDir is shipped client code, not its harness",
       ).toEqual([...parents].sort());
@@ -2774,12 +2790,12 @@ describe("architecture boundaries", () => {
       mkdirSync(join(REPO_ROOT, artefactDir), { recursive: true });
       mkdirSync(join(REPO_ROOT, neighbourDir), { recursive: true });
       writeFileSync(
-        join(REPO_ROOT, artefactDir, "__artefact-probe.ts"),
+        join(REPO_ROOT, artefactDir, `${STAGED_PROBES.artefact}.ts`),
         CLIENT_STORAGE_PROBE,
         "utf8",
       );
       writeFileSync(
-        join(REPO_ROOT, neighbourDir, "__neighbour-probe.ts"),
+        join(REPO_ROOT, neighbourDir, `${STAGED_PROBES.neighbour}.ts`),
         CLIENT_STORAGE_PROBE,
         "utf8",
       );
@@ -2796,7 +2812,7 @@ describe("architecture boundaries", () => {
           // Trimmed and de-slashed for the reason given on the assertion above: a violation
           // is spelled `<repoPath> <hit> (<reason>)`, so the separator is a space. The claim
           // is *which directory*, so both are stripped rather than compared as a prefix.
-          .map((hit) => (hit.split("__neighbour-probe")[0] ?? "").trim().replace(/\/$/, "")),
+          .map((hit) => (hit.split(STAGED_PROBES.neighbour)[0] ?? "").trim().replace(/\/$/, "")),
         "the skip is a whole-path-segment match: a directory merely named after one is not skipped",
       ).toEqual([neighbourDir]);
     } finally {
@@ -2806,9 +2822,9 @@ describe("architecture boundaries", () => {
         // `APPS_DIR`; the harness probes are named by repo-relative path because their
         // whole subject is a path relative to the repository root. Joining both against one
         // root works for exactly one of them.
-        rmSync(join(APPS_DIR, app, "__client-storage-probe.ts"), { force: true });
-        rmSync(join(APPS_DIR, app, `__exempt.spec.ts`), { force: true });
-        rmSync(join(APPS_DIR, app, `__exempt.test.ts`), { force: true });
+        rmSync(join(APPS_DIR, app, `${STAGED_PROBES.clientStorage}.ts`), { force: true });
+        rmSync(join(APPS_DIR, app, `${STAGED_PROBES.exempt}.spec.ts`), { force: true });
+        rmSync(join(APPS_DIR, app, `${STAGED_PROBES.exempt}.test.ts`), { force: true });
         rmSync(join(REPO_ROOT, app), { force: true });
       }
       // **The two probe directories are removed explicitly, and only the one this test
@@ -2904,13 +2920,13 @@ describe("architecture boundaries", () => {
     // exists and removes the single file it created. **Its failure mode is loud rather than
     // quiet**, which is the property that makes it safe: a probe left behind by a crash is
     // named in the very assertion below, so the next run reports it instead of skipping it.
-    const realProbe = join(extensionSrc, "__platform-probe.ts");
+    const realProbe = join(extensionSrc, `${STAGED_PROBES.platform}.ts`);
     try {
       writeFileSync(realProbe, 'export const probe = Reflect.get(globalThis, "chrome");\n', "utf8");
       expect(
         chromeGlobalViolations(),
         "the rule must read the extension's own source, and report a probe planted there",
-      ).toContainEqual(expect.stringContaining("__platform-probe.ts"));
+      ).toContainEqual(expect.stringContaining(`${STAGED_PROBES.platform}.ts`));
     } finally {
       rmSync(realProbe, { force: true });
     }
@@ -2945,11 +2961,14 @@ describe("architecture boundaries", () => {
     const disposable = withDisposableExtensionSource();
     try {
       for (const [label, source] of forms) {
-        const probe = join(disposable.root, `__write-probe-${label.replace(/\W+/g, "-")}.ts`);
+        const probe = join(
+          disposable.root,
+          `${STAGED_PROBES.writeProbe}-${label.replace(/\W+/g, "-")}.ts`,
+        );
         writeFileSync(probe, source, "utf8");
         expect(
           extensionSingularWriteViolationsIn(disposable.root).filter((hit) =>
-            hit.includes("__write-probe"),
+            hit.includes(STAGED_PROBES.writeProbe),
           ),
           `the rule must report ${label}`,
         ).not.toEqual([]);
@@ -2960,7 +2979,7 @@ describe("architecture boundaries", () => {
       // in this tree explain at length why the client does not call it, and one of them is this
       // rule's own subject. A rule that fired on its own documentation would be silenced by
       // rewording the prose, which deletes the reasoning instead of the defect.
-      const prose = join(disposable.root, "__write-prose.ts");
+      const prose = join(disposable.root, `${STAGED_PROBES.writeProse}.ts`);
       writeFileSync(
         prose,
         "/** `saveMailbox` writes the singular record, which this client only reads. */\nexport const x = 1;\n",
@@ -2968,7 +2987,7 @@ describe("architecture boundaries", () => {
       );
       expect(
         extensionSingularWriteViolationsIn(disposable.root).filter((hit) =>
-          hit.includes("__write-prose"),
+          hit.includes(STAGED_PROBES.writeProse),
         ),
         "a comment about saveMailbox is documentation, not a write",
       ).toEqual([]);
@@ -2976,12 +2995,12 @@ describe("architecture boundaries", () => {
 
       // **And the test exemption, both spellings**, because a client test has to be able to build a
       // stand-in offering the old write in order to prove the handler does not use it.
-      for (const exempt of ["__exempt.test.ts", "__exempt.spec.ts"]) {
+      for (const exempt of [`${STAGED_PROBES.exempt}.test.ts`, `${STAGED_PROBES.exempt}.spec.ts`]) {
         writeFileSync(join(disposable.root, exempt), forms[0]![1], "utf8");
       }
       expect(
         extensionSingularWriteViolationsIn(disposable.root).filter((hit) =>
-          hit.includes("__exempt"),
+          hit.includes(STAGED_PROBES.exempt),
         ),
         "a test may offer the write it asserts is never made",
       ).toEqual([]);
@@ -3005,7 +3024,7 @@ describe("architecture boundaries", () => {
     try {
       // **Both test spellings**, for the reason `isTestFile`'s note gives: a test is allowed
       // to do the thing the rule forbids in order to verify it.
-      for (const exempt of ["__exempt.test.ts", "__exempt.spec.ts"]) {
+      for (const exempt of [`${STAGED_PROBES.exempt}.test.ts`, `${STAGED_PROBES.exempt}.spec.ts`]) {
         writeFileSync(join(disposable.root, "content-script", exempt), probe, "utf8");
       }
 
@@ -3063,7 +3082,7 @@ describe("architecture boundaries", () => {
       "chrome storage, spaced": "export const x = chrome . storage . local;",
     };
 
-    const path = join(APPS_DIR, "web", "__client-storage-form-probe.ts");
+    const path = join(APPS_DIR, "web", `${STAGED_PROBES.clientStorageForm}.ts`);
     try {
       for (const [name, source] of Object.entries(caught)) {
         writeFileSync(path, source, "utf8");
@@ -3205,7 +3224,7 @@ describe("architecture boundaries", () => {
     // The positive control for the rule above, and the form the rule exists for:
     // the violation is not in a shared package at all, it is in `apps/web`, which
     // every package-only scan in this file would have missed.
-    const probePath = join(APPS_DIR, "web", "__parser-direction-probe.ts");
+    const probePath = join(APPS_DIR, "web", `${STAGED_PROBES.parserDirection}.ts`);
 
     try {
       writeFileSync(
@@ -3339,7 +3358,7 @@ describe("architecture boundaries", () => {
      * with, and the tree's silence is only claimed afterwards.
      */
     const probeDir = join(APPS_DIR, "web", "src");
-    const probe = join(probeDir, "__boundary-probe.css");
+    const probe = join(probeDir, `${STAGED_PROBES.boundaryStylesheet}.css`);
     /** Where a planted remote origin went, so the finding can be checked by identity. */
     const probeContent = [
       /* A comment describing the import below. Comments must not be able to satisfy — or
@@ -3383,7 +3402,9 @@ describe("architecture boundaries", () => {
       expect(violations.some((v) => v.includes("--ink-primary"))).toBe(false);
 
       // ── And the finding names the file, so a reader knows where to open. ───────────
-      expect(violations.some((v) => v.includes("__boundary-probe.css"))).toBe(true);
+      expect(violations.some((v) => v.includes(`${STAGED_PROBES.boundaryStylesheet}.css`))).toBe(
+        true,
+      );
 
       // ── The comment on the probe's first line must not have counted. ───────────────
       // The probe opens with an `@import url("https://…")` written **inside a comment**.
@@ -3470,7 +3491,7 @@ describe("architecture boundaries", () => {
      * selector contains its name — and this repository's own stylesheet is full of
      * `x`/`x__y`/`x--z` triples, so it is not a hypothetical.
      */
-    const probe = join(APPS_DIR, "web", "src", "__BoundaryProbe.tsx");
+    const probe = join(APPS_DIR, "web", "src", `${STAGED_PROBES.boundaryComponent}.tsx`);
     const probeSource = [
       "export function Probe() {",
       "  return (",
@@ -3513,7 +3534,7 @@ describe("architecture boundaries", () => {
       // cannot be mistaken for a rule that found nothing.
       const unstyled = violations.filter((violation) => violation.includes("hook-never-styled"));
       expect(unstyled).toHaveLength(1);
-      expect(unstyled[0]).toContain("__BoundaryProbe.tsx");
+      expect(unstyled[0]).toContain(`${STAGED_PROBES.boundaryComponent}.tsx`);
 
       // **And the two beside it, which are styled.** `.control` is a real selector;
       // `.inbox-row` is satisfied only because the lookahead stops `.inbox-rows` from
@@ -3540,7 +3561,7 @@ describe("architecture boundaries", () => {
      * file, with the ordering that makes them different.
      */
     const probeDir = join(APPS_DIR, "web", "src");
-    const probe = join(probeDir, "__boundary-local-token.css");
+    const probe = join(probeDir, `${STAGED_PROBES.boundaryLocalToken}.css`);
     const probeContent = [
       /* Declared here, below, so this read must be reported: CSS is order-dependent
          within a file and this is the case that proves the rule is order-sensitive. */
@@ -3709,8 +3730,8 @@ describe("architecture boundaries", () => {
     // would pass with the other root's probe planted, which is the mistake this file
     // records repeatedly; and a rule whose match was broken would pass with both planted.
     const probes = [
-      join(APPS_DIR, "web", "src", "__owned-probe.ts"),
-      join(APPS_DIR, "extension", "src", "__owned-probe.ts"),
+      join(APPS_DIR, "web", "src", `${STAGED_PROBES.owned}.ts`),
+      join(APPS_DIR, "extension", "src", `${STAGED_PROBES.owned}.ts`),
     ];
     try {
       for (const probe of probes) {
@@ -3730,7 +3751,7 @@ describe("architecture boundaries", () => {
     // required to name ids, and `EXTENSION_PROVIDER_IDS` is shipped and required, so a
     // rule that also matched ids would be reporting the requirement as a violation — and
     // the repair for that would be deleting a required list.
-    const idProbe = join(APPS_DIR, "extension", "src", "__owned-probe.ts");
+    const idProbe = join(APPS_DIR, "extension", "src", `${STAGED_PROBES.owned}.ts`);
     try {
       writeFileSync(idProbe, 'export const ids = ["mailtm"];\n', "utf8");
       expect(
@@ -3959,8 +3980,8 @@ describe("architecture boundaries", () => {
     // `apps/web`, a rule narrowed to the website's `testDir` would still pass every
     // assertion here while the extension's sixteen specs went uncollected.
     const orphans = [
-      join(APPS_DIR, "web", "__uncovered.spec.ts"),
-      join(APPS_DIR, "extension", "__uncovered.spec.ts"),
+      join(APPS_DIR, "web", `${STAGED_PROBES.uncovered}.spec.ts`),
+      join(APPS_DIR, "extension", `${STAGED_PROBES.uncovered}.spec.ts`),
     ];
     try {
       for (const orphan of orphans) writeFileSync(orphan, "export const probe = 1;\n", "utf8");
@@ -4355,10 +4376,10 @@ describe("architecture boundaries", () => {
     const probes = [
       // **Positive: the violation itself**, in the one form that actually makes the spike
       // reachable — a module specifier.
-      join(APPS_DIR, "web", "src", "__spike-probe.ts"),
+      join(APPS_DIR, "web", "src", `${STAGED_PROBES.spike}.ts`),
       // **Positive in a shared package too**, because the rule watches both roots and a
       // control in only one of them would leave the other's coverage unproven.
-      join(PACKAGES_DIR, "core", "src", "__spike-probe.ts"),
+      join(PACKAGES_DIR, "core", "src", `${STAGED_PROBES.spike}.ts`),
     ];
 
     try {
@@ -4378,7 +4399,7 @@ describe("architecture boundaries", () => {
       // **Negative: the same string in a comment**, which is what the rule used to
       // report. Written into a real file so the assertion is about this rule's own
       // behaviour rather than about a helper.
-      const prose = join(APPS_DIR, "extension", "e2e", "__spike-probe.ts");
+      const prose = join(APPS_DIR, "extension", "e2e", `${STAGED_PROBES.spike}.ts`);
       writeFileSync(
         prose,
         "/** The spike lives at tests/provider-spike/ and must stay unreachable. */\nexport const x = 1;\n",
@@ -4387,7 +4408,7 @@ describe("architecture boundaries", () => {
       expect(scan().filter((hit) => hit.startsWith(toRepoPath(prose)))).toEqual([]);
     } finally {
       for (const probe of probes) rmSync(probe, { force: true });
-      rmSync(join(APPS_DIR, "extension", "e2e", "__spike-probe.ts"), { force: true });
+      rmSync(join(APPS_DIR, "extension", "e2e", `${STAGED_PROBES.spike}.ts`), { force: true });
     }
 
     // **The negative half, through the same call site.** The probes are gone, so silence
@@ -4451,5 +4472,69 @@ describe("architecture boundaries", () => {
       depictedLabelViolations(good("copy", "Copy address"), { copy: "Copy address" }),
       "the conforming case reports nothing",
     ).toEqual([]);
+  });
+});
+
+/* ================================================================================================ *
+ * 8. THE STAGED-PROBE VOCABULARY. The names are shared, and the sharing is checked.
+ * ================================================================================================ */
+
+/**
+ * Every string literal in a source, read through the **TypeScript AST**.
+ *
+ * **The AST is what makes this exact.** A regular expression over the source would count a name
+ * mentioned in a comment, and this repository has recorded the sharp version of that defect: a
+ * reader that reports a file for naming a thing it forbids is a reader reporting the file's own
+ * list of forbidden things. **The AST reads the literals and nothing else.**
+ */
+function stringLiteralsIn(source: string): string[] {
+  const parsed = ts.createSourceFile("literals.ts", source, ts.ScriptTarget.Latest, true);
+  const found: string[] = [];
+  const pending: ts.Node[] = [parsed];
+  while (pending.length > 0) {
+    const node = pending.pop();
+    if (node === undefined) break;
+    if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+      found.push(node.text);
+    }
+    pending.push(...node.getChildren(parsed.sourceFile));
+  }
+  return found;
+}
+
+describe("the staged-probe vocabulary", () => {
+  it("is the only source of a staged file's name, and holds nothing this file does not stage", () => {
+    // **This file's own source**, read from the path the runtime gave it -- so the check reads
+    // what is on disk and not what the compiler saw.
+    const ownSource = readFileSync(__filename, "utf8");
+
+    // **Direction one: a staged name outside the vocabulary.** Any string literal in this file
+    // that begins with the marker a staged file's name begins with is a name a reader would
+    // have to know about, and the vocabulary is where that knowledge now lives.
+    const strays = stringLiteralsIn(ownSource).filter(
+      (literal) => literal.startsWith("__") && literal.length > 2,
+    );
+    expect(
+      strays,
+      "string literals in this file that look like a staged file's name but are not in the shared " +
+        "vocabulary, because a reader would not know to skip them",
+    ).toEqual([]);
+
+    // **Direction two: a stem in the vocabulary this file does not stage.** The vocabulary is
+    // this file's list, and a stem it does not use is a stem nobody has reasoned about.
+    const unused = Object.keys(STAGED_PROBES).filter(
+      (key) => ownSource.indexOf(`STAGED_PROBES.${key}`) === -1,
+    );
+    expect(
+      unused,
+      "stems in the shared vocabulary that this file does not stage, which are names a reader " +
+        "would skip for no reason",
+    ).toEqual([]);
+
+    // **And the vocabulary is not empty, because a check over an empty list satisfies itself.**
+    expect(
+      Object.keys(STAGED_PROBES).length,
+      "the shared vocabulary holds no stem at all",
+    ).toBeGreaterThan(0);
   });
 });

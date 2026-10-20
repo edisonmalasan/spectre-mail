@@ -93,7 +93,9 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
 import ts from "typescript";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
+import { isStagedProbe } from "./staged-probes";
+import { SCAN_ASSERTION_TIMEOUT_MS } from "./scan-budget";
 
 import { PRODUCT_NAME } from "../../packages/ui/src/name";
 
@@ -185,6 +187,21 @@ const GENERATED_DIRECTORIES = [
 const EXCLUDED_DIRECTORY = "e2e";
 
 /**
+ * This suite's per-test budget, and where it comes from.
+ *
+ * **The budget is one shared decision, and it was one file's private copy.** The boundary suite
+ * raised its own to 60 s on 2026-10-03 for a measured reason -- *a rule that writes a probe file
+ * and then re-walks the whole of `apps/`* -- and **this file never raised one**, so a walk that
+ * was slow because the machine was busy was reported as a failure of a property the assertion does
+ * not measure. **That is the one measured failure in that list which was about the machine rather
+ * than about a race.**
+ *
+ * **A constant that lives in one file and is copied into another is a second spelling of a set**,
+ * so the constant is shared rather than repeated, and both suites apply it the same way.
+ */
+vi.setConfig({ testTimeout: SCAN_ASSERTION_TIMEOUT_MS });
+
+/**
  * A file another suite stages while a rule is under test, and this scan must not read.
  *
  * **This is the recorded "an artefact the measurement itself creates" defect, and it is the fourth
@@ -197,8 +214,20 @@ const EXCLUDED_DIRECTORY = "e2e";
  * **The directory list already carries this repair for `test-results`**, added by `side-panel-runtime-facts`
  * for the same reason, and this is the file-shaped half of the same lesson: a scanner needs to be able to
  * tell a staged artefact from a source file, and the name is the only thing that distinguishes them.
+ *
+ * **The repair was a filename *shape*, and a shape is a guess.** The pattern it used,
+ * `/^__.*probe\.[cm]?tsx?$/`, matched **three of the twenty-three** stems the writing side actually
+ * stages: it missed a staged name whose case differs, one whose extension it does not name, one whose
+ * name carries no marker word at all, and one that is a *family* of names. **A widened pattern is
+ * still a guess**, and the fix is the **shared vocabulary** in `./staged-probes` - the list the writing
+ * side names its files from, so the two sides cannot disagree about what a staged file is called.
+ *
+ * **The name is the only thing that distinguishes them, and the name is now shared rather than
+ * guessed.** {@link isStagedProbe} is that vocabulary's one predicate, and it holds **no reader**:
+ * it reads no repository file, and this repository's own criterion for a reader is a body of more
+ * than one statement. **What is shared is a vocabulary, and a vocabulary is the thing that has to be
+ * shared.**
  */
-const PROBE_FILE = /^__.*probe\.[cm]?tsx?$/;
 
 /* ------------------------------------------------------------------------------------------------
  * Readers. Every one is self-tested, and none is shared with another architecture suite.
@@ -354,7 +383,7 @@ function parseSite(cell: string): readonly string[] | null {
  * **A file that vanished between the walk and the read is reported rather than swallowed.** The scan is
  * concurrent with `boundaries.test.ts`, which stages and deletes probe files in the same tree, and a
  * reader that dropped an unreadable file silently would make the corpus a property of timing - the
- * direction in which a scan looks clean rather than broken. {@link PROBE_FILE} is the real repair; this is
+ * direction in which a scan looks clean rather than broken. {@link isStagedProbe} is the real repair; this is
  * the reporting that says whether it held.
  */
 function shippedNameSites(): {
@@ -414,7 +443,7 @@ function shippedFiles(): string[] {
       // `ENOENT ... packages/mailbox/__framework-rule-probe.ts` this file's cases were reported
       // failing with, and the repair is to ask the question the guard already answers **before**
       // asking the filesystem anything.
-      if (PROBE_FILE.test(entry)) continue;
+      if (isStagedProbe(entry)) continue;
 
       if (statSync(child).isDirectory() === true) {
         if ((GENERATED_DIRECTORIES as readonly string[]).includes(entry)) continue;
@@ -1365,6 +1394,25 @@ const OTHER_SUITE_PATHS: readonly string[] = [
 ];
 
 /**
+ * The one module this file and another suite both use, and why it is here.
+ *
+ * **The staged-probe vocabulary is shared, and the sharing is now visible rather than
+ * invisible.** Before it was shared, this file carried a filename *shape* of its own and the
+ * other suite carried the names, and the two could not disagree because neither could see the
+ * other — **which is why they did disagree**, and the shape matched three of the twenty-three
+ * stems the writing side stages.
+ *
+ * **So the shared module is listed here, and the independence check below reads it.** A module
+ * both suites import is exactly the thing the check is about, and a check that does not read it
+ * would be checking a claim narrower than the file's own header makes.
+ *
+ * **And it holds no reader.** This repository's own criterion is that a reader is a function body
+ * of more than one statement, and the vocabulary's one predicate is a single expression over a
+ * list — it reads no repository file, so no failure of it can make a scan look clean.
+ */
+const SHARED_MODULE_PATHS: readonly string[] = ["tests/architecture/staged-probes.ts"];
+
+/**
  * Every regular-expression literal this file contains, read through the TypeScript parser.
  *
  * **A parser rather than a character scanner**, which is both shorter and the direction this repository
@@ -1460,11 +1508,14 @@ const ALLOWED_PATTERNS: readonly string[] = [
   "/^key ([A-Za-z0-9_.]+)$/",
   "/^\\d{4}-\\d{2}-\\d{2}$/",
   "/\\.test\\.|\\.spec\\./",
-  "/^__.*probe\\.[cm]?tsx?$/",
 ];
 
 const AUDIT_SOURCE = readRepositoryFile("tests/architecture/branding-audit.test.ts");
 const OTHER_SUITE_SOURCES: readonly string[] = OTHER_SUITE_PATHS.map((path) =>
+  readRepositoryFile(path),
+);
+/** The shared modules, read for the same reason the other suites are. */
+const SHARED_MODULE_SOURCES: readonly string[] = SHARED_MODULE_PATHS.map((path) =>
   readRepositoryFile(path),
 );
 
@@ -1507,7 +1558,7 @@ test("this file shares no reader with the other architecture suites", () => {
     "this file imports from an architecture suite it must share no reader with",
   ).toEqual([]);
 
-  const otherBodies = OTHER_SUITE_SOURCES.flatMap(functionBodiesIn);
+  const otherBodies = [...OTHER_SUITE_SOURCES, ...SHARED_MODULE_SOURCES].flatMap(functionBodiesIn);
   expect(
     functionBodiesIn(AUDIT_SOURCE).filter((body) => otherBodies.includes(body)),
     "function bodies in this file that are byte-identical to one in another architecture suite",
