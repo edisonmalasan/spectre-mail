@@ -463,6 +463,29 @@ function citationName(citation: AuditCitation): string {
  * **exactly once**, because two requirements sharing a heading is a specification defect this instrument
  * reports rather than resolves. And the line must sit inside that requirement's own block.
  */
+/**
+ * The line the next requirement's heading sits on, read from the file.
+ *
+ * **The line is read, not typed.** A plant that names a line as a number is a claim about a file
+ * that any edit above it falsifies, **and this repository has recorded that shape twice** — once for
+ * `docs/SECURITY.md`'s own citations, which a `MODIFIED` promotion moved, and once for this
+ * file's own count of the boundary suite's assertions.
+ *
+ * **The scan is independent of the citation reader's heading finder**, because a control that calls
+ * the reader is a control on the reader's helper and not on the reader — the recorded shape.
+ */
+function lineOfNextRequirementHeading(path: string, heading: string): number {
+  const lines = repositoryLines(path);
+  const at = lines.findIndex((line) => line === `### Requirement: ${heading}`);
+  if (at === -1) {
+    throw new Error(`no requirement heading "${heading}" in ${path}`);
+  }
+  for (let index = at + 1; index < lines.length; index += 1) {
+    if (lines[index]?.startsWith("### Requirement: ")) return index + 1;
+  }
+  throw new Error(`no requirement heading after "${heading}" in ${path}`);
+}
+
 function unresolvedCitation(citation: AuditCitation): string | null {
   const segments = citation.path.split("/");
   const capabilityDirectory = segments[segments.length - 2];
@@ -514,8 +537,9 @@ function unresolvedCitation(citation: AuditCitation): string | null {
   return null;
 }
 
-/** Every citation the audit makes that resolves to nothing, named. */
-function unresolvedCitationsIn(rows: readonly AuditRow[]): string[] {
+/** Every citation the audit makes that resolves to nothing, named. */ function unresolvedCitationsIn(
+  rows: readonly AuditRow[],
+): string[] {
   return rows.flatMap((row) =>
     row.citations.flatMap((citation) => {
       const unresolved = unresolvedCitation(citation);
@@ -1013,12 +1037,26 @@ test("the citation reader reads a known-resolving citation, and reports one that
   // heading sits on. That is 12 lines past its own heading, so the window is satisfied, and it is at the
   // next requirement, so the other check is not. **Only that check can report it**, which is what makes
   // this plant falsifiable rather than decorative.
+  //
+  // **And the line it cites is READ from the file, not typed.** The plant used to name it as the
+  // number 128, **and a promotion that added a requirement moved the heading** — so the citation went
+  // from *twelve lines past* the requirement to *ten lines above* it, and the arm was aimed at a
+  // different check. **A line number typed into a test is a claim about a file that any edit above it
+  // falsifies**, and this repository has recorded that shape twice: once for `docs/SECURITY.md`'s own
+  // citations, and once for this file's count of the boundary suite's assertions.
+  //
+  // **The line is found by an independent scan of the file's lines** — not through the citation
+  // reader's own heading finder, because a control that calls the reader is a control on the
+  // reader's helper and not on the reader.
   expect(
     unresolvedCitation({
       capability: "build-and-verification",
       heading: "The website development server starts",
       path: "openspec/specs/build-and-verification/spec.md",
-      line: 128,
+      line: lineOfNextRequirementHeading(
+        "openspec/specs/build-and-verification/spec.md",
+        "The website development server starts",
+      ),
     }),
     "a citation pointing at the NEXT requirement's heading is not reported",
   ).toContain("inside another requirement");
