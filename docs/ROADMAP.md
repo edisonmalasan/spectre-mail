@@ -53,7 +53,7 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > **its measurement is that the architecture suites share the shipped tree as their
 > corpus** — `boundaries.test.ts` stages a probe file into it while `branding-audit.test.ts`
 > walks it, in parallel vitest workers — **and that the reader-side repair the reading
-> suite already carries is a filename shape matching three of the seven shapes the writing
+> suite already carries is a filename shape matching three of the twenty-three stems the writing
 > side actually stages, and is spelled twice.** **A gate whose red is a function of timing
 > rather than of the tree cannot be trusted to have shipped anything**, and that is a
 > larger defect than any one feature.
@@ -610,6 +610,67 @@ nothing.
 **`openspec list` reports no active changes, which means M12's five listed items are all done** —
 three tracked and two untracked — **and M12's exit criteria are met in scope.**
 
+**`architecture-suite-isolation` is APPLIED and SYNCED.** Proposal PR **#163** merged
+`5ae8977`; apply PR **#164** merged `05308df`; **the sync PR number is left unfilled here**,
+for the reason this file records above.
+
+**And the change's finding is that the repository's own gate shared a mutable corpus, and the
+repair for it is a vocabulary rather than a pattern.** `boundaries.test.ts` stages a
+deliberately illegal module into `apps/` or `packages/`, runs the real rule over it, and
+deletes it; **sixteen assertions do this**, and `branding-audit.test.ts` walks the same tree
+in a **parallel vitest worker** to check that the public name reaches every surface it claims.
+**The vitest config sets no `fileParallelism`**, so file-level parallelism is the default, and
+the tree is **shared filesystem state between cases written to be independent**.
+
+**And the reader-side repair that was already there was a filename *shape*, and a shape is a
+guess.** The pattern `/^__.*probe\\.[cm]?tsx?$/` matched **three of the twenty-three** stems
+the writing side actually stages: it missed a staged name whose **case** differs
+(`__BoundaryProbe.tsx`), one whose **extension** it does not name (`__boundary-probe.css`),
+one whose **name** carries no marker word at all (`__exempt.spec.ts`), and one that is a
+**family** of names (`__write-probe-<label>.ts`). **And it was spelled twice** — once as a
+`const` and once as a string literal in the same file's own allow-list — which is the
+repository's recorded shape: *a second spelling of a set is the defect*.
+
+**So the repair is one vocabulary, spelled once, and the writing side names its files from
+it.** `tests/architecture/staged-probes.ts` holds the **23 stems**, by **stem** and not by
+name, because a stem covers the three cases a name cannot: a family, two extensions, and a
+case that differs. **The writer now holds 49 uses of the vocabulary and zero `__`-prefixed
+literals**, and the reader skips by the vocabulary **before touching the filesystem** — so a
+file another worker deleted can no longer turn the skip into a failure to read.
+
+**And the check that keeps it true is the change's most useful product, because it caught two
+things on its first run.** `boundaries.test.ts` now reads its own string literals through the
+**TypeScript AST** and reports any that look like a staged name but are not in the vocabulary,
+and reports any stem the vocabulary holds that the file does not stage. **The first run found
+two backtick-spelled forms of the exempt probe's names that a text-based substitution had
+missed** — and the second thing it found was that **the security audit's declared figure and
+its test's own title still said 53** after the boundary suite gained a case. **A declared count
+that does not move when the thing it counts moves is a count nobody has re-read**, and the
+record of that is now in the audit's own comment.
+
+**And the per-suite time budget is one shared decision, where it was one file's private copy.**
+`boundaries.test.ts` raised its own to 60 s on 2026-10-03 for a measured reason — *a rule
+that writes a probe file and then re-walks the whole of `apps/`* — and `branding-audit.test.ts`
+never raised one, **so its 5000 ms timeout was the one measured failure that was about the
+machine rather than about a race.** The constant now lives in
+`tests/architecture/scan-budget.ts` and both suites apply it the same way.
+
+**And the falsification pass caught seven arms, every one by the assertion it was aimed at,**
+with every file restored byte-identical against a digest taken before the first mutation. **One
+of the seven is worth naming, because it is this repository's own recorded defect wearing a new
+hat:** a harness that restores the tree *after* removing its plant, where the removal **throws**,
+because the suite already deleted the file, **leaves the mutation in the tree** — and the tree
+it left was a *widened* reader that every subsequent run then agreed with. **An instrument that
+leaves the tree it measured is worse than no instrument**, and the repair is a `finally` that
+restores unconditionally.
+
+**What this does not establish.** The gate is **not** proven deterministic under every load —
+the measurement is a table of runs, not a proof. **The larger repair is not taken**: a disposable
+corpus per suite would parameterise every scan's roots, and this repository has recorded why
+the scan functions take no argument — *an argument would be a second spelling of which apps to
+scan*. **So the smaller repair is the one the repository's own constraints point at, and the
+larger one is recorded as the question this change does not settle.**
+
 **`beta-diagnostics` is M13's second slice, and it is APPLIED, SYNCED and ARCHIVED** at
 `openspec/changes/archive/2026-10-20-beta-diagnostics/`. Proposal PR **#158** merged
 `4e77cca`; apply PR **#159** merged `4c2569e`; sync PR **#161** merged `6ff5a82`; **the
@@ -690,7 +751,7 @@ what would be needed to collect it.
 **share the shipped tree as their corpus** -- `boundaries.test.ts` stages a probe file into it
 while `branding-audit.test.ts` walks it, in **parallel vitest workers** -- and the
 reader-side repair `branding-audit.test.ts` already carries is **a filename shape matching
-three of the seven shapes the writing side actually stages**, and is **spelled twice**.
+three of the twenty-three stems the writing side actually stages**, and is **spelled twice**.
 **That is the next change's work**, `architecture-suite-isolation`, and **the measurement it
 starts from is corrected above.**
 
@@ -746,7 +807,7 @@ nothing**, and that is the failure mode this repository's own standard forbids.
 named: the architecture suites **share the shipped tree as their corpus**, `boundaries.test.ts`
 stages a probe file into it while `branding-audit.test.ts` walks it, in **parallel vitest
 workers**, and the reader-side repair `branding-audit.test.ts` already carries is **a filename
-shape matching three of the seven shapes the writing side actually stages** — and is **spelled
+shape matching three of the twenty-three stems the writing side actually stages** — and is **spelled
 twice**. **So a gate whose red is a function of timing cannot be trusted to have shipped
 anything**, and every stage in this milestone reported its gates as green on runs that were, on
 this evidence, partly luck. **The repair belongs to the instrument and not to this change** —
@@ -764,63 +825,6 @@ rather than kept and unused**, because *a shape with no consumer is a schema to 
 than a feature*, and the panel had never shown an interval of its own either — so **a report
 would have been the first place the product showed a figure of its own.** Mail arrival
 reliability is reported as **counts**, which is what the goal asks for.
-
-**And the change's finding is that the repository's own gate shared a mutable corpus, and the
-repair for it is a vocabulary rather than a pattern.** `boundaries.test.ts` stages a
-deliberately illegal module into `apps/` or `packages/`, runs the real rule over it, and
-deletes it; **sixteen assertions do this**, and `branding-audit.test.ts` walks the same tree
-in a **parallel vitest worker** to check that the public name reaches every surface it claims.
-**The vitest config sets no `fileParallelism`**, so file-level parallelism is the default, and
-the tree is **shared filesystem state between cases written to be independent**.
-
-**And the reader-side repair that was already there was a filename *shape*, and a shape is a
-guess.** The pattern `/^__.*probe\.[cm]?tsx?$/` matched **three of the twenty-three** stems
-the writing side actually stages: it missed a staged name whose **case** differs
-(`__BoundaryProbe.tsx`), one whose **extension** it does not name (`__boundary-probe.css`),
-one whose **name** carries no marker word at all (`__exempt.spec.ts`), and one that is a
-**family** of names (`__write-probe-<label>.ts`). **And it was spelled twice** — once as a
-`const` and once as a string literal in the same file's own allow-list — which is the
-repository's recorded shape: *a second spelling of a set is the defect*.
-
-**So the repair is one vocabulary, spelled once, and the writing side names its files from
-it.** `tests/architecture/staged-probes.ts` holds the **23 stems**, by **stem** and not by
-name, because a stem covers the three cases a name cannot: a family, two extensions, and a
-case that differs. **The writer now holds 49 uses of the vocabulary and zero `__`-prefixed
-literals**, and the reader skips by the vocabulary **before touching the filesystem** — so a
-file another worker deleted can no longer turn the skip into a failure to read.
-
-**And the check that keeps it true is the change's most useful product, because it caught two
-things on its first run.** `boundaries.test.ts` now reads its own string literals through the
-**TypeScript AST** and reports any that look like a staged name but are not in the vocabulary,
-and reports any stem the vocabulary holds that the file does not stage. **The first run found
-two backtick-spelled forms of the exempt probe's names that a text-based substitution had
-missed** — and the second thing it found was that **the security audit's declared figure and
-its test's own title still said 53** after the boundary suite gained a case. **A declared count
-that does not move when the thing it counts moves is a count nobody has re-read**, and the
-record of that is now in the audit's own comment.
-
-**And the per-suite time budget is one shared decision, where it was one file's private copy.**
-`boundaries.test.ts` raised its own to 60 s on 2026-10-03 for a measured reason — *a rule
-that writes a probe file and then re-walks the whole of `apps/`* — and `branding-audit.test.ts`
-never raised one, **so its 5000 ms timeout was the one measured failure that was about the
-machine rather than about a race.** The constant now lives in
-`tests/architecture/scan-budget.ts` and both suites apply it the same way.
-
-**And the falsification pass caught seven arms, every one by the assertion it was aimed at,**
-with every file restored byte-identical against a digest taken before the first mutation. **One
-of the seven is worth naming, because it is this repository's own recorded defect wearing a new
-hat:** a harness that restores the tree *after* removing its plant, where the removal **throws**
-because the suite already deleted the file, **leaves the mutation in the tree** — and the tree
-it left was a *widened* reader that every subsequent run then agreed with. **An instrument that
-leaves the tree it measured is worse than no instrument**, and the repair is a `finally` that
-restores unconditionally.
-
-**What this does not establish.** The gate is **not** proven deterministic under every load —
-the measurement is a table of runs, not a proof. **The larger repair is not taken**: a disposable
-corpus per suite would parameterise every scan's roots, and this repository has recorded why
-the scan functions take no argument — *an argument would be a second spelling of which apps to
-scan*. **So the smaller repair is the one the repository's own constraints point at, and the
-larger one is recorded as the question this change does not settle.**
 
 **`mailbox-history` is M13's first slice, and it is APPLIED, SYNCED and ARCHIVED** at
 `openspec/changes/archive/2026-10-20-mailbox-history/`. Proposal PR **#154** merged `c99f00c`;

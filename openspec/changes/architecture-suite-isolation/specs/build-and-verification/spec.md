@@ -67,8 +67,8 @@ recorded here rather than left to be discovered.
 
 **The exclusion a reader applies is a check, and a check narrower in scope than
 the rule it documents is a failure of this capability.** The architecture suite's
-reader-side exclusion was a filename *shape*, and it matched three of the seven
-shapes the writing side actually stages: it did not match a staged name whose
+reader-side exclusion was a filename *shape*, and it matched three of the twenty-three
+stems the writing side actually stages: it did not match a staged name whose
 case differs, one whose extension it does not name, or one whose name carries no
 marker word at all. **The suite's own reader was therefore narrower than the
 rule it documented, and nothing reported it.**

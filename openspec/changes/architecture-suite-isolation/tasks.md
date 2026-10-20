@@ -17,7 +17,7 @@
       either.**
 - [x] 1.3 Record in the change's own `design.md` **the three ways the reader-side exclusion is
   **Done.** The three ways the exclusion is incomplete - case, extension, and naming - are in
-      `design.md` D2, with the seven shapes the writing side stages.
+      `design.md` D2, with the twenty-three stems the writing side stages.
       incomplete** — case, extension, and naming — with the seven planted shapes and the three that
       are not matched, so the record says *which* shapes and not merely that there was a gap.
 
