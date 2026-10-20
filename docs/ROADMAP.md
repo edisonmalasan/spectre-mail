@@ -46,6 +46,18 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > source of truth — `openspec/specs/` and the active OpenSpec change artifacts are.
 > Reconcile this block against Git and OpenSpec before trusting it in a later session.
 >
+> **The cursor.** M12 is closed in scope and **M13 is closed in scope**: its two slices,
+> `mailbox-history` and `beta-diagnostics`, are both APPLIED, SYNCED and ARCHIVED, and
+> `openspec list` reports no active changes. **The next change is not a milestone's — it
+> is the repository's own instrument.** `architecture-suite-isolation` is PROPOSED, and
+> **its measurement is that the architecture suites share the shipped tree as their
+> corpus** — `boundaries.test.ts` stages a probe file into it while `branding-audit.test.ts`
+> walks it, in parallel vitest workers — **and that the reader-side repair the reading
+> suite already carries is a filename shape matching three of the seven shapes the writing
+> side actually stages, and is spelled twice.** **A gate whose red is a function of timing
+> rather than of the tree cannot be trusted to have shipped anything**, and that is a
+> larger defect than any one feature.
+>
 > `openspec/specs/` holds **fifteen** capabilities: `provider-abstraction` (promoted
 > from `provider-role-decision`), `monorepo-foundation` (M1), `shared-domain-model`
 > (M2), `provider-adapters` (M3), `mail-parsing` (M4), `build-and-verification`
@@ -674,13 +686,13 @@ oversight** — so the withdrawal is written under it, and the goal is recorded 
 dropped: `docs/BETA.md` says *site-specific UI conflicts* is **partly collectable** and says
 what would be needed to collect it.
 
-**And the gate's own flake is the change's finding, not its defect.** `pnpm test` is a coin flip
-on `main` itself, measured on a pristine `origin/main` checkout with this change's work nowhere
-in the tree — two consecutive runs of the architecture suite fail, each with a *different* set of
-failures, because `tests/architecture/boundaries.test.ts` **proves its own rules by planting
-violations in the shipped tree** and **vitest runs the architecture files in parallel workers**.
-**So CI is a coin flip too**, and the repair belongs to the instrument and not to this change —
-**and it is the next thing worth doing.**
+**And the gate's own flake is the change's finding, not its defect.** The architecture suites
+**share the shipped tree as their corpus** -- `boundaries.test.ts` stages a probe file into it
+while `branding-audit.test.ts` walks it, in **parallel vitest workers** -- and the
+reader-side repair `branding-audit.test.ts` already carries is **a filename shape matching
+three of the seven shapes the writing side actually stages**, and is **spelled twice**.
+**That is the next change's work**, `architecture-suite-isolation`, and **the measurement it
+starts from is corrected above.**
 
 **And the promotion was rehearsed in full on a throwaway copy of `openspec/`** before it touched
 the real tree, and the **promoter and the verifier share no reader** — the promoter walks lines
@@ -719,13 +731,27 @@ state between cases written to be independent. **Measured on a pristine `origin/
 two consecutive runs of the architecture suite fail, each with a different set of failures** —
 four `ENOENT`s on the boundary suite's own probe files, *"the rule should report all 5 packages:
 expected 4 to be 5"*, *"chrome storage should be caught in apps/web"*, and the `branding-audit`
-5000 ms timeout. `git diff origin/main -- tests/architecture/boundaries.test.ts` is **empty**,
-and the suite alone is green. **So `pnpm test` is a coin flip on `main` itself, and therefore CI
-is a coin flip too**, and every red in this change's gate record is one of two things: the
-suite's own probes left in the tree by a cancelled run, or the suite's probes interfering with
-each other inside a run. **The repair belongs to the instrument and not to this change** —
-`boundaries.test.ts` is on this change's forbidden list — and **it is the next thing worth
-doing.**
+5000 ms timeout. `git diff origin/main -- tests/architecture/boundaries.test.ts` is **empty**.
+
+**And the correction this stage owes the record.** *"`pnpm test` is a coin flip on `main`
+itself"* **was written above, and it is not reproducible.** Re-measured afterwards, on an idle
+machine at the same commit: pristine `origin/main` **3 of 3 green**, the current tree **3 of 3
+green**, the architecture suite alone **3 of 3 green**, `--no-file-parallelism` **2 of 2 green**,
+and **2 of 2 green under six spinning `node` processes**. **So the red is real — named cases,
+real errors, a different set each time — and it is a function of timing rather than of the
+tree.** **A red that appears and disappears without the tree changing is a red that means
+nothing**, and that is the failure mode this repository's own standard forbids.
+
+**And the narrowing is the finding rather than a softening.** The mechanism is measured and
+named: the architecture suites **share the shipped tree as their corpus**, `boundaries.test.ts`
+stages a probe file into it while `branding-audit.test.ts` walks it, in **parallel vitest
+workers**, and the reader-side repair `branding-audit.test.ts` already carries is **a filename
+shape matching three of the seven shapes the writing side actually stages** — and is **spelled
+twice**. **So a gate whose red is a function of timing cannot be trusted to have shipped
+anything**, and every stage in this milestone reported its gates as green on runs that were, on
+this evidence, partly luck. **The repair belongs to the instrument and not to this change** —
+`boundaries.test.ts` is on this change's forbidden list — and **it is the next change**,
+`architecture-suite-isolation`.
 
 **And the third shape was withdrawn rather than shipped**, because the page's own tests refused
 it twice and the page was right both times. The report's first shape carried an **elapsed
