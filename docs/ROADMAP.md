@@ -598,9 +598,10 @@ nothing.
 **`openspec list` reports no active changes, which means M12's five listed items are all done** —
 three tracked and two untracked — **and M12's exit criteria are met in scope.**
 
-**`beta-diagnostics` is M13's second slice, and it is APPLIED and SYNCED.** Proposal PR **#158**
-merged `4e77cca`; apply PR **#159** merged `4c2569e`; **the sync PR number is left unfilled
-here**, for the reason this file records above.
+**`beta-diagnostics` is M13's second slice, and it is APPLIED, SYNCED and ARCHIVED** at
+`openspec/changes/archive/2026-10-20-beta-diagnostics/`. Proposal PR **#158** merged
+`4e77cca`; apply PR **#159** merged `4c2569e`; sync PR **#161** merged `6ff5a82`; **the
+archive PR number is left unfilled here**, for the reason this file records above.
 
 **Measured, four of the seven are already observable from what the product knows, and two are not
 observable at all.** Creation success is `session.open()` reaching `ready` or `failed` with one of
@@ -641,6 +642,45 @@ files and **zero deletions**, so Git's own diff confirms nothing existing was to
 count is the seventh milestone to move by three requirements**, because every one of its three
 blocks is `ADDED`, and it is **re-counted by heading after the promotion** rather than carried
 forward.
+**And the archive moved 6 files, with Git's own rename detection confirming the move
+independently — six renames at `0 insertions, 0 deletions`** — and all **16** files under
+`openspec/specs/` byte-identical throughout, checked against **Git**. All **3** promoted blocks
+re-verified **BYTE-IDENTICAL against the *archived* delta**, with the verifier pointed at the
+archived path **after being shown to fail loudly with `ENOENT` on the absent pre-archive one**,
+and its self-test **5 of 5** there in **both argument orders**. Counts **re-counted after the
+move** at **188 / 615 / 15**, unmoved by the archive, and `openspec list` reports no active
+changes.
+
+**And the digest claim is a claim about the instant the archive command returned, and one file
+was edited after it.** Five of the six are byte-identical to a digest taken programmatically
+before the command ran; **`tasks.md` is not**, because it carries the withdrawal written under
+the unticked box. **This is the same shape as `extension-permissions-review`'s archive, whose
+`tasks.md` sat at `85%` for the same reason**, and the fix is the same: **the digest table says
+what it is a claim about, and the file that moved after the move is named.** Git's own rename
+detection names it too — **five renames at `100%`** and **`tasks.md` at `91%`** — **which is why
+the digest and Git's own answer are read together and not one instead of the other.**
+
+**And the archive's own output said *"1 incomplete task(s) found"*, and the one unticked box is
+the withdrawal rather than an oversight.** Task **4.2** — the UI-conflict clause — was
+deliberately not delivered, and `design.md` D9.6 says why: the content script is the only party
+that can see its own control, and **the extension has no message kind that asks it about
+anything but the host it is beside or a field to fill**; adding one is a protocol change, and
+**a protocol change is a different change from this one**. **The scenario was removed from the
+requirement rather than left in place**, because a scenario that says *SHALL* and is not met is
+a requirement the promoted specification would carry and the product would break — **and a
+requirement that breaks is worse than a requirement that was never written.** **A box left
+unticked with a withdrawal written under it is a record; a box left unticked with nothing is an
+oversight** — so the withdrawal is written under it, and the goal is recorded rather than
+dropped: `docs/BETA.md` says *site-specific UI conflicts* is **partly collectable** and says
+what would be needed to collect it.
+
+**And the gate's own flake is the change's finding, not its defect.** `pnpm test` is a coin flip
+on `main` itself, measured on a pristine `origin/main` checkout with this change's work nowhere
+in the tree — two consecutive runs of the architecture suite fail, each with a *different* set of
+failures, because `tests/architecture/boundaries.test.ts` **proves its own rules by planting
+violations in the shipped tree** and **vitest runs the architecture files in parallel workers**.
+**So CI is a coin flip too**, and the repair belongs to the instrument and not to this change —
+**and it is the next thing worth doing.**
 
 **And the promotion was rehearsed in full on a throwaway copy of `openspec/`** before it touched
 the real tree, and the **promoter and the verifier share no reader** — the promoter walks lines

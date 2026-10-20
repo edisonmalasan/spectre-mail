@@ -49,6 +49,19 @@
       already held text, the frame was not the top one -- as counts.
 - [ ] 4.2 A **UI conflict is reported as a conflict and not as a cause**: the control can see that
       it is not visible, and **SHALL NOT** report which rule on the page did it.
+      **WITHDRAWN, and the box is left unticked on purpose** -- see `design.md` D9.6. The reason is a
+      channel rather than a difficulty: the content script is the only party that can see its own
+      control, and **the extension has no message kind that asks it about anything but the host it is
+      beside or a field to fill**; adding one is a protocol change, and **a protocol change is a
+      different change from this one.** **The scenario was removed from the requirement rather than
+      left in place**, because a scenario that says *SHALL* and is not met is a requirement the
+      promoted specification would carry and the product would break -- **and a requirement that breaks
+      is worse than a requirement that was never written.** The goal is recorded rather than dropped:
+      `docs/BETA.md` says *site-specific UI conflicts* is **partly collectable** and says what would
+      be needed to collect it.
+      **A box left unticked with a withdrawal written under it is a record; a box left unticked with
+      nothing is an oversight**, and the archive's own `openspec` output says *"1 incomplete task(s)
+      found"* -- which is the true reading of a task this change deliberately did not do.
 - [x] 4.3 The extension's **stored records are unaffected** -- a mailbox, a site association and a
       seen-message id are records the product keeps for its own reasons and are not diagnostics.
 
