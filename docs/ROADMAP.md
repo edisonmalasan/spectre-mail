@@ -46,18 +46,22 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > source of truth — `openspec/specs/` and the active OpenSpec change artifacts are.
 > Reconcile this block against Git and OpenSpec before trusting it in a later session.
 >
-> `openspec/specs/` holds **fourteen** capabilities: `provider-abstraction` (promoted
+> `openspec/specs/` holds **fifteen** capabilities: `provider-abstraction` (promoted
 > from `provider-role-decision`), `monorepo-foundation` (M1), `shared-domain-model`
 > (M2), `provider-adapters` (M3), `mail-parsing` (M4), `build-and-verification`
 > (M1), `mailbox-session` (M5 slice 1), `website-client` (M5 slice 1),
 > `spectre-storage` (M6 slice 1), `browser-verification`, `visual-system` (M7 slice
-> 1), `page-composition` (M7 slice 3), `extension-client` (M8) and
-> `in-page-integration` (M9 slice 1). Counted mechanically at each sync and again
-> after each archive, they hold **168 requirements and 544 scenarios** in total
-> — **measured by heading across the tree after `extension-clear-data`'s archive on
-> 2026-10-13**, and *corrected* from the **166 / 527** this line carried until then,
-> which had been stale since `panel-verification-state`'s sync. See that change's
-> entry below for the per-commit trace.
+> 1), `page-composition` (M7 slice 3), `extension-client` (M8),
+> `in-page-integration` (M9 slice 1) and `privacy-disclosure` (M12). Counted
+> mechanically at each sync and again after each archive, they hold **188 requirements
+> and 615 scenarios** in total — **measured by heading across the tree after
+> `beta-diagnostics`'s sync on 2026-10-20**, and *corrected* from the **168 / 544**
+> this line carried until then, which had been stale since `extension-clear-data`'s
+> archive on 2026-10-13. **That line was the figure a reader copies, and the headline is
+> the one number in this block no change has to touch to record itself** — the exact
+> defect this repository has recorded before, and it survived four milestones because
+> every change wrote its own entry below and nobody re-read the first paragraph. See
+> the change entries below for the per-commit trace.
 >
 > **The `alarms-packing-interval` spike declared `skip_specs` and promoted nothing, and
 > that was verified rather than assumed**: immediately after the archive the totals were
@@ -594,10 +598,9 @@ nothing.
 **`openspec list` reports no active changes, which means M12's five listed items are all done** —
 three tracked and two untracked — **and M12's exit criteria are met in scope.**
 
-**`beta-diagnostics` is M13's second slice, and it is PROPOSED.** M13's two release lists are
-complete — `mailbox-history` shipped the last unshipped item — so what M13 still owes is its **Beta
-goals**: seven metrics to collect, and one instruction that decides their shape, *"Do not optimize
-around vanity metrics yet."*
+**`beta-diagnostics` is M13's second slice, and it is APPLIED and SYNCED.** Proposal PR **#158**
+merged `4e77cca`; apply PR **#159** merged `4c2569e`; **the sync PR number is left unfilled
+here**, for the reason this file records above.
 
 **Measured, four of the seven are already observable from what the product knows, and two are not
 observable at all.** Creation success is `session.open()` reaching `ready` or `failed` with one of
@@ -628,9 +631,73 @@ migration. **A measurement that does not outlive the session it happened in does
 be stored**, and the difference between this design and one that persisted counters is the difference
 between a feature and a schema.
 
-**Three `ADDED` requirements and no `MODIFIED` or `REMOVED`** — `website-client`,
-`extension-client`, `privacy-disclosure` — so the promoted count moves by exactly three, the
-**seventh** milestone to reach that shape.
+**Its sync promoted three `ADDED` requirements and no `MODIFIED` or `REMOVED`** —
+`website-client`, `extension-client`, `privacy-disclosure` — **moving the tree from 185 to 188
+requirements and from 605 to 615 scenarios** across the same **15** capabilities:
+`website-client` 25 → 26 and 84 → 88, `extension-client` 16 → 17 and 83 → 86,
+`privacy-disclosure` 8 → 9 and 20 → 23, with `openspec validate --specs --strict` at **15
+passed, 0 failed** and `git diff --numstat -- openspec/specs` at **64/0, 48/0 and 74/0** — three
+files and **zero deletions**, so Git's own diff confirms nothing existing was touched. **The
+count is the seventh milestone to move by three requirements**, because every one of its three
+blocks is `ADDED`, and it is **re-counted by heading after the promotion** rather than carried
+forward.
+
+**And the promotion was rehearsed in full on a throwaway copy of `openspec/`** before it touched
+the real tree, and the **promoter and the verifier share no reader** — the promoter walks lines
+with a state machine, the verifier splits whole text by regex — so neither can inherit the
+other's blind spot.
+
+**And the promoter's two guards were falsified separately**, because an `ADDED` landing on a
+heading that exists and a `MODIFIED` landing on one that does not are two different ways to
+substitute silently, wearing each other's names. Run twice, the second run **exited 1** with
+*"REFUSING: website-client already carries a requirement headed … An ADDED block must not land
+on a heading that exists"*, and every specification file's SHA-256 was unchanged; and a planted
+`MODIFIED` for a heading no specification carries **exited 1** with *"A MODIFIED block must
+replace a requirement that exists, not add one"*, with all three unchanged. **A guard that
+refuses and still writes is not a guard**, so each arm measured the files' digests and not the
+exit code alone.
+
+**And the verifier's own self-test failed on a legitimate change**, which is the sixth time this
+repository has recorded that shape. Its fourth case looked for a `MODIFIED` block in the
+change's own delta and reported *"no MODIFIED block"* — **and this change's delta is entirely
+`ADDED`**, which is a perfectly legitimate change to promote. **A self-test that fails because
+its fixture is the wrong shape** is a self-test of the fixture, not of the reader, and the
+repair was to make the case **build its own** `MODIFIED` block and its own pair of specification
+texts, so it asks the same question whatever the change under test happens to contain. **The
+negative control is in the same case**: the unsabotaged text must report no retired scenario, or
+a reader that named one for everything would satisfy the case. It is **5 of 5** in **both
+argument orders** — the flag first and the flag last — because a reader that only parses one
+order is half a reader.
+
+**And the apply stage's finding was that the repository's own gate fails at random on `main`**,
+which is why the reds in its gate record are not about it.
+`tests/architecture/boundaries.test.ts` proves its own rules by **planting violations in the
+shipped tree** — `packages/mailbox/__framework-rule-probe.ts`,
+`packages/core/__storage-import-probe.ts`, `apps/web/src/__BoundaryProbe.tsx` and more — and
+**vitest runs the architecture files in parallel workers**, so the tree is shared filesystem
+state between cases written to be independent. **Measured on a pristine `origin/main` checkout,
+two consecutive runs of the architecture suite fail, each with a different set of failures** —
+four `ENOENT`s on the boundary suite's own probe files, *"the rule should report all 5 packages:
+expected 4 to be 5"*, *"chrome storage should be caught in apps/web"*, and the `branding-audit`
+5000 ms timeout. `git diff origin/main -- tests/architecture/boundaries.test.ts` is **empty**,
+and the suite alone is green. **So `pnpm test` is a coin flip on `main` itself, and therefore CI
+is a coin flip too**, and every red in this change's gate record is one of two things: the
+suite's own probes left in the tree by a cancelled run, or the suite's probes interfering with
+each other inside a run. **The repair belongs to the instrument and not to this change** —
+`boundaries.test.ts` is on this change's forbidden list — and **it is the next thing worth
+doing.**
+
+**And the third shape was withdrawn rather than shipped**, because the page's own tests refused
+it twice and the page was right both times. The report's first shape carried an **elapsed
+duration**, and the page forbids any interval of the product's own — its own test says why:
+*"any figure here would be an invention presented as a measurement."* **And the report's own
+sentence used the word *gone***, which the page forbids in the state where a provider merely
+failed, because a word that reads as *"gone"* tells a person something false about the only copy
+of their address — **and a test cannot tell whose *"gone"* it is.** **The third shape is removed
+rather than kept and unused**, because *a shape with no consumer is a schema to migrate rather
+than a feature*, and the panel had never shown an interval of its own either — so **a report
+would have been the first place the product showed a figure of its own.** Mail arrival
+reliability is reported as **counts**, which is what the goal asks for.
 
 **`mailbox-history` is M13's first slice, and it is APPLIED, SYNCED and ARCHIVED** at
 `openspec/changes/archive/2026-10-20-mailbox-history/`. Proposal PR **#154** merged `c99f00c`;
