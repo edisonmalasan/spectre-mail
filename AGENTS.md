@@ -163,11 +163,46 @@
 > **And the correction this stage owes the record.** *"`pnpm test` is a coin flip on `main`
 > itself"* **was written above, and it is not reproducible.** Re-measured afterwards, on an idle
 > machine at the same commit: pristine `origin/main` **3 of 3 green**, the current tree **3 of 3
-> green**, the architecture suite alone **3 of 3 green**, `--no-file-parallelism` **2 of 2 green**,
-> and **2 of 2 green under six spinning `node` processes**. **So the red is real — named cases,
-> real errors, a different set each time — and it is a function of timing rather than of the
-> tree.** **A red that appears and disappears without the tree changing is a red that means
-> nothing**, and that is the failure mode this repository's own standard forbids.
+> green**, the architecture suite alone **3 of 3 green**, and `--no-file-parallelism` **2 of 2
+> green**. **So the red is real — named cases, real errors, a different set each time — and it is
+> a function of timing rather than of the tree.** **A red that appears and disappears without
+> the tree changing is a red that means nothing**, and that is the failure mode this
+> repository's own standard forbids.
+>
+> **And a second correction, made by the change that followed this one, and it is the larger of
+> the two.** The clause *"2 of 2 green under six spinning `node` processes"* **was written here
+> and it is false.** Re-measured with the **same generator** — the same `Start-Process` inside a
+> `Start-Job`, six spinning `node` processes — on the same machine, at the same commit:
+> **the suite is red in every run.** **And the load was real:** the generator's process count
+> was measured rather than assumed — **20 `node` processes before, 26 during**, CPU time
+> climbing from **38.6 s to 65.1 s**. **A load generator that loads nothing produces a green
+> that measures nothing**, and this one does load.
+>
+> **And the red is not the shared corpus this change repaired.** In every concurrent run
+> `branding-audit.test.ts` — the *reader* — is green, and every failure is in
+> `boundaries.test.ts`. **The red is two of the boundary suite's own cases exceeding the shared
+> 60 s budget** — *"catches a platform store or the URL in a client"* at **61.6 s** and *"keeps the
+> spike unreachable from workspace code"* at **78.2 s** — **and a timeout is a process that never
+> runs its `finally`.**
+>
+> **And that is worse than a red.** The boundary suite proves two of its rules by **mutating a
+> shipped file** — `apps/web/index.html` and the repository's own `package.json` — **and the
+> mutation is undone in a `finally` that a timeout never reaches.** So an interrupted run leaves
+> **`apps/web/index.html` carrying an injected `<link>`** — three of them, after three runs —
+> and **`package.json` carrying a stray `scripts` entry naming a quarantined probe, without its
+> trailing newline**. **Both are tracked files, so a leftover is a modification that can be
+> committed.**
+>
+> **And the leftovers make the NEXT run red**, because the rules that were proving themselves now
+> find the previous run's artefacts: the stylesheet rule reports the leftover remote-origin
+> stylesheet, the markup rule reports the leftover `<link>`, the custom-property rule reports the
+> leftover local-token stylesheet, and the quarantine rule reports `package.json` naming a
+> quarantined probe. **So a run's red is about the previous run, and the previous run was green.**
+>
+> **And this repository carried no remedy for it at all** — not in `AGENTS.md`, not in the
+> roadmap, and not in this change's own record. **This change's record asserted the cause
+> without measuring it** — *"the suite's own probes left in the tree by a cancelled run"* —
+> **and an asserted cause is not a measured one.**
 >
 > **And the narrowing is the finding rather than a softening.** The mechanism is measured and
 > named: the architecture suites **share the shipped tree as their corpus**, `boundaries.test.ts`
