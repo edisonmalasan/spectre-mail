@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { STAGED_PROBES } from "./staged-probes";
+import {
+  APPS_DIR as CORPUS_APPS_DIR,
+  CORPUS,
+  PACKAGES_DIR as CORPUS_PACKAGES_DIR,
+  corpusPathOf,
+} from "./scan-corpus";
 import { SCAN_ASSERTION_TIMEOUT_MS } from "./scan-budget";
 import {
   cpSync,
@@ -76,9 +82,21 @@ import { EXTENSION_PREVIEW } from "../../apps/web/src/sections";
 // forget the timeout on is an assertion that will time out again.
 vi.setConfig({ testTimeout: SCAN_ASSERTION_TIMEOUT_MS });
 
-const REPO_ROOT = process.cwd();
-const PACKAGES_DIR = join(REPO_ROOT, "packages");
-const APPS_DIR = join(REPO_ROOT, "apps");
+/**
+ * The corpus this suite reads, and the tree it must not write.
+ *
+ * **Every root is the corpus's**, and the corpus is a copy of the repository made once per test
+ * run — so the sixteen assertions that stage a probe file stage it into the copy, and **the
+ * shipped tree is never written.** Two of those assertions used to stage into `apps/web/index.html`
+ * and the repository's own `package.json`, and a run killed for exceeding its timeout left both
+ * modified: **tracked files, so a leftover was a modification that could be committed.**
+ *
+ * **The roots are read from one module**, and not written here, because an argument naming which
+ * apps to scan would be a second spelling of that list.
+ */
+const REPO_ROOT = CORPUS;
+const PACKAGES_DIR = CORPUS_PACKAGES_DIR;
+const APPS_DIR = CORPUS_APPS_DIR;
 const SPIKE_DIR = join(REPO_ROOT, "tests", "provider-spike");
 
 /**
@@ -375,7 +393,16 @@ function isSourceFile(filePath: string): boolean {
   return SOURCE_EXTENSIONS.some((extension) => filePath.endsWith(extension));
 }
 
-/** Recursively collect source files, skipping build and dependency directories. */
+/**
+ * Recursively collect source files, skipping build and dependency directories.
+ *
+ * **And the corpus holds no staged probe at all.** The copy the rules read has every vocabulary
+ * name removed from it, so a probe left behind by an earlier run — which the copy would otherwise
+ * carry, and which is a violation by construction — is not in the corpus, and no rule ever sees
+ * it. **A leftover is therefore harmless to the next run without any rule needing to know which
+ * probes are leftovers**, and a control's own probe is found because the corpus is where it is
+ * staged.
+ */
 function collectSourceFiles(root: string): string[] {
   const found: string[] = [];
 
@@ -4042,7 +4069,13 @@ describe("architecture boundaries", () => {
       if (file.startsWith(providersDir)) continue;
 
       // This file necessarily contains the identifiers as string literals.
-      if (file === __filename) continue;
+      //
+      // **The comparison is in the corpus's terms**, and it used to be an absolute one. The rule
+      // read `file === __filename`, and **a corpus gives the scanned path and the running file's
+      // path different roots** — so the identity failed and the rule reported the corpus's own
+      // copy of this file. **A corpus makes an absolute path meaningless**, and every identity
+      // that used one had to be restated.
+      if (file === corpusPathOf(__filename)) continue;
 
       const repoPath = toRepoPath(file);
       const contents = stripComments(readFileSync(file, "utf8"));
