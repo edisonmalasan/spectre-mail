@@ -48,16 +48,24 @@ popup shares the same component and is forbidden by a promoted clause from stati
 >
 > **The cursor.** M12 is closed in scope and **M13 is closed in scope**: its two slices,
 > `mailbox-history` and `beta-diagnostics`, are both APPLIED, SYNCED and ARCHIVED, and
-> `openspec list` reports no active changes. **The next change is not a milestone's — it
-> is the repository's own instrument**, and it has now run twice: `architecture-suite-isolation`
-> gave the suites a shared staged-probe vocabulary, and **`architecture-suite-cleanup` is
-> APPLIED** — **its measurement is that the architecture suite proves two of its rules by
-> mutating a *shipped* file, and a timeout outlives the `finally` that undoes it**, so an
-> interrupted run left `apps/web/index.html` and the repository's own `package.json`
-> modified, **and the leftovers made the next run red about the previous one.** **The suite
-> now reads a disposable copy of the tree, so the shipped tree is never written, and a check
-> outside the suite fails the run if it ever is.** **What comes after it is not decided, and
-> this block does not decide it.**
+> `openspec list` reports no active changes. **`architecture-suite-cleanup` is APPLIED, SYNCED
+> and ARCHIVED** — it gave the architecture suite a disposable copy of the tree to read, so the
+> shipped tree is never written by a test. **The change after it was found by the gate rather
+> than chosen**, and **a clean `main` at `74c99a8` has a unit suite that is red in 3 of 5 full
+> runs**, always the same named case in `apps/extension/src/Panel.test.tsx`. **The cause is
+> measured rather than guessed:** the address section arrives in **42–108 ms**, while the
+> accessible-name query the case waits on costs **170–430 ms** and succeeds every time — **so
+> the heading was never late, and the wait's budget was spent on the query.** The same shape is
+> at a second site in `apps/extension/src/Popup.test.tsx`, and **a defect that shows up at one
+> site is evidence about the sites and not about the one.** **The active change is
+> `load-independent-results`, PROPOSED:** the wait SHALL establish the precondition by the
+> surface's own cheap handle and the assertion SHALL then ask its expensive question once,
+> unbudgeted — **because a budget is not a wait, and a hand-picked ceiling is this repository's
+> recorded defect with a larger number** — and the requirement it carries SHALL say that **a
+> result, a pass as well as a failure, that depends on the machine rather than on the tree is
+> not a result.** **Five deliberate violations are caught by the assertion each was aimed at**,
+> and the repair measures **20 of 20 green** against **3 of 5 red** before it. **What comes
+> after it is not decided, and this block does not decide it.**
 >
 > `openspec/specs/` holds **fifteen** capabilities: `provider-abstraction` (promoted
 > from `provider-role-decision`), `monorepo-foundation` (M1), `shared-domain-model`
