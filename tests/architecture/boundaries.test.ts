@@ -219,7 +219,35 @@ const QUARANTINED_PROBES = [
   // content-script finding). That request's body is never read, but it leaves the machine, so the
   // script cannot be a suite.
   "side-panel-runtime.mjs",
+  // M14's instrument, and the only probe that loads an extension in **Firefox** rather than in
+  // Chromium. Quarantined for the reason the three above name — it is a measurement instrument
+  // rather than a test — with one addition specific to it: **it is the only probe that does not
+  // spell Chromium's load flags, because Firefox does not take them.** It loads the extension
+  // through a profile instead, which is why the flag rule asks each probe which engine it uses
+  // rather than requiring the flags of all of them.
+  "firefox-compatibility.mjs",
 ] as const;
+
+/**
+ * **Which engines a probe loads its extension through, read from the probe's own code.**
+ *
+ * **The answer is read from the call — `chromium.launchPersistentContext` and
+ * `firefox.launchPersistentContext` — and not from a comment**, because **comments cannot satisfy
+ * or trip this**, which is the rule the quarantine assertion already states. **And the dotted
+ * spelling is the discriminator**: the bare word `firefox` would not separate the probes, because a
+ * Chromium probe may name Firefox in passing, and **a discriminator that does not discriminate is
+ * a rule that checks nothing.**
+ *
+ * **The comments are stripped here rather than by the caller**, so that the helper's contract is
+ * whole and can be tested on its own — **and the rule that uses it would otherwise be satisfied by
+ * every probe in the list passing, which is a check that cannot fail for the reason it exists.**
+ */
+const enginesOf = (source: string): string[] => {
+  const probe = stripComments(source);
+  return ["chromium", "firefox"].filter((engine) =>
+    probe.includes(`${engine}.launchPersistentContext`),
+  );
+};
 
 /**
  * Every module specifier a source file can name, in every syntactic form the
@@ -3936,14 +3964,87 @@ describe("architecture boundaries", () => {
         const [probePath] = findFilesNamed(probeName);
         expect(probePath, `${probeName} must exist, or this rule checks nothing`).toBeDefined();
         const probe = stripComments(readFileSync(probePath as string, "utf8"));
+
+        /**
+         * **Which engine this probe loads its extension in, read from the probe's own code and
+         * not from prose.**
+         *
+         * **The rule's subject is the *duplication* of two flags that a plain `.mjs` cannot
+         * import from the shipped helper** — that is why every probe has to spell them. **A probe
+         * that does not load an extension in Chromium has no such duplication**, and requiring it
+         * to spell Chromium's flags would be requiring a lie: Firefox does not take them, and
+         * Chromium's flags are meaningless to it.
+         *
+         * **So the rule asks the probe which engine it uses, and the answer is read from the
+         * call** — `chromium.launchPersistentContext` and `firefox.launchPersistentContext` — and
+         * **not from a comment**, because **comments cannot satisfy or trip this**, which is the
+         * rule the quarantine assertion above already states.
+         *
+         * **And the partition is derived from the probes themselves rather than from a second
+         * list**, because **a second list is a second spelling of a set**, and this repository's
+         * recorded defect — and the two lists could disagree without anything reporting it.
+         */
+        const engines = enginesOf(readFileSync(probePath as string, "utf8"));
+
+        /**
+         * **Exactly one**, and **this is also the positive control the rule needs**: a matcher
+         * that matched nothing would leave `engines` empty and **fail here**, rather than
+         * satisfying every assertion below it — **which is the shape a rule with a broken
+         * matcher takes, and the reason every negative assertion here needs a positive one.**
+         */
         expect(
-          probe.includes(flag),
-          `${probeName} does not name ${flag}, so it cannot be known to load an extension the ` +
-            `same way extensionFlags() does. Chromium reports no error when an extension fails ` +
-            `to load — it silently loads nothing.`,
-        ).toBe(true);
+          engines,
+          `${probeName} must load its extension through exactly one engine's launch, so that ` +
+            `"it loads nothing silently" is a question somebody has answered.`,
+        ).toHaveLength(1);
+
+        // **And the flags are required of the probes that load in Chromium.**
+        if (engines[0] === "chromium") {
+          expect(
+            probe.includes(flag),
+            `${probeName} does not name ${flag}, so it cannot be known to load an extension the ` +
+              `same way extensionFlags() does. Chromium reports no error when an extension fails ` +
+              `to load — it silently loads nothing.`,
+          ).toBe(true);
+        }
       }
     }
+  });
+
+  /**
+   * The discriminator's own control, because the rule that uses it would otherwise be satisfied
+   * by every probe in the list passing.
+   *
+   * **A check that cannot fail for the reason it exists is not a check** — and this rule's whole
+   * subject is a partition that has to be *total and exclusive*: a probe naming neither engine is
+   * one that **cannot be known to load an extension at all**, and a probe naming both is one whose
+   * flags **cannot be known to be the right ones**. **Both are the failure the rule exists to
+   * report, and neither can be reached by editing the list** — because the list is a list of probes
+   * that exist.
+   */
+  it("separates the probes by the engine they load through, and reports a probe that does neither", () => {
+    // **The two shapes the list actually holds.**
+    expect(enginesOf("await chromium.launchPersistentContext(userDataDir);")).toEqual(["chromium"]);
+    expect(enginesOf("await firefox.launchPersistentContext(userDataDir);")).toEqual(["firefox"]);
+
+    // **And the arm the rule exists to report: a probe that names neither engine.**
+    expect(enginesOf("await browser.launch();")).toEqual([]);
+
+    // **And the other arm: a probe that names both, whose flags cannot be known to be right.**
+    expect(
+      enginesOf(
+        "await chromium.launchPersistentContext(a); await firefox.launchPersistentContext(b);",
+      ),
+    ).toEqual(["chromium", "firefox"]);
+
+    // **And the negative control: a probe that merely *mentions* an engine is not one that
+    // loads through it.** A Chromium probe may name Firefox in passing, and a discriminator that
+    // does not discriminate is a rule that checks nothing.
+    expect(
+      enginesOf(
+        "// compared against firefox.launchPersistentContext\nawait chromium.launchPersistentContext(a);",
+      ),
+    ).toEqual(["chromium"]);
   });
 
   it("collects every browser spec, and never as a unit test", () => {

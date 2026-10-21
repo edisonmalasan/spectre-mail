@@ -1485,9 +1485,10 @@ test("this file shares no reader with the other two architecture suites", () => 
 test("the boundary suite's assertion count is declared, and the count moved when a case was added", () => {
   // **The count is read out of `boundaries.test.ts` itself**, through this file's own parser, rather
   // than asserted as a number typed here — because a number typed here is a number that stops being
-  // checked the moment the suite moves. **This figure was 53, and it is 54**, because
-  // `architecture-suite-isolation` added one case — the staged-probe vocabulary's completeness
-  // check — and **the figure moved with the thing it counts.**
+  // checked the moment the suite moves. **This figure was 53, then 54, and it is 55**: the
+  // `architecture-suite-isolation` change added the staged-probe vocabulary's completeness check,
+  // and `firefox-compatibility-spike` added the discriminator's own control — **and the figure moved
+  // with the thing it counts, both times.**
   //
   // **And the prediction this file used to carry is now recorded as what it was and what it
   // became.** The prediction was that the count would stay at 53, because every property that
@@ -1496,6 +1497,12 @@ test("the boundary suite's assertion count is declared, and the count moved when
   // **That reasoning still holds for the properties it was about, and it did not hold for the
   // vocabulary's completeness check** — which is a property no instrument had, because a list
   // nobody checks is a list that drifts.
+  //
+  // **And the second move was the same shape.** The Firefox spike did not add a *rule* so much as
+  // it amended one — **and the amendment needed a control of its own**, because the rule's new
+  // assertion (a probe must load through exactly one engine) **cannot be reached by editing the
+  // list**, because the list holds probes that exist. **A check that cannot fail for the reason it
+  // exists is not a check**, and the control is what makes the partition falsifiable.
   //
   // **So the count moved, and the title of this test moved with it.** A test whose title names a
   // number the assertion no longer expects is a test that reads as a claim about something else,
@@ -1519,10 +1526,10 @@ test("the boundary suite's assertion count is declared, and the count moved when
   };
   walk(parsed);
 
-  // **The count moved from 53 to 54, and this is the record of why.** The boundary suite gained
-  // one case — the staged-probe vocabulary's completeness check — so the figure this file
-  // declares moved with it. **A declared count that does not move when the thing it counts moves is
-  // a count nobody has re-read**, and this file's claim is that the count is read from the
-  // source rather than carried by hand.
-  expect(cases, "the boundary suite's case count, read from its own source").toBe(54);
+  // **The count moved from 54 to 55, and this is the record of why.** The boundary suite gained
+  // one case — the discriminator's own control — so the figure this file declares moved with it.
+  // **A declared count that does not move when the thing it counts moves is a count nobody has
+  // re-read**, and this file's claim is that the count is read from the source rather than carried
+  // by hand.
+  expect(cases, "the boundary suite's case count, read from its own source").toBe(55);
 });
