@@ -260,3 +260,47 @@ uncommitted work, and this repository has been bitten by that twice in this sess
 - **No cause for the failure.** Firefox's own output named a **Juggler** error and three
   Windows-shell errors, and `MOZ_LOG` wrote no file — **and the record does not name a cause it did
   not measure.**
+
+---
+
+## Recorded at sync (2026-10-21)
+
+**One `MODIFIED` promoted, and the totals moved by zero requirements and three scenarios.**
+
+```text
+before: 190 requirements and 626 scenarios across 15 capabilities
+after:  190 requirements and 629 scenarios across 15 capabilities
+```
+
+**And the zero in the requirement column is the arithmetic working and not a promotion that
+missed** — **a `MODIFIED` block replaces rather than adds** — so `browser-verification` went
+**5 requirements / 12 scenarios → 5 / 15** and **the other fourteen capabilities are identical**,
+which is the measurement the count exists for.
+
+**The promotion was rehearsed in full on a throwaway copy of `openspec/` before it touched the
+real tree.** The rehearsal and the real promotion produced **the same SHA-256 of the promoted
+file** (`82d721958b1f38eb…`), so the rehearsal was **faithful rather than approximately so** — and
+**the real tree was measured to be untouched by the rehearsal**.
+
+**The promoter and the verifier share no reader.** The promoter walks the text with `indexOf` and
+a search for the next heading; **the verifier splits whole text by regex** and compares **whole
+blocks** — **because a count cannot detect a wrong block**. **The verifier's own self-test is 5 of
+5 in both argument orders** (the flag first and the flag last), because **a reader that only
+parses one order is half a reader**, and its negative control requires the unsabotaged text to
+report no difference, or **a reader that named one for everything would satisfy the case**.
+
+**And the promoter's three guards were falsified separately, and every one refused with exit `1`
+and left the file byte-identical** — because **a guard that refuses and still writes is not a
+guard**, so each arm measured the file's digest and not the exit code alone:
+
+| the arm | what it would have done | what happened |
+| --- | --- | --- |
+| a `MODIFIED` landing on a heading the promoted spec does not carry | **a silent substitution wearing the name of an addition** | `REFUSING`, exit `1`, the file byte-identical |
+| the same heading twice in the promoted spec | **replacing one of two is a coin flip** | `REFUSING`, exit `1`, the file byte-identical |
+| a block carrying no scenario | **a requirement is not a heading** | `REFUSING`, exit `1`, the file byte-identical |
+
+**And the promoter is idempotent**: the second and third runs reported *"already promoted;
+nothing written"* and left the file byte-identical — **because a tool that reports a promotion it
+did not perform is a tool whose report nobody can trust**.
+
+**`openspec validate --specs --strict` — 15 passed, 0 failed.**

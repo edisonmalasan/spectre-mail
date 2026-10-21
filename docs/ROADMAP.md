@@ -74,7 +74,7 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > **The archive moved 4 files, every one byte-identical to a pre-archive digest taken
 > programmatically, with Git's own rename detection confirming it independently — four renames at
 > `R100` and `0 insertions, 0 deletions`** — and all **16** files under `openspec/specs/`
-> byte-identical throughout. **The next change is APPLIED and it is a measurement**:
+> byte-identical throughout. **The next change is APPLIED and SYNCED, and it is a measurement**:
 > **`firefox-compatibility-spike`**, because **the roadmap's M14 assumes Firefox is a matter of
 > adapting a manifest, and the measurement says the first question is not what to adapt but whether
 > this repository can reach Firefox at all.** **And the answer is that it cannot: 0 of 10 arms
@@ -106,13 +106,17 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > 1), `page-composition` (M7 slice 3), `extension-client` (M8),
 > `in-page-integration` (M9 slice 1) and `privacy-disclosure` (M12). Counted
 > mechanically at each sync and again after each archive, they hold **190 requirements
-> and 626 scenarios** in total — **measured by heading across the tree after
-> `load-independent-results`'s sync on 2026-10-21**, and *corrected* from the **190 / 625**
-> this line carried until then, **which was itself the figure `architecture-suite-cleanup`'s
+> and 629 scenarios** in total — **measured by heading across the tree after
+> `firefox-compatibility-spike`'s sync on 2026-10-21**, and *corrected* from the **190 / 626**
+> this line carried until then, **which was itself the figure `load-independent-results`'s
 > sync left behind**. **The change that moved it is a `MODIFIED`, so the requirement count
-> did not move at all and the scenario count moved by one** — and **only
-> `build-and-verification` moved**, from **14 / 46** to **14 / 47**, **while the other
+> did not move at all and the scenario count moved by three** — and **only
+> `browser-verification` moved**, from **5 / 12** to **5 / 15**, **while the other
 > fourteen capabilities are identical**, which is the measurement the count exists for.
+> **And `load-independent-results`'s sync moved the same line the same way** — a `MODIFIED`
+> on `build-and-verification`, from **14 / 46** to **14 / 47**, **and the zero in the
+> requirement column was the arithmetic working and not a promotion that missed**, because a
+> `MODIFIED` block *replaces* rather than adds.
 > **The `architecture-suite-isolation` sync corrected this line to 189 / 620, and that edit did
 > not land** — the file was restored from the commit before it and the correction went with
 > it. **That is the defect this line exists to record, happening in the line itself:** a
