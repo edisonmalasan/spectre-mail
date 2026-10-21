@@ -98,11 +98,11 @@
 > And the gate is **not** proven deterministic under every load; the measurement is a table of
 > runs, not a proof.
 
-> **`load-independent-results` is APPLIED**, and its finding is that **a clean `main` had a unit
-> suite that was red in 3 of 5 full runs, and the cause was a query's cost rather than a missing
-> element.** Proposal PR **#172** merged `f2b8fe5`; the apply PR number is **left unfilled here**
-> and is filled by `gh pr view` at the sync stage, **because a predicted PR number in a document
-> other stages cite by name is a figure nobody counted**.
+> **`load-independent-results` is APPLIED, SYNCED**, and its finding is that **a clean `main` had a
+> unit suite that was red in 3 of 5 full runs, and the cause was a query's cost rather than a missing
+> element.** Proposal PR **#172** merged `f2b8fe5`; apply PR **#173** merged `8ba2a69`; the sync PR
+> number is **left unfilled here** and is filled by `gh pr view` at the archive stage, **because a
+> predicted PR number in a document other stages cite by name is a figure nobody counted**.
 >
 > **And the red had a name.** Every red was the same case — `apps/extension/src/Panel.test.tsx` →
 > *"the panel renders the mailbox beside the page > names the mailbox this page resolves to and the
@@ -159,6 +159,24 @@
 > "heading"` — **so four arms were reported as `wrongcatch` when every one of them had been caught
 > by the assertion it was aimed at**. **A confident wrong answer from an unnamed reader is
 > indistinguishable from a real defect until the reader itself is read.**
+>
+> **And the sync promoted one `MODIFIED` and moved the totals by zero requirements and one
+> scenario**, from **190 / 625** to **190 / 626** — **and the zero is the arithmetic working and not
+> a promotion that missed**, because a `MODIFIED` block *replaces* rather than adds, so
+> `build-and-verification` went **14 / 46 → 14 / 47** and **every other capability is identical**,
+> which is the measurement the count exists for. **The promotion was rehearsed in full on a
+> throwaway copy of `openspec/` before it touched the real tree**, and **the real promotion
+> produced the rehearsal's exact SHA-256** — so the rehearsal was faithful rather than
+> approximately so. **The promoter and the verifier share no reader**: the promoter walks the text
+> with `indexOf` and a search for the next heading, **and the verifier splits whole text by
+> regex**, so neither can inherit the other's blind spot — **and the verifier's own self-test is
+> 5 of 5 in both argument orders**, because a reader that only parses one order is half a reader.
+> **And the promoter's three guards were falsified separately, and every one refused with exit `1`
+> and left the file byte-identical**: a `MODIFIED` landing on a heading the promoted spec does not
+> carry (**a silent substitution wearing the name of an addition**), the same heading twice (**and
+> replacing one of two is a coin flip**), and a block carrying no scenario (**a requirement is not
+> a heading**). **A guard that refuses and still writes is not a guard**, so each arm measured the
+> file's digest and not the exit code alone.
 >
 > **What this does not establish.** **The suite is not proven free of load-dependence** — this
 > change repairs the two sites the measurement named, and **a red that never named the others is
