@@ -98,11 +98,12 @@
 > And the gate is **not** proven deterministic under every load; the measurement is a table of
 > runs, not a proof.
 
-> **`firefox-compatibility-spike` is APPLIED, SYNCED**, and its finding is that **a clean `main` could not
-> reach Firefox at all, and that the obstacle is not the product's manifest.** Proposal PR **#176**
-> merged `1998eb2`; apply PR **#177** merged `962c20c`; the sync PR number is **left unfilled
-> here** and is filled by `gh pr view` at the archive stage, **because a predicted PR number in a
-> document other stages cite by name is a figure nobody counted**.
+> **`firefox-compatibility-spike` is APPLIED, SYNCED and ARCHIVED** at
+> `openspec/changes/archive/2026-10-21-firefox-compatibility-spike/`, and its finding is that **a
+> clean `main` could not reach Firefox at all, and that the obstacle is not the product's
+> manifest.** Proposal PR **#176** merged `1998eb2`; apply PR **#177** merged `962c20c`; sync PR
+> **#178** merged `1710021`; **the archive PR number is left unfilled here**, for the reason this
+> file records above.
 >
 > **And the measurement is 0 of 10.** Nine manifest variants over the XPI route, plus the profile
 > route over the positive control: **Playwright's Firefox — the only Firefox on this machine —
@@ -208,6 +209,19 @@
 > two is a coin flip**), and a block carrying no scenario (**a requirement is not a heading**).
 > **A guard that refuses and still writes is not a guard**, so each arm measured the file's digest
 > and not the exit code alone.
+>
+> **⇒ And the archive moved 4 files, every one byte-identical to a pre-archive digest taken
+> programmatically, and Git's own rename detection confirms it independently — four renames at
+> `R100` and `0 insertions, 0 deletions`.** All **16** files under `openspec/specs/` are
+> byte-identical throughout. The promoted block re-verified **BYTE-IDENTICAL against the *archived*
+> delta**, with the verifier pointed at the archived path **after being shown to fail loudly with
+> `ENOENT` on the absent pre-archive one** — **because a verifier pointed at a path that no longer
+> exists would otherwise report nothing at all.** Counts **re-counted after the move** at
+> **190 requirements and 629 scenarios across 15 capabilities**, unmoved by the archive, and
+> `openspec validate --specs --strict` at **15 passed, 0 failed**. `openspec list` reports **no
+> active changes**. **The archive's own output said *Task status: ✓ Complete*, and this stage
+> edited none of the archived files** — so the digest table is a claim about the instant the
+> archive command returned, and nothing moved after it.
 >
 > **What this does not establish.** **Nothing about Firefox's capabilities** — every row is a fact
 > about **this machine's reach**. **Nothing about the manifest**, and the `bare` arm **refutes** the
