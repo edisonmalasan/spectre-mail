@@ -74,8 +74,10 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > **The archive moved 4 files, every one byte-identical to a pre-archive digest taken
 > programmatically, with Git's own rename detection confirming it independently — four renames at
 > `R100` and `0 insertions, 0 deletions`** — and all **16** files under `openspec/specs/`
-> byte-identical throughout. **The next change is APPLIED and SYNCED, and it is a measurement**:
-> **`firefox-compatibility-spike`**, because **the roadmap's M14 assumes Firefox is a matter of
+> byte-identical throughout. **The next change is APPLIED, SYNCED and ARCHIVED, and it is a
+> measurement**: **`firefox-compatibility-spike`**, at
+> `openspec/changes/archive/2026-10-21-firefox-compatibility-spike/`, because **the roadmap's M14
+> assumes Firefox is a matter of
 > adapting a manifest, and the measurement says the first question is not what to adapt but whether
 > this repository can reach Firefox at all.** **And the answer is that it cannot: 0 of 10 arms
 > installed.** **Playwright's Firefox is present here and launches — 155.0** — **so the absence of a
@@ -83,8 +85,8 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > routes available here**: a profile carrying the add-on, and an unsigned XPI with signatures not
 > required, **which is the route a developer would take**. **⇒ And the correction is the finding:
 > the manifest is not what Firefox refused.** A **`bare`** MV3 manifest — and a `bare` one with a
-> gecko add-on id — **failed identically to the shipped one**, **so the \`sidePanel\` permission, the
-> \`side_panel\` key and the \`background.service_worker\` are not what was refused**, and **a
+> gecko add-on id — **failed identically to the shipped one**, **so the `sidePanel` permission, the
+> `side_panel` key and the `background.service_worker` are not what was refused**, and **a
 > refutation is not an endorsement: the manifest's compatibility with Firefox remains unmeasured.**
 > **⇒ And the eleven platform capabilities and the side panel's shape are not measurable here at
 > all**, because **no extension context existed to probe** — **so M14's implementation cannot begin
@@ -92,11 +94,15 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > installs extensions — a real, unpatched one, driven by a mechanism this repository does not have
 > — or shipping for Firefox unverified and saying so**, **and the second branch is a product
 > decision.** **The compatibility seam already exists and is one file**:
-> \`apps/extension/src/extension-platform.ts\`, 709 lines and eleven exported capabilities, **and the
+> `apps/extension/src/extension-platform.ts`, 709 lines and eleven exported capabilities, **and the
 > boundary rule already confines the platform global to exactly that module.** **The record is
-> \`docs/BROWSERS.md\`, and not a section in \`docs/PROVIDERS.md\`** — **which is on this
-> repository's do-not-touch list.** **What comes after it is not decided, and this block does not
-> decide it.**
+> `docs/BROWSERS.md`, and not a section in `docs/PROVIDERS.md`** — **which is on this
+> repository's do-not-touch list.** **The archive moved 4 files, every one byte-identical to a
+> pre-archive digest taken programmatically, with Git's own rename detection confirming it
+> independently — four renames at `R100` and `0 insertions, 0 deletions`** — and all **16** files
+> under `openspec/specs/` byte-identical throughout, with the counts **re-counted after the move at
+> 190 requirements and 629 scenarios across 15 capabilities**, unmoved by the archive. **What comes
+> after it is not decided, and this block does not decide it.**
 >
 > `openspec/specs/` holds **fifteen** capabilities: `provider-abstraction` (promoted
 > from `provider-role-decision`), `monorepo-foundation` (M1), `shared-domain-model`
