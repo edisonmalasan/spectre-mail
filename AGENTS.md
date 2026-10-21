@@ -98,6 +98,76 @@
 > And the gate is **not** proven deterministic under every load; the measurement is a table of
 > runs, not a proof.
 
+> **`load-independent-results` is APPLIED**, and its finding is that **a clean `main` had a unit
+> suite that was red in 3 of 5 full runs, and the cause was a query's cost rather than a missing
+> element.** Proposal PR **#172** merged `f2b8fe5`; the apply PR number is **left unfilled here**
+> and is filled by `gh pr view` at the sync stage, **because a predicted PR number in a document
+> other stages cite by name is a figure nobody counted**.
+>
+> **And the red had a name.** Every red was the same case — `apps/extension/src/Panel.test.tsx` →
+> *"the panel renders the mailbox beside the page > names the mailbox this page resolves to and the
+> provider that served it"* — and **the same file alone was green in 6 of 6**. **⇒ Load-sensitive,
+> and the tree did not change between a red and a green**, which is the shape this file records as
+> meaning nothing in either direction.
+>
+> **And the cause is measured, not guessed, and it is the opposite of what the failure message
+> says.** The message reads `Unable to find role="heading" and name "guerrilla"`, which looks like
+> *"the heading never arrived"*. **It always arrived.** The address section arrives in **42–108
+> ms**; the accessible-name query for the heading, run *after* the answer was already on screen,
+> costs **170–430 ms** — **and it succeeds every time**; and the case's old form took **366 ms to
+> 1413 ms** against Testing Library's **default 1000 ms** budget. **⇒ The heading was never late.
+> The query was slow, and the wait's budget was spent on it.** `getByRole(role, { name })` computes
+> an accessible name for every candidate carrying the role, and this panel has six headings.
+>
+> **And the repair is not a larger number.** A hand-picked ceiling is this repository's recorded
+> defect with a bigger constant, and **there is no ceiling that is right on a machine whose cost
+> moves**. **So the wait establishes the precondition by the surface's own cheap handle — the
+> panel's `panel-address` testid, the popup's address text — and the expensive question is then
+> asked once, synchronously, unbudgeted.** **⇒ The budget is no longer the thing that has to
+> fit.** **And no shipped file changes**: both surfaces already carried a cheap handle, and the
+> product does not grow a hook for a test that has not earned it. **And the same shape was at a
+> second site** in `apps/extension/src/Popup.test.tsx`, because **a defect that shows up at one site
+> is evidence about the sites and not about the one.**
+>
+> **And the requirement it carries is the green half of a prohibition this repository already
+> holds.** `build-and-verification`'s *"A passing test run asserts something"* already says that
+> **a failure that appears and disappears without the tree changing SHALL NOT be reported as a
+> result**, because a red that means only that the machine was busy is worse than no red at all.
+> **⇒ The green half is the same defect and was not covered**, and **a green that means only that
+> the machine was idle is a claim about nothing.** The amendment is a `MODIFIED` and not an
+> `ADDED` sibling — **two requirements about one subject is the shape this repository has recorded
+> as a second spelling of a set** — and it **carries all four of the requirement's existing
+> scenarios forward byte for byte**, which was done by extracting the block from the promoted file
+> and splicing the new material into it rather than by retyping it.
+>
+> **And the falsification is 5 of 5 caught by the assertion each was aimed at**, with
+> `wrongcatch`, `green`, `noop` and `harness-error` **all zero** and **every mutated file
+> restored byte-identical** against a SHA-256 taken **before** the mutation. **The table after the
+> repair is 20 of 20 green**, and the branch's diff is **byte-identical to the patch the table was
+> measured on** — SHA-256 `cf36eb5e…` on both — **so the table measured exactly this content and
+> not a tree that changed afterwards.** `pnpm verify` exited `0` **three times** with
+> `PLAYWRIGHT_BROWSERS_PATH` pointed at a directory measured to hold **0 entries**, and
+> `openspec validate --specs --strict` is **15 passed, 0 failed**.
+>
+> **And two of this change's own instruments reported a confident wrong answer before they were
+> repaired, and both are the shapes this file records.** **The reader that counted the runs
+> recognised only the red shape** — its pattern required the word `failed` — **so five green runs
+> were reported as five harness errors**, because **a reader that matches one shape of the answer
+> reports the other shape as the absence of an answer**. **And the first version of the attribution
+> reader expected a message Testing Library does not emit** — it looked for `Unable to find
+> role="heading"` where the message is `Unable to find an accessible element with the role
+> "heading"` — **so four arms were reported as `wrongcatch` when every one of them had been caught
+> by the assertion it was aimed at**. **A confident wrong answer from an unnamed reader is
+> indistinguishable from a real defect until the reader itself is read.**
+>
+> **What this does not establish.** **The suite is not proven free of load-dependence** — this
+> change repairs the two sites the measurement named, and **a red that never named the others is
+> not evidence that they are sound**, so the requirement says a result must not depend on the
+> machine and a site that does is a failure of the requirement. **The table is a table of runs,
+> not a proof.** And the numbers are **this** machine's **this** load: **the property the repair
+> establishes is that the query's cost is no longer inside a budget**, which is a property of the
+> test and not of the hardware.
+
 > **`architecture-suite-isolation` is APPLIED, SYNCED and ARCHIVED** at
 > `openspec/changes/archive/2026-10-20-architecture-suite-isolation/`. Proposal PR **#163**
 > merged `5ae8977`; apply PR **#164** merged `05308df`; sync PR **#165** merged `7d57b75`;

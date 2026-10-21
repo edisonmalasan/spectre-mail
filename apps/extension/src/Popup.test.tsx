@@ -362,10 +362,27 @@ describe("the popup", () => {
       />,
     );
 
+    /**
+     * **The wait is on the popup's own output, by its cheap handle, and the accessible-name query
+     * runs once, unbudgeted.**
+     *
+     * **This is the second site of the same shape, and a defect that shows up at one site is
+     * evidence about the sites and not about the one.** `Panel.test.tsx`'s case of the same form
+     * was measured red in **3 of 5** full-suite runs on a clean `main` and green in 6 of 6 alone —
+     * and the cause was measured to be **the accessible-name query's cost** (**170–430 ms** under
+     * load), not the heading arriving late, against **the default 1000 ms** wait budget.
+     *
+     * **The popup's address is the cheap handle, and it sits in the same section as the heading** —
+     * so waiting for the address waits for the very section whose heading the assertion names.
+     */
+    await waitFor(() => {
+      expect(screen.getByText(MAILBOX.address)).toBeDefined();
+    });
+
     // **`primaryProviderName` is not on screen once a mailbox exists.** The heading names
     // the mailbox's own provider, so a mailbox served by the fallback is never described
     // by the preference that was tried first.
-    expect(await screen.findByRole("heading", { name: "guerrilla" })).toBeDefined();
+    expect(screen.getByRole("heading", { name: "guerrilla" })).toBeDefined();
     expect(screen.queryByText("Mail.tm")).toBeNull();
   });
 

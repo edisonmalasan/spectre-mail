@@ -483,10 +483,48 @@ describe("the panel renders the mailbox beside the page", () => {
 
     renderPanel();
 
+    /**
+     * **The wait is on the panel's own output, by its cheap handle, and the accessible-name query
+     * runs once, unbudgeted.**
+     *
+     * **What the red measured.** On a clean `main`, this case was **red in 3 of 5** full-suite runs
+     * and green in 2, always with this name — and **green in 6 of 6** when the file ran alone. **A
+     * red that appears and disappears without the tree changing is a red that means nothing**, and
+     * so is a green that does.
+     *
+     * **The cause is measured, not guessed.** The address section arrives in **42–108 ms**; the
+     * accessible-name query for the heading, run *after* the answer was already on screen, costs
+     * **170–430 ms** — and it **succeeds** every time. **So the heading was never late. The query
+     * was slow.** `findByRole` spends the whole wait's budget on computing accessible names for
+     * the panel's headings, and the budget is the default **1000 ms** — which the two costs
+     * together cross about half the time under a loaded machine. **Measured total for this case's
+     * old form: 366 ms to 1413 ms.**
+     *
+     * **So the repair is not a larger number.** A hand-picked ceiling is this repository's recorded
+     * defect with a bigger constant, and the budget is not the thing that has to fit: **the state
+     * arrives in under a tenth of a second, and what had to fit was a query that costs four times
+     * that.** The repair waits on **the section's own testid**, which is cheap, and then runs the
+     * **accessible-name query once, synchronously** — where its cost is real work rather than a
+     * budget being raced.
+     *
+     * **And the assertion is unchanged and strictly stronger than the wait it replaces.** The old
+     * form could pass by the heading appearing late; the new form cannot pass at all until the
+     * section is on screen, and the heading's name is then read with no timeout to expire. **A
+     * mutation that dropped the section, dropped the heading, or changed the provider's name is
+     * still caught** — the first by the wait, the second and third by the query.
+     *
+     * **This is the tenth recorded *precondition* defect, and the second on this file's own
+     * surface** — and the repair is a wait rather than a relaxed assertion, which is the same
+     * repair the ninth one got.
+     */
+    await waitFor(() => {
+      expect(screen.getByTestId("panel-address")).toBeDefined();
+    });
+
     // **The address section's heading is the provider that served the mailbox, not the one this
     // client reaches first** — a mailbox served by the fallback is never described by the
     // preference that was tried first.
-    expect(await screen.findByRole("heading", { name: "guerrilla" })).toBeDefined();
+    expect(screen.getByRole("heading", { name: "guerrilla" })).toBeDefined();
     expect(screen.queryByText("Mail.tm")).toBeNull();
     expect(screen.getByText(MAILBOX.address)).toBeDefined();
 
