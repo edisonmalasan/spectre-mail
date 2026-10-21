@@ -66,15 +66,17 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > `spectre-storage` (M6 slice 1), `browser-verification`, `visual-system` (M7 slice
 > 1), `page-composition` (M7 slice 3), `extension-client` (M8),
 > `in-page-integration` (M9 slice 1) and `privacy-disclosure` (M12). Counted
-> mechanically at each sync and again after each archive, they hold **188 requirements
-> and 615 scenarios** in total — **measured by heading across the tree after
-> `beta-diagnostics`'s sync on 2026-10-20**, and *corrected* from the **168 / 544**
-> this line carried until then, which had been stale since `extension-clear-data`'s
-> archive on 2026-10-13. **That line was the figure a reader copies, and the headline is
-> the one number in this block no change has to touch to record itself** — the exact
-> defect this repository has recorded before, and it survived four milestones because
-> every change wrote its own entry below and nobody re-read the first paragraph. See
-> the change entries below for the per-commit trace.
+> mechanically at each sync and again after each archive, they hold **190 requirements
+> and 625 scenarios** in total — **measured by heading across the tree after
+> `architecture-suite-cleanup`'s sync on 2026-10-21**, and *corrected* from the **188 / 615**
+> this line carried until then, **which was itself one change stale**. **The
+> `architecture-suite-isolation` sync corrected this line to 189 / 620, and that edit did
+> not land** — the file was restored from the commit before it and the correction went with
+> it. **That is the defect this line exists to record, happening in the line itself:** a
+> figure a reader copies, and a change that recorded itself in the ledgers but not in the
+> figure. **And the cause is a shape this repository keeps meeting** — a file restored from a
+> commit discards uncommitted work, and a record written in the working tree is a record that
+> can be discarded.
 >
 > **The `alarms-packing-interval` spike declared `skip_specs` and promoted nothing, and
 > that was verified rather than assumed**: immediately after the archive the totals were
