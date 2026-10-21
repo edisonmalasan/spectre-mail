@@ -74,8 +74,20 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > **The archive moved 4 files, every one byte-identical to a pre-archive digest taken
 > programmatically, with Git's own rename detection confirming it independently — four renames at
 > `R100` and `0 insertions, 0 deletions`** — and all **16** files under `openspec/specs/`
-> byte-identical throughout. **What comes after it is not decided, and this block does not decide
-> it.**
+> byte-identical throughout. **The next change is PROPOSED and it is a measurement**:
+> **`firefox-compatibility-spike`**, because **the roadmap's M14 assumes Firefox is a matter of
+> adapting a manifest, and the measurement says the first question is not what to adapt but whether
+> this repository can reach Firefox at all.** **Playwright's Firefox is present here and launches —
+> 155.0** — **so the absence of a Firefox is not the obstacle** — **and the extension did not install
+> into it by either of the two routes available here**: a profile carrying the add-on, and an
+> unsigned XPI with signatures not required, **which is the route a developer would take**. **And
+> the manifest asks for three things Firefox has no equivalent for as written** — the `sidePanel`
+> permission, the `side_panel` key, and a `background.service_worker` — **and an unknown permission
+> is a manifest error rather than a missing feature**, so the three asks are three things to
+> *decide* and not three adaptations. **The compatibility seam already exists and is one file**:
+> `apps/extension/src/extension-platform.ts`, 709 lines and eleven exported capabilities, **and the
+> boundary rule already confines the platform global to exactly that module.** **What comes after
+> it is not decided, and this block does not decide it.**
 >
 > `openspec/specs/` holds **fifteen** capabilities: `provider-abstraction` (promoted
 > from `provider-role-decision`), `monorepo-foundation` (M1), `shared-domain-model`

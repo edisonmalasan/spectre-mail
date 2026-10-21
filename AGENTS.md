@@ -102,8 +102,7 @@
 > `openspec/changes/archive/2026-10-21-load-independent-results/`, and its finding is that **a clean
 > `main` had a unit suite that was red in 3 of 5 full runs, and the cause was a query's cost rather
 > than a missing element.** Proposal PR **#172** merged `f2b8fe5`; apply PR **#173** merged
-> `8ba2a69`; sync PR **#174** merged `920b9c8`; **the archive PR number is left unfilled here**, for
-> the reason this file records above.
+> `8ba2a69`; sync PR **#174** merged `920b9c8`; archive PR **#175** merged `2603a32`.
 >
 > **And the red had a name.** Every red was the same case — `apps/extension/src/Panel.test.tsx` →
 > *"the panel renders the mailbox beside the page > names the mailbox this page resolves to and the
