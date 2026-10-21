@@ -98,11 +98,11 @@
 > And the gate is **not** proven deterministic under every load; the measurement is a table of
 > runs, not a proof.
 
-> **`firefox-compatibility-spike` is APPLIED**, and its finding is that **a clean `main` could not
+> **`firefox-compatibility-spike` is APPLIED, SYNCED**, and its finding is that **a clean `main` could not
 > reach Firefox at all, and that the obstacle is not the product's manifest.** Proposal PR **#176**
-> merged `1998eb2`; the apply PR number is **left unfilled here** and is filled by `gh pr view` at
-> the sync stage, **because a predicted PR number in a document other stages cite by name is a figure
-> nobody counted**.
+> merged `1998eb2`; apply PR **#177** merged `962c20c`; the sync PR number is **left unfilled
+> here** and is filled by `gh pr view` at the archive stage, **because a predicted PR number in a
+> document other stages cite by name is a figure nobody counted**.
 >
 > **And the measurement is 0 of 10.** Nine manifest variants over the XPI route, plus the profile
 > route over the positive control: **Playwright's Firefox — the only Firefox on this machine —
@@ -190,6 +190,24 @@
 > byte-identical against a SHA-256 taken before the stash** — **because a file restored from a
 > commit discards uncommitted work, and this repository has been bitten by that twice in this
 > session.**
+>
+> **⇒ And the sync promoted one `MODIFIED` and moved the totals by zero requirements and three
+> scenarios**, from **190 / 626** to **190 / 629** — **and the zero is the arithmetic working and not
+> a promotion that missed**, because a `MODIFIED` block *replaces* rather than adds, so
+> `browser-verification` went **5 / 12 → 5 / 15** and **every other capability is identical**,
+> which is the measurement the count exists for. **The promotion was rehearsed in full on a
+> throwaway copy of `openspec/` before it touched the real tree**, and **the real promotion produced
+> the rehearsal's exact SHA-256** — so the rehearsal was faithful rather than approximately so.
+> **The promoter and the verifier share no reader**: the promoter walks the text with `indexOf` and
+> a search for the next heading, **and the verifier splits whole text by regex**, so neither can
+> inherit the other's blind spot — **and the verifier's own self-test is 5 of 5 in both argument
+> orders**, because **a reader that only parses one order is half a reader**. **And the promoter's
+> three guards were falsified separately, and every one refused with exit `1` and left the file
+> byte-identical**: a `MODIFIED` landing on a heading the promoted spec does not carry (**a silent
+> substitution wearing the name of an addition**), the same heading twice (**and replacing one of
+> two is a coin flip**), and a block carrying no scenario (**a requirement is not a heading**).
+> **A guard that refuses and still writes is not a guard**, so each arm measured the file's digest
+> and not the exit code alone.
 >
 > **What this does not establish.** **Nothing about Firefox's capabilities** — every row is a fact
 > about **this machine's reach**. **Nothing about the manifest**, and the `bare` arm **refutes** the
