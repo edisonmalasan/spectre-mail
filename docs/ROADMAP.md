@@ -64,8 +64,13 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > recorded defect with a larger number** — and the requirement it carries SHALL say that **a
 > result, a pass as well as a failure, that depends on the machine rather than on the tree is
 > not a result.** **Five deliberate violations are caught by the assertion each was aimed at**,
-> and the repair measures **20 of 20 green** against **3 of 5 red** before it. **What comes
-> after it is not decided, and this block does not decide it.**
+> and the repair measures **20 of 20 green** against **3 of 5 red** before it. **`load-independent-results`
+> is APPLIED and SYNCED** — its sync promoted **one `MODIFIED`** and moved the totals by **zero
+> requirements and one scenario**, from **190 / 625** to **190 / 626**, **and the zero is the
+> arithmetic working and not a promotion that missed**: a `MODIFIED` block *replaces* rather than
+> adds, so `build-and-verification` went **14 / 46 → 14 / 47** and **every other capability is
+> identical**, which is the measurement the count exists for. **What comes after it is not decided,
+> and this block does not decide it.**
 >
 > `openspec/specs/` holds **fifteen** capabilities: `provider-abstraction` (promoted
 > from `provider-role-decision`), `monorepo-foundation` (M1), `shared-domain-model`
@@ -75,10 +80,14 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > 1), `page-composition` (M7 slice 3), `extension-client` (M8),
 > `in-page-integration` (M9 slice 1) and `privacy-disclosure` (M12). Counted
 > mechanically at each sync and again after each archive, they hold **190 requirements
-> and 625 scenarios** in total — **measured by heading across the tree after
-> `architecture-suite-cleanup`'s sync on 2026-10-21**, and *corrected* from the **188 / 615**
-> this line carried until then, **which was itself one change stale**. **The
-> `architecture-suite-isolation` sync corrected this line to 189 / 620, and that edit did
+> and 626 scenarios** in total — **measured by heading across the tree after
+> `load-independent-results`'s sync on 2026-10-21**, and *corrected* from the **190 / 625**
+> this line carried until then, **which was itself the figure `architecture-suite-cleanup`'s
+> sync left behind**. **The change that moved it is a `MODIFIED`, so the requirement count
+> did not move at all and the scenario count moved by one** — and **only
+> `build-and-verification` moved**, from **14 / 46** to **14 / 47**, **while the other
+> fourteen capabilities are identical**, which is the measurement the count exists for.
+> **The `architecture-suite-isolation` sync corrected this line to 189 / 620, and that edit did
 > not land** — the file was restored from the commit before it and the correction went with
 > it. **That is the defect this line exists to record, happening in the line itself:** a
 > figure a reader copies, and a change that recorded itself in the ledgers but not in the

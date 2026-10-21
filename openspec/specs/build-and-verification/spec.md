@@ -67,6 +67,14 @@ case differs, one whose extension it does not name, or one whose name carries no
 marker word at all. **The suite's own reader was therefore narrower than the
 rule it documented, and nothing reported it.**
 
+**And a result SHALL NOT depend on the machine rather than on the tree.** A test run
+whose outcome is a function of the machine's load has measured nothing, and **a green that means
+only that the machine was idle is a claim about nothing** -- which is the same defect as the red
+one above, read from the other side. **A wait establishes a precondition and an assertion measures
+a property**, and **a budget is not a wait**: where the assertion's own question is expensive to
+ask, the wait SHALL establish the precondition by a cheaper question and the assertion SHALL then
+ask its question once, rather than the budget being enlarged until the expensive question fits.
+
 #### Scenario: The test suite is empty
 
 - **WHEN** no test files are present
@@ -97,6 +105,13 @@ rule it documented, and nothing reported it.**
 - **THEN** the failure SHALL name the property it measured
 - **AND** **a failure that appears and disappears without the tree changing SHALL NOT be reported as
   a result**, because a red that means only that the machine was busy is worse than no red at all
+
+#### Scenario: A pass that depends on the machine is not a result
+
+- **GIVEN** a test run reports success
+- **THEN** the success SHALL NOT be a function of the machine's load
+- **AND** **a pass that appears and disappears without the tree changing SHALL NOT be reported as
+  a result**, because a green that means only that the machine was idle is a claim about nothing
 
 ### Requirement: Toolchain configuration is shared, not duplicated
 
