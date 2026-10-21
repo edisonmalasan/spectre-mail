@@ -98,11 +98,12 @@
 > And the gate is **not** proven deterministic under every load; the measurement is a table of
 > runs, not a proof.
 
-> **`load-independent-results` is APPLIED, SYNCED**, and its finding is that **a clean `main` had a
-> unit suite that was red in 3 of 5 full runs, and the cause was a query's cost rather than a missing
-> element.** Proposal PR **#172** merged `f2b8fe5`; apply PR **#173** merged `8ba2a69`; the sync PR
-> number is **left unfilled here** and is filled by `gh pr view` at the archive stage, **because a
-> predicted PR number in a document other stages cite by name is a figure nobody counted**.
+> **`load-independent-results` is APPLIED, SYNCED and ARCHIVED** at
+> `openspec/changes/archive/2026-10-21-load-independent-results/`, and its finding is that **a clean
+> `main` had a unit suite that was red in 3 of 5 full runs, and the cause was a query's cost rather
+> than a missing element.** Proposal PR **#172** merged `f2b8fe5`; apply PR **#173** merged
+> `8ba2a69`; sync PR **#174** merged `920b9c8`; **the archive PR number is left unfilled here**, for
+> the reason this file records above.
 >
 > **And the red had a name.** Every red was the same case — `apps/extension/src/Panel.test.tsx` →
 > *"the panel renders the mailbox beside the page > names the mailbox this page resolves to and the
@@ -177,6 +178,35 @@
 > replacing one of two is a coin flip**), and a block carrying no scenario (**a requirement is not
 > a heading**). **A guard that refuses and still writes is not a guard**, so each arm measured the
 > file's digest and not the exit code alone.
+>
+> **And the archive moved 4 files, every one byte-identical to a pre-archive digest taken
+> programmatically, and Git's own rename detection confirms it independently — four renames at
+> `R100` and `0 insertions, 0 deletions`.** All **16** files under `openspec/specs/` are
+> byte-identical throughout. The promoted block re-verified **BYTE-IDENTICAL against the *archived*
+> delta**, with the verifier pointed at the archived path **after being shown to fail loudly with
+> `ENOENT` on the absent pre-archive one** — **because a verifier pointed at a path that no longer
+> exists would otherwise report nothing at all.** Counts **re-counted after the move** at
+> **190 requirements and 626 scenarios across 15 capabilities**, unmoved by the archive, and
+> `openspec validate --specs --strict` at **15 passed, 0 failed**. `openspec list` reports **no
+> active changes**. **The archive's own output said *Task status: ✓ Complete*, and this stage
+> edited none of the archived files** — so the digest table is a claim about the instant the
+> archive command returned, and nothing moved after it.
+>
+> **And this change produced FOUR instrument defects, every one of which reported a confident
+> wrong answer before it was repaired — which is the most this repository has produced in one
+> change, and the reason the record names them.** **The reader that counted the runs recognised
+> only the red shape**, so **five green runs were reported as five harness errors** — **a reader
+> that matches one shape of the answer reports the other shape as the absence of an answer.**
+> **The attribution reader expected a message Testing Library does not emit**, so **four arms were
+> reported as `wrongcatch` when every one of them had been caught by the assertion it was aimed
+> at.** **A digest comparison ran against a shell whose hashing cmdlet does not exist**, so it
+> compared **two empty strings** and printed **IDENTICAL** — **a comparison that cannot read its
+> inputs reports an agreement it never measured.** **And the archive's own verifier kept the
+> digest keys' path separators while the archive wrote the other**, so it reported **4 MISSING
+> and 0 specification files** for a move that had changed nothing. **⇒ Every one of the four is
+> the same shape: a reader that matches nothing, or that cannot read its inputs, reports the
+> absence of the thing it looked for** — and **a confident wrong answer from an unnamed reader is
+> indistinguishable from a real defect until the reader itself is read.**
 >
 > **What this does not establish.** **The suite is not proven free of load-dependence** — this
 > change repairs the two sites the measurement named, and **a red that never named the others is
