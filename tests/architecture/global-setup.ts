@@ -1,4 +1,4 @@
-import { cpSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -61,8 +61,44 @@ export async function setup(): Promise<void> {
     removeStagedProbes(corpus, stem);
   }
 
+  // **And the copy is warmed.**
+  //
+  // **This is not a performance detail -- it is the difference between a gate that runs and a gate
+  // that times out.** The rules read the corpus, and the corpus was *just written*, so every read
+  // was a disk hit; the suite's own file took **60 seconds** against the shipped tree's **16**, and
+  // a vitest worker that takes 60 seconds to report on itself **times out calling the main
+  // process** -- which fails the run with *`Timeout calling "onTaskUpdate"`* and **every one of
+  // the 1378 tests passing**.
+  //
+  // **So the copy is read once, here, and the page cache holds it.** 8.5 MB, and every rule after
+  // this reads from memory.
+  warmCorpus(corpus);
+
   process.env.SPECTRE_CORPUS_ROOT = corpus;
   process.env.SPECTRE_CORPUS_SCRATCH = scratch;
+}
+
+/**
+ * Read every file in the corpus, so the operating system's cache holds it.
+ *
+ * **The corpus is read by the rules tens of times** — thirty-five tree walks, each reading the
+ * files it visits — and a file that was written a moment ago is on disk rather than in memory.
+ * **The cost of reading it once here is far less than the cost of the suite paying for a cold
+ * read on every walk.**
+ */
+function warmCorpus(root: string): void {
+  const walk = (directory: string): void => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      if (EXCLUDED_DIRECTORIES.has(entry.name)) continue;
+      const absolute = join(directory, entry.name);
+      if (entry.isDirectory()) {
+        walk(absolute);
+      } else {
+        readFileSync(absolute);
+      }
+    }
+  };
+  walk(root);
 }
 
 /**

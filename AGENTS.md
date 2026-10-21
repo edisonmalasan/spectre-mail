@@ -1,7 +1,23 @@
 # AGENTS.md
 
-> **`architecture-suite-cleanup` is APPLIED.** Proposal PR **#168** merged `4a1ee5e`; **the
-> apply PR number is left unfilled here**, for the reason this file records above.
+> **`architecture-suite-cleanup` is APPLIED, SYNCED and ARCHIVED** at
+> `openspec/changes/archive/2026-10-21-architecture-suite-cleanup/`. Proposal PR **#168**
+> merged `4a1ee5e`; apply PR **#169** merged `474e3ae`; sync PR **#170** merged `887ca6b`;
+> **the archive PR number is left unfilled here**, for the reason this file records above.
+>
+> **And the archive moved 4 files, every one byte-identical to a pre-archive digest taken
+> programmatically**, and Git's own rename detection confirms it independently — **four renames
+> at `100%`** and **`0 insertions, 0 deletions`**. All **16** files under `openspec/specs/` are
+> byte-identical throughout, checked against **Git**. The promoted block re-verified
+> **BYTE-IDENTICAL against the *archived* delta**, with the verifier pointed at the archived path
+> **after being shown to fail loudly with `ENOENT` on the absent pre-archive one**, and its
+> self-test **5 of 5** there in **both argument orders**. Counts **re-counted after the move** at
+> **190 / 625 / 15**, unmoved by the archive, and `openspec validate --specs --strict` at
+> **15 passed, 0 failed**. **This stage deliberately edited none of the archived files**, and
+> the archive's own output said *Task status: ✓ Complete* — **so the digest table is a claim
+> about the instant the archive command returned, and nothing moved after it.** That is the
+> difference from `beta-diagnostics`'s archive, **whose `tasks.md` sat at `91%`** because a
+> withdrawal was written under its unticked box after the move.
 >
 > **And the finding is that the architecture suite proves its rules by mutating the shipped tree,
 > and a timeout outlives the `finally` that undoes it.** Two of the suite's rules are proved by
@@ -36,6 +52,22 @@
 > **every vocabulary name is removed from it**, so **a probe left behind by an earlier run is
 > not in the corpus and no rule ever sees it** — no rule needs to know which probes are
 > leftovers, and no state is needed that a killed process could leave behind.
+>
+> **And the corpus is warmed, and that is not a performance detail — it is the difference between a
+> gate that runs and a gate that times out.** The copy was *just written*, so every read the rules
+> made was a disk hit, and the suite's own file took **60 seconds** against the shipped tree's
+> **16**. **A vitest worker that takes 60 seconds to report on itself times out calling the main
+> process** — and the failure reads *`Timeout calling "onTaskUpdate"`*, with **every one of the
+> 1378 tests passing** and the run exiting `1`. **So the copy is read once, in the setup, and the
+> page cache holds it**: 8.5 MB, and every rule after that reads from memory. **Measured:** the
+> architecture suite's duration fell from **67.5 s to 46.0 s**, and `collect` from **65.5 s to
+> 8.8 s** — **and the gate went from two reds in three runs to three greens.**
+>
+> **And the finding is that a copy is a copy, and the cost of it lands on the reader.** One walk of
+> the whole tree costs **2.5 s** on this machine, warm — and the rules walk it many times, so **a
+> corpus that is not warm pays that cost on every walk.** **The safety and the speed are the same
+> decision**, and the decision was made in one place: *the suite reads a copy, and the copy is read
+> once before anything reads it.*
 >
 > **And the check that the tree is unchanged is outside the suite**, in the `globalSetup`
 > module's teardown: the shipped tree is fingerprinted before any test runs and compared after,
