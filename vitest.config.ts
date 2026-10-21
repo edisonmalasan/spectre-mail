@@ -81,5 +81,22 @@ export default defineConfig({
     environment: "node",
     // Intentionally not set to true. A test run that finds no tests must fail.
     passWithNoTests: false,
+    /**
+     * The corpus the architecture suites read, and the check that they did not write the
+     * shipped tree.
+     *
+     * **The setup makes a copy of the repository** and publishes its path, so every rule reads
+     * the copy and the shipped tree is never written. The boundary suite used to prove two of its
+     * rules by mutating `apps/web/index.html` and the repository's own `package.json`, and a run
+     * killed for exceeding its timeout left both modified — **tracked files, so a leftover was a
+     * modification that could be committed.**
+     *
+     * **The teardown compares the shipped tree against a fingerprint taken before any test ran**,
+     * and a difference **fails the run** and names the paths. **A check that runs inside the
+     * thing it checks runs after the damage** — so this is here, and not in a test.
+     *
+     * See `openspec/specs/build-and-verification/spec.md`.
+     */
+    globalSetup: "tests/architecture/global-setup.ts",
   },
 });

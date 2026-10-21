@@ -95,6 +95,7 @@ import { join, relative } from "node:path";
 import ts from "typescript";
 import { expect, test, vi } from "vitest";
 import { isStagedProbe } from "./staged-probes";
+import { CORPUS } from "./scan-corpus";
 import { SCAN_ASSERTION_TIMEOUT_MS } from "./scan-budget";
 
 import { PRODUCT_NAME } from "../../packages/ui/src/name";
@@ -114,8 +115,15 @@ import { PRODUCT_NAME } from "../../packages/ui/src/name";
  */
 const VALUE_NAME = "PRODUCT_NAME";
 
-/** The repository root, resolved as the other architecture suites resolve it. */
-const REPO_ROOT = process.cwd();
+/**
+ * The repository root, resolved as the other architecture suites resolve it.
+ *
+ * **It is the corpus's root, not the shipped tree's** — the same copy the boundary suite reads,
+ * made once per test run. So a probe left behind by an earlier run is in the corpus too, and the
+ * reader's own exclusion of it is what keeps this suite's result about the shipped tree's content
+ * rather than about the previous run's leftovers.
+ */
+const REPO_ROOT = CORPUS;
 
 /** The review under test, and nothing else this file reads outside `apps/` and `packages/`. */
 const REVIEW_PATH = "docs/BRANDING.md";

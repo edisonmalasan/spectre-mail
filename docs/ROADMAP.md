@@ -49,15 +49,15 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > **The cursor.** M12 is closed in scope and **M13 is closed in scope**: its two slices,
 > `mailbox-history` and `beta-diagnostics`, are both APPLIED, SYNCED and ARCHIVED, and
 > `openspec list` reports no active changes. **The next change is not a milestone's — it
-> is the repository's own instrument**, and it is done: `architecture-suite-isolation` is
-> APPLIED, SYNCED and ARCHIVED, **and its measurement is that the architecture suites share
-> the shipped tree as their corpus** — `boundaries.test.ts` stages a probe file into it
-> while `branding-audit.test.ts` walks it, in parallel vitest workers — **and that the
-> reader-side repair the reading suite already carries is a filename shape matching three of
-> the twenty-three stems the writing side actually stages, and is spelled twice.** **A gate
-> whose red is a function of timing rather than of the tree cannot be trusted to have
-> shipped anything**, and that is a larger defect than any one feature. **What comes after
-> it is not decided, and this block does not decide it.**
+> is the repository's own instrument**, and it has now run twice: `architecture-suite-isolation`
+> gave the suites a shared staged-probe vocabulary, and **`architecture-suite-cleanup` is
+> APPLIED** — **its measurement is that the architecture suite proves two of its rules by
+> mutating a *shipped* file, and a timeout outlives the `finally` that undoes it**, so an
+> interrupted run left `apps/web/index.html` and the repository's own `package.json`
+> modified, **and the leftovers made the next run red about the previous one.** **The suite
+> now reads a disposable copy of the tree, so the shipped tree is never written, and a check
+> outside the suite fails the run if it ever is.** **What comes after it is not decided, and
+> this block does not decide it.**
 >
 > `openspec/specs/` holds **fifteen** capabilities: `provider-abstraction` (promoted
 > from `provider-role-decision`), `monorepo-foundation` (M1), `shared-domain-model`
@@ -610,6 +610,72 @@ nothing.
 
 **`openspec list` reports no active changes, which means M12's five listed items are all done** —
 three tracked and two untracked — **and M12's exit criteria are met in scope.**
+
+**`architecture-suite-cleanup` is APPLIED.** Proposal PR **#168** merged `4a1ee5e`; **the
+apply PR number is left unfilled here**, for the reason this file records above.
+
+**And the finding is that the architecture suite proves its rules by mutating the shipped tree,
+and a timeout outlives the `finally` that undoes it.** Two of the suite's rules are proved by
+writing into a **tracked, shipped file** — `apps/web/index.html` and the repository's own
+`package.json` — **and the mutation is undone in a `finally`, and a `finally` does not run in a
+process that was killed for exceeding its timeout.**
+
+**Measured, the suite's red under CPU contention is two of its own cases exceeding the shared
+60 s budget** — *"catches a platform store or the URL in a client"* at **61.6 s** and *"keeps
+the spike unreachable from workspace code"* at **78.2 s** — **and the mutation sits on disk
+across the timeout**, because the rule's own full-tree scan is the slow part and the scan is
+what the budget measures. **So an interrupted run leaves the shipped tree modified**: after
+three runs, `apps/web/index.html` carried **three** injected `<link>` tags and `package.json`
+carried a stray `scripts` entry naming a quarantined probe **and had lost its trailing
+newline**.
+
+**And the leftovers make the NEXT run red**, because the rules that were proving themselves now
+find the previous run's artefacts — the stylesheet rule reports the leftover remote-origin
+stylesheet, the markup rule the leftover `<link>`, the custom-property rule the leftover
+local-token stylesheet, and the quarantine rule `package.json` naming a quarantined probe. **So
+a run's red is about the previous run, and the previous run was green.** **And this repository
+carried no remedy for it** — not in `AGENTS.md`, not in the roadmap, and not in the change's
+own record, whose *asserted* cause was *"the suite's own probes left in the tree by a cancelled
+run"*, **which is true and incomplete, because the probes are the lesser of the two and the
+shipped files are the ones that can be committed.**
+
+**And the repair is that the suite reads a disposable copy of the tree, so the shipped tree is
+never written.** `tests/architecture/scan-corpus.ts` holds the corpus's roots, **so every rule
+reads its roots from one place and the scan functions still take no argument** — the
+repository's recorded constraint honoured literally, and its purpose served, because there is
+exactly one list of roots. The copy is made once per test run by the vitest `globalSetup`, and
+**every vocabulary name is removed from it**, so **a probe left behind by an earlier run is
+not in the corpus and no rule ever sees it** — no rule needs to know which probes are
+leftovers, and no state is needed that a killed process could leave behind.
+
+**And the check that the tree is unchanged is outside the suite**, in the `globalSetup`
+module's teardown: the shipped tree is fingerprinted before any test runs and compared after,
+and a difference **fails the run** and **names the paths**.
+
+**And three arms of falsification were caught by the assertion each was aimed at**, with the
+tree restored byte-identically: a suite that mutates the shipped tree is caught and
+`package.json` is named; a staged probe left behind in the shipped tree leaves the suite green;
+and the control's own probe is still found, which is the positive control for the second arm.
+
+**And three instruments were wrong before the work was right, and each is worth carrying.**
+**The first version of the falsification harness ran on a scratch copy of the repository, and
+the copy had no `node_modules`** — so the corpus was never made, the teardown never ran, and
+every arm read *"survived"* for the wrong reason. **A falsification that measures the
+instrument's own setup failing measures nothing.** **The first version of the reader-side
+exclusion made the control's own probe look like a leftover** when a leftover occupied the
+same path, and the control failed with *"Date.now should be caught: expected 0 to be greater
+than 0"* — **and the repair was to remove the exclusion rather than to fix it, because the
+corpus needs no exclusion.** **And the declared `globalTeardown` option does not exist in this
+Vitest** — it arrived in a later version — **and it takes the teardown from the `globalSetup`
+module**, so the option was silently ignored, the teardown never ran, and the check it carried
+never fired. **A declared option the runner does not have is a check that does not run**, and
+only the falsification arm found it.
+
+**What this does not establish.** The suite is **not** deterministic under every load — the two
+cases that timed out will time out again. **What changes is that a timeout is no longer
+destructive**, and the budget becomes a ceiling on a test's cost **and on its blast radius**.
+And the gate is **not** proven deterministic under every load; the measurement is a table of
+runs, not a proof.
 
 **`architecture-suite-isolation` is APPLIED, SYNCED and ARCHIVED** at
 `openspec/changes/archive/2026-10-20-architecture-suite-isolation/`. Proposal PR **#163**
