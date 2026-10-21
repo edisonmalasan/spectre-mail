@@ -98,6 +98,109 @@
 > And the gate is **not** proven deterministic under every load; the measurement is a table of
 > runs, not a proof.
 
+> **`firefox-compatibility-spike` is APPLIED**, and its finding is that **a clean `main` could not
+> reach Firefox at all, and that the obstacle is not the product's manifest.** Proposal PR **#176**
+> merged `1998eb2`; the apply PR number is **left unfilled here** and is filled by `gh pr view` at
+> the sync stage, **because a predicted PR number in a document other stages cite by name is a figure
+> nobody counted**.
+>
+> **And the measurement is 0 of 10.** Nine manifest variants over the XPI route, plus the profile
+> route over the positive control: **Playwright's Firefox — the only Firefox on this machine —
+> launched, and installed nothing.** It **launches and reports 155.0**, so the absence of a Firefox
+> is not the obstacle; **it looked** — it **rewrote its own `extensions.json`**, thirteen kilobytes
+> holding **its own built-in add-ons and not this one**, over the record the measurement wrote, and
+> it **consumed the XPI it was given**; **and the route's premise held**, with
+> `xpinstall.signatures.required` read as **`false`** in Firefox's **own `prefs.js`**.
+>
+> **⇒ And the correction is the finding: the manifest is not what Firefox refused.** The obvious
+> reading of a failed Firefox install is *"Firefox refused the manifest"*, **and the positive
+> control refutes it** — a **`bare`** MV3 manifest (`manifest_version`, `name`, `version`, one
+> `storage` permission, one background script) **failed identically to the shipped one**, and so did
+> a `bare` manifest **with a gecko add-on id**. **⇒ So the `sidePanel` permission, the `side_panel`
+> key and the `background.service_worker` are not what was refused**, and the manifest's
+> compatibility with Firefox **remains unmeasured** — **and a refutation is not an endorsement.**
+>
+> **⇒ And the three things the change's proposal set out to measure came back differently, and the
+> difference is the finding.** The **eleven platform capabilities** and the **side panel's shape**
+> are **not measurable here at all**, because **no extension context existed to probe** — and the
+> instrument says so in its own output: *"That is a measurement of this machine's reach, not of
+> Firefox's capabilities."* **⇒ So M14's implementation cannot begin on the assumption that the
+> manifest is the work**: the work is **either obtaining a Firefox that installs extensions — a
+> real, unpatched one, driven by a mechanism this repository does not have — or shipping for
+> Firefox unverified and saying so.** **And the second branch is a product decision.**
+>
+> **And the probe's arrival broke a rule, and the breakage was a real one.** The quarantine rule
+> required **every** listed probe to spell Chromium's two load flags, because a plain `.mjs` cannot
+> import the TypeScript helper that exports them, and **Chromium reports no error when an
+> extension fails to load — it silently loads nothing.** **⇒ A Firefox probe cannot spell those
+> flags, because Firefox does not take them, and requiring it to would be requiring a lie.** **⇒ So
+> the rule was repaired, and the repair keeps one list**: the rule's subject is the **duplication**
+> of two flags, and a probe that does not load an extension in Chromium has no such duplication. **The
+> partition is derived from the probes themselves** — each is asked which engine it launches through,
+> read from the probe's own call and **not from a comment** — **so there is no second list that could
+> disagree with this one.** **And the discriminator is dotted** — `chromium.launchPersistentContext`
+> and `firefox.launchPersistentContext` — **because the bare word `firefox` would not separate the
+> probes**, and **a discriminator that does not discriminate is a rule that checks nothing.**
+>
+> **⇒ And the new assertion needed a control, because it cannot be reached by editing the list** —
+> the list holds probes that exist. **The control is permanent and in the suite**, and it covers both
+> arms the rule exists to report: a probe naming **neither** engine and one naming **both**.
+> **The falsification was 3 of 3 caught by the assertion each was aimed at**, with `wrongcatch`,
+> `green` and `noop` **all zero**, **every file restored byte-identical** against a SHA-256 taken
+> **before** the mutation. **⇒ And the restoration was taken from an in-memory copy and never from
+> Git**, because `boundaries.test.ts` carries the change's own uncommitted work — **and a restore
+> from a commit would discard it, which is the recorded defect of a file restored from a commit.**
+>
+> **⇒ And the instrument carried its own reader defect from the exploration into the probe, and the
+> probe now proves the reader first.** The first version read Firefox's record from
+> `<profile>/extensions/extensions.json` rather than `<profile>/extensions.json`, **and so reported
+> *the add-on was not installed* for a profile where the answer was simply not looked for.** **⇒ So
+> the probe's reader is self-tested before any absence is reported** — **a reader that matches
+> nothing reports the absence of the thing it looked for**, and that is the shape this repository has
+> recorded more than once.
+>
+> **⇒ And `pnpm lint` caught the sharpest defect in the instrument, which was a second spelling of a
+> set.** The eleven capabilities were **typed into the probe** while the module's own path sat beside
+> it unused — **which would have drifted the first time the product gained a capability.** **⇒ The
+> list is now read out of `extension-platform.ts`'s own source and checked against it**, and the
+> instrument **refuses to run** if the two disagree: **a HARNESS-ERROR, not a measurement.** **⇒ And
+> the boundary suite's declared case count moved from 54 to 55 with the control, and
+> `security-audit.test.ts`'s figure moved with it** — **because that file reads the count out of the
+> suite's own source rather than carrying it by hand**, and **a declared count that does not move
+> when the thing it counts moves is a count nobody has re-read.**
+>
+> **And the record is a new document, `docs/BROWSERS.md`, and not a section in `docs/PROVIDERS.md`.**
+> **`docs/PROVIDERS.md` is on this repository's do-not-touch list** — *the recorded measurement every
+> provider decision cites* — **and the change's task says *a section in `docs/`, in the shape
+> `docs/PROVIDERS.md` uses*, which is the shape and not the file.** **⇒ And the record says what
+> Firefox has in general about nothing; it names what the *extension* needs**, and it says what the
+> measurement does not establish.
+>
+> **⇒ And the gate produced a red, and the red was named, and the red is not this change's.**
+> `pnpm verify` was green twice and red once, with **`[vitest-worker]: Timeout calling
+> "onTaskUpdate"`** — **the failure `architecture-suite-cleanup` recorded**, which is a *worker*
+> timeout rather than a test's own wait, **with every test passing**. **⇒ And because this change
+> alters the tree, the rate was measured against the tree it would have run on anyway** — **the same
+> machine, the same morning, twelve runs each**: **`main` at `1998eb2` was green in 11 of 12, and
+> this branch in 9 of 12.** **⇒ So the failure is pre-existing and reproduces on `main` itself**,
+> **and the two rates are not separable at twelve runs each** — one run against three — **so the
+> honest reading is that this change did not measurably make the gate worse, and the record does not
+> claim that it did not.** **⇒ And the A/B itself was taken safely**: the work was **stashed with
+> `git stash push -u`, measured, and popped**, and **every one of the five files was verified
+> byte-identical against a SHA-256 taken before the stash** — **because a file restored from a
+> commit discards uncommitted work, and this repository has been bitten by that twice in this
+> session.**
+>
+> **What this does not establish.** **Nothing about Firefox's capabilities** — every row is a fact
+> about **this machine's reach**. **Nothing about the manifest**, and the `bare` arm **refutes** the
+> reading that the manifest is what Firefox refused. **Nothing about the namespace, the eleven
+> capabilities, or the side panel** — all three are **not measurable here**, and the probe that
+> would measure them exists. **No cause for the failure**: Firefox's own output named a **Juggler**
+> error and three Windows-shell errors, `MOZ_LOG` wrote no file, **and the record does not name a
+> cause it did not measure.** **And nothing about a real Firefox** — **there is none on this
+> machine**, so every statement is about Playwright's patched build, **which is why the record names
+> it rather than saying *"Firefox"*.**
+
 > **`load-independent-results` is APPLIED, SYNCED and ARCHIVED** at
 > `openspec/changes/archive/2026-10-21-load-independent-results/`, and its finding is that **a clean
 > `main` had a unit suite that was red in 3 of 5 full runs, and the cause was a query's cost rather
@@ -2098,10 +2201,9 @@ Pin versions when exact versions matter.
   no extension build step — that is M8" became false at M8 and is deleted rather than
   reworded.**
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running **1378 tests across
-  74 files** via `pnpm test` (2026-10-20, at `architecture-suite-isolation`'s sync stage,
-  counted
-  from a JSON reporter **grouped by project** rather than read off a summary line, and
+- Testing: Vitest `3.2.7` at the workspace root, verified running **1379 tests across
+  74 files** via `pnpm test` (2026-10-21, at `firefox-compatibility-spike`'s apply stage,
+  counted from a JSON reporter **grouped by project** rather than read off a summary line, and
   **re-measured at this stage from a fresh run rather than carried forward** — because the
   count a ledger carries is only worth what the last person to re-run it made it worth,
   and this repository has now had a standing figure in its own status block go stale by a
@@ -2120,11 +2222,14 @@ Pin versions when exact versions matter.
   **7** — the shared diagnostic's own cases — so the package's count is no longer the flat
   **38** this file has carried through nine milestones, and **a figure that stops moving is
   a figure nobody re-ran**),
-  **126 in `tests/architecture`** (53 boundaries, 22 privacy-disclosure, 18 security-audit,
+  **127 in `tests/architecture`** (55 boundaries, 22 privacy-disclosure, 18 security-audit,
   14 branding-audit, 11 provider-terms, **7** beta-diagnostics — so `boundaries.test.ts` is
-  **still 53**, which is the measurement this change turned on, since every property it
-  introduced already had an instrument or got one here and a rule added where an instrument
-  exists is not coverage),
+  **55**, which is **53** at `architecture-suite-isolation`'s sync and **54** after its
+  vocabulary check, **and the movement is the measurement**: `firefox-compatibility-spike`
+  added **one** case, the discriminator's own control, because **a check that cannot fail for
+  the reason it exists is not a check**, and **the count is read out of the suite's own source
+  by `security-audit.test.ts` rather than carried by hand** — so **a declared count that does
+  not move when the thing it counts moves is a count nobody has re-read**),
   **490 in `apps/extension`** across **22** files (**25** in `content-script.test.ts`,
   **123** in `protocol.test.ts`, **70** in `extension-platform.test.ts`, **23** in
   `content-script-fill.test.ts`, **22** in `code-field.test.ts`, **25** in `Popup.test.tsx`,
@@ -2136,10 +2241,13 @@ Pin versions when exact versions matter.
   **10** in `content-script-handlers.test.ts`, **12** in `content-script-host-context.test.ts`,
   **5** in `popup-copy.test.ts`, **8** in `service-worker.test.ts`, **4** in `scheduler.test.ts`,
   **3** in `diagnostic.test.ts`),
-  **53 architecture boundary assertions** — which is the only figure in this list that has not
-  moved since M1's independent verification pass, and is stated separately because **it is the
-  number several changes below use as the measurement that no rule was added where an instrument
-  already exists.**
+  **55 architecture boundary assertions** — **a figure that has moved twice since M1**, at
+  **53**, then **54** with `architecture-suite-isolation`'s vocabulary check, and now **55**
+  with `firefox-compatibility-spike`'s discriminator control, **and each move was a case that
+  had to be falsifiable** — so the earlier claim on this line, that the figure had *not* moved
+  since M1, **was stale and is corrected here rather than left**, and it is stated separately
+  because **it is the number several changes below use as the measurement that no rule was
+  added where an instrument already exists.**
   **This figure was stale by a milestone and is corrected here rather than left, and the reason
   matters more than the number:** it read **1093 across 58 files**, which was accurate at
   `incoming-mail-notification` and at `side-panel-runtime-facts`, and **`side-panel-surface`
