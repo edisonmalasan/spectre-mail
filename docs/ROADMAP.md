@@ -129,6 +129,24 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > task is M0"*, which is the plan as written on day one and not a statement about today. **The cursor
 > is this block.**
 >
+> **⇒ And the last milestone with work in it has now been decided, on 2026-10-28: M15 is Outcome A —
+> SpectreMail remains provider-powered, and no own-domain infrastructure is built.** **The basis is
+> that B and C each require an input that does not exist**, not that providers were measured reliable
+> — **they were never measured live** — and **the ten inputs divide as two measured, two runnable and
+> never run, and six that are facts about users this product has never had.** See §21 for the table.
+>
+> **⇒ And the finding worth carrying is about the milestone rather than the decision: M15 is the
+> *post-beta* evaluation and there was no beta**, because §33.2 measured the product as **not publicly
+> usable** on the same day. **A post-beta evaluation with no beta collapses to a default**, and the
+> record says so instead of presenting the default as a verdict.
+>
+> **What that leaves is not a milestone.** Every milestone in this file is now either complete in
+> scope, skipped by decision, or decided by decision — **and the two open questions are product
+> decisions rather than engineering work: whether the website is deployed, and whether the extension
+> is listed.** **Both are named unmet in §33.2**, both are scoped out of V1 by `AGENTS.md`, and
+> **neither is scheduled here**, because a roadmap that schedules a decision has already taken it.
+
+>
 > `openspec/specs/` holds **fifteen** capabilities: `provider-abstraction` (promoted
 > from `provider-role-decision`), `monorepo-foundation` (M1), `shared-domain-model`
 > (M2), `provider-adapters` (M3), `mail-parsing` (M4), `build-and-verification`
@@ -4179,7 +4197,7 @@ should run the website.
 | M12 | Release Hardening | Security, permissions, tests, docs |
 | M13 | Public Beta | Website + Chromium extension |
 | M14 | Cross-Browser Expansion | **Skipped by decision (2026-10-28)** — Chromium-only product; Firefox unmeasured, Edge unmeasured |
-| M15 | Post-Beta Evaluation | Decide next provider/infrastructure direction |
+| M15 | Post-Beta Evaluation | **Decided (2026-10-28): Outcome A** — remains provider-powered; 2 of 10 inputs measured, 6 absent with the users |
 
 ---
 
@@ -5792,7 +5810,18 @@ Keep platform-specific differences behind small compatibility layers.
 
 ---
 
-# 21. M15 — Post-Beta Evaluation
+# 21. M15 — Post-Beta Evaluation — DECIDED: OUTCOME A
+
+> **DECIDED 2026-10-28: Outcome A — SpectreMail remains provider-powered, and no own-domain
+> infrastructure is built.** **And the decision rests on the absence of this evaluation's inputs
+> rather than on their values**, which is the part worth reading before anyone re-opens it.
+>
+> **⇒ And the first thing the evaluation measured is about itself: there has been no beta.** This is
+> the roadmap's *post-beta* evaluation, and §33.2 measured on the same day that the product is **not
+> publicly usable** — no deploy, publish or release job, no hosting configuration, no store listing —
+> with `AGENTS.md` scoping deployment out of V1. **So this is an evaluation of a phase the project has
+> not entered**, and **a post-beta evaluation with no beta collapses to a default**, which is exactly
+> what the record below is.
 
 ## Goal
 
@@ -5812,6 +5841,26 @@ extension retention
 site-integration value
 operating cost projections
 ```
+
+## What this evaluation can measure, input by input
+
+**Measured 2026-10-28. Ten inputs were named, and two are measurements** — one of the current design
+and one of a provider's published position. **The other eight divide into two that could be run and
+never have been, and six that are facts about a user population this product has never had** — and
+those six are the six Outcome C would need.
+
+| input | status | what exists, or why nothing does |
+| --- | --- | --- |
+| active users | **does not exist** | No deployment and no counter anywhere in the tree. `docs/PRIVACY.md`'s *does not collect* list is the contract a counter would have to **amend**, not a rule that permits one quietly. |
+| provider reliability | **never measured live** | Every provider response in both tiers is a **recorded** one. **Two of the five quarantined probes reach a real provider origin and read no body** (`live-host-permission.mjs`, `side-panel-runtime.mjs`), and `use it externally` remains unverified — `docs/PROVIDERS.md`, `docs/BROWSERS.md` §4. |
+| domain rejection rates | **never measured** | A maintainer-sent message was observed on each provider **once** (M0 `spike:interactive`), and **no service has ever sent this product its own verification mail**. A rate computed against the parser corpus would measure the corpus, which is **authored** and says so. |
+| provider policy risk | **measured** | Guerrilla Mail publishes Terms of Service at `/tos`, read 2026-10-16: *"may be rate limited, but we do not publish our rate limits"*, and *"the client should not check email too many times"*. Mail.tm serves **no terms page** on any route tried and **no CORS header to a third-party origin**. `docs/PROVIDERS.md` §4. |
+| mail volume | **does not exist** | Zero, and unobservable: no users, and no counter that could see a message without being part of the product. |
+| support burden | **does not exist** | The product has **no channel to receive a report**, so the burden is not zero — it is **unmeasured**. A zero from a channel that does not exist is not a measurement of burden. |
+| abuse patterns | **not applicable** | The product holds **no server, no own domain, no relay and no shared resource**. This is the one input Outcome A makes permanently cheap, and it is a **property of provider-powered design** rather than a gap. |
+| extension retention | **does not exist** | No store listing (§33.2), so no installs — and retention of zero installs is not a retention figure. |
+| site-integration value | **never measured** | It needs a **real third-party sign-up**, which `browser-verification` **forbids the browser tier from making** and which no run has made by hand. |
+| operating cost projections | **measured for A, absent for C** | A costs **`$0`**: no backend, no hosting, no database, no domain. C's mail-routing cost has **no basis here**, and this repository does not invent a figure it has not measured. |
 
 ## Possible outcomes
 
@@ -5856,6 +5905,68 @@ our domain
 ```
 
 This is intentionally not a V1 requirement.
+
+## The decision: Outcome A
+
+**SpectreMail remains provider-powered.** **And the basis is not the one Outcome A's own condition
+names** — *"providers remain reliable"* was **never measured**, so choosing A on that ground would be
+choosing it on a fact this repository does not have. **The basis is narrower and it is measurable:
+Outcome B and Outcome C each require an input that does not exist, and A is the only outcome that
+requires no evidence.**
+
+**⇒ So this is a default rather than a finding**, and the difference is load-bearing: *"A, because
+nothing justifies B or C"* is **not** *"B and C were considered and found wanting."* **A later reader
+who treats this as a conclusion will find reasons here that were never measured.**
+
+### B is unblocked, not rejected
+
+**A third provider needs nothing prepared now, because the promotion already made it additive.**
+`provider-adapters` requires that *"a new provider … SHALL require a new adapter only"* and that it
+*"SHALL NOT require a change to any client or to the shared model"* — so the work for Outcome B is
+exactly the work a provider degrading would trigger, and **there is no readiness debt to pay off in
+advance.**
+
+**And one constraint is per client rather than global**, which is worth naming before someone prices
+B as cheap everywhere: **Mail.tm grants no CORS header to a third-party origin**, measured, so a
+provider added to the **website** must be reachable from a page while a provider added to the
+**extension** need not be. **A third provider is additive to the abstraction and not necessarily to
+the website.**
+
+### C is unjustified, not refuted
+
+**Outcome C's own condition is *"only if product traction justifies it"*, and traction is measured by
+six of the ten inputs — active users, mail volume, support burden, extension retention,
+site-integration value and the abuse surface that only exists once a domain does. All six read as
+absent, above.** **And the absence is not an accident of timing: with nothing deployed and nothing
+transmitted, none of the six can be produced at all** — and **two of them, active users and mail
+volume, would additionally need a collection decision that `docs/PRIVACY.md` would have to be amended
+to allow.**
+
+**⇒ So C is not refuted — it is unjustified, and it stays available.** Nobody has shown that owning
+infrastructure would not work; **the case for it has not been made, and the six facts that would make
+it have never existed.**
+
+## What would reopen this
+
+**Named, so that reopening is a measurement rather than an opinion:**
+
+- **A provider's published position changes** — its terms become incompatible, or a rate limit is
+  published that **the 5 s / 30 s cadence** (`packages/mailbox/src/cadence.ts`) exceeds → **Outcome B**.
+- **A live soak shows sustained provider failure** — which would need the run nobody has made, not a
+  re-reading of the recorded fixtures → **Outcome B**.
+- **The product is deployed**, and the six user-shaped inputs begin to exist → **evaluate A against C
+  then**, with the privacy question answered first, because a deployment that collects what
+  `docs/PRIVACY.md` forbids would need a **new record kind and an amended claim**, which is a change
+  and not a setting.
+- **Own infrastructure is proposed for a reason that is not traction** — cost, control, or policy —
+  **that is a new argument, and it needs its own change.** It would not be this evaluation changing
+  its mind.
+
+**What this does not establish.** **Nothing about provider reliability**, which was never measured
+live. **Nothing about what a beta would have shown**, because none ran. **Nothing about C's cost**,
+which no document here estimates. **And nothing about Edge, Firefox or a second engine** — M14's
+withdrawal is a separate decision, and this one does not depend on it.
+
 
 ---
 
@@ -6209,7 +6320,7 @@ M13 Public beta
  ↓
 M14 Cross-browser (skipped)
  ↓
-M15 Evaluate own infrastructure
+M15 Evaluate own infrastructure (decided: stay provider-powered)
 ```
 
 The most important sequencing rule is:
