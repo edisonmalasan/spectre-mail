@@ -101,8 +101,33 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > pre-archive digest taken programmatically, with Git's own rename detection confirming it
 > independently — four renames at `R100` and `0 insertions, 0 deletions`** — and all **16** files
 > under `openspec/specs/` byte-identical throughout, with the counts **re-counted after the move at
-> 190 requirements and 629 scenarios across 15 capabilities**, unmoved by the archive. **What comes
-> after it is not decided, and this block does not decide it.**
+> 190 requirements and 629 scenarios across 15 capabilities**, unmoved by the archive.
+>
+> **⇒ And the question it left open has since been decided, on 2026-10-28: M14 is DROPPED, and this
+> product ships for Chromium only.** **Edge runs the same Chromium engine this tier already drives,
+> so there is no second engine for a cross-browser expansion to adapt for**; and **Firefox is not
+> being shipped, so nothing about Firefox is claimed.**
+>
+> **The three claims this decision keeps apart are written down separately, because they are three
+> different statements.** *The tier cannot reach Firefox* is **measured** — 0 of 10 arms, and the
+> decision does not change it. *Firefox compatibility is unmeasured* is **unchanged**, and
+> `docs/BROWSERS.md` §3.3 still says so. *This product will not ship for Firefox* is **the decision**,
+> and it is a fact about the roadmap rather than about the engine. **⇒ An unmeasured compatibility is
+> not retired by a decision not to measure it**, and **dropped is neither unreachable nor
+> unsupported** — `browser-verification`'s requirement names an engine the tier cannot reach as
+> unreachable and forbids calling it unsupported, and it still does.
+>
+> **And nothing was measured about Edge either.** The decision rests on **Edge sharing Chromium's
+> engine**, not on a measurement of Edge, and this record does not pretend otherwise: **there is no
+> Edge claim here to be falsified later.**
+>
+> **The M14 section is marked SKIPPED rather than deleted, and its adaptation list is kept**, because
+> **a milestone decided against is a record of a decision** — deleting it would take the
+> measurement's own conclusion away with it. **The next milestone with work in it is M15, and M15 is
+> an evaluation rather than a build.** **And one stale sentence is named here rather than left to be
+> found twice:** this file's own `32. Immediate Next Action` still says *"the next implementation
+> task is M0"*, which is the plan as written on day one and not a statement about today. **The cursor
+> is this block.**
 >
 > `openspec/specs/` holds **fifteen** capabilities: `provider-abstraction` (promoted
 > from `provider-role-decision`), `monorepo-foundation` (M1), `shared-domain-model`
@@ -4153,7 +4178,7 @@ should run the website.
 | M11 | Side Panel + Mailbox Context | Persistent inbox beside webpages |
 | M12 | Release Hardening | Security, permissions, tests, docs |
 | M13 | Public Beta | Website + Chromium extension |
-| M14 | Cross-Browser Expansion | Firefox + Edge |
+| M14 | Cross-Browser Expansion | **Skipped by decision (2026-10-28)** — Chromium-only product; Firefox unmeasured, Edge unmeasured |
 | M15 | Post-Beta Evaluation | Decide next provider/infrastructure direction |
 
 ---
@@ -5717,7 +5742,25 @@ Do not optimize around vanity metrics yet.
 
 ---
 
-# 20. M14 — Cross-Browser Expansion
+# 20. M14 — Cross-Browser Expansion — SKIPPED
+
+> **SKIPPED by product decision, 2026-10-28. Nothing in this milestone is being built.**
+>
+> **The product ships for Chromium**, and the two engines this milestone named are not work:
+> **Edge runs the same Chromium engine the extension tier already drives**, so a cross-browser
+> expansion would only add a second name for the engine this repository is already verified in; and
+> **Firefox could not be measured at all** — `docs/BROWSERS.md` §3 records **0 of 10 arms installed**,
+> with the manifest refuted as the cause.
+>
+> **This is a decision and not a measurement, and the difference is kept rather than blurred:
+> nothing here was measured about Edge**, and this milestone's withdrawal **claims nothing about
+> Edge's behaviour**. The decision is that **there is no second engine to adapt for**, not that a
+> second engine was found to work. **Firefox's compatibility stays unmeasured**, and an engine the
+> tier cannot reach stays *unreachable* rather than *unsupported*.
+>
+> **The sections below are kept rather than deleted**, because **a milestone decided against is a
+> record of a decision**: this is what would have been adapted, in the order the plan put it. It is
+> history of the plan, not work.
 
 ## Firefox
 
@@ -5735,6 +5778,11 @@ store requirements
 ## Edge
 
 Chromium compatibility should make this relatively straightforward after Chrome stabilizes.
+
+**⇒ That sentence is the substance of the decision, and it is why M14 is not built**: Edge's
+compatibility is **inherited from sharing Chromium's engine rather than established by a
+measurement**, and **no Edge run exists in either tier** — so withdrawing the milestone **removes
+a plan and removes no evidence.**
 
 ## Shared-extension rule
 
@@ -6159,7 +6207,7 @@ M12 Release hardening
  ↓
 M13 Public beta
  ↓
-M14 Cross-browser
+M14 Cross-browser (skipped)
  ↓
 M15 Evaluate own infrastructure
 ```

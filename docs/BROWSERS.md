@@ -25,6 +25,13 @@ repository can reach Firefox at all**.
 **Measured, it cannot** — and the reason is **not** the manifest, which is the opposite of what the
 obvious reading of a failed Firefox install would say.
 
+**⇒ And the roadmap decided on 2026-10-28 not to build M14 at all.** **So everything measured above
+stands unchanged, and the open question around it is closed by a decision rather than by an
+answer**: Chromium is the only engine this repository verifies in; **Firefox stays named as
+_unreachable_ rather than as _unsupported_**; **its compatibility stays unmeasured**; and **no claim
+is made about Edge, because none was measured** — Edge was dropped on the ground that it shares
+Chromium's engine, and **that is an inference, not a run.**
+
 ---
 
 ## 2. Chromium — what the extension tier establishes (measured 2026-10-05 onward)
@@ -83,10 +90,16 @@ work is, in one sentence: **either obtain a Firefox that installs extensions —
 one, driven by a mechanism this repository does not yet have — or ship for Firefox unverified and
 say so.**
 
-**⇒ And the second branch is a product decision, not a technical one.** It is also the branch the
-repository's own rule already anticipates: **an engine the tier cannot reach is named as
-unreachable**, and **a claim about an engine is made per engine** — because _"verified in Chromium
-and Firefox"_ is a phrase that means _"verified somewhere"_.
+**⇒ And that was a product decision rather than a technical one, and it was taken on 2026-10-28:
+M14 is dropped, and this product does not ship for Firefox.** **What the decision changes is the
+roadmap** — there is no Firefox slice, and no Edge slice either, because **Edge runs the same
+Chromium engine this tier already drives and no Edge run exists in either tier** — **and what it
+does not change is this document.** Firefox is still **unreachable by this repository's automation**,
+which is a different statement from _unsupported_; the manifest's compatibility is **still
+unmeasured**; and the eleven capabilities and the side panel are **still unasked**, because no
+extension context ever existed to ask them in. **⇒ An unmeasured compatibility is not retired by a
+decision not to measure it**, and the probe stays where it is — **§4 still describes how to run
+it** — so that the decision is legible as a decision rather than as a gap.
 
 ### 3.3 What this does not establish
 
@@ -112,7 +125,10 @@ developer route is an unsigned XPI with `xpinstall.signatures.required` off, and
 was in force and did not help**. **So the next thing to measure is not the manifest but the
 engine**: a real Firefox, installed and driven by a mechanism this repository does not have yet.
 
-**And that is a decision for the roadmap, not for this repository's next slice.**
+**And that was a decision for the roadmap, and the roadmap took it the other way on 2026-10-28: M14
+is dropped.** **So this section is now a record of what would have to be true for the measurement to
+be finished, rather than a plan** — and the honest reading of a skipped milestone is that **the
+question was left open on purpose, not that it was answered.**
 
 ---
 
