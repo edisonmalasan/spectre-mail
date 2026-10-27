@@ -6,9 +6,12 @@ SpectreMail gives you a disposable email address you can read without leaving th
 page or the signup flow you were on. It exists as a website and as a browser
 extension, both talking to the same provider abstraction.
 
-**There is no product yet.** This repository currently contains the architecture,
-the toolchain, and the measured provider research that the product will be built
-on. See [Current status](#current-status).
+**Both clients exist and neither is published.** The repository holds a working website and a working
+Chromium extension over one shared provider abstraction, the shared packages they are built from, the
+measured provider research those were written against, and the OpenSpec specifications that constrain
+them. **Nothing is deployed and the extension is not listed**: it loads unpacked from
+`apps/extension/dist`, and no deployment, hosting or release pipeline exists or is planned for V1.
+See [Current status](#current-status).
 
 ---
 
@@ -25,42 +28,64 @@ on. See [Current status](#current-status).
 | M6 — Website hardening            | complete in scope — 3 slices archived; a 4th was audited, not built         |
 | M7 — Spectral Swiss visual system | complete in scope — 4 slices archived                                       |
 | M8 — Extension foundation         | complete in scope — applied, verified, synced, archived                     |
-| M9 - In-page email integration    | complete in scope - all 3 slices applied, verified, synced, archived        |
-| M10–M15                           | not started                                                                 |
+| M9 — In-page email integration    | complete in scope — all 3 slices applied, verified, synced, archived        |
+| M10 — Verification workflow       | complete in scope — verification actions, in-page fill, notification        |
+| M11 — Side panel + mailbox choice | complete in scope — panel surface, mailbox choice, verification state       |
+| M12 — Release hardening           | complete in scope — permissions, privacy, security, branding, providers     |
+| M13 — Public beta                 | complete in scope — every listed item delivered; **not released**           |
+| M14 — Cross-browser expansion     | **skipped by decision (2026-10-28)** — Chromium-only product                |
+| M15 — Post-beta evaluation        | **decided (2026-10-28): Outcome A** — remains provider-powered              |
 
-| Capability spec          | Requirements | State                               |
-| ------------------------ | -----------: | ----------------------------------- |
-| `provider-abstraction`   |            9 | live                                |
-| `monorepo-foundation`    |            5 | live                                |
-| `build-and-verification` |           10 | live                                |
-| `shared-domain-model`    |            9 | live                                |
-| `provider-adapters`      |           12 | live                                |
-| `mail-parsing`           |            9 | live                                |
-| `mailbox-session`        |           23 | live                                |
-| `website-client`         |           21 | live                                |
-| `spectre-storage`        |           15 | live — **consumed by both clients** |
-| `visual-system`          |            9 | live                                |
-| `page-composition`       |            6 | live                                |
-| `browser-verification`   |            5 | live                                |
-| `extension-client`       |            6 | live                                |
-| `in-page-integration`    |           12 | live                                |
+**Every row above is a state this repository measured rather than a plan it is working through**,
+and the two that are not "complete" say what they are instead. **M13 being complete in scope is not
+the same as the product being public**: there is no deployment, no release pipeline and no store
+listing, and the roadmap's own §33.2 measures that rather than leaving it to be inferred. **M14 is
+skipped because Edge runs the same Chromium engine the extension tier already drives and there is no
+second engine to adapt for** — nothing was measured about Edge, so the decision claims nothing about
+its behaviour. **M15 is decided rather than built**, and it is decided on the **absence of its own
+inputs** rather than on their values: six of the ten it names are facts about users this product has
+never had.
 
-`mailbox-session` and `website-client` were promoted at M5's sync stages, and
-`spectre-storage` at M6 slice 1's. **Fourteen capabilities, 151 requirements and 446
-scenarios**, counted by `### Requirement:` and `#### Scenario:` across `openspec/specs/`
-rather than carried over from a previous claim — this repository has published a wrong
-total five times, and the last one was caught only because the count was re-derived
-rather than re-read. **This table had fallen five milestones behind** — it read nine
-capabilities and 99 requirements, and stopped at M6 — so it is corrected here by
-measurement rather than by editing the five milestone rows into place by hand.
+| Capability spec          | Requirements | Scenarios | State                               |
+| ------------------------ | -----------: | --------: | ----------------------------------- |
+| `provider-abstraction`   |           11 |        29 | live                                |
+| `monorepo-foundation`    |            5 |        12 | live                                |
+| `build-and-verification` |           14 |        47 | live                                |
+| `shared-domain-model`    |            9 |        23 | live                                |
+| `provider-adapters`      |           12 |        30 | live                                |
+| `mail-parsing`           |            9 |        31 | live                                |
+| `mailbox-session`        |           25 |        68 | live                                |
+| `website-client`         |           26 |        88 | live                                |
+| `spectre-storage`        |           16 |        61 | live — **consumed by both clients** |
+| `visual-system`          |            9 |        28 | live                                |
+| `page-composition`       |            6 |        20 | live                                |
+| `browser-verification`   |            5 |        15 | live                                |
+| `extension-client`       |           17 |        86 | live                                |
+| `in-page-integration`    |           17 |        68 | live                                |
+| `privacy-disclosure`     |            9 |        23 | live                                |
+| **total**                |      **190** |   **629** | **fifteen capabilities**            |
+
+**Every figure in that table was re-derived on 2026-10-28** by counting `### Requirement:` and
+`#### Scenario:` across `openspec/specs/`, not carried over from a previous claim — **because this
+table has now been stale twice, and the second time is the one worth recording.** It read **nine
+capabilities and 99 requirements** when it was first corrected; it then read **fourteen capabilities,
+151 requirements and 446 scenarios**, and by this measurement it was **missing `privacy-disclosure`
+altogether and behind on ten of its fourteen rows**. **A count nobody re-ran is a count nobody
+checked**, and a table that carries a count per row is fourteen chances to be wrong in the file a
+reader meets first.
+
+`mailbox-session` and `website-client` were promoted at M5's sync stages, `spectre-storage` at M6
+slice 1's, and `privacy-disclosure` at M12's — the fifteenth capability, and the one whose absence
+from this table was invisible because the total above it had stopped being re-derived.
 
 **`spectre-storage` is no longer "consumed by no client".** That was true at slice 1 and
 false from slice 2, which adopted a stored mailbox and from slice 3, which uses all three
 contract members — `loadMailbox` at boot, `saveMailbox` for a mailbox the page was not
 handed, and `clearAll` when a user asks this device to forget the address. **The removal
-is now also exercised in a real browser**, alongside the **78** tests `packages/storage` now
-holds — **30** of them driving real IndexedDB through `fake-indexeddb`; the
-verification-tiers note below says which claims each tier establishes.
+is now also exercised in a real browser**, alongside the **103** tests `packages/storage`
+now holds — **47** of them driving a real IndexedDB adapter through `fake-indexeddb`, 31 for
+the mailbox record and 16 for the mailbox collection; the verification-tiers note below says
+which claims each tier establishes.
 
 `provider-adapters` was promoted at the sync stage of the `provider-layer` change, and
 `mail-parsing` at the sync stage of the `mail-parsing-engine` change — 9 requirements
@@ -95,19 +120,24 @@ this device holds. **The key is the exact `hostname`** — no registrable-domain
 after an insertion actually lands, never merely because a control was offered.
 
 **Four limits are stated here rather than discovered later.** A host that already has an
-association cannot have a _different existing_ mailbox chosen for it: there is **no menu**
-inside a stranger's page, and a control over one reachable option cannot act. A **stale**
+association cannot have a _different existing_ mailbox chosen for it **from inside the page**: there
+is **no menu** in a stranger's page, and a control over one reachable option cannot act. A **stale**
 association naming a mailbox this device no longer holds is ignored and left in place,
-replaced only by an insertion with a different one. And **the popup still shows one address
-and offers no way to change which** — the collection exists so the in-page control can
-choose; no chooser has been put in front of a person yet.
+replaced only by an insertion with a different one. And **the popup still shows one address and
+offers no way to change which** — the chooser is the **side panel's**, it lists the mailboxes this
+device holds, and its selection is **component state keyed by the host rather than a durable
+preference**, so choosing there does not rewrite what the in-page control offers.
 
-The fourth is the cost of that second mailbox record during the transition below: **an address
-this device recorded before this build stays stored and stays readable, but it stops being
-offered once this device records a new one.** The two records are deliberately never merged,
-because nothing in this release can show a second address to choose from.
+The fourth is the cost of that second mailbox record: **an address this device recorded before this
+build stays stored and stays readable, but it stops being offered once this device records a new
+one.** The two records are **not merged, and that is now a scope decision rather than a stated
+principle.** The side panel does list every mailbox this device holds and makes each one a control,
+so the reason this note once gave for not merging — that no surface listed them — has lapsed. What
+keeps the merge unshipped is that its callers are the **content script** and the **background wake**,
+neither of which renders a list: merging would change what every site is offered, as a side effect of
+a panel change. `apps/extension/src/storage.ts` records both the lapse and why the merge waits.
 
-**The extension holds two mailbox records during this transition, and only one is written.**
+**The extension holds two mailbox records, and only one is written.**
 `spectre-storage`'s singular contract stays for the website and is read-only for the
 extension; the extension's create path writes the new collection and nothing else, and a
 boundary assertion fails the build if any module in `apps/extension/src` names `saveMailbox`.
@@ -128,8 +158,8 @@ measured `records=1 claimsStored=0 offersRemoval=0` in Chromium, while 152 unit 
 passed. The cause was an unmount guard scoped to one effect invocation, which that
 effect's own cleanup cleared whenever the inbox published new state mid-write. It is fixed,
 pinned by a unit regression test that holds a write open, and now covered in real Chromium
-by `pnpm test:browser` (Playwright `1.63.0`, now **96 cases across 12 spec files**, its own
-CI job).
+by `pnpm test:browser` (Playwright `1.63.0`, now **149 cases across 17 spec files** — 51 in
+the website's tier and 98 in the extension's — its own CI job).
 
 **And a CI run carrying this page's new specs went red on 2026-10-06** — see below.
 
@@ -146,11 +176,14 @@ means deleting the whole database rather than clearing one key, and **Chromium a
 red. That is a fact about that behaviour, not a general licence for the fake.
 
 **`packages/storage` exists and the website uses it.** `loadMailbox`, `saveMailbox`, and
-`clearAll`, behind an IndexedDB adapter with **30** tests, and reachable two ways: an
+`clearAll`, behind an IndexedDB adapter with **31** tests, and reachable two ways: an
 injected factory for tests and `createBrowserStorage()` for a page. `clearAll` deletes the
 **whole database** rather than the one key it stores, deliberately: the narrow version
-would pass every test written against today's single record and would silently stop
-clearing everything once a second record kind existed. Two properties are
+would have passed every test written against the single record the adapter carried at the
+time and would have silently stopped clearing everything once a second record kind existed
+— **and that is now the product's own shape rather than a prediction**, because the
+website's database holds two object stores, and a third record kind (a seen-record) and a
+fourth (host associations) live beside it in the extension's area. Two properties are
 settled and worth knowing before anything is built on it: **`null` means "nothing
 stored" and every failure rejects**
 rather than reporting an absence, because a read reported as absent would make a client
@@ -173,6 +206,26 @@ and a **refused** clipboard write is reported as refused rather than confirmed. 
 never rendered as a number, and a message that could not be read says exactly that and offers
 a retry rather than reporting that it holds no code.
 
+**And the verification workflow finishes in the extension, which is what the extension is for.** A
+detected code can be **written into the page's own one-time-code field**: the content script
+recognises the field from named signals only — `autocomplete="one-time-code"`, or a `name`/`id` that
+identifies a code, verification or one-time-password field, or a numeric `inputmode` **together with**
+such a name — so a quantity, a postcode or a discount box is not a target. **Nothing is submitted and
+no control in the form is pressed**, which is the difference between filling a field and completing a
+form on somebody's behalf; a field that already holds text is **left alone**, because that is the field
+the browser autofilled; and when several empty candidates exist they are **put to the person**, each
+named by the page's own label. **Mail that arrives while nothing is open is announced by an alarm in
+the service worker** rather than a timer in a page — one notification per new message, naming the
+sender and the subject and nothing else — and the seen-record is advanced only once the platform has
+answered with an id, because a wake that remembered a message it could not announce would never
+announce it at all.
+
+**The side panel names the host of the page beside it and marks which rows carry a verification**, and
+that marking is deliberately the panel's alone: the popup is forbidden from flagging a message before
+it has been opened, and the panel pays no extra request for it because its own restore already ran the
+verdict pass. Both surfaces share one message component, so the marking arrives as a prop rather than
+as a second component that could drift.
+
 **Two limits belong in the same breath, and both are the shape of a substitute platform
 answering a question it cannot.** The clipboard outcome is verified on **jsdom against a
 stub** — `navigator.clipboard.writeText` in headless Chromium needs a permission this
@@ -191,15 +244,15 @@ invention presented as a measurement. A limit a provider _does_ declare is honou
 a floor rather than turned into a schedule, a throttled listing stops the loop rather
 than retrying quietly, and polling stops when nothing is displaying the page.
 
-**No live browser run of the website has ever been made.** Every component in it has
-been seen by jsdom and by nothing else, including the message view, so no claim here
-is a claim about what a real page looks like or does. Nothing has been verified against
-the **live** Guerrilla Mail API from a browser. The website's **125** unit tests render
-against a stub provider or a recording transport, which establishes that the page composes
-the abstraction correctly and says nothing about whether a real browser reaches that
-provider successfully — and the polling cadence has never been exercised against a
-live provider at all, so nothing here establishes how a real provider responds to a
-page asking every five seconds.
+**A live browser run of the website has been made, and what it leaves unverified is narrower than
+what it closed.** The built page runs in real Chromium against real IndexedDB, with every provider
+response served from a recording — so **nothing has been verified against the `live` Guerrilla Mail
+API from a browser**, and the polling cadence has never been exercised against a live provider at
+all, so nothing here establishes how a real provider responds to a page asking every five seconds.
+The website's **143** unit tests render against a stub provider or a recording transport, which
+establishes that the page composes the abstraction correctly and says nothing about whether a real
+browser reaches that provider successfully. **And nothing in either tier reads a rendered pixel**,
+so whether the page looks right is still a human judgement rather than a measured one.
 
 `packages/core` holds SpectreMail's **normalized domain model** — mailbox, message,
 credentials, verification code, verification link, and a closed set of normalized
@@ -242,7 +295,16 @@ numbers that are not codes — because a suite of only verification messages can
 measure a false-positive rate. It establishes how this parser handles mail it was
 authored against, and **nothing about any real service's mail.**
 
-Also still a capability rather than a feature: **no client consumes it yet.**
+**And it is consumed, through the session layer rather than called directly.** `packages/mailbox`
+runs it over a message it opens, so the analysis the inbox already produced is retained and clicking
+an already-read message costs **no** provider request. **Both clients then render what it found, and
+they render it through one shared extension component rather than two copies**: the website's
+`MessageView` puts every detected code behind its own copy control and every detected link behind a
+real anchor, and the extension's message surface does the same for the listing and the opened
+message. **The per-code clipboard control is the side panel's and deliberately not the popup's** — a
+popup beside a form has already lost the page's focus — so the control arrives with the behaviour and
+a surface that supplies none renders none. **No client calls `analyseMessage` itself**, which is the
+boundary that keeps a second analysis from drifting from the first.
 
 ### The one thing you should know
 
@@ -279,14 +341,14 @@ apps/extension ───┘
 
 Six shared packages, each with one responsibility:
 
-| Package                     | Owns                                                                                                                     |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `@spectre-mail/core`        | The normalized domain model and its invariants — mailbox, message, credentials, closed error codes, types                |
-| `@spectre-mail/providers`   | The Mail.tm and Guerrilla Mail adapters — the only place provider code may live                                          |
-| `@spectre-mail/mail-parser` | Safe text extraction, OTP detection, verification-link detection                                                         |
-| `@spectre-mail/mailbox`     | The mailbox session: opening, replacing, retrying, and reporting provider health                                         |
-| `@spectre-mail/storage`     | The `SpectreStorage` contract and the web IndexedDB adapter - **built at M6 slice 1, used by the website since slice 2** |
-| `@spectre-mail/ui`          | Reusable product UI and design tokens                                                                                    |
+| Package                     | Owns                                                                                                                                                                                                                                                                        |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@spectre-mail/core`        | The normalized domain model and its invariants — mailbox, message, credentials, closed error codes, types                                                                                                                                                                   |
+| `@spectre-mail/providers`   | The Mail.tm and Guerrilla Mail adapters — the only place provider code may live                                                                                                                                                                                             |
+| `@spectre-mail/mail-parser` | Safe text extraction, OTP detection, verification-link detection                                                                                                                                                                                                            |
+| `@spectre-mail/mailbox`     | The mailbox session: opening, replacing, retrying, and reporting provider health                                                                                                                                                                                            |
+| `@spectre-mail/storage`     | Four contracts — `SpectreStorage`, `SpectreMailboxes`, `SpectreSiteAssociations`, `SpectreSeenMessages` — with an IndexedDB adapter for the two mailbox records and a `chrome.storage` adapter for all four; **read by the website and by the extension from two contexts** |
+| `@spectre-mail/ui`          | Reusable product UI and design tokens                                                                                                                                                                                                                                       |
 
 `packages/mailbox` is **framework-free and DOM-free by compiler rather than by
 convention**: its `tsconfig.json` sets `lib: ["ES2023"]` with no `"DOM"`, so `window`,
@@ -313,8 +375,9 @@ no shared package may import `@spectre-mail/storage` at all, keeping the platfor
 reachable only from a client, and a third says the storage layer itself may depend on
 `@spectre-mail/core` and nothing else.
 
-The boundaries are enforced by a test, not just documented — **53 assertions** in
-`pnpm test`. They fail if a package imports an app, if a file outside
+The boundaries are enforced by a test, not just documented — **55 assertions inside
+`boundaries.test.ts`, which is one of six architecture suites and 127 assertions under
+`pnpm test`**. They fail if a package imports an app, if a file outside
 `packages/providers` contains a provider JSON field name, if a provider adapter is
 implemented or re-exported outside `packages/providers`, if a module in
 `packages/mail-parser` or `packages/mailbox` reaches the global `fetch` instead of
@@ -326,8 +389,8 @@ inserts untrusted values as markup, and if **any** shipped test is not actually
 collected by the test runner.
 
 Each rule states its own limits in the source, and each was proven able to fail. That
-last clause is not a formality: this repository has now recorded **eighteen** instances
-of a check that was narrower or broader than the rule it documented while staying
+last clause is not a formality: **the thirty-first instance of this exact shape is already recorded
+in `AGENTS.md`** — a check that was narrower or broader than the rule it documented while staying
 green, including rules that fired on their own documentation, rules whose single
 positive control proved only the case its author thought of, and a rule that is
 structurally unfalsifiable because its assertion is negative — no shared package
@@ -342,8 +405,9 @@ Full detail, including why each rule exists: [`docs/ARCHITECTURE.md`](docs/ARCHI
 ```text
 apps/
   web/                 Vite + React website client — creates a mailbox, shows its address
-  extension/           Chromium MV3 client — a popup, a service worker, and a content script
-                       that offers your address inside a page and can ask the worker to make one
+  extension/           Chromium MV3 client — a popup, a side panel, a service worker with an
+                       alarm, and a content script that offers your address inside a page,
+                       can ask the worker to make one, and can fill a one-time-code field
 packages/
   core/                normalized domain model
   providers/           provider adapters
@@ -353,6 +417,7 @@ packages/
   ui/                  reusable product UI
 docs/
   ARCHITECTURE.md      where code lives and why
+  BROWSERS.md          what one engine was measured doing, and what was not measured
   PROVIDERS.md         measured provider evidence
   ROADMAP.md           the milestone plan
 openspec/
@@ -404,8 +469,8 @@ without one, and that is verified rather than assumed.
 ## Verified commands
 
 Every command below was actually executed and passed. Nothing else is verified yet.
-**The six gate commands were last run on 2026-10-09**; the spike commands on
-2026-10-02. The counts in the table are taken from a JSON reporter rather than read off
+**The six gate commands were last run on 2026-10-28 — three times in a row, all green**; the spike
+commands on 2026-10-02. The counts in the table are taken from a JSON reporter rather than read off
 a summary line — an earlier version of this table said 545 across 26 files with 42
 boundary assertions, which was stale by two milestones and had simply never been
 re-measured, and **every count in it was found to be stale by at least one milestone at the
@@ -426,19 +491,19 @@ sources under Node and jsdom; the browser tier runs the **built** page in real C
 against real IndexedDB. One runner is not allowed to claim the other's work, and a
 boundary assertion enforces that in both directions.
 
-| Command                              | What it proves                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | What it does **not** prove                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm install`                       | The workspace resolves and installs from the committed lockfile.                                                                                                                                                                                                                                                                                                                                                                                                                  | That a browser is installed — `pnpm install` resolves Playwright but downloads none.                                                                                                                                                                                                                                                                                                                                                                           |
-| `pnpm typecheck`                     | All 8 workspace projects type check under the shared strict config.                                                                                                                                                                                                                                                                                                                                                                                                               | That the types are useful — that is what the tests are for.                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `pnpm lint`                          | ESLint passes.                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Type correctness; `pnpm typecheck` owns that.                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `pnpm format:check`                  | Prettier passes on the files this repository governs.                                                                                                                                                                                                                                                                                                                                                                                                                             | That historical documents are formatted; those are deliberately excluded.                                                                                                                                                                                                                                                                                                                                                                                      |
-| `pnpm test`                          | 895 tests across 52 files pass, including 53 architecture boundary assertions.                                                                                                                                                                                                                                                                                                                                                                                                    | Product behaviour against a **live** provider. Every provider test replays recorded responses, and `jsdom` implements no IndexedDB.                                                                                                                                                                                                                                                                                                                            |
-| `pnpm test:browser`                  | 12 specs and 96 cases pass in **Chromium**: the built page reads and writes real IndexedDB through `createBrowserStorage()`, a confirmed removal leaves `indexedDB.databases()` empty, every control the page offers is keyboard-reachable with a focus indicator whose **resolved** outline differs from the same control unfocused, and a detected verification link is a real link in Chromium's own accessibility tree which navigates nowhere and asks its host for nothing. | Anything about a live provider — every provider response is a recorded one. Nor about Firefox or WebKit, nor a blocked removal, nor how a real provider tolerates five-second polling, nor **the real clipboard** — the copy outcome is verified on jsdom against a stub, because `navigator.clipboard.writeText` in headless Chromium needs a permission this tier does not grant. **Nor about how the page looks**: no test reads a rendered pixel's colour. |
-| `pnpm build`                         | **Both** clients build with Vite: `apps/web/dist` and `apps/extension/dist`.                                                                                                                                                                                                                                                                                                                                                                                                      | That packages emit anything — they are consumed as TypeScript source, so there is nothing to emit.                                                                                                                                                                                                                                                                                                                                                             |
-| `pnpm dev:web`                       | The website dev server starts and serves the app on `127.0.0.1:5173`.                                                                                                                                                                                                                                                                                                                                                                                                             | That a real browser can reach Guerrilla Mail.                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `pnpm spike:selftest`                | The M0 harness records outcomes correctly and writes its artifacts.                                                                                                                                                                                                                                                                                                                                                                                                               | Anything about real providers — it issues zero network requests.                                                                                                                                                                                                                                                                                                                                                                                               |
-| `pnpm verify`                        | typecheck + lint + format + test + build all pass in sequence, **with no browser installed** — measured by pointing `PLAYWRIGHT_BROWSERS_PATH` at an empty directory.                                                                                                                                                                                                                                                                                                             | The browser tier. It is deliberately not run here, because `build-and-verification` requires `verify` to work without one.                                                                                                                                                                                                                                                                                                                                     |
-| `openspec validate --specs --strict` | The live capability specs are internally consistent.                                                                                                                                                                                                                                                                                                                                                                                                                              | That the implementation matches them.                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Command                              | What it proves                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | What it does **not** prove                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm install`                       | The workspace resolves and installs from the committed lockfile.                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | That a browser is installed — `pnpm install` resolves Playwright but downloads none.                                                                                                                                                                                                                                                                                                                                                                           |
+| `pnpm typecheck`                     | All 8 workspace projects type check under the shared strict config.                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | That the types are useful — that is what the tests are for.                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `pnpm lint`                          | ESLint passes.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Type correctness; `pnpm typecheck` owns that.                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `pnpm format:check`                  | Prettier passes on the files this repository governs.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | That historical documents are formatted; those are deliberately excluded.                                                                                                                                                                                                                                                                                                                                                                                      |
+| `pnpm test`                          | 1379 tests across 74 files pass, including 127 architecture assertions — of which 55 are the boundary rules themselves.                                                                                                                                                                                                                                                                                                                                                                                                                      | Product behaviour against a **live** provider. Every provider test replays recorded responses, and `jsdom` implements no IndexedDB.                                                                                                                                                                                                                                                                                                                            |
+| `pnpm test:browser`                  | 17 spec files and 149 cases pass in **Chromium** — 51 in the website's tier and 98 in the extension's: the built page reads and writes real IndexedDB through `createBrowserStorage()`, a confirmed removal leaves `indexedDB.databases()` empty, every control the page offers is keyboard-reachable with a focus indicator whose **resolved** outline differs from the same control unfocused, and a detected verification link is a real link in Chromium's own accessibility tree which navigates nowhere and asks its host for nothing. | Anything about a live provider — every provider response is a recorded one. Nor about Firefox or WebKit, nor a blocked removal, nor how a real provider tolerates five-second polling, nor **the real clipboard** — the copy outcome is verified on jsdom against a stub, because `navigator.clipboard.writeText` in headless Chromium needs a permission this tier does not grant. **Nor about how the page looks**: no test reads a rendered pixel's colour. |
+| `pnpm build`                         | **Both** clients build with Vite: `apps/web/dist` and `apps/extension/dist`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | That packages emit anything — they are consumed as TypeScript source, so there is nothing to emit.                                                                                                                                                                                                                                                                                                                                                             |
+| `pnpm dev:web`                       | The website dev server starts and serves the app on `127.0.0.1:5173`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | That a real browser can reach Guerrilla Mail.                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `pnpm spike:selftest`                | The M0 harness records outcomes correctly and writes its artifacts.                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Anything about real providers — it issues zero network requests.                                                                                                                                                                                                                                                                                                                                                                                               |
+| `pnpm verify`                        | typecheck + lint + format + test + build all pass in sequence, **with no browser installed** — measured by pointing `PLAYWRIGHT_BROWSERS_PATH` at an empty directory.                                                                                                                                                                                                                                                                                                                                                                        | The browser tier. It is deliberately not run here, because `build-and-verification` requires `verify` to work without one.                                                                                                                                                                                                                                                                                                                                     |
+| `openspec validate --specs --strict` | The live capability specs are internally consistent.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | That the implementation matches them.                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 ### What the browser tier is, and what it is not
 
@@ -503,7 +568,7 @@ Measurements, with the exact observations, are in
 
 ## Deferred verification
 
-**The live host-permission check has not been performed.**
+**The live host-permission check exists as an instrument, and no result is claimed for it.**
 
 The measured fact stands: `https://api.mail.tm/*` is the required wildcard form, and
 a host permission declared as `https://api.mail.tm` **silently grants nothing**.
@@ -514,13 +579,17 @@ The test that exercises the declared pattern against the live provider needs an
 **extension**, and one now exists. Browser-test infrastructure does too — Playwright
 runs both clients — but the browser tier deliberately intercepts provider traffic, so it
 is the wrong tool anyway: this check is _about_ reaching a live provider. It is therefore
-**deferred to the milestone that owns provider infrastructure**, and it is the one live call
-this repository contains: `apps/extension/e2e/live-host-permission.mjs`, **quarantined from
-all three suites** and held out by an architecture boundary assertion.
+`apps/extension/e2e/live-host-permission.mjs`, **quarantined from all three suites** and
+held out by an architecture boundary assertion, staging **two throwaway extensions** so the
+wildcard half and the slash-less half are measured against the same origin in one run.
 
-No result is claimed for it. The trap cannot be hit by accident either, because
-`manifest.spec.ts` reads the **built** manifest and asserts the wildcard path form against
-the pattern's own rule.
+**It is one of five quarantined probes, and two of them reach a real provider origin** — this
+one and `side-panel-runtime.mjs` — **and neither reads a response body**, so what they would
+establish is reachability rather than that a provider serves a request. **Nothing schedules
+either of them**: M15 decided this product remains provider-powered, so there is no later
+milestone that owns provider infrastructure to defer them to. **The trap cannot be hit by
+accident either**, because `manifest.spec.ts` reads the **built** manifest and asserts the
+wildcard path form against the pattern's own rule.
 
 ### Still unverified after the first real browser run
 
@@ -534,7 +603,10 @@ The browser tier closed the storage-path gap and **did not close these**:
 - **A blocked removal** — still a `fake-indexeddb` measurement; the browser suite does not
   produce that event.
 - **Other browsers** — Chromium only, on one machine and on GitHub-hosted Linux runners.
-  Repeatable is not the same as covered.
+  Repeatable is not the same as covered. **Firefox was attempted and could not be reached at
+  all**: 0 of 10 install arms, including a bare MV3 manifest with no side panel and no service
+  worker, so **nothing is known about Firefox compatibility and the product does not ship for
+  it**. See [`docs/BROWSERS.md`](docs/BROWSERS.md).
 - **The browser tier in CI** — the job hung on its first five runs, and the cause was
   **measured** rather than guessed. Chromium was healthy throughout: it launched on the same
   runner in 250ms. The hang was this repository's own `webServer` command wrapping `vite`
@@ -588,8 +660,15 @@ openspec validate --specs --strict       # live capability specs
 
 ### Relationship to the roadmap
 
-`docs/ROADMAP.md` is the **program-level plan**: fifteen milestones from the
-provider spike to a public beta. It owns the `Project Status` ledger.
+`docs/ROADMAP.md` is the **program-level plan**: sixteen milestones — M0 to M15 — from the provider
+spike to a post-beta evaluation, and it ends there rather than at a public beta, because no beta ran.
+It owns the `Project Status` ledger.
+
+**Every milestone in it is now resolved**: complete in scope, skipped by decision (M14), or decided
+by decision (M15). **What remains is not a milestone but two product decisions** — whether the website
+is deployed and whether the extension is listed — and the roadmap's own §33.2 names both as unmet
+rather than leaving them to be inferred from a green test run. **No deployment, hosting or release
+pipeline exists or is planned for V1**, and the extension loads unpacked from `apps/extension/dist`.
 
 OpenSpec changes are **bounded implementation units**, not milestones. The roadmap
 says _what_ the program does and in what order; an OpenSpec change specifies _how_
@@ -610,11 +689,13 @@ SpectreMail reads disposable mailboxes and nothing else.
 - **No backend.** No SpectreMail-operated server, and no proxying of provider APIs.
 - **No account.** There is no sign-up and no user record.
 - **Client-side storage.** Four record kinds in the extension's `chrome.storage.local`
-  area and one in the website's IndexedDB, behind a shared contract. Storage is the
+  area and two in the website's IndexedDB, behind a shared contract. Storage is the
   client's, not the provider's and not ours. One of the four is a **hostname
   association** — which page a SpectreMail address was inserted on, and nothing else
-  about that page. A two-step control in each client removes the whole area; removing it
-  deletes this device's note of the address, not the address.
+  about that page — and one records **which message ids have already been announced**, so
+  a notification is not raised twice; it holds no sender, no subject and no body. A
+  two-step control in each client removes the whole area; removing it deletes this
+  device's note of the address, not the address.
 
 A provider receives the mail itself, and its own retention is what applies to a
 message. Where a provider publishes no figure, this repository has not measured one and
