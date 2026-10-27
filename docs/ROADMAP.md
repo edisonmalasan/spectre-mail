@@ -6268,28 +6268,72 @@ Only then proceed to full repository scaffolding and production implementation.
 
 # 33. Roadmap Completion Definition
 
-SpectreMail's initial roadmap is considered successfully completed when:
+SpectreMail's initial roadmap is considered successfully completed when every line below holds:
 
 ```text
-✓ Website is publicly usable
-✓ Browser extension is publicly usable
-✓ No SpectreMail account is required
-✓ Guerrilla Mail works as the website provider
-✓ Mail.tm works as the extension's primary provider
-✓ Guerrilla fallback works in the extension where technically viable
-✓ Provider-specific code is isolated
-✓ OTP detection works reliably
-✓ Verification links are safely exposed
-✓ Browser email-field integration works
-✓ Incoming verification notifications work
-✓ Side panel provides usable inbox context
-✓ Data remains local-first
-✓ Privacy behavior is documented
-✓ Public branding has been validated
-✓ Architecture still permits future own-domain infrastructure
+Website is publicly usable
+Browser extension is publicly usable
+No SpectreMail account is required
+Guerrilla Mail works as the website provider
+Mail.tm works as the extension's primary provider
+Guerrilla fallback works in the extension where technically viable
+Provider-specific code is isolated
+OTP detection works reliably
+Verification links are safely exposed
+Browser email-field integration works
+Incoming verification notifications work
+Side panel provides usable inbox context
+Data remains local-first
+Privacy behavior is documented
+Public branding has been validated
+Architecture still permits future own-domain infrastructure
 ```
 
 At that point the next roadmap should be based on real usage rather than assumptions.
+
+## 33.1 This list is a definition, not a status
+
+**The block above carried a `✓` against every line, and that was a defect of reading rather than of
+intent: a tick in a list of *criteria* is read as a claim of *achievement*.** Measured on 2026-10-28,
+**two of the sixteen ticks were false in the strictest available sense** — the thing they name does
+not exist in this repository at all — and **the other fourteen are criteria, some of which are met
+and some of which are met only as far as this repository's own limits say**, which is a different
+statement from the one a tick makes. **So the ticks are removed rather than corrected one by one**,
+because the defect was that a definition wore the marks of a scoreboard.
+
+**The measured status is not kept here.** It is in `## Project Status` at the top of this file, which
+is the ledger that is re-measured at every stage, and in `openspec/specs/`, which is the behavioural
+source of truth. **A second status list living beside a definition is a second place to be stale**,
+and this file has now recorded that shape more than once.
+
+## 33.2 The two lines this roadmap cannot satisfy, and why
+
+**Measured 2026-10-28, on `main` at `a55561f`:**
+
+- `.github/workflows/` holds **one** workflow — `ci.yml`, with **three** jobs: `verify`,
+  `spike-self-test` and `browser`. **There is no deploy, publish or release job.**
+- The workspace holds **no hosting configuration of any kind** — no `Dockerfile`, no `netlify.toml`,
+  `vercel.json`, `firebase.json`, `wrangler.toml`, `fly.toml`, `render.yaml`, `app.yaml`, `CNAME` or
+  `Procfile` — and the root manifest carries **no `deploy` script**.
+- **`AGENTS.md` states the position directly**, under *Infra / deploy*: **"No deployment, hosting, or
+  release pipeline exists or is planned for V1."** **Nothing is published to the Chrome Web Store
+  either**, so the extension is loadable **unpacked** from `apps/extension/dist` and no further.
+
+**⇒ So *Website is publicly usable* and *Browser extension is publicly usable* are two criteria this
+roadmap has decided not to meet**, and **the disagreement is between two documents rather than
+between a document and the tree**: §33 asks for public usability while `AGENTS.md` scopes deployment
+out of V1. **A completion definition that names work the scope forbids is a definition that cannot be
+satisfied by finishing the work** — and leaving both in place with a tick beside them would hide
+that, which is what happened.
+
+**⇒ And the two lines are kept rather than deleted**, because **they are what "done" would mean for
+this product** and deleting them would make the definition agree with the scope by quietly shrinking.
+**What changes is what they are:** criteria, unmet, with the reason measured and named above.
+
+**What would change it** is a deployment target for `apps/web/dist` and a store listing for the
+extension — **and both are product decisions rather than implementation work**, which is why they are
+recorded here rather than scheduled anywhere. **A roadmap that ticked them without a deployment
+would not have shipped one.**
 
 ---
 
