@@ -2274,9 +2274,13 @@ Pin versions when exact versions matter.
   re-measuring at every stage rather than every few:
   54 in `packages/core`, 92 in `packages/providers`, **149 in `packages/mail-parser`**,
   **172 in `packages/mailbox`**, **143 in `apps/web`**,
-  **103 in `packages/storage`** (7 stored record, 11 mailbox collection, 30 IndexedDB adapter,
-  11 site associations, 7 browser entry point, 12 `chrome.storage` adapter,
-  **8 seen-message record**),
+  **103 in `packages/storage`** (7 stored record, 11 mailbox collection, 31 IndexedDB adapter,
+  16 IndexedDB mailbox collection, 11 site associations, 7 browser entry point,
+  12 `chrome.storage` adapter, **8 seen-message record** — and **the parenthetical did not add
+  up to its own total until this correction**, because it was written before the second
+  IndexedDB adapter existed and never re-summed: 7 + 11 + 31 + 16 + 11 + 7 + 12 + 8 = 103,
+  while the version before it summed to **86**. **A breakdown that does not add up to the
+  total beside it is a breakdown nobody read**),
   **49 in `packages/ui`** (**38** until `branding-check` added **4** and this change added
   **7** — the shared diagnostic's own cases — so the package's count is no longer the flat
   **38** this file has carried through nine milestones, and **a figure that stops moving is

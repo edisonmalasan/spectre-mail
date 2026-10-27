@@ -1329,9 +1329,11 @@ function withDisposableExtensionSource(): { root: string; done: () => void } {
  * *is* the second spelling of what to scan: M6 slice 1's falsification pass rewrote a
  * call site to `(["mailbox"])`, then to `([])`, and the suite stayed green both times
  * because every package it stopped scanning happened to be clean. A root parameter here
- * would be exactly that mistake, one directory over — the scan would quietly stop
- * covering `apps/extension`, which today has no source files at all and would therefore
- * make the loss invisible until M8 writes some.
+ * would be exactly that mistake, one directory over — when this was written the scan
+ * could quietly stop covering `apps/extension`, which held no source files then, so the
+ * loss would have been invisible. It is a full client now and the rule scans it, which is
+ * the other reason the root is not a parameter: a parameter is how a scan stops covering a
+ * client nobody thought to pass.
  *
  * **No allowance list, so there is nothing to widen.** The one permitted spelling is in
  * the pattern, where it is visible next to the thing it modifies. A separate allowance
@@ -2693,10 +2695,10 @@ describe("architecture boundaries", () => {
     //
     // **Same one-call-site design as the shared-package rule, for the same structural
     // reason.** This assertion is negative, so a rule that scanned nothing would
-    // satisfy it — and `apps/extension` has no source files today, so a rule quietly
-    // covering only `apps/web` would look identical from here until M8 writes the
-    // extension. A probe planted in every client the rule must scan is what makes the
-    // negative assertion mean something.
+    // satisfy it — and when this was written `apps/extension` held no source files, so a
+    // rule quietly covering only `apps/web` would have looked identical from here. Both
+    // clients have source now, and a probe planted in every client the rule must scan is
+    // what makes the negative assertion mean something either way.
     const mustScan = ["web", "extension"];
 
     // Preconditions, transcribed rather than derived. Deriving the expected list from
