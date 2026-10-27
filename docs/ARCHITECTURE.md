@@ -20,7 +20,7 @@ apps/extension ───┘
 packages/* ──✗──> apps/*      forbidden in both directions of that arrow
 ```
 
-Two apps are clients. Five packages are shared. Everything both clients need lives
+Two apps are clients. Six packages are shared. Everything both clients need lives
 in a package, because the extension and the website have different capabilities,
 different storage, and different provider access — and duplicating logic between
 them is how the two copies drift.
@@ -33,14 +33,14 @@ depend on packages, never the reverse.
 
 ## Packages
 
-| Package                     | Owns                                                                                                                                                                       | Must never contain                                                                            |
-| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `@spectre-mail/core`        | The normalized domain model and its invariants — mailbox, message, credentials, the closed set of normalized error codes, shared types                                     | Provider wire format; any HTTP call to a provider; lifecycle behaviour                        |
-| `@spectre-mail/providers`   | The `MailProvider` contract, the Mail.tm adapter, the Guerrilla Mail adapter, the shared conformance suite, the provider manager, any future SpectreMail-operated provider | Business logic that belongs in `core`; presentation; any storage                              |
-| `@spectre-mail/mail-parser` | Safe text extraction, OTP detection, verification-link detection, message classification                                                                                   | Anything that renders markup; provider field names                                            |
-| `@spectre-mail/mailbox`     | The mailbox session — opening, replacing, retrying, provider health — as state values a client renders                                                                     | Any framework; any DOM; any storage; any request of its own                                   |
-| `@spectre-mail/storage`     | The `SpectreStorage` contract, its IndexedDB adapter, and `createBrowserStorage()` — **the website uses it, and the extension's adapter is a later slice**                 | Provider wire format; assumptions specific to one client; any workspace package except `core` |
-| `@spectre-mail/ui`          | Reusable product UI and design tokens                                                                                                                                      | Marketing-only website sections                                                               |
+| Package                     | Owns                                                                                                                                                                                                                                                                                                                                                                                                                        | Must never contain                                                                            |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `@spectre-mail/core`        | The normalized domain model and its invariants — mailbox, message, credentials, the closed set of normalized error codes, shared types                                                                                                                                                                                                                                                                                      | Provider wire format; any HTTP call to a provider; lifecycle behaviour                        |
+| `@spectre-mail/providers`   | The `MailProvider` contract, the Mail.tm adapter, the Guerrilla Mail adapter, the shared conformance suite, the provider manager. **A provider SpectreMail itself operates is not a planned member**: M15 decided the product stays provider-powered with no own-domain mail infrastructure                                                                                                                                 | Business logic that belongs in `core`; presentation; any storage                              |
+| `@spectre-mail/mail-parser` | Safe text extraction, one-time code detection, verification-link detection — **and no message classification**: the analysis carries readable text and ranked candidates, never a verdict about what kind of mail it is                                                                                                                                                                                                     | Anything that renders markup; provider field names                                            |
+| `@spectre-mail/mailbox`     | The mailbox session — opening, replacing, retrying, provider health — as state values a client renders                                                                                                                                                                                                                                                                                                                      | Any framework; any DOM; any storage; any request of its own                                   |
+| `@spectre-mail/storage`     | Four contracts — `SpectreStorage`, `SpectreMailboxes`, `SpectreSiteAssociations`, `SpectreSeenMessages` — with an IndexedDB adapter for the two mailbox records and a `chrome.storage` adapter for all four; **both clients use it — the website from its page, the extension from four contexts (content script, popup, side panel, service worker)**                                                                      | Provider wire format; assumptions specific to one client; any workspace package except `core` |
+| `@spectre-mail/ui`          | The design tokens, the generated `tokens.css`, the contrast arithmetic over the declared pairs, `PRODUCT_NAME`, and the shared definition of a reportable value. **No component lives here yet**: the roadmap's own list names buttons, the mailbox card, the provider badge, the status dot, the message row, the OTP component and the verification-link component, and both clients still own the components they render | Marketing-only website sections                                                               |
 
 ### The session layer
 
@@ -229,10 +229,13 @@ client re-rendered per notification. Nothing that asked only _what_ was reported
 see it — only an assertion about _how often_ did, which is why that count is now
 asserted rather than inferred.
 
-**None of this has run against a live provider either, and none of it has run in a
-browser.** Every assertion above is over a stub provider or a recording transport, and
-**no live browser run of the website has ever been made** — the component that renders
-this state has been seen by jsdom and by nothing else.
+**None of this has run against a live provider.** Every assertion above is over a
+stub provider or a recording transport — **but the page that renders it has run in a
+real browser, and has since M6.** The browser tier drives the built page in Chromium
+against real IndexedDB, with provider traffic served from **recordings**, so what it
+leaves unverified is narrower than "it has never run": it is that **no provider ever
+answered it.** The distinction matters both ways — a recording is not a provider, and
+a component seen by jsdom alone is not the same claim as one a real Chromium rendered.
 
 ### The provider layer
 
@@ -321,8 +324,11 @@ shared package.
 
 `packages/mail-parser` is a **pure function of `Message.text`**: safe text
 extraction, one-time-code detection, and verification-link detection. It has no
-network, no clock, and no AI, and no client consumes it yet. Three properties of
-it are architecture, not implementation detail:
+network, no clock, and no AI. **Its one consumer is `packages/mailbox`** — the inbox's
+verdict pass and the opened message both run it — which is what keeps the parser out of
+both clients: a client renders what the session says a message holds and never calls
+`analyseMessage` itself, so there is one place that decides what a message contains.
+Three properties of it are architecture, not implementation detail:
 
 **The seam is exactly `Message.text`, and there is no markup field to misuse.**
 `shared-domain-model` deliberately gives `Message` one text field and no markup
@@ -399,12 +405,18 @@ documentation beside one and an id declared with no adapter beside it does not c
 The registry stays in the client: keyed by id, a shared one would let any client
 import an adapter it must not reach, and reachability is per client.
 
-The three files that may name an adapter or a composition seam are that module,
-`transport.ts`, and `packages/mailbox`; `tests/architecture/boundaries.test.ts`
-enforces it by path, strips comments before matching, and states its own limits in its
-own source — it cannot tell a definition from a call, so it verifies _where_ an adapter
-may be named, never _why_. A client that reached for Mail.tm anyway would pass that
-rule and be caught by the `website-client` one-provider requirement instead.
+**Two entitlements, because two different jobs, and each is by file path.** A client may
+**name an adapter** only in its `provider-config.ts` — choosing which providers it can reach
+is that module's entire purpose — and may **name a composition seam** in `provider-config.ts`
+or `transport.ts`, the two places a browser turns a choice into a reachable transport. Test
+files are exempt from the adapter half, because a check that asserts a name's absence has to
+be able to name it. **`packages/mailbox` was on the seam list and was removed**: it _receives_
+a `ProviderManager` and never composes one, so the allowance was a live-looking permission
+nothing exercised. `tests/architecture/boundaries.test.ts` enforces all of it by path, strips
+comments before matching, and states its own limits in its own source — it cannot tell a
+definition from a call, so it verifies _where_ an adapter may be named, never _why_. A client
+that reached for Mail.tm anyway would pass that rule and be caught by the `website-client`
+one-provider requirement instead.
 
 **A client's exported provider-id list must be read as a value.** That is a second
 boundary rule, and it exists because the indirection above was documented for three
@@ -421,16 +433,30 @@ for the other.
 that the website offers no control for choosing a provider, names the one it reaches,
 and does not describe the absence as missing or forthcoming. A `<select>` over a single
 reachable option cannot act, and an inert one would claim a choice exists and is
-unavailable — which is worse than saying nothing. The extension, whose host
-permissions do reach two providers, is where a selector belongs.
+unavailable — which is worse than saying nothing. **The extension is not where one belongs
+either**, and that is worth stating because it is the obvious guess: the extension does
+reach two providers, so a selector would be meaningful there in a way it is not on the
+website — but choosing is still not a user action, so `extension-client` requires the popup
+to name the provider that answered and the one it fell back from, and requires it to offer
+no control for choosing.
 
 **It creates a mailbox, renders its address, lists that mailbox's messages while
-polling, opens one, and keeps the address so a reload brings it back - with no
-styling.** (This sentence carried "no persistence", and before that a "no inbox" claim
-stale from slice 1; both were retired by their own slices and neither was corrected
-when the next one landed, which is the failure this line exists to record.) The absence
-of styling is a decision, not an omission: M7 owns the visual design, and markup written
-before it would be markup M7 rewrites.
+polling, opens one, keeps the address so a reload brings it back, and offers a
+two-step confirmed removal of what this browser holds.** A detected code carries its own
+`Copy <value>` control and a detected link is a real anchor, and **neither is reachable
+except by an explicit activation**. (This sentence carried "no persistence", then "no
+styling", and before both a "no inbox" claim stale from slice 1; each was retired by the
+slice that delivered the thing and none was corrected when the next one landed, which is
+the failure this line exists to record.)
+
+**It is styled, and what that establishes is narrower than it sounds.** Every colour,
+radius, spacing step, type size and duration is a token from `packages/ui`; contrast is
+asserted as WCAG arithmetic over the declared pairs in both schemes; every control is
+keyboard-reachable with a **resolved** outline the product drew, read in Chromium on the
+built page; and the three entrances animate to the value they already compute to, which
+is what lets `prefers-reduced-motion: reduce` be a **removal** rather than a substitute
+timing. **No test reads a rendered pixel**, so whether any of it _looks_ right is a human
+judgement and no gate in this repository stands in for it.
 
 **The persistence boundary now has a client on one side of it, which changed what the
 rule could scan.** Until M6 slice 2 every rule here was about shared packages, because
@@ -451,8 +477,13 @@ from mistakes the falsification pass caught:
   would be a second spelling of what to scan, and slice 1's pass found three such
   spellings whose narrowing left the rule satisfied by accident.
 
-The rule covers **every** app root, not `apps/web`, because `apps/extension` has no
-`src/` yet — a rule scoped to the only client that exists today is invisible until M8.
+The rule covers **every** app root, not `apps/web`, and the reason it was written that way
+has outlived the fact that motivated it. It was written while `apps/extension` held no
+source files — a rule scoped to the only client that existed then would have been invisible
+to the next one — and the extension is now a full client that this rule scans. **What the
+extension does reach is `chrome`, and that is confined to a single module by its own rule**,
+so the platform global is governed by a narrower rule than "no store" rather than exempted
+from this one.
 
 **Opening a message displays what it found and acts on it only when the user asks.** Two
 boundary rules held the opposite through M9, and **they were deleted with the requirement
@@ -488,18 +519,53 @@ none was measured live — an elapsed guess is not an expiry signal.
 
 ### `apps/extension`
 
-A placeholder. It has **no** `manifest.json`, no service worker, and no build step.
+A Manifest V3 extension, and **the client the product exists for**: it is the one that can
+read mail while the person stays in the signup flow they were already in. It holds a real
+manifest, a service worker, a popup, a side panel and a content script, and it builds with
+`vite` — twice, for reasons the build section records.
 
-This is deliberate rather than incomplete. The roadmap schedules the extension
-build for M8. A manifest with placeholder permissions would be worse than nothing,
-because it would look like a working extension in precisely the area where M0
-measured a silent-failure trap: a host permission declared as
-`https://api.mail.tm` grants **nothing**, silently, while `https://api.mail.tm/*`
-works. An absent manifest cannot mislead.
+**Four entry points, and each runs in a different platform context.** The **service
+worker** (`service-worker.ts`) owns every provider request, the alarm that announces
+arriving mail, and the notification those statements turn into. The **content script**
+(`content-script/entry.ts`) is the only client code that runs inside somebody else's page:
+it watches for an email field taking focus, offers a control inside a **shadow root**, and
+fills a recognised one-time-code field when a person asks it to. The **popup** (`main.tsx`)
+and the **side panel** (`panel-main.tsx`) are ordinary React documents over the same shared
+session, and they are the two surfaces a person reads mail in.
 
-Extension work starts after the website core is stable. Doing it first would mean
-building mailbox logic inside an app with no shared core, then extracting it under
-deadline.
+**A content script may not fetch a provider origin, and that is measured.** Its request
+obeys the **page's** CORS policy while the extension's `host_permissions` do not reach it
+(`docs/PROVIDERS.md` §4.4), so creation is **delegated to the service worker** over
+`chrome.runtime` and the provider is contacted from exactly one context. Everything else the
+content script needs it reads from `chrome.storage.local` directly, which needs no round
+trip: a content script injected with no `host_permissions` reaches that area on the
+`storage` permission alone.
+
+**The platform global is reached in one module.** `extension-platform.ts` reads `chrome`
+reflectively — `Reflect.get(globalThis, "chrome")` — and exports the seams the rest of the
+client uses, so no other module names the global and a boundary rule fails the build if one
+does. That module's name is not an accident of history: while it was called
+`chrome-platform.ts`, the rule fired on the import specifier of the very requirement that
+mandates the import, and the fix was the file rather than a carve-out.
+
+**The permissions are declared and proved in both directions.** `storage`, `alarms`,
+`notifications` and `sidePanel` are declared, along with wildcard-path host permissions for
+both providers. **`tabs` is deliberately not declared**: `chrome.tabs.query` and
+`chrome.tabs.sendMessage` need no `tabs` permission, measured, so declaring it would grant
+reach the product does not use. `apps/extension/e2e/manifest.spec.ts` holds a test-owned map
+— permission → the call that reaches it, or the manifest key that earns it — asserted both
+ways, so a declared permission with nothing behind it fails as well as a call with no
+permission.
+
+**The host-permission trap is the reason the built manifest is read rather than the source
+file trusted.** M0 measured that a host permission declared as `https://api.mail.tm` grants
+**nothing**, silently, while `https://api.mail.tm/*` works — and the failure has no error
+message, so only the platform's own answer distinguishes the two. A browser case therefore
+resolves the declared patterns against what Chromium actually parsed.
+
+Extension work came after the website core was stable, and that ordering is the reason this
+client consumes the same shared packages rather than a second implementation: mailbox logic
+built inside an app with no shared core would have had to be extracted under deadline.
 
 ---
 
@@ -520,8 +586,10 @@ Three reasons:
    violate; workspace membership is a constraint.
 
 It is not deleted. It is the reproducible evidence behind `docs/PROVIDERS.md`, which
-must be re-runnable before release. Retiring it is M3's decision, once real
-adapters exist to replace it.
+must be re-runnable before release. **It was not retired once real adapters existed, and
+that is a decision rather than an oversight**: it is the only evidence in this repository
+that can be re-run against the live providers, and every adapter's fixture is a recording
+somebody may one day need to refresh.
 
 To run it:
 
@@ -544,12 +612,20 @@ points at `./src/index.ts`, and Vite compiles workspace TypeScript directly.
 
 There is no per-package build step and no bundler. That machinery would mean
 choosing a bundler, a `tsc` emit strategy, declaration output, and a watch mode —
-four decisions serving code that does not exist yet.
+four decisions serving output nothing consumes.
 
-**The consequence, stated plainly:** `pnpm build` builds the website only. It does
-not emit packages, because there is nothing to emit. Package correctness is
-established by `pnpm typecheck`, which is a separate acceptance criterion. This is
-documented rather than hidden behind a `build` script that quietly does nothing.
+**The consequence, stated plainly:** `pnpm build` builds **both clients** and emits no
+package, because there is nothing to emit. Package correctness is established by
+`pnpm typecheck`, which is a separate acceptance criterion. This is documented rather than
+hidden behind a `build` script that quietly does nothing.
+
+**The extension's build is two invocations of `vite`, and neither is optional.** The first
+emits the popup, the side panel and the service worker; the second emits the content script,
+which Chromium loads as a **single classic script** — an `import` in it is a runtime failure
+on every page rather than a build warning. The first config sets `emptyOutDir: false` so the
+second invocation does not erase the first's output, and the cost is stated rather than
+discovered: **no build removes an artefact a previous build emitted**, which is why
+`pnpm test:browser` is the one command that deletes `dist/` first.
 
 Revisit when a package must be consumed by something that is not Vite — a Node
 script, or a published artifact. That is the moment to add a real build.
@@ -575,80 +651,101 @@ A package must not weaken shared strictness to make its own type check pass. If 
 genuinely package-specific option is needed, it goes in that package's extending
 config and the difference is deliberate and reviewable.
 
-`apps/extension` uses `"files": []` — TypeScript's documented way to declare a
-project with no inputs on purpose, so `tsc --noEmit` succeeds instead of failing
-with "No inputs were found".
+**The clients declare a DOM and `packages/mailbox` does not, and that difference is the
+boundary rather than a preference.** `apps/extension` extends the base with
+`lib: ["ES2023", "DOM", "DOM.Iterable"]`, `jsx: "react-jsx"` and `types: ["vite/client"]`,
+and includes `src`, `e2e`, its three `vite` configurations and its Playwright configuration.
+That it is typechecked at
+all is worth stating because it once was not: until M8 it declared `"files": []` —
+TypeScript's documented way to declare a project with no inputs on purpose — so
+`tsc --noEmit` succeeded by compiling nothing.
 
 ---
 
 ## Enforcement
 
-`tests/architecture/boundaries.test.ts` asserts **42** things:
+`tests/architecture/boundaries.test.ts` asserts **55** things, and the number is worth
+reading beside the list rather than instead of it — the assertions include each rule's own
+controls, so the count is larger than the count of rules:
 
-- the packages and apps the roadmap specifies exist;
-- the workspace declares exactly `apps/*` and `packages/*`;
-- the spike is outside the workspace **and** still exists;
+- the packages and apps the roadmap specifies exist, and the workspace declares exactly
+  `apps/*` and `packages/*`;
+- the spike is outside the workspace **and** still exists, and no workspace file references
+  it;
 - no package imports an app, including a dynamic `import("…")` or a bare side-effect
   `import "…"`;
-- no workspace source file outside `packages/providers` contains a measured provider
-  JSON field name;
-- a provider adapter is neither implemented nor re-exported outside
-  `packages/providers`, and is named only in a client's `provider-config.ts` or a test
-  file;
-- the composition seams (`createProviderManager`, `createFetchTransport`) are named
-  only in a client's `provider-config.ts` or `transport.ts` or in a test file;
+- no workspace source file outside `packages/providers` contains a measured provider JSON
+  field name;
+- a provider adapter is neither implemented nor re-exported outside `packages/providers`,
+  and is named only in a client's `provider-config.ts` or a test file;
+- the composition seams (`createProviderManager`, `createFetchTransport`) are named only in
+  a client's `provider-config.ts` or `transport.ts` or in a test file;
 - no module in `packages/providers`, `packages/mail-parser`, **or `packages/mailbox`**
   reaches the global `fetch`;
-- `packages/mailbox` imports no framework, **in any of the four import forms**;
-- `packages/mailbox` reaches no global store, cookie jar, or URL;
-- no module in `packages/mailbox` reaches a clock or timer global, in **any of seven
+- `packages/mailbox` imports no framework, **in any of the four import forms**, reaches no
+  global store, cookie jar, or URL, and reaches no clock or timer global in **any of seven
   spellings** (`Date.now`, `Date.parse`, `new Date`, `performance.now`, `setTimeout`,
-  `setInterval`, `setImmediate`), with three negative controls for names that merely
-  look like clocks;
+  `setInterval`, `setImmediate`);
+- the DOM lib is absent from that package's compiler **and** none of the globals it would
+  have declared is reachable at runtime;
+- `packages/storage` declares `@spectre-mail/core` as its only runtime workspace dependency,
+  and no shared package imports the storage layer at all — only a client may;
+- no client reaches a global store, cookie jar, URL or cookie, with exactly one carve-out,
+  `navigator.clipboard`; and the extension's `chrome` global is confined to a single module;
+- the extension cannot write the singular mailbox record it only reads;
 - `packages/mail-parser` is imported only by `packages/mailbox`;
 - no file under `apps/` reaches for a markup escape hatch;
-- **every** test file this repository ships is actually **collected** by the
-  configured globs — packages as well as apps;
-- a client's exported provider-id list is **read as a value**, not merely declared, and
-  a configuration that declares none is caught;
-- no workspace file references the spike.
+- a shipped stylesheet carries no remote origin and no removed focus indicator, the client's
+  markup carries no remote asset, every class hook a client renders is selected by a rule,
+  and every custom property read resolves against a declaration above it in the same file;
+- a client cannot restate a value a shared package already owns;
+- **every** test file this repository ships is actually **collected** by the configured
+  globs — packages as well as apps — and every browser spec is collected by exactly one
+  browser suite and never by the unit runner;
+- every platform probe that reaches past what the product ships is quarantined, and the
+  probes are partitioned by the engine each one loads through;
+- a client's exported provider-id list is **read as a value**, not merely declared, and a
+  configuration that declares none is caught;
+- the website's depiction of the extension popup shows only strings the popup itself renders;
+- the staged-probe vocabulary is the only source of a staged file's name, and holds nothing
+  the boundary suite does not stage.
 
-**Six of those carry their own positive controls**, because a rule with no control
-cannot be shown to fire and a rule with one control proves only the form its author
-thought of: the `fetch` rule is driven end to end through a temporary module written
-into each scanned package, **one probe per fetch form**; the framework rule runs one
-probe per import form plus a negative case; the clock rule runs one probe per spelling
-plus three negatives; the storage rule runs one probe per spelling **through the same
-`scanPackageWithProbe` path as the others**, because the first version wrote its probe
-and then read that one file directly, proving the pattern fires and proving nothing
-about whether the rule's file discovery would find it; the parser-direction rule's
-control writes a probe into `apps/web`, since the interesting violation is in a client
-and every package-only scan in the file would have missed it; and the test-collection
-rule asserts a precondition on the **spread** of what it found, so a version that
-checked only one root cannot satisfy it. The provider-id rule adds a seventh group: one
-probe per form, and **no gathered list**, because a single fixture that trips a pattern
-of five alternatives proves only that the pattern fires and nothing about the other
-four. Its positive control matters just as much — the list's own declaration and the
-`typeof` derivation that builds the id union must **not** count as uses, or the rule
-would make the correct configuration unwritable.
+**Most of those are negative assertions, so each carries its own positive control**, because
+a rule with no control cannot be shown to fire and a rule with one control proves only the
+form its author thought of: the `fetch` rule is driven end to end through a temporary module
+written into each scanned package, **one probe per fetch form**; the framework rule runs one
+probe per import form plus a negative case; the clock rule runs one probe per spelling plus
+three negatives; the storage rule runs one probe per spelling **through the same
+`scanPackageWithProbe` path as the others**, because the first version wrote its probe and
+then read that one file directly, proving the pattern fires and proving nothing about
+whether the rule's file discovery would find it; the parser-direction rule's control writes
+a probe into `apps/web`, since the interesting violation is in a client and every
+package-only scan in the file would have missed it; and the test-collection rule asserts a
+precondition on the **spread** of what it found, so a version that checked only one root
+cannot satisfy it. The provider-id rule runs one probe per form, and **no gathered list**,
+because a single fixture that trips a pattern of five alternatives proves only that the
+pattern fires and nothing about the other four. Its positive control matters just as much —
+the list's own declaration and the `typeof` derivation that builds the id union must **not**
+count as uses, or the rule would make the correct configuration unwritable.
 
 Each check was proven able to fail by deliberately introducing the violation and
 observing a non-zero exit. An empty suite was also proven to exit 1:
 `passWithNoTests` is left off, because a green run that inspects nothing is worse
 than no run at all.
 
-**The most recent instance is the one this repository wrote itself.** M5 slice 4's
-state-coverage test asserted the page's whole text contained "Guerrilla Mail"; making
+**One instance this repository wrote itself is worth reading in full, and it is M5 slice 4's.**
+The state-coverage test asserted the page's whole text contained "Guerrilla Mail"; making
 the line that names the provider conditional on the `ready` state left the suite green,
 because the `creating` state already says "Asking Guerrilla Mail for a new address" and
 the `failed` state names the provider in its own explanation. Two of its three
 assertions were satisfied by unrelated text. It now reads the limits `region` by its
 accessible name.
 
-That is the **seventeenth** recorded instance of a check narrower than the rule it
-documents, and the lesson recorded alongside it is about the harness rather than the
-test: the mutation was first written with an unbalanced JSX paren, so the suite failed
-to _collect_, and the harness reported "stayed green" because it looked for failing
+That was the **seventeenth** recorded instance of a check narrower than the rule it
+documents — **thirty-one are recorded in `AGENTS.md` now, and the running total is kept
+there rather than here** — and the lesson recorded alongside it is about the harness rather
+than the test: the mutation was first written with an unbalanced JSX paren, so the suite
+failed to _collect_, and the harness reported "stayed green" because it looked for failing
 test titles and found none. A non-zero exit with no named failure is now a distinct
 outcome rather than a pass. Counting a broken mutation as a catch is how a dead case
 gets filed as coverage.
@@ -657,8 +754,8 @@ gets filed as coverage.
 held `MailTmProvider`, `GuerrillaMailProvider`, and `SpectreMailProvider` — **none of
 which had ever existed**. M3 named its exports `createMailTmAdapter` and
 `createGuerrillaAdapter`, and the rule continued passing while guarding nothing,
-because a list of identifiers nothing references cannot fail. That is the **fourth**
-time this repository has shipped a check narrower than the rule it documented (M1:
+because a list of identifiers nothing references cannot fail. That was the **fourth**
+time this repository had shipped a check narrower than the rule it documented (M1:
 the import pattern and this rule's scope; M2: the wire-format scope, then a type
 assertion that resolved to `never` for every input). The list now names the real
 exports _and_ matches the adapter-factory shape, so the next provider cannot be added
@@ -794,10 +891,13 @@ that sentence is its approved Purpose, and it is why the roadmap's assignment of
 
 ## Related
 
-- `docs/ROADMAP.md` — the milestone plan, including what each package will own once
-  implemented.
+- `docs/ROADMAP.md` — the milestone plan, including what each package owns and which
+  milestones were decided against rather than delivered.
 - `docs/PROVIDERS.md` — the measured provider evidence this architecture is built
   around.
+- `docs/PRIVACY.md`, `docs/SECURITY.md`, `docs/BRANDING.md`, `docs/DESIGN_SYSTEM.md` and
+  `docs/BROWSERS.md` — the record each of those subjects is measured against, kept as their
+  own documents because each answers a different question from this one.
 - `openspec/specs/provider-abstraction/spec.md` — the provider capability contract
   (live).
 - `openspec/specs/monorepo-foundation/spec.md` — the layout and boundary contract.
