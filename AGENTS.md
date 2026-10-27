@@ -1,5 +1,32 @@
 # AGENTS.md
 
+> **`cross-browser-expansion` is WITHDRAWN BY DECISION**, dated **2026-10-28**, and it is a decision
+> rather than a measurement: **M14 is not being built, and this product ships for Chromium only.**
+>
+> **The two engines M14 named are not work.** **Edge runs the same Chromium engine the extension
+> tier already drives**, so a cross-browser expansion has **no second engine to adapt for**; and
+> **Firefox could not be measured at all** — **0 of 10 arms installed**, recorded in
+> `docs/BROWSERS.md` §3. **⇒ And nothing was measured about Edge**, so this withdrawal **claims
+> nothing about Edge's behaviour**: the decision is that **there is no second engine to adapt for**,
+> not that a second engine was found to work. **An inference is not a run.**
+>
+> **And the three claims stay apart, because they are three different statements.** *The tier cannot
+> reach Firefox* is **measured**. *Firefox compatibility is unmeasured* is **unchanged**, and
+> `docs/BROWSERS.md` §3.3 still says so. *This product will not ship for Firefox* is **the decision**
+> — **an unmeasured compatibility is not retired by a decision not to measure it**, and **dropped is
+> neither unreachable nor unsupported**, which is the distinction `browser-verification`'s
+> requirement exists to keep. **The probe, its reader's self-test and `docs/BROWSERS.md` §4 all stay
+> where they are**, so the decision is legible as a decision rather than as a gap.
+>
+> **The roadmap's M14 section is marked SKIPPED rather than deleted, and its adaptation list is
+> kept**, because **a milestone decided against is a record of a decision.** **M15 — Post-Beta
+> Evaluation — is what remains, and it is an evaluation rather than a build.**
+>
+> **What this does not establish.** **Nothing about Edge**, which was never run. **Nothing about
+> Firefox**, whose compatibility stays unmeasured. **And nothing about a second engine's namespace,
+> side panel or notification behaviour** — all three remain unasked, because no extension context
+> ever existed to ask them in.
+
 > **`architecture-suite-cleanup` is APPLIED, SYNCED and ARCHIVED** at
 > `openspec/changes/archive/2026-10-21-architecture-suite-cleanup/`. Proposal PR **#168**
 > merged `4a1ee5e`; apply PR **#169** merged `474e3ae`; sync PR **#170** merged `887ca6b`;
