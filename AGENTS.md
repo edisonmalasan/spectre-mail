@@ -1,9 +1,7 @@
 # AGENTS.md
 
 > **`accent-inventory` is a documentation-and-instrument stage, and it shipped no product change** —
-> dated **2026-10-28**, branch `docs/accent-inventory`, and **its PR number is left unfilled here for
-> the reason this file records**: a predicted number in a document other stages cite by name is a
-> figure nobody counted, so the next stage's proposal fills it from `gh pr view`.
+> dated **2026-10-28**, PR **#191**, branch `docs/accent-inventory`.
 >
 > **`docs/DESIGN_SYSTEM.md`'s Accent section carried a second list of permitted surfaces beside the
 > one `DESIGN.md` owns**, and the two disagreed in both directions. **Measured, the tree carries
