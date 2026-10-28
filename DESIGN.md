@@ -1,6 +1,6 @@
 ---
 name: SpectreMail
-description: Temporary email that meets the flow instead of interrupting it.
+description: "Temporary email that meets the flow instead of interrupting it."
 colors:
   surface-page: "#f4f4f2"
   surface-page-dark: "#0e0e11"
