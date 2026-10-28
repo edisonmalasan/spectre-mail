@@ -2325,7 +2325,7 @@ Pin versions when exact versions matter.
   because **it is the number several changes below use as the measurement that no rule was
   added where an instrument already exists.** **And the instrument this line names is what
   keeps it honest**: `security-audit.test.ts` reads the count out of `boundaries.test.ts`'s
-  own source, so a case added without this figure moving fails the suite - which is how this
+  own source, so a case added without this figure moving fails the suite — which is how this
   line was updated here rather than remembered.
   **This figure was stale by a milestone and is corrected here rather than left, and the reason
   matters more than the number:** it read **1093 across 58 files**, which was accurate at
@@ -2338,7 +2338,14 @@ Pin versions when exact versions matter.
   running the reporter, never by reading this file or a previous session's summary.
   **`AGENTS.md` is listed in `.prettierignore`, so `pnpm format:check` is not a gate over
   this paragraph at all**, which is recorded here because a green `pnpm verify` says nothing
-  about the lines it is standing on.
+  about the lines it is standing on. **`pnpm verify` is not absent from this file, though, and
+  the distinction is worth a sentence because a commit message on this branch overstated it**:
+  `tests/architecture/provider-terms.test.ts` reads `AGENTS.md` — its `DECISION_DOCUMENTS` list
+  names this file, and that file's own reader must find at least one sentence here for its
+  non-vacuity check, so a document carrying none fails rather than passes — which means **a
+  green gate does cover what this file says about a provider's published conditions, and covers
+  none of the figures below it**; those are checked by re-running the reporter and by nothing
+  else.
   **`panel-mailbox-choice` moved `apps/extension` 424 -> 438 and moved nothing else**, and the
   arithmetic accounts for all fourteen: **`panel-copy.test.ts` is new at 5** and **`Panel.test.tsx`
   went 29 -> 38**, +9. `apps/web` is still **125**, which is how the change shows it touched no
