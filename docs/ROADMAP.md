@@ -38,6 +38,15 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > **Visual direction:** Spectral Swiss Utility  
 > **Current public name status:** `SpectreMail` is a project codename until final naming/brand checks are complete
 
+> **How to read this file.** The block immediately below is the **current state**, and it is the
+> only part of this file reconciled against the tree. **Every section after it is a dated record**,
+> kept in the order the milestones happened: its numbers are that stage's numbers, and its
+> limitations are what had been run by then. A later section states any correction rather than
+> rewriting the earlier one — *"No live browser run of the website has ever been made"* still stands
+> in the M5 and M6 records, because it was true when each was written, and `browser-verification`'s
+> section states what ran next. **So read a section against the date it carries, not against the
+> tree**, and read the block below for what is true now.
+
 ---
 
 ## Project Status
