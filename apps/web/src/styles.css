@@ -304,10 +304,26 @@ li {
 }
 
 .control:disabled {
-  /* Dimmed by removing the boundary rather than by `opacity`, which would also dim the
-     label below the 4.5:1 it is held to. The label keeps its contrast; only the
-     affordance goes. */
+  /*
+   * **The quiet treatment, and the fill is declared here rather than inherited — that is the
+   * repair.**
+   *
+   * A disabled control keeps readable words: `--ink-muted` on `--surface-raised` measures
+   * 6.41:1 in the light scheme and 6.09:1 in the dark one, and `pairs.ts` declares that pair
+   * as *technical metadata inside a raised surface*. Dimming by `opacity` would take the label
+   * below the 4.5:1 it is held to, which is why the affordance goes instead.
+   *
+   * **It did not declare a fill, so "disabled" meant two things.** `.control--primary` fills
+   * with `--accent` at (0,1,0) and this rule outranks it at (0,2,0) — so a disabled primary
+   * kept the accent while its ink went muted: `--ink-muted` on `--accent` is **1.07:1 in both
+   * schemes**, a label that is not dim but gone. The accent is the affordance, so a disabled
+   * control does not wear it whatever its variant.
+   *
+   * `tests/architecture/boundaries.test.ts` holds this: every `.control:disabled` rule must
+   * declare a fill and an ink from `var(--token)`, and that pair must be declared in `pairs.ts`.
+   */
   color: var(--ink-muted);
+  background-color: var(--surface-raised);
   border-color: var(--line-subtle);
   cursor: not-allowed;
 }
@@ -753,9 +769,17 @@ li {
  * label back on a near-white background for exactly the person who cannot see a pointer.
  * `apps/web/e2e/primary-action.spec.ts` reads both states, in both schemes, as Chromium
  * computes them.
+ *
+ * **Both states are guarded by `:not(:disabled)`, and the guard is the second half of the
+ * repair.** `:hover` and `:active` both match a disabled control — the platform withholds the
+ * click, not the state — so without the guard a disabled primary would repaint itself with the
+ * page ink while a pointer rested on it, undoing the quiet treatment `.control:disabled`
+ * declares. The extension's two rules have carried this guard since they were written; this
+ * page has no disabled primary today, so nothing here could observe the difference, which is
+ * exactly why it is stated rather than left to the first variant that gains one.
  */
-.control--primary:hover,
-.control--primary:active {
+.control--primary:hover:not(:disabled),
+.control--primary:active:not(:disabled) {
   background-color: var(--surface-sunken);
   color: var(--ink-primary);
   border-color: var(--accent);

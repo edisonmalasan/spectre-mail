@@ -216,8 +216,26 @@ body {
 }
 
 .control:disabled {
+  /*
+   * **The quiet treatment, and the fill is declared here rather than inherited — that is the
+   * repair.**
+   *
+   * This control is the one place in the product where a disabled label is a sentence a person
+   * needs: the panel's creation button reads *"Asking for an address"* while `creating`, and
+   * `apps/extension/src/Panel.tsx` disables it for exactly that window.
+   *
+   * **It did not declare a fill, so "disabled" meant two things.** `.control--primary` fills
+   * with `--accent` at (0,1,0) and this rule outranks it at (0,2,0) — so the disabled primary
+   * kept the accent while its ink went muted: `--ink-muted` on `--accent` is **1.07:1 in both
+   * schemes**, a label that is not dim but gone. The accent is the affordance, so a disabled
+   * control does not wear it whatever its variant.
+   *
+   * `--ink-muted` on `--surface-raised` measures 6.41:1 light and 6.09:1 dark, and `pairs.ts`
+   * declares that pair as *technical metadata inside a raised surface*.
+   */
   cursor: not-allowed;
   color: var(--ink-muted);
+  background: var(--surface-raised);
   border-color: var(--line-subtle);
 }
 
