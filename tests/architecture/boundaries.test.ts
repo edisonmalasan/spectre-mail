@@ -31,6 +31,14 @@ import ts from "typescript";
 // dependency. Putting the rule inside either client would make the other a dependency of it.
 import { POPUP_COPY } from "../../apps/extension/src/popup-copy";
 import { EXTENSION_PREVIEW } from "../../apps/web/src/sections";
+// **A third shipped module, and it is imported rather than parsed.** `pairs.ts` is the
+// declaration of which foreground/background pairs this palette is measured on, and the rule
+// about a disabled control's paint needs the declaration rather than a copy of it: a second
+// list here would be the "set spelled twice" defect, and the copy would be the one nobody
+// re-reads. It is also the only import in this file that reaches into a shared package's
+// source, which is fine here for the same reason the two above are — this is a test, and the
+// alternative is a third hand-rolled parser of a file that already has one.
+import { PAIRS } from "../../packages/ui/src/pairs";
 
 /**
  * Architecture boundary enforcement.
@@ -1525,10 +1533,11 @@ export function note(): string {
 // ═══════════════════════════════════════════════════════════════════════════════
 // Stylesheets
 //
-// Three rules, added together because the milestone that needed them added all three
-// facilities at once — and each of them can be satisfied by leaving the repository the
-// same, so they are proven by the probes planted inside the same assertions that read
-// the real tree.
+// Four rules. Three were added together, because the milestone that needed them added all
+// three facilities at once; the fourth arrived later and is the only one that asks not what a
+// stylesheet may *reach* but whether what it paints has been measured. Each of them can be
+// satisfied by leaving the repository the same, so each is proven by a control that runs
+// before the real tree is read.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
@@ -1752,6 +1761,210 @@ function markupFiles(): string[] {
  * does: all three are the same request and only one of them would look encrypted.
  */
 const REMOTE_HTML_ASSET_PATTERN = /(?:src|href)\s*=\s*['"](?:https?:)?\/\//i;
+
+/**
+ * A style rule: its selector list, and its declaration block.
+ *
+ * **One pattern over comment-stripped CSS, and the pattern's limit is stated rather than
+ * discovered.** A rule's body is captured by `[^{}]*`, so a nested block cannot be part of it —
+ * which is precisely what makes `@media { … }` yield its *inner* rules instead of one rule whose
+ * selector is `@media (max-width: 34rem)`. An at-rule with no nested block, such as `@font-face`,
+ * would match with a prelude and no selector, so a prelude beginning with `@` is dropped.
+ *
+ * A real CSS parser would be the exact instrument and this is not one. It is enough for the
+ * question below — *what does this one selector declare* — and a parser that answered that
+ * question and nothing else would be this function with a vendor's name on it.
+ */
+interface StyleRule {
+  readonly selector: string;
+  readonly body: string;
+}
+
+function styleRules(css: string): StyleRule[] {
+  const rules: StyleRule[] = [];
+
+  for (const match of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const selector = (match[1] as string).trim();
+    if (selector.startsWith("@")) continue;
+    rules.push({ selector, body: match[2] as string });
+  }
+
+  return rules;
+}
+
+/**
+ * One stylesheet, by the path a finding names and the text a rule reads.
+ *
+ * **The rule takes these rather than filenames**, so a control can hand it the shipped defect
+ * without writing into the tree: the defect is a pair of declarations, and staging one into
+ * `apps/` to prove a rule about declarations would be a file written to answer a question
+ * about a string. The file list is still `shippedStylesheets()` and nothing else, which is
+ * already proven by the probe the stylesheet case plants.
+ */
+interface StylesheetText {
+  readonly path: string;
+  readonly contents: string;
+}
+
+/**
+ * The labels a finding about a disabled control carries.
+ *
+ * **Named constants rather than inline strings, because each is written in two places that must
+ * agree** — the rule that produces the finding and the assertion that counts it. Written twice
+ * as a literal, changing one side would silence the other, which is the shape this file has
+ * recorded about a shared allowance constant.
+ *
+ * **These label the finding at its head, where the file's other rules put theirs in parentheses
+ * at the end, and they are short on purpose.** Both are measured rather than stylistic: Vitest
+ * truncates a long received string in its own failure message — `expected 'a disabled control
+ * paints no token fi…' to be ''` — so **a prose label at either end is the part a failing run
+ * deletes**, and the reader is told where but not what. These four survive in full, and a
+ * finding is read at its head.
+ */
+const DISABLED_RULE_LABEL = "no disabled rule";
+const DISABLED_INK_LABEL = "no token ink when disabled";
+const DISABLED_FILL_LABEL = "no token fill when disabled";
+const DISABLED_PAIR_LABEL = "an unmeasured disabled pair";
+
+/** `.control` as a whole class name, so the primary variant is a different selector. */
+const CONTROL_SELECTOR = /(?:^|[\s,>+~])\.control(?![\w-])/;
+
+/** `.control:disabled` as a whole compound selector, and not `.control--primary:hover`. */
+const DISABLED_CONTROL_SELECTOR = /(?:^|[\s,>+~])\.control:disabled(?![\w-])/;
+
+/** A declaration's property and value, in source order. */
+function declarationsOf(body: string): { readonly property: string; readonly value: string }[] {
+  const declarations: { property: string; value: string }[] = [];
+
+  for (const entry of body.split(";")) {
+    const colon = entry.indexOf(":");
+    if (colon < 0) continue;
+    declarations.push({
+      property: entry.slice(0, colon).trim().toLowerCase(),
+      value: entry.slice(colon + 1).trim(),
+    });
+  }
+
+  return declarations;
+}
+
+/**
+ * The token a declaration paints with, or `null` when it names none.
+ *
+ * **`background` and `background-color` are one question, not two.** The two clients spell it
+ * differently — `background:` in the extension and `background-color:` in the website — and a
+ * rule that read only one spelling would pass on the client it was written against while saying
+ * nothing about the other.
+ *
+ * **The value must be exactly a `var(--token)`.** A literal is a colour `pairs.ts` cannot
+ * measure, and a shorthand that mentions anything else is not a token either, so both are
+ * `null` and the rule reports them rather than accepting them.
+ */
+function tokenIn(
+  declarations: readonly { readonly property: string; readonly value: string }[],
+  properties: string | readonly string[],
+): string | null {
+  const wanted = typeof properties === "string" ? [properties] : properties;
+  // The **last** declaration of a property wins, as it does in the cascade.
+  const declaration = [...declarations].reverse().find((entry) => wanted.includes(entry.property));
+  if (declaration === undefined) return null;
+
+  const match = /^var\(\s*(--[A-Za-z0-9_-]+)\s*\)$/.exec(declaration.value);
+  return match === null ? null : (match[1] as string);
+}
+
+/** Every shipped stylesheet, as the rule below reads them. */
+function shippedStylesheetTexts(): StylesheetText[] {
+  return shippedStylesheets().map((file) => ({
+    path: toRepoPath(file),
+    contents: readFileSync(file, "utf8"),
+  }));
+}
+
+/**
+ * The colour a custom property is named after, in the vocabulary `PAIRS` uses.
+ *
+ * **The two vocabularies differ by exactly the leading dashes, and that difference is the whole
+ * bug this helper prevents.** `tokens.ts` declares `ColourName` values such as `"ink-muted"`, and
+ * a stylesheet reaches the same colour as `var(--ink-muted)`; a comparison that did not bridge
+ * the two would report every disabled control as unmeasured, which is a rule that cries wolf on
+ * the file it was written to protect.
+ */
+function colourNameOf(token: string): string {
+  return token.startsWith("--") ? token.slice(2) : token;
+}
+
+/**
+ * Every disabled control paints its label against the surface it actually paints.
+ *
+ * ## Why this rule exists, and the defect it was written after
+ *
+ * `.control:disabled` repaints a control's ink `--ink-muted`, and `.control--primary` fills
+ * itself with `--accent`. The disabled rule outranks the variant on specificity but **did not
+ * declare a fill**, so the variant's fill survived while the ink changed: measured with the
+ * token layer's own contrast function, **`--ink-muted` on `--accent` is 1.07:1 in both
+ * schemes** — a label that is not dim but gone, on the one control whose label states what the
+ * product is waiting for (*"Asking for an address"*, the extension panel's creation button
+ * while `creating`).
+ *
+ * **Nothing could see it, and the shape of that blindness is worth keeping.** `pairs.ts` holds
+ * every pair the palette is measured on and `pairs.test.ts` holds each one to its threshold —
+ * but a pair is measured because somebody declared it, so the two disabled rules were
+ * unmeasured, and the comment beside one of them asserted the label kept its contrast. That
+ * comment was true of the quiet control and false of the primary one, in the same rule.
+ *
+ * ## What it asserts
+ *
+ * - a stylesheet that paints `.control` must carry a `.control:disabled` rule, because deleting
+ *   one leaves a disabled control wearing its variant's colours with nothing to say so;
+ * - that rule must declare its own fill **and** its own ink, from `var(--token)`, because a
+ *   fill it inherits is a fill some other rule chose;
+ * - and that pair must be declared in `PAIRS`, which is what makes it measured in both schemes.
+ *
+ * **It is not a rule about which pair.** The quiet treatment is `ink-muted` on `surface-raised`
+ * today, and a future `.control--danger:disabled` declaring `ink-danger` on `surface-danger`
+ * would satisfy this rule — because that pair would then be declared, and therefore measured,
+ * which is the property. A rule naming today's two tokens would forbid that variant for a
+ * reason it could not state.
+ */
+function disabledControlViolations(sheets: readonly StylesheetText[]): string[] {
+  const violations: string[] = [];
+
+  for (const { path, contents } of sheets) {
+    const rules = styleRules(stripComments(contents));
+
+    // The token layer paints no control at all, and a rule that demanded a disabled state from
+    // every stylesheet would demand one from a file with no button in it.
+    if (!rules.some((rule) => CONTROL_SELECTOR.test(rule.selector))) continue;
+
+    const disabled = rules.filter((rule) => DISABLED_CONTROL_SELECTOR.test(rule.selector));
+
+    if (disabled.length === 0) {
+      violations.push(`${DISABLED_RULE_LABEL}: ${path}`);
+      continue;
+    }
+
+    for (const rule of disabled) {
+      const declarations = declarationsOf(rule.body);
+      const ink = tokenIn(declarations, "color");
+      const fill = tokenIn(declarations, ["background", "background-color"]);
+
+      if (ink === null) violations.push(`${DISABLED_INK_LABEL}: ${path} ${rule.selector}`);
+      if (fill === null) violations.push(`${DISABLED_FILL_LABEL}: ${path} ${rule.selector}`);
+      if (ink === null || fill === null) continue;
+
+      if (
+        !PAIRS.some((pair) => pair.ink === colourNameOf(ink) && pair.surface === colourNameOf(fill))
+      ) {
+        violations.push(
+          `${DISABLED_PAIR_LABEL}: ${path} ${rule.selector} paints ${ink} on ${fill}`,
+        );
+      }
+    }
+  }
+
+  return violations;
+}
 
 /**
  * Every class hook a client actually renders, read from the **syntax tree**.
@@ -3483,6 +3696,158 @@ describe("architecture boundaries", () => {
     // one that found nothing, which is exactly the distinction the planted probes above
     // exist to prevent.
     expect(stylesheetViolations()).toEqual([]);
+  });
+
+  it("paints a disabled control with a pair the palette is measured on", () => {
+    // **The controls run first and the real tree runs last, and the order is the substance.**
+    // The only assertion this case makes about the repository is `[]`, which is exactly what a
+    // rule that returned nothing at all would also produce — so every arm below plants a defect
+    // and names the finding it must carry *before* anything is asked about the shipped tree.
+
+    /** One stylesheet, handed to the rule in the shape it reads. */
+    const sheet = (contents: string): StylesheetText => ({ path: "fixture.css", contents });
+
+    /**
+     * The findings, as one string.
+     *
+     * **Joined rather than compared against `[]`, because a failed array comparison prints
+     * `[ Array(1) ]` and names nothing** — and every finding this rule produces is a sentence
+     * written to be read by the person who broke it. **This is not decoration:** the
+     * falsification pass for this rule could not tell *which* arm had fired until the message
+     * carried its label, which is the same defect as a check that reports a failure without
+     * saying what failed.
+     */
+    const findings = (sheets: readonly StylesheetText[]): string =>
+      disabledControlViolations(sheets).join("\n");
+
+    const CONTROL = ".control {\n  background-color: var(--surface-raised);\n}\n";
+
+    // ── The quiet treatment is accepted, in both spellings of the property. ─────────────
+    // **Two spellings because the two clients use them**: the website writes
+    // `background-color:` and the extension writes `background:`. A rule reading one would pass
+    // on the client it was written against and say nothing about the other — which is the same
+    // "set spelled twice" shape as a count of blocks standing in for a comparison of them.
+    expect(
+      findings([
+        sheet(
+          `${CONTROL}.control:disabled {\n  color: var(--ink-muted);\n  background: var(--surface-raised);\n}\n`,
+        ),
+      ]),
+    ).toBe("");
+    expect(
+      findings([
+        sheet(
+          `${CONTROL}.control:disabled {\n  color: var(--ink-muted);\n  background-color: var(--surface-raised);\n}\n`,
+        ),
+      ]),
+    ).toBe("");
+
+    // ── An ink with no fill is the shipped defect, reported as a missing fill. ──────────
+    // This is the mutation that matters: adding the ink and leaving the fill to the variant is
+    // what both shipped rules did, and it is the half that made the accent survive.
+    const noFill = [sheet(`${CONTROL}.control:disabled {\n  color: var(--ink-muted);\n}\n`)];
+    expect(disabledControlViolations(noFill)).toHaveLength(1);
+    expect(findings(noFill)).toContain(DISABLED_FILL_LABEL);
+
+    // ── A fill the palette does not measure is reported as a pair, naming both tokens. ──
+    // **This is the defect exactly.** `--ink-muted` on `--accent` measures 1.07:1 in both
+    // schemes, and `PAIRS` declares no such pair — which is why nothing in this repository had
+    // ever measured it. The finding names the two tokens so a reader can add the pair or change
+    // the paint, rather than being told only that something is wrong somewhere.
+    const onAccent = [
+      sheet(
+        `${CONTROL}.control:disabled {\n  color: var(--ink-muted);\n  background: var(--accent);\n}\n`,
+      ),
+    ];
+    expect(disabledControlViolations(onAccent)).toHaveLength(1);
+    expect(findings(onAccent)).toContain(DISABLED_PAIR_LABEL);
+    expect(findings(onAccent)).toContain("--ink-muted");
+    expect(findings(onAccent)).toContain("--accent");
+
+    // ── A literal is not a token, so it cannot be a measured pair. ─────────────────────
+    const literal = [
+      sheet(
+        `${CONTROL}.control:disabled {\n  color: var(--ink-muted);\n  background: #ffffff;\n}\n`,
+      ),
+    ];
+    expect(disabledControlViolations(literal)).toHaveLength(1);
+    expect(findings(literal)).toContain(DISABLED_FILL_LABEL);
+
+    // ── Deleting the disabled rule is its own finding, and a different one. ────────────
+    // A deleted rule leaves a disabled control wearing its variant's colours — for the primary
+    // variant, the accent — which is the same 1.07:1 label reached by a shorter route.
+    const missing = [sheet(CONTROL)];
+    expect(disabledControlViolations(missing)).toHaveLength(1);
+    expect(findings(missing)).toContain(DISABLED_RULE_LABEL);
+
+    // ── A stylesheet with no control in it is not asked for a disabled state. ──────────
+    // `packages/ui/src/tokens.css` is the real instance: it declares custom properties and
+    // paints no component, and a rule that demanded a disabled state from every stylesheet
+    // would demand one from a file with no button in it.
+    expect(findings([sheet(":root {\n  --ink-primary: #16161a;\n}\n")])).toBe("");
+
+    // ── The real tree. ────────────────────────────────────────────────────────────────
+    // **The file list is asserted, because `[]` is also what a reader that found no stylesheets
+    // at all would produce.** All three are named, and the token layer is in the list on
+    // purpose: it is the sheet the rule must read and skip, so a rule that reported it would
+    // fail here rather than being discovered by the next person to run `pnpm test`.
+    const shipped = shippedStylesheetTexts();
+    expect(shipped.map((entry) => entry.path).sort()).toEqual([
+      "apps/extension/src/styles.css",
+      "apps/web/src/styles.css",
+      "packages/ui/src/tokens.css",
+    ]);
+    expect(findings(shipped)).toBe("");
+
+    // ── And the rule reads the shipped declarations, not a pattern that happens to pass. ─
+    // **Both arms rewrite the real stylesheet's text in memory and write nothing to the tree.**
+    // Each requires the rule to fire on the file it names, which is the arm the assertion above
+    // cannot make for itself: a rule that had silently stopped matching `.control:disabled`
+    // would report `[]` for the real tree and be indistinguishable from a healthy one.
+
+    /**
+     * One shipped sheet with a named rule's body replaced.
+     *
+     * **The edit is required to apply.** `String.prototype.replace` returns its input unchanged
+     * when its pattern matches nothing, so an arm that reads the healthy sheet while claiming to
+     * read a defect is available to anyone who writes one — and this repository has recorded
+     * that shape about a mutation which did not apply. The rule is located and read back before
+     * its finding is trusted.
+     */
+    const rewriteRule = (path: string, selector: string, body: string): StylesheetText[] =>
+      shipped.map((entry) => {
+        if (entry.path !== path) return entry;
+
+        const at = entry.contents.indexOf(`${selector} {`);
+        expect(at).toBeGreaterThanOrEqual(0);
+
+        const open = entry.contents.indexOf("{", at);
+        const close = entry.contents.indexOf("}", open);
+        expect(close).toBeGreaterThan(open);
+
+        const rewritten = `${entry.contents.slice(0, open + 1)}\n${body}\n${entry.contents.slice(close)}`;
+        expect(rewritten).not.toBe(entry.contents);
+
+        return { ...entry, contents: rewritten };
+      });
+
+    // The website's spelling, with the fill taken out — the state both clients shipped in.
+    const websiteWithoutFill = rewriteRule(
+      "apps/web/src/styles.css",
+      ".control:disabled",
+      "  color: var(--ink-muted);",
+    );
+    expect(findings(websiteWithoutFill)).toContain(DISABLED_FILL_LABEL);
+    expect(findings(websiteWithoutFill)).toContain("apps/web/src/styles.css");
+
+    // The extension's spelling, with the accent put back — the exact 1.07:1 label.
+    const extensionOnAccent = rewriteRule(
+      "apps/extension/src/styles.css",
+      ".control:disabled",
+      "  color: var(--ink-muted);\n  background: var(--accent);",
+    );
+    expect(findings(extensionOnAccent)).toContain(DISABLED_PAIR_LABEL);
+    expect(findings(extensionOnAccent)).toContain("apps/extension/src/styles.css");
   });
 
   it("keeps a remote asset out of the client's own markup", () => {

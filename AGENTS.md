@@ -2262,17 +2262,22 @@ Pin versions when exact versions matter.
   sentence that said "There is still no extension build step — that is M8" became false at M8
   and is deleted rather than reworded.**
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running **1379 tests across
-  74 files** via `pnpm test` (2026-10-21, at `firefox-compatibility-spike`'s apply stage,
+- Testing: Vitest `3.2.7` at the workspace root, verified running **1399 tests across
+  75 files** via `pnpm test` (2026-10-28, at `fix/disabled-primary-fill`'s apply stage,
   counted from a JSON reporter **grouped by project** rather than read off a summary line, and
   **re-measured at this stage from a fresh run rather than carried forward** — because the
   count a ledger carries is only worth what the last person to re-run it made it worth,
   and this repository has now had a standing figure in its own status block go stale by a
-  whole milestone for exactly that reason. **The figure this paragraph replaced read `1308
+  whole milestone for exactly that reason. **And the paragraph was one change stale when it
+  was re-read here, which is the same defect one size smaller:** it read `1379 across 74`,
+  which was accurate at `firefox-compatibility-spike`, and **PR #189 took it to `1398 across
+  75`** by adding `tests/architecture/design-record.test.ts`'s **19** cases **without
+  touching this paragraph**, which is why a stage that changes no shipped behaviour still
+  owes this line a measurement. **The figure this paragraph replaced read `1308
   across 66`**, which was accurate at `branding-check` and **two changes stale by this
   one** — `provider-terms-review` added **11** and this change added **7** without either
   touching this paragraph — and before that it read `1290 across 64` and `1228 across 62`.
-  **The record is now five deep in the same defect**, which is the argument for
+  **The record is now six deep in the same defect**, which is the argument for
   re-measuring at every stage rather than every few:
   54 in `packages/core`, 92 in `packages/providers`, **149 in `packages/mail-parser`**,
   **172 in `packages/mailbox`**, **143 in `apps/web`**,
@@ -2287,14 +2292,19 @@ Pin versions when exact versions matter.
   **7** — the shared diagnostic's own cases — so the package's count is no longer the flat
   **38** this file has carried through nine milestones, and **a figure that stops moving is
   a figure nobody re-ran**),
-  **127 in `tests/architecture`** (55 boundaries, 22 privacy-disclosure, 18 security-audit,
-  14 branding-audit, 11 provider-terms, **7** beta-diagnostics — so `boundaries.test.ts` is
-  **55**, which is **53** at `architecture-suite-isolation`'s sync and **54** after its
-  vocabulary check, **and the movement is the measurement**: `firefox-compatibility-spike`
-  added **one** case, the discriminator's own control, because **a check that cannot fail for
-  the reason it exists is not a check**, and **the count is read out of the suite's own source
-  by `security-audit.test.ts` rather than carried by hand** — so **a declared count that does
-  not move when the thing it counts moves is a count nobody has re-read**),
+  **147 in `tests/architecture`** (56 boundaries, 22 privacy-disclosure, **19**
+  design-record, 18 security-audit, 14 branding-audit, 11 provider-terms, **7**
+  beta-diagnostics - **the 127 this line carried was stale by one change before this one**,
+  because PR #189 added `design-record.test.ts` at **19** and moved nothing else, and **a
+  file that appears in a suite without appearing in its breakdown is the same defect as a
+  count that does not move** - so `boundaries.test.ts` is **56**, which is **53** at
+  `architecture-suite-isolation`'s sync, **54** after its vocabulary check, **55** with
+  `firefox-compatibility-spike`'s discriminator control, and **56** with this change's
+  disabled-control paint rule, **and the movement is the measurement**: each move was **one**
+  case, and each was a case that **had to be falsifiable** - because **a check that cannot
+  fail for the reason it exists is not a check**, and **the count is read out of the suite's
+  own source by `security-audit.test.ts` rather than carried by hand** - so **a declared
+  count that does not move when the thing it counts moves is a count nobody has re-read**),
   **490 in `apps/extension`** across **22** files (**25** in `content-script.test.ts`,
   **123** in `protocol.test.ts`, **70** in `extension-platform.test.ts`, **23** in
   `content-script-fill.test.ts`, **22** in `code-field.test.ts`, **25** in `Popup.test.tsx`,
@@ -2306,13 +2316,17 @@ Pin versions when exact versions matter.
   **10** in `content-script-handlers.test.ts`, **12** in `content-script-host-context.test.ts`,
   **5** in `popup-copy.test.ts`, **8** in `service-worker.test.ts`, **4** in `scheduler.test.ts`,
   **3** in `diagnostic.test.ts`),
-  **55 architecture boundary assertions** — **a figure that has moved twice since M1**, at
-  **53**, then **54** with `architecture-suite-isolation`'s vocabulary check, and now **55**
-  with `firefox-compatibility-spike`'s discriminator control, **and each move was a case that
-  had to be falsifiable** — so the earlier claim on this line, that the figure had *not* moved
+  **56 architecture boundary assertions** — **a figure that has moved three times since M1**,
+  at **53**, then **54** with `architecture-suite-isolation`'s vocabulary check, then **55**
+  with `firefox-compatibility-spike`'s discriminator control, and now **56** with this
+  change's disabled-control paint rule, **and each move was a case that had to be
+  falsifiable** — so the earlier claim on this line, that the figure had *not* moved
   since M1, **was stale and is corrected here rather than left**, and it is stated separately
   because **it is the number several changes below use as the measurement that no rule was
-  added where an instrument already exists.**
+  added where an instrument already exists.** **And the instrument this line names is what
+  keeps it honest**: `security-audit.test.ts` reads the count out of `boundaries.test.ts`'s
+  own source, so a case added without this figure moving fails the suite - which is how this
+  line was updated here rather than remembered.
   **This figure was stale by a milestone and is corrected here rather than left, and the reason
   matters more than the number:** it read **1093 across 58 files**, which was accurate at
   `incoming-mail-notification` and at `side-panel-runtime-facts`, and **`side-panel-surface`

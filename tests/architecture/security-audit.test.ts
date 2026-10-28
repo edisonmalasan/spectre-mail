@@ -1485,10 +1485,11 @@ test("this file shares no reader with the other two architecture suites", () => 
 test("the boundary suite's assertion count is declared, and the count moved when a case was added", () => {
   // **The count is read out of `boundaries.test.ts` itself**, through this file's own parser, rather
   // than asserted as a number typed here — because a number typed here is a number that stops being
-  // checked the moment the suite moves. **This figure was 53, then 54, and it is 55**: the
+  // checked the moment the suite moves. **This figure was 53, then 54, 55, and it is 56**: the
   // `architecture-suite-isolation` change added the staged-probe vocabulary's completeness check,
-  // and `firefox-compatibility-spike` added the discriminator's own control — **and the figure moved
-  // with the thing it counts, both times.**
+  // `firefox-compatibility-spike` added the discriminator's own control, and
+  // `fix/disabled-primary-fill` added the rule requiring a disabled control's paint to be a
+  // measured pair — **and the figure moved with the thing it counts, every time.**
   //
   // **And the prediction this file used to carry is now recorded as what it was and what it
   // became.** The prediction was that the count would stay at 53, because every property that
@@ -1526,10 +1527,11 @@ test("the boundary suite's assertion count is declared, and the count moved when
   };
   walk(parsed);
 
-  // **The count moved from 54 to 55, and this is the record of why.** The boundary suite gained
-  // one case — the discriminator's own control — so the figure this file declares moved with it.
-  // **A declared count that does not move when the thing it counts moves is a count nobody has
-  // re-read**, and this file's claim is that the count is read from the source rather than carried
-  // by hand.
-  expect(cases, "the boundary suite's case count, read from its own source").toBe(55);
+  // **The count moved from 55 to 56, and this is the record of why.** The boundary suite gained
+  // one case — the rule that a disabled control paints a pair `pairs.ts` measures — because two
+  // shipped disabled rules declared an ink and inherited a fill, and `--ink-muted` on `--accent`
+  // is 1.07:1. **A declared count that does not move when the thing it counts moves is a count
+  // nobody has re-read**, and this file's claim is that the count is read from the source rather
+  // than carried by hand.
+  expect(cases, "the boundary suite's case count, read from its own source").toBe(56);
 });
