@@ -2991,8 +2991,10 @@ found by that pass and fixed**, all recorded in the change's `design.md`.
 **What slice 1 is not evidence for.** `fake-indexeddb` **is not a browser**: a green
 suite against it says nothing about a real IndexedDB implementation. No live browser run
 of the website has ever been made. No test in this repository contacts a provider.
-`pnpm build` builds the website only and says nothing about this package, which is
-consumed as TypeScript source and established by `pnpm typecheck`.
+`pnpm build` built the website only through M7 and said nothing about this package, which is
+consumed as TypeScript source and established by `pnpm typecheck`. **It builds both clients
+since M8 and still emits nothing for the shared packages** — so the second half of that claim
+stands and the first does not.
 
 ---
 
@@ -3690,8 +3692,10 @@ from producing.
   M3's decision once real adapters exist.
 - Shared packages are consumed **as TypeScript source** (`exports` points at
   `./src/index.ts`). There is no per-package build and no bundler, so
-  `pnpm build` builds the website only and package correctness is established by
-  `pnpm typecheck`. Revisit when a non-Vite consumer appears.
+  `pnpm build` said nothing about the shared packages; their correctness is established
+  by `pnpm typecheck`. **Revisited at M8**: `pnpm build` now builds both clients, and it
+  still emits nothing for the shared packages — which is the half of this constraint
+  that survived.
 - `packages/providers` **is** implemented as of M3: the `MailProvider` contract,
   the Mail.tm and Guerrilla Mail adapters, the shared conformance suite, the
   provider manager, and the injected transport seam. Both adapters pass the same
@@ -4114,7 +4118,7 @@ Extension storage adapter
 
 #### `packages/ui`
 
-Owns reusable product UI:
+The initial plan assigned reusable product UI to this package:
 
 ```text
 buttons
@@ -4126,6 +4130,14 @@ OTP component
 verification-link component
 design tokens
 ```
+
+**Kept as the plan it was, and marked here because the tree answers differently: no
+component has been extracted.** `packages/ui` holds the design tokens, the generated
+stylesheet, the contrast arithmetic, `PRODUCT_NAME` and the shared reportable value, and
+each client owns the components it renders — between them they hold the mailbox card, the
+message row, the code control and the link anchor, and the two clients' versions take
+different props, hold different state and offer different actions. See
+`docs/ARCHITECTURE.md` §Packages for the measured row.
 
 Do not move marketing-only website sections into the shared UI package.
 

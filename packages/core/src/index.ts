@@ -24,9 +24,9 @@
  *   package describes the result.
  *
  * The package is consumed **as TypeScript source** (see its `exports`), so there is
- * no build step for it. Package correctness is established by `pnpm typecheck`; a
- * successful `pnpm build` builds the website only and says nothing about this
- * package.
+ * no build step for it. Package correctness is established by `pnpm typecheck`;
+ * `pnpm build` bundles that source into both clients and emits nothing for the
+ * shared packages, so it says nothing about this one either way.
  *
  * @module
  */

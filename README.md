@@ -348,7 +348,7 @@ Six shared packages, each with one responsibility:
 | `@spectre-mail/mail-parser` | Safe text extraction, OTP detection, verification-link detection                                                                                                                                                                                                            |
 | `@spectre-mail/mailbox`     | The mailbox session: opening, replacing, retrying, and reporting provider health                                                                                                                                                                                            |
 | `@spectre-mail/storage`     | Four contracts — `SpectreStorage`, `SpectreMailboxes`, `SpectreSiteAssociations`, `SpectreSeenMessages` — with an IndexedDB adapter for the two mailbox records and a `chrome.storage` adapter for all four; **read by the website and by the extension from two contexts** |
-| `@spectre-mail/ui`          | Reusable product UI and design tokens                                                                                                                                                                                                                                       |
+| `@spectre-mail/ui`          | The design tokens, the generated `tokens.css`, the contrast arithmetic, `PRODUCT_NAME`, and the shared definition of a reportable value — **no component**                                                                                                                  |
 
 `packages/mailbox` is **framework-free and DOM-free by compiler rather than by
 convention**: its `tsconfig.json` sets `lib: ["ES2023"]` with no `"DOM"`, so `window`,
@@ -414,7 +414,7 @@ packages/
   mail-parser/         message content interpretation
   mailbox/             the mailbox session
   storage/             persistence contracts and adapters
-  ui/                  reusable product UI
+  ui/                  design tokens and the values both clients read
 docs/
   ARCHITECTURE.md      where code lives and why
   BROWSERS.md          what one engine was measured doing, and what was not measured
