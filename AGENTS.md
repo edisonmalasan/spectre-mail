@@ -47,6 +47,18 @@
 > `wrongcatch`, `green` and `noop` **all zero**, the unmutated control **4 of 4 green**, and **every
 > file restored byte-identical** against a SHA-256 taken before the first mutation.
 >
+> **And the gate produced one red in three, and the red is unattributed.** `pnpm verify` exited
+> `1`, `0`, `0` with `PLAYWRIGHT_BROWSERS_PATH` pointed at a directory measured to hold **0
+> entries**; the red was at the **test** step, and **its output was not preserved**, so the failing
+> case cannot be named. **Nine further `pnpm test` runs were then green at 1403 across 76 files** —
+> five idle, and four under a load generator that was **measured to load nothing** (15 `node`
+> processes before the block and 15 during it), so the second block measures an idle machine a
+> second time and **the red is recorded rather than rounded to green.** It is *consistent with* the
+> `[vitest-worker] Timeout calling "onTaskUpdate"` shape this file records — and **consistent with
+> is not an attribution.** No A/B is claimed here: this stage's only executable change is one
+> architecture file that runs in **6 ms**, and **a red that appears once in thirteen runs and is
+> never named is not attributable to a four-case test file and a document.**
+>
 > **What this does not establish.** **Nothing about whether the accent is on the right declarations** —
 > the three off-list rules and the ring are recorded, not judged, and **no rule in this repository
 > says which of `DESIGN.md`'s five jobs a given declaration serves**. **And nothing about the page's
