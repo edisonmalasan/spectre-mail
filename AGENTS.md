@@ -2709,7 +2709,7 @@ For migration / brownfield projects, additional fields may include:
 
 
 
-The installed Taste skills under `.agents/skills/` define durable frontend design and implementation guidance for this project.
+The installed Taste skills under `.agents/skills/` define durable frontend design and implementation guidance for this project. **The design workflow that consumes this repository's two design records — `impeccable` — is installed in the environment's own skill directory rather than vendored into `.agents/skills/`**, so what this repository owns is the records it reads and not the tool: `PRODUCT.md` and `DESIGN.md` at the root, in that order of authority.
 
 
 
@@ -2747,6 +2747,44 @@ For frontend, UI, UX, visual-design, or styling work, use the installed skills i
    - Use for frontend implementation tasks to ensure requested work is complete rather than partially scaffolded.
    - Do not leave placeholder sections, fake UI, TODO-only implementations, unfinished interactions, omitted responsive states, or knowingly broken visual states unless the active task explicitly scopes them out.
    - Complete the requested slice end-to-end while still respecting Change scope and OpenSpec boundaries.
+
+
+
+### The two design records, and the workflow that reads them
+
+
+
+**`impeccable` is the design workflow, and it opens by loading two files this repository owns.** Run its `context` verb once per session before any design work; it reads `PRODUCT.md` and `DESIGN.md` and returns the directives for the surface in hand. Follow those directives rather than re-running it.
+
+
+
+- **`PRODUCT.md`** says what the product is, who it is for, what it refuses to do, and what would count as winning. It is the input to a design decision, not a description of the interface.
+- **`DESIGN.md`** says what the interface already is: the palette in both declared schemes, the eight type roles, the measures, the radius scale, the flat depth model, the component character, and the named rules that survive a restyle.
+- **Neither is generated.** Both are prose a person owns, because design work has to be able to rewrite them. What is machine-checked is the one part that can drift silently: `DESIGN.md`'s frontmatter.
+
+
+
+**Every value in that frontmatter is a value `packages/ui/src/tokens.ts` declares, and `tests/architecture/design-record.test.ts` asserts it in both directions** — thirty colour entries across two schemes, eight type roles, four radii, ten spacing steps, the eight canonical sections in their canonical order, and a ban on hex literals in the body. So a token change and its frontmatter entry land in the same commit, and an entry naming a token that does not exist fails the build rather than waiting to be noticed.
+
+
+
+**The key rule is stated once and applied mechanically: the project's own token name with only the `--` removed**, so `surface-page`, `radius-sm` and `space-1` resolve against the layer without a lookup table. Renaming a scale step renames its entry.
+
+
+
+**The body carries no value at all, and that is enforced rather than asked for.** A hex literal in the prose is how a design document becomes a second source of truth for a palette its own frontmatter already declares; the body names the token instead.
+
+
+
+**A value change has three homes and they move together**: `tokens.ts` declares it, `DESIGN.md`'s frontmatter records it, and `docs/DESIGN_SYSTEM.md`'s generated region re-renders from it. Any two of the three is a drift, and each has its own instrument.
+
+
+
+**There is deliberately no `.impeccable/design.json` sidecar.** The format offers one for what its eight component properties cannot express — shadows, motion, focus rings — and this system needs all three. A sidecar written for it would carry tonal ramps nobody chose and a third hand-maintained copy of two stylesheets, so components are described by token name in prose instead, beside the rule that explains them.
+
+
+
+**`DESIGN.md` is Prettier-formatted; this file and `docs/ROADMAP.md` are not.** That is a fact about `.prettierignore` rather than a preference, and it is why a `format:check` red can name the design record and never this file.
 
 
 
@@ -2805,7 +2843,7 @@ For frontend design decisions, use this precedence:
 
 1. Explicit user/task requirements.
 2. Approved active OpenSpec design requirements.
-3. `docs/DESIGN_SYSTEM.md` and other approved project design documentation when present.
+3. `DESIGN.md`, `docs/DESIGN_SYSTEM.md` and other approved project design documentation when present — with `packages/ui/src/tokens.ts` as the authority on any value either one records.
 4. Existing approved SpectreMail UI patterns.
 5. `design-taste-frontend`.
 6. `minimalist-ui`.
@@ -2817,7 +2855,7 @@ For frontend design decisions, use this precedence:
 
 
 
-Taste skills do not override architecture, security, privacy, testing, provider, Git/PR, OpenSpec, or repository-boundary rules in this file.
+Taste skills do not override architecture, security, privacy, testing, provider, Git/PR, OpenSpec, or repository-boundary rules in this file. **Neither does `impeccable`**: its two records describe what the product is and what the interface already looks like, so a record that disagrees with a specification is the thing to correct, and no rule in this file is relaxed by one.
 
 
 
