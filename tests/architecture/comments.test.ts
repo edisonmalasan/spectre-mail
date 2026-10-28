@@ -3,6 +3,7 @@ import { join, relative, sep } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { CORPUS, SKIP_DIRECTORIES } from "./scan-corpus";
 import { SCAN_ASSERTION_TIMEOUT_MS } from "./scan-budget";
+import { STAGED_PROBE_STEM_LIST, isStagedProbe } from "./staged-probes";
 import { languageOf, stripComments } from "./comments";
 
 /**
@@ -283,6 +284,29 @@ describe("the corpus", () => {
    * **The walk skips `SKIP_DIRECTORIES`, imported rather than copied**, so the fixpoint reads exactly
    * the tree the rules read. A second list here would be a second spelling of a set, and it would fail
    * in the silent direction: a fixpoint over a wider set proves something about files no rule sees.
+   *
+   * **And it skips the staged-probe vocabulary BEFORE the filesystem is touched, which is a repair
+   * rather than a preference.** `boundaries.test.ts` stages a deliberately illegal module into the
+   * corpus, runs a rule over it and deletes it, while this file walks the same tree in a **parallel
+   * vitest worker**. The first version of this walk asked the vocabulary nothing, so it enumerated
+   * `packages/mailbox/__clock-rule-probe.ts` and then found it gone:
+   *
+   * ```text
+   * ENOENT: no such file or directory, open '.../packages/mailbox/__clock-rule-probe.ts'
+   * ```
+   *
+   * **That failure was green on this machine and red in CI**, which is the shape this repository
+   * records about a race: what decides it is which side is slower. **Asking the question before
+   * calling `join`, `statSync` or `readFileSync` is what makes the answer independent of the
+   * ordering** — a name the vocabulary holds is never handed to the filesystem at all, so a file
+   * another worker deleted cannot turn the skip into a failed read. `branding-audit.test.ts` carries
+   * the same guard in the same position for the same measured reason.
+   *
+   * **What is not held down by a case, said so it is not read as more than it is.** The *ordering* is
+   * held by this code and by the recorded failure above, not by an assertion, because a case that
+   * staged the collision on purpose would be staging a file another worker is staging — it would break
+   * the suite it exists to guard. What *is* asserted is that the vocabulary means what this walk
+   * assumes, in both directions, in its own case below.
    */
   function corpusFiles(): { path: string; language: Language }[] {
     const found: { path: string; language: Language }[] = [];
@@ -290,6 +314,7 @@ describe("the corpus", () => {
     const walk = (directory: string): void => {
       for (const entry of readdirSync(directory)) {
         if (SKIP_DIRECTORIES.has(entry)) continue;
+        if (isStagedProbe(entry)) continue;
 
         const absolute = join(directory, entry);
         if (statSync(absolute).isDirectory()) {
@@ -376,5 +401,57 @@ describe("the corpus", () => {
       byLanguage.get("json")?.changed ?? 0,
       "a JSON file came back changed, and JSON has no comments to read",
     ).toBe(0);
+  });
+
+  it("skips every name the staging vocabulary holds, and nothing that merely resembles one", () => {
+    // **The vocabulary is shared data and this is the file that must agree with the walk's use of it.**
+    // The walk above asks `isStagedProbe(entry)` before it touches the filesystem, so what has to hold
+    // is that the predicate answers *yes* for every name the writing side really stages and *no* for a
+    // name that only starts with the same letters.
+    //
+    // **Both directions, because each alone is satisfied by a degenerate predicate.** One that
+    // answered `true` for everything would satisfy the first half and silently reduce the fixpoint to
+    // a walk over nothing, which is this repository's recorded shape of a scan that reads clean because
+    // it read nothing. One that answered `false` for everything would satisfy the second half, and the
+    // `ENOENT` this walk was repaired for would come back the first time CI ran the tree cold.
+    expect(
+      STAGED_PROBE_STEM_LIST.filter((stem) => isStagedProbe(stem) === false),
+      "a stem in the staging vocabulary is not recognised by the vocabulary's own predicate",
+    ).toEqual([]);
+    expect(
+      STAGED_PROBE_STEM_LIST.filter(
+        (stem) => isStagedProbe(`${stem}.ts`) === false || isStagedProbe(`${stem}.tsx`) === false,
+      ),
+      "a staged stem is not recognised once it carries the extension the writing side gives it",
+    ).toEqual([]);
+
+    // **And the names this walk must still read.** These are shipped files the fixpoint's whole claim
+    // is about, so a predicate widened into a shape - `__` prefix, the word `probe`, the letters of a
+    // stem - would take them out of the walk and the fixpoint would keep passing over what remained.
+    const shipped: readonly string[] = [
+      "session.ts",
+      "spec.md",
+      "package.json",
+      "index.html",
+      "styles.css",
+      "probe.ts",
+      "probes.ts",
+      "space-1.ts",
+      "the-rule-probe.ts",
+    ];
+    expect(
+      shipped.filter((entry) => isStagedProbe(entry)),
+      "a shipped file name is treated as a staged probe, which would shrink the fixpoint silently",
+    ).toEqual([]);
+
+    // **And the near-misses a pattern would have caught**, stated as their own list because they are
+    // the case the vocabulary's dot rule exists for: a stem matches the entry itself or the entry plus
+    // a dot, and never an entry that merely begins with the same letters.
+    expect(
+      ["__clock-rule-probe-notes.ts", "__BoundaryProbeX.tsx"].filter((entry) =>
+        isStagedProbe(entry),
+      ),
+      "the vocabulary skipped a file that only begins with a staged stem",
+    ).toEqual([]);
   });
 });
