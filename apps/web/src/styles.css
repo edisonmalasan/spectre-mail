@@ -439,8 +439,9 @@ li {
   grid-column: 2;
   grid-row: 3;
   margin: 0;
-  /* The accent, on words — and the words are the primary signal. This is the accent's
-     second of six permitted surfaces; the first is the rule above. */
+  /* The accent, on words — and the words are the primary signal. `DESIGN.md` names this job
+     outright (verification, a row's verdict word), and `docs/DESIGN_SYSTEM.md` carries the
+     measured inventory of every declaration that uses the accent. */
   color: var(--ink-accent);
   font-size: var(--type-xs);
   font-weight: var(--weight-medium);
@@ -510,9 +511,10 @@ li {
   font-size: var(--type-sm);
 }
 
-/* The codes. The accent's third permitted surface, and the reason it is set as a filled
-   block rather than as coloured text: a code is a value to read and retype, and a value
-   that changes shape when copied is a value that gets mistyped. */
+/* The codes. Three declarations, all serving `DESIGN.md`'s *verification* job — the tint, the
+   ink and the boundary — and the reason a code is a filled block rather than coloured text:
+   a code is a value to read and retype, and a value that changes shape when copied is a
+   value that gets mistyped. */
 .codes {
   margin: 0;
   padding: 0;
@@ -696,7 +698,7 @@ li {
 /*
  * A mark and a name on one baseline, and the mark is small.
  *
- * **The accent lives here**, on one of the three surfaces the Accent block names and that
+ * **The accent lives here**, one of the three surfaces the approved direction names and that
  * slice 1 deferred because nothing carried them. The mark's colour comes from the
  * wordmark's own `color`, so it cannot be a second hand-picked value, and the whole thing is
  * an inline `<svg>`: no webfont, no image request, nothing for the browser tier's route
