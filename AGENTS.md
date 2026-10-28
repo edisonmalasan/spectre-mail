@@ -1,5 +1,59 @@
 # AGENTS.md
 
+> **`accent-inventory` is a documentation-and-instrument stage, and it shipped no product change** —
+> dated **2026-10-28**, branch `docs/accent-inventory`, and **its PR number is left unfilled here for
+> the reason this file records**: a predicted number in a document other stages cite by name is a
+> figure nobody counted, so the next stage's proposal fills it from `gh pr view`.
+>
+> **`docs/DESIGN_SYSTEM.md`'s Accent section carried a second list of permitted surfaces beside the
+> one `DESIGN.md` owns**, and the two disagreed in both directions. **Measured, the tree carries
+> 20 declarations naming one of `--accent`, `--ink-accent`, `--surface-accent` or `--focus`** — 16 in
+> `apps/web/src/styles.css` and 4 in `apps/extension/src/styles.css`, none inside an `@media` block.
+> The record names **five jobs**, and **three of the twenty are on none of them**: `.confirmation`'s
+> background, `.steps__name`'s ink and `.reasons__claim`'s ink. **And the ring is a job the list does
+> not carry while the paragraph above the list calls it one** — `DESIGN.md` says *"the ring is a
+> fourth job rather than a brightness of the same one"* and then closes five without it.
+>
+> **Nothing was restyled and the record was not amended.** Moving three declarations off the accent
+> changes what the page looks like, and widening the list changes what the record claims; both belong
+> to a stage that owns the visual surface. **What shipped is the measurement**: the section now names
+> `DESIGN.md` as the authority, carries a table of all twenty declarations with the job each serves,
+> and records both disagreements as findings rather than inheriting them. **The three claims the old
+> section made that were false are named in it**: *primary action* and *brand mark* had "no home on
+> the page yet" when both had shipped, the "five declarations" count described a scan narrower than
+> its own subject, and `.link__host` was called "a reading, not compliance" for a disagreement the
+> record had already resolved.
+>
+> **`tests/architecture/accent-inventory.test.ts` holds the table to the tree in both directions** —
+> **4 cases**, 151 in `tests/architecture` and 1403 across 76 files. It is its own file rather than a
+> case in `design-record.test.ts` because that file owns `DESIGN.md` and disclaims prose truth in its
+> own doc block. **The `Job` column is deliberately not machine-checked**: which job a declaration
+> serves is a judgement, and a rule that nailed it down would be a list of exemptions wearing the
+> name of a measurement.
+>
+> **⇒ And the falsification pass found the instrument reporting without naming, twice, in two
+> layers** — which is this repository's most-recorded defect arriving in the file that exists to
+> check a list. **`expect(value, message)` replaces the matcher's diff rather than adding to it**, so
+> a case that reported *"missing 1 declaration"* printed `expected [ Array(1) ] to deeply equal []`
+> and **never named the declaration**; and **vitest elides an array of objects in a diff**, printing
+> `{ file: 'fixture.css', …(3) }`, so the reader self-test's two assertions named nothing either.
+> Both are repaired by building the failure message from the offending rows, and both repairs are
+> held by the same arm that found them — **a report that says something is wrong without saying which
+> one is a report a reader has to reproduce from scratch.**
+>
+> **5 of 5 arms were then caught by the assertion each was aimed at**: a declaration added to a
+> stylesheet, a row deleted from the table, a documented value changed, the reader widened to match
+> the word `accent` inside a token name, and the reader's comment-stripping removed — with
+> `wrongcatch`, `green` and `noop` **all zero**, the unmutated control **4 of 4 green**, and **every
+> file restored byte-identical** against a SHA-256 taken before the first mutation.
+>
+> **What this does not establish.** **Nothing about whether the accent is on the right declarations** —
+> the three off-list rules and the ring are recorded, not judged, and **no rule in this repository
+> says which of `DESIGN.md`'s five jobs a given declaration serves**. **And nothing about the page's
+> appearance**: no test here reads a rendered pixel, and the table is a reading of source rather than
+> of a screen. `openspec/specs/` is untouched at **15 capabilities / 190 requirements / 629
+> scenarios**.
+
 > **`cross-browser-expansion` is WITHDRAWN BY DECISION**, dated **2026-10-28**, and it is a decision
 > rather than a measurement: **M14 is not being built, and this product ships for Chromium only.**
 >
@@ -2262,13 +2316,16 @@ Pin versions when exact versions matter.
   sentence that said "There is still no extension build step — that is M8" became false at M8
   and is deleted rather than reworded.**
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running **1399 tests across
-  75 files** via `pnpm test` (2026-10-28, at `fix/disabled-primary-fill`'s apply stage,
+- Testing: Vitest `3.2.7` at the workspace root, verified running **1403 tests across
+  76 files** via `pnpm test` (2026-10-28, at `docs/accent-inventory`'s stage,
   counted from a JSON reporter **grouped by project** rather than read off a summary line, and
   **re-measured at this stage from a fresh run rather than carried forward** — because the
   count a ledger carries is only worth what the last person to re-run it made it worth,
   and this repository has now had a standing figure in its own status block go stale by a
-  whole milestone for exactly that reason. **And the paragraph was one change stale when it
+  whole milestone for exactly that reason. **`1399 across 75` was accurate one stage earlier**,
+  and this stage moved it by exactly its own four cases: a new
+  `tests/architecture/accent-inventory.test.ts` and nothing else. **And the paragraph was one
+  change stale when it
   was re-read here, which is the same defect one size smaller:** it read `1379 across 74`,
   which was accurate at `firefox-compatibility-spike`, and **PR #189 took it to `1398 across
   75`** by adding `tests/architecture/design-record.test.ts`'s **19** cases **without
@@ -2292,10 +2349,12 @@ Pin versions when exact versions matter.
   **7** — the shared diagnostic's own cases — so the package's count is no longer the flat
   **38** this file has carried through nine milestones, and **a figure that stops moving is
   a figure nobody re-ran**),
-  **147 in `tests/architecture`** (56 boundaries, 22 privacy-disclosure, **19**
+  **151 in `tests/architecture`** (56 boundaries, 22 privacy-disclosure, **19**
   design-record, 18 security-audit, 14 branding-audit, 11 provider-terms, **7**
-  beta-diagnostics - **the 127 this line carried was stale by one change before this one**,
-  because PR #189 added `design-record.test.ts` at **19** and moved nothing else, and **a
+  beta-diagnostics, **4** accent-inventory - **the 147 this line carried was one stage
+  stale**, and the movement is one new file at its own four cases, which is why the breakdown
+  is re-summed here rather than adjusted in place. **The previous 127 was stale by one change
+  before that**, because PR #189 added `design-record.test.ts` at **19** and moved nothing else, and **a
   file that appears in a suite without appearing in its breakdown is the same defect as a
   count that does not move** - so `boundaries.test.ts` is **56**, which is **53** at
   `architecture-suite-isolation`'s sync, **54** after its vocabulary check, **55** with
