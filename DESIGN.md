@@ -381,9 +381,12 @@ scales, nothing glows, nothing changes colour family.
   reaches the body threshold against the accent in either scheme. Hover and active empty
   the fill _and_ return the label to `ink-primary`, keeping the accent as the border so the
   control is still the one that moves you forward at rest.
-- **Disabled:** the boundary goes to `line-subtle` and the cursor to `not-allowed`. The
-  label is never dimmed by `opacity`, because opacity dims it below the ratio it is held
-  to; the affordance goes, the words stay readable.
+- **Disabled:** the control takes the quiet treatment whatever its variant — fill to
+  `surface-raised`, label to `ink-muted`, boundary to `line-subtle`, cursor to `not-allowed`.
+  A disabled primary therefore does not wear `accent`, because the accent _is_ the affordance
+  and the affordance is what has gone. The label is never dimmed by `opacity`, which would
+  take it below the ratio it is held to; what replaces the fill is a declared pair —
+  `ink-muted` on `surface-raised` — and not a smaller alpha.
 
 ### Cards / Containers
 

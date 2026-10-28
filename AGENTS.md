@@ -2262,17 +2262,22 @@ Pin versions when exact versions matter.
   sentence that said "There is still no extension build step — that is M8" became false at M8
   and is deleted rather than reworded.**
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running **1379 tests across
-  74 files** via `pnpm test` (2026-10-21, at `firefox-compatibility-spike`'s apply stage,
+- Testing: Vitest `3.2.7` at the workspace root, verified running **1399 tests across
+  75 files** via `pnpm test` (2026-10-28, at `fix/disabled-primary-fill`'s apply stage,
   counted from a JSON reporter **grouped by project** rather than read off a summary line, and
   **re-measured at this stage from a fresh run rather than carried forward** — because the
   count a ledger carries is only worth what the last person to re-run it made it worth,
   and this repository has now had a standing figure in its own status block go stale by a
-  whole milestone for exactly that reason. **The figure this paragraph replaced read `1308
+  whole milestone for exactly that reason. **And the paragraph was one change stale when it
+  was re-read here, which is the same defect one size smaller:** it read `1379 across 74`,
+  which was accurate at `firefox-compatibility-spike`, and **PR #189 took it to `1398 across
+  75`** by adding `tests/architecture/design-record.test.ts`'s **19** cases **without
+  touching this paragraph**, which is why a stage that changes no shipped behaviour still
+  owes this line a measurement. **The figure this paragraph replaced read `1308
   across 66`**, which was accurate at `branding-check` and **two changes stale by this
   one** — `provider-terms-review` added **11** and this change added **7** without either
   touching this paragraph — and before that it read `1290 across 64` and `1228 across 62`.
-  **The record is now five deep in the same defect**, which is the argument for
+  **The record is now six deep in the same defect**, which is the argument for
   re-measuring at every stage rather than every few:
   54 in `packages/core`, 92 in `packages/providers`, **149 in `packages/mail-parser`**,
   **172 in `packages/mailbox`**, **143 in `apps/web`**,
@@ -2287,14 +2292,19 @@ Pin versions when exact versions matter.
   **7** — the shared diagnostic's own cases — so the package's count is no longer the flat
   **38** this file has carried through nine milestones, and **a figure that stops moving is
   a figure nobody re-ran**),
-  **127 in `tests/architecture`** (55 boundaries, 22 privacy-disclosure, 18 security-audit,
-  14 branding-audit, 11 provider-terms, **7** beta-diagnostics — so `boundaries.test.ts` is
-  **55**, which is **53** at `architecture-suite-isolation`'s sync and **54** after its
-  vocabulary check, **and the movement is the measurement**: `firefox-compatibility-spike`
-  added **one** case, the discriminator's own control, because **a check that cannot fail for
-  the reason it exists is not a check**, and **the count is read out of the suite's own source
-  by `security-audit.test.ts` rather than carried by hand** — so **a declared count that does
-  not move when the thing it counts moves is a count nobody has re-read**),
+  **147 in `tests/architecture`** (56 boundaries, 22 privacy-disclosure, **19**
+  design-record, 18 security-audit, 14 branding-audit, 11 provider-terms, **7**
+  beta-diagnostics - **the 127 this line carried was stale by one change before this one**,
+  because PR #189 added `design-record.test.ts` at **19** and moved nothing else, and **a
+  file that appears in a suite without appearing in its breakdown is the same defect as a
+  count that does not move** - so `boundaries.test.ts` is **56**, which is **53** at
+  `architecture-suite-isolation`'s sync, **54** after its vocabulary check, **55** with
+  `firefox-compatibility-spike`'s discriminator control, and **56** with this change's
+  disabled-control paint rule, **and the movement is the measurement**: each move was **one**
+  case, and each was a case that **had to be falsifiable** - because **a check that cannot
+  fail for the reason it exists is not a check**, and **the count is read out of the suite's
+  own source by `security-audit.test.ts` rather than carried by hand** - so **a declared
+  count that does not move when the thing it counts moves is a count nobody has re-read**),
   **490 in `apps/extension`** across **22** files (**25** in `content-script.test.ts`,
   **123** in `protocol.test.ts`, **70** in `extension-platform.test.ts`, **23** in
   `content-script-fill.test.ts`, **22** in `code-field.test.ts`, **25** in `Popup.test.tsx`,
@@ -2306,13 +2316,17 @@ Pin versions when exact versions matter.
   **10** in `content-script-handlers.test.ts`, **12** in `content-script-host-context.test.ts`,
   **5** in `popup-copy.test.ts`, **8** in `service-worker.test.ts`, **4** in `scheduler.test.ts`,
   **3** in `diagnostic.test.ts`),
-  **55 architecture boundary assertions** — **a figure that has moved twice since M1**, at
-  **53**, then **54** with `architecture-suite-isolation`'s vocabulary check, and now **55**
-  with `firefox-compatibility-spike`'s discriminator control, **and each move was a case that
-  had to be falsifiable** — so the earlier claim on this line, that the figure had *not* moved
+  **56 architecture boundary assertions** — **a figure that has moved three times since M1**,
+  at **53**, then **54** with `architecture-suite-isolation`'s vocabulary check, then **55**
+  with `firefox-compatibility-spike`'s discriminator control, and now **56** with this
+  change's disabled-control paint rule, **and each move was a case that had to be
+  falsifiable** — so the earlier claim on this line, that the figure had *not* moved
   since M1, **was stale and is corrected here rather than left**, and it is stated separately
   because **it is the number several changes below use as the measurement that no rule was
-  added where an instrument already exists.**
+  added where an instrument already exists.** **And the instrument this line names is what
+  keeps it honest**: `security-audit.test.ts` reads the count out of `boundaries.test.ts`'s
+  own source, so a case added without this figure moving fails the suite — which is how this
+  line was updated here rather than remembered.
   **This figure was stale by a milestone and is corrected here rather than left, and the reason
   matters more than the number:** it read **1093 across 58 files**, which was accurate at
   `incoming-mail-notification` and at `side-panel-runtime-facts`, and **`side-panel-surface`
@@ -2324,7 +2338,14 @@ Pin versions when exact versions matter.
   running the reporter, never by reading this file or a previous session's summary.
   **`AGENTS.md` is listed in `.prettierignore`, so `pnpm format:check` is not a gate over
   this paragraph at all**, which is recorded here because a green `pnpm verify` says nothing
-  about the lines it is standing on.
+  about the lines it is standing on. **`pnpm verify` is not absent from this file, though, and
+  the distinction is worth a sentence because a commit message on this branch overstated it**:
+  `tests/architecture/provider-terms.test.ts` reads `AGENTS.md` — its `DECISION_DOCUMENTS` list
+  names this file, and that file's own reader must find at least one sentence here for its
+  non-vacuity check, so a document carrying none fails rather than passes — which means **a
+  green gate does cover what this file says about a provider's published conditions, and covers
+  none of the figures below it**; those are checked by re-running the reporter and by nothing
+  else.
   **`panel-mailbox-choice` moved `apps/extension` 424 -> 438 and moved nothing else**, and the
   arithmetic accounts for all fourteen: **`panel-copy.test.ts` is new at 5** and **`Panel.test.tsx`
   went 29 -> 38**, +9. `apps/web` is still **125**, which is how the change shows it touched no
@@ -3232,17 +3253,25 @@ pnpm test:browser
 
 ```
 
-Playwright `1.63.0`, **two configurations, 17 spec files and 149 test cases** - **Chromium
+Playwright `1.63.0`, **two configurations, 18 spec files and 151 test cases** - **Chromium
 only**. The command builds **both** clients, then the in-page fixture, and then runs the two
-suites in order: the website's **51** in `apps/web/e2e/`, and the extension's **98** in
+suites in order: the website's **52** in `apps/web/e2e/`, and the extension's **99** in
 `apps/extension/e2e/`.
 
-**The website's 7 spec files and 51 cases** - `storage.spec.ts`
+**Both figures were re-measured on 2026-10-28 at `fix/disabled-primary-fill`**, from
+Playwright's own `--list --reporter=json` output walked recursively and attributed to each
+case's enclosing `file` - the instrument this block already names - and then corroborated by a
+full `pnpm test:browser` run: **52 passed and 99 passed**. **The 149/17 this block carried was
+stale by one change**: PR #188 added `apps/web/e2e/primary-action.spec.ts` and one case to
+`apps/extension/e2e/popup.spec.ts`, which is **one** case in each tier and nothing else.
+
+**The website's 8 spec files and 52 cases** - `storage.spec.ts`
 (**6**), `focus.spec.ts` (**6**, added by M7 slice 1), `motion.spec.ts` (**9**, added by
 M7 slice 2), `sections.spec.ts` (**16**; **13** added by M7 slice 3 and **three** added by
 M7 slice 4), **`verification-actions.spec.ts` (3**, added by M10 slice 1**)**,
-`mailbox-history.spec.ts` (**8**, added by M13's first slice) and **`diagnostic.spec.ts`
-(3**, added by M13's second slice**)**. The
+`mailbox-history.spec.ts` (**8**, added by M13's first slice), **`diagnostic.spec.ts`
+(3**, added by M13's second slice**)** and **`primary-action.spec.ts` (1**, added by PR
+#188**)**. The
 command serves `apps/web/dist` with `vite preview` on
 `http://127.0.0.1:4173` with `--strictPort`, because the page under test is the **built**
 `<App />` with no props - the page a user receives, not a composition mounted by a test.
@@ -3290,27 +3319,31 @@ depends on **did not work as first written**: with the destination as plain text
 the page said *"No verification link was found in this message"* on a message whose readable
 text plainly contained the URL.
 
-**The extension's 10 spec files and 98 cases** - `side-panel.spec.ts` (**28**; **20** added by
+**The extension's 10 spec files and 99 cases** - `side-panel.spec.ts` (**28**; **20** added by
 `side-panel-surface`, M11 slice 1, and **eight** by `extension-clear-data`),
 `in-page.spec.ts` (**17**, added by `in-page-address`),
 **`in-page-associations.spec.ts` (**12**, added by `site-associations`)**,
 `manifest.spec.ts` (**13**; **6** added by M8, **three** by `in-page-address`, **one** by
 `incoming-mail-notification`, and **one** by `extension-permissions-review`),
-`popup.spec.ts` (**8**), `in-page-create.spec.ts` (**8**, added by `in-page-mailbox`),
+`popup.spec.ts` (**9**; **eight** added by `extension-preview` and **one** by PR #188, which
+reads the primary control's hover the way the website's new spec does),
+`in-page-create.spec.ts` (**8**, added by `in-page-mailbox`),
 **`in-page-fill.spec.ts` (**8**; **seven** added by `in-page-fill` and **one** by
 `incoming-mail-notification`)**,
 **`background-check.spec.ts` (**2**, added by `incoming-mail-notification`)**,
-`measurement.spec.ts` (**1**) and `alarm-floor.spec.ts` (**1`) - **98 in 10 files, against the
-97 in 10 that `extension-clear-data` recorded, the 89 in 10 that
-`panel-verification-state` recorded,
+`measurement.spec.ts` (**1**) and `alarm-floor.spec.ts` (**1**) - **99 in 10 files, against the
+98 in 10 that `extension-permissions-review` recorded, the 97 in 10 that
+`extension-clear-data` recorded, the 89 in 10 that `panel-verification-state` recorded,
 the 67 in 9 that `in-page-fill` recorded before M11 added the side-panel file,
 the 63 in 8 that `in-page-fill` recorded, the 56 in 7 that `verification-actions` recorded,
 the 36 in 5 at slice 1, and the 16 in 4 that `extension-preview` recorded**.
 
-**Every figure in that list was re-measured again at `extension-permissions-review`'s archive
-(2026-10-14)**, and **two moved and eight did not** — `manifest.spec.ts` **12 → 13**, the tier
-**97 → 98**, every other file identical. That is a measurement rather than an adjustment, and it
-is the second time this list has been re-measured at an archive rather than transcribed; the first
+**Every figure in that list was re-measured again on 2026-10-28 at `fix/disabled-primary-fill`**,
+and **two moved and eight did not** — the tier **98 → 99** and `popup.spec.ts` **8 → 9**, both
+from PR #188's one case in that file, with every other entry identical. **The re-measurement
+before that was at `extension-permissions-review`'s archive (2026-10-14)**, and it moved two of
+its own — `manifest.spec.ts` **12 → 13** and the tier **97 → 98** — so **this list has now been
+re-measured at three stages rather than transcribed**; the first
 re-measurement was at `extension-clear-data`'s archive (2026-10-13)
 from Playwright's own collection list rather than read off a file or carried forward from the
 proposal's record, and it agrees — which is the outcome worth stating, because the same list
@@ -3319,7 +3352,7 @@ was wrong in two places two stages earlier.** The instrument is `playwright test
 because a `describe` block does not carry one and a reader that assumed otherwise read **zero**
 cases in nine of the ten files and one in the tenth. **`stats` in that same report is not the
 count and must not be used for it: `--list` runs nothing, so it reports `expected: 0` and
-`skipped: 97`** — a figure that looks like a total failure and is in fact the correct
+`skipped: 99`** — a figure that looks like a total failure and is in fact the correct
 description of a run that deliberately executed nothing.
 
 **The per-file figures above were re-measured at `extension-clear-data`'s proposal (2026-10-13)
