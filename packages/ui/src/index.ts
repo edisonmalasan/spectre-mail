@@ -1,5 +1,6 @@
 /**
- * `@spectre-mail/ui` — reusable product UI and design tokens.
+ * `@spectre-mail/ui` — the design tokens, and the few values both clients must read
+ * from one place.
  *
  * ## What this package owns
  *
@@ -17,23 +18,34 @@
  * drifting is that they read the same definition rather than each holding a copy. See
  * `./diagnostic.ts`.
  *
- * ## What it does not own, and why not yet
+ * ## What it does not own
  *
- * The roadmap's approved design lists buttons, the mailbox card, the provider badge, the
- * status dot, the message row, the OTP component, and the verification-link component as
- * belonging here. **None of them are here.** `apps/web` owns them, and the move is
- * deliberately deferred to M8 — the first second consumer, and the change that can
- * measure whether an extraction was right rather than whether it was tidy. Moving
- * components into a shared package before anything needs them shared risks freezing an
- * API shape no second client ever agreed to. Tokens are different: a palette is shared
- * by definition and its interface is data, not behaviour.
+ * **No component, and none is scheduled.** The roadmap's initial plan lists buttons, the
+ * mailbox card, the provider badge, the status dot, the message row, the OTP component and the
+ * verification-link component as belonging here. **There is no `.tsx` in this package**, and
+ * each client owns the components it renders: `apps/web/src/` and `apps/extension/src/`
+ * between them hold the address control, the mailbox card, the message row, the code control
+ * and the link anchor.
  *
- * Marketing-only website sections do not belong here. This package holds product UI
- * shared by the clients, not landing-page content.
+ * **M8 was named as the milestone that would force the question, and it shipped without
+ * extracting any of them** — which is the answer rather than an omission. The components that
+ * look shared are not the same component: `apps/web`'s `Inbox` and `apps/extension`'s
+ * `MessageList` take different props, hold different state and offer different actions. Moving
+ * one into a shared package before a second consumer has agreed the same interface would
+ * freeze an API shape no second client asked for. **Tokens are the opposite case**: a palette
+ * is shared by definition and its interface is data, not behaviour — which is exactly why they
+ * are here and the components are not.
  *
- * ## The two exports, and why there are two
+ * Marketing-only website sections do not belong here either. This package holds design data
+ * the clients share, not landing-page content.
  *
- * - `@spectre-mail/ui` — this module. Types and the contrast function.
+ * ## The three exports, and why there are three
+ *
+ * - `@spectre-mail/ui` — this module. Types, the contrast function, the tokens, and the shared
+ *   definition of a reportable value.
+ * - `@spectre-mail/ui/name` — `PRODUCT_NAME` alone, for a client that needs only the string.
+ *   The subpath exists because importing the root once dragged `pairs.ts` into a client's
+ *   program; the section below records that, and records why the subpath stays.
  * - `@spectre-mail/ui/tokens.css` — the stylesheet the page loads.
  *
  * **The stylesheet is not re-exported from here, and cannot be.** A client cannot

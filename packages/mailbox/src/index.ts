@@ -68,8 +68,8 @@
  *
  * The package is consumed **as TypeScript source** (see its `exports`), so it has
  * no build step. Its correctness is established by `pnpm typecheck` and
- * `pnpm test`; a successful `pnpm build` builds the website only and says nothing
- * about this package.
+ * `pnpm test`; `pnpm build` bundles that source into both clients and emits nothing
+ * for the shared packages, so it says nothing about this one either way.
  *
  * @module
  */

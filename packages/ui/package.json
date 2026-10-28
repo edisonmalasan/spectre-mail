@@ -1,7 +1,7 @@
 {
   "version": "0.0.0",
   "name": "@spectre-mail/ui",
-  "description": "Reusable product UI and design tokens. Not marketing-only website sections.",
+  "description": "Design tokens and the shared values both clients read. No component; not marketing-only website sections.",
   "exports": {
     ".": "./src/index.ts",
     "./name": "./src/name.ts",

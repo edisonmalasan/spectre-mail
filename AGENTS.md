@@ -2249,16 +2249,18 @@ Pin versions when exact versions matter.
   `pnpm-workspace.yaml`. `tests/provider-spike` is **deliberately not a workspace
   member** — see `docs/ARCHITECTURE.md`.
 
-- Build tooling: Vite `7.3.6` with `@vitejs/plugin-react` `5.2.0` for the website,
-  verified building to `apps/web/dist` and serving on `127.0.0.1:5173`.
-  Shared packages are consumed **as TypeScript source** (each `exports` points at
-  `./src/index.ts`), so there is no per-package build and no bundler at M1.
-  **`pnpm build` builds the website only** (as of M7); package correctness is established by
-  `pnpm typecheck`, which is a separate gate. **`pnpm build` builds both clients as of M8** —
+- Build tooling: Vite `7.3.6` with `@vitejs/plugin-react` `5.2.0` for both clients,
+  verified building to `apps/web/dist` and `apps/extension/dist` and serving the website on
+  `127.0.0.1:5173`. Shared packages are consumed **as TypeScript source** (each `exports`
+  points at `./src/index.ts`), so there is no per-package build and no bundler at M1.
+  **`pnpm build` built the website only through M7**, so it said nothing about the shared
+  packages; their correctness is established by `pnpm typecheck`, which is a separate gate.
+  **Since M8 `pnpm build` builds both clients** —
   `pnpm --filter @spectre-mail/web build && pnpm --filter @spectre-mail/extension build`, with
-  `build:web` and `build:extension` for one at a time. **The sentence that said "There is still
-  no extension build step — that is M8" became false at M8 and is deleted rather than
-  reworded.**
+  `build:web` and `build:extension` for one at a time — **and it still emits nothing for the
+  shared packages**, which is the fact to carry: a green build is not a typecheck. **The
+  sentence that said "There is still no extension build step — that is M8" became false at M8
+  and is deleted rather than reworded.**
 
 - Testing: Vitest `3.2.7` at the workspace root, verified running **1379 tests across
   74 files** via `pnpm test` (2026-10-21, at `firefox-compatibility-spike`'s apply stage,
@@ -4754,10 +4756,10 @@ the other, and "the tests pass" is not a claim about the types.**
 
 Four specific limitations worth not misreading:
 
-- **`pnpm build` builds the website only.** Shared packages are consumed as
-  TypeScript source, so there is nothing to emit for them. Package correctness is
-  established by `pnpm typecheck`, which is a separate gate. Do not read a
-  successful `pnpm build` as "the packages compiled".
+- **`pnpm build` compiles both clients and emits nothing for the shared packages.**
+  They are consumed as TypeScript source, so there is nothing to emit for them.
+  Package correctness is established by `pnpm typecheck`, which is a separate gate.
+  Do not read a successful `pnpm build` as "the packages compiled".
 - **`pnpm test` is non-vacuous by construction, and that was verified.** Each of
   the M1 assertions was proven able to fail by deliberately introducing the
   violation and observing a non-zero exit: a package importing an app, a provider

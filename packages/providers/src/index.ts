@@ -1,9 +1,13 @@
 /**
  * `@spectre-mail/providers` — provider adapters.
  *
- * Owns: the Mail.tm adapter, the Guerrilla Mail adapter, and any future
- * SpectreMail-operated provider. This is the **only** location where provider
- * wire format and provider-specific code may live.
+ * Owns: the Mail.tm adapter, the Guerrilla Mail adapter, the `MailProvider` contract, the
+ * injected transport seam, and the manager that picks one at creation. This is the **only**
+ * location where provider wire format and provider-specific code may live.
+ *
+ * **A provider SpectreMail operates itself is not a planned member.** M15 decided the product
+ * stays provider-powered with no own-domain mail infrastructure, so an adapter is added here
+ * only for a service somebody else runs.
  *
  * **M3 (provider layer) gives this package its first behaviour**: the
  * `MailProvider` contract, two adapters implementing it, the shared conformance
@@ -22,7 +26,9 @@
  * - **No polling loop.** Adapters surface the provider's rate-limit signal; the
  *   cadence belongs to the client, which is the only layer that knows whether a
  *   tab is visible.
- * - **No client wiring.** Nothing under `apps/` references this package yet.
+ * - **No client wiring.** Both clients reach this package through their own
+ *   `provider-config.ts`, the one module entitled to name an adapter; no file under
+ *   `apps/` may contain a provider JSON field name.
  *
  * Both providers are built here regardless of which client uses them. Availability
  * is a client concern, not a reason to omit an adapter: the website uses
@@ -31,8 +37,8 @@
  *
  * The package is consumed **as TypeScript source** (see its `exports`), so there
  * is no build step for it. Package correctness is established by `pnpm typecheck`;
- * a successful `pnpm build` builds the website only and says nothing about this
- * package.
+ * `pnpm build` bundles that source into both clients and emits nothing for the
+ * shared packages, so it says nothing about this one either way.
  *
  * Boundary: no file outside this package may reference an adapter, and no file
  * under `apps/` may contain a provider JSON field name. Enforced by
