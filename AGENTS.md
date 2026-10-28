@@ -3246,17 +3246,25 @@ pnpm test:browser
 
 ```
 
-Playwright `1.63.0`, **two configurations, 17 spec files and 149 test cases** - **Chromium
+Playwright `1.63.0`, **two configurations, 18 spec files and 151 test cases** - **Chromium
 only**. The command builds **both** clients, then the in-page fixture, and then runs the two
-suites in order: the website's **51** in `apps/web/e2e/`, and the extension's **98** in
+suites in order: the website's **52** in `apps/web/e2e/`, and the extension's **99** in
 `apps/extension/e2e/`.
 
-**The website's 7 spec files and 51 cases** - `storage.spec.ts`
+**Both figures were re-measured on 2026-10-28 at `fix/disabled-primary-fill`**, from
+Playwright's own `--list --reporter=json` output walked recursively and attributed to each
+case's enclosing `file` - the instrument this block already names - and then corroborated by a
+full `pnpm test:browser` run: **52 passed and 99 passed**. **The 149/17 this block carried was
+stale by one change**: PR #188 added `apps/web/e2e/primary-action.spec.ts` and one case to
+`apps/extension/e2e/popup.spec.ts`, which is **one** case in each tier and nothing else.
+
+**The website's 8 spec files and 52 cases** - `storage.spec.ts`
 (**6**), `focus.spec.ts` (**6**, added by M7 slice 1), `motion.spec.ts` (**9**, added by
 M7 slice 2), `sections.spec.ts` (**16**; **13** added by M7 slice 3 and **three** added by
 M7 slice 4), **`verification-actions.spec.ts` (3**, added by M10 slice 1**)**,
-`mailbox-history.spec.ts` (**8**, added by M13's first slice) and **`diagnostic.spec.ts`
-(3**, added by M13's second slice**)**. The
+`mailbox-history.spec.ts` (**8**, added by M13's first slice), **`diagnostic.spec.ts`
+(3**, added by M13's second slice**)** and **`primary-action.spec.ts` (1**, added by PR
+#188**)**. The
 command serves `apps/web/dist` with `vite preview` on
 `http://127.0.0.1:4173` with `--strictPort`, because the page under test is the **built**
 `<App />` with no props - the page a user receives, not a composition mounted by a test.
@@ -3304,27 +3312,31 @@ depends on **did not work as first written**: with the destination as plain text
 the page said *"No verification link was found in this message"* on a message whose readable
 text plainly contained the URL.
 
-**The extension's 10 spec files and 98 cases** - `side-panel.spec.ts` (**28**; **20** added by
+**The extension's 10 spec files and 99 cases** - `side-panel.spec.ts` (**28**; **20** added by
 `side-panel-surface`, M11 slice 1, and **eight** by `extension-clear-data`),
 `in-page.spec.ts` (**17**, added by `in-page-address`),
 **`in-page-associations.spec.ts` (**12**, added by `site-associations`)**,
 `manifest.spec.ts` (**13**; **6** added by M8, **three** by `in-page-address`, **one** by
 `incoming-mail-notification`, and **one** by `extension-permissions-review`),
-`popup.spec.ts` (**8**), `in-page-create.spec.ts` (**8**, added by `in-page-mailbox`),
+`popup.spec.ts` (**9**; **eight** added by `extension-preview` and **one** by PR #188, which
+reads the primary control's hover the way the website's new spec does),
+`in-page-create.spec.ts` (**8**, added by `in-page-mailbox`),
 **`in-page-fill.spec.ts` (**8**; **seven** added by `in-page-fill` and **one** by
 `incoming-mail-notification`)**,
 **`background-check.spec.ts` (**2**, added by `incoming-mail-notification`)**,
-`measurement.spec.ts` (**1**) and `alarm-floor.spec.ts` (**1`) - **98 in 10 files, against the
-97 in 10 that `extension-clear-data` recorded, the 89 in 10 that
-`panel-verification-state` recorded,
+`measurement.spec.ts` (**1**) and `alarm-floor.spec.ts` (**1**) - **99 in 10 files, against the
+98 in 10 that `extension-permissions-review` recorded, the 97 in 10 that
+`extension-clear-data` recorded, the 89 in 10 that `panel-verification-state` recorded,
 the 67 in 9 that `in-page-fill` recorded before M11 added the side-panel file,
 the 63 in 8 that `in-page-fill` recorded, the 56 in 7 that `verification-actions` recorded,
 the 36 in 5 at slice 1, and the 16 in 4 that `extension-preview` recorded**.
 
-**Every figure in that list was re-measured again at `extension-permissions-review`'s archive
-(2026-10-14)**, and **two moved and eight did not** — `manifest.spec.ts` **12 → 13**, the tier
-**97 → 98**, every other file identical. That is a measurement rather than an adjustment, and it
-is the second time this list has been re-measured at an archive rather than transcribed; the first
+**Every figure in that list was re-measured again on 2026-10-28 at `fix/disabled-primary-fill`**,
+and **two moved and eight did not** — the tier **98 → 99** and `popup.spec.ts` **8 → 9**, both
+from PR #188's one case in that file, with every other entry identical. **The re-measurement
+before that was at `extension-permissions-review`'s archive (2026-10-14)**, and it moved two of
+its own — `manifest.spec.ts` **12 → 13** and the tier **97 → 98** — so **this list has now been
+re-measured at three stages rather than transcribed**; the first
 re-measurement was at `extension-clear-data`'s archive (2026-10-13)
 from Playwright's own collection list rather than read off a file or carried forward from the
 proposal's record, and it agrees — which is the outcome worth stating, because the same list
@@ -3333,7 +3345,7 @@ was wrong in two places two stages earlier.** The instrument is `playwright test
 because a `describe` block does not carry one and a reader that assumed otherwise read **zero**
 cases in nine of the ten files and one in the tenth. **`stats` in that same report is not the
 count and must not be used for it: `--list` runs nothing, so it reports `expected: 0` and
-`skipped: 97`** — a figure that looks like a total failure and is in fact the correct
+`skipped: 99`** — a figure that looks like a total failure and is in fact the correct
 description of a run that deliberately executed nothing.
 
 **The per-file figures above were re-measured at `extension-clear-data`'s proposal (2026-10-13)
