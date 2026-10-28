@@ -228,6 +228,37 @@ body {
 }
 
 /*
+ * **The filled control's interaction state, and this rule is a repair.**
+ *
+ * `.control:hover:not(:disabled)` above empties a control's fill, which is right for a
+ * quiet control because its ink is already `--ink-primary` there. This control kept
+ * `--ink-on-accent` while its fill emptied, so the label was the accent's own ink on a
+ * near-white surface: measured with the token layer's own contrast function, **1.22:1 in
+ * the light scheme and 1.04:1 in the dark one** — the same values the website measured,
+ * because it is the same two rules in a second stylesheet.
+ *
+ * **`--ink-primary` on `--surface-sunken` is already a declared pair**: `pairs.ts` holds
+ * *body copy on a sunken surface* at the body threshold, 14.83:1 light and 17.09:1 dark.
+ * So the fill empties under the pointer and the label returns to the page ink, exactly as
+ * every quiet control here already does.
+ *
+ * **It is a `:hover` override and not an `:active` one, and that is measured rather than
+ * convenient.** A mouse press is also a hover, so this rule already governs the pressed
+ * state; a keyboard activation fires `:active` without `:hover`, and it therefore keeps
+ * `.control--primary`'s own `--ink-on-accent` on `--accent` — the rest pair, which is
+ * readable. Nothing here empties the fill without a pointer, so nothing here needs an
+ * `:active` sibling.
+ *
+ * **This selector ties with `.control:hover:not(:disabled)` and sits after it**, so source
+ * order is what decides — the same arrangement the mailbox chooser's rules below use on
+ * purpose, and stated here rather than left to be rediscovered by whoever reorders the
+ * file. `apps/extension/e2e/popup.spec.ts` reads the result as Chromium computes it.
+ */
+.control--primary:hover:not(:disabled) {
+  color: var(--ink-primary);
+}
+
+/*
  * One entry of the mailbox chooser, and the one that is current.
  *
  * **These two rules sit after `.control` on purpose, and not by accident of ordering.** They are the

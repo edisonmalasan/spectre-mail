@@ -42,6 +42,7 @@ import {
 import type { Page } from "@playwright/test";
 
 import { INBOX_POLL_CEILING_MS } from "@spectre-mail/mailbox";
+import { BODY_TEXT, contrastRatio, meets } from "@spectre-mail/ui";
 
 import { launchExtension } from "./launch-extension";
 import type { LaunchedExtension } from "./launch-extension";
@@ -423,5 +424,148 @@ test.describe("the stylesheet the browser actually loaded", () => {
 
     expect(served).not.toMatch(/@import\s+url/i);
     expect(served).not.toMatch(/url\(\s*['"]?https?:/i);
+  });
+});
+
+/**
+ * The popup's fill, read where a person meets it.
+ *
+ * ## Why this is here rather than only in the website's tier
+ *
+ * The two stylesheets are separate documents that each re-declare the same interaction
+ * rules, and **they carried the same defect independently**: `.control:hover` empties a
+ * control's fill, and `.control--primary` kept `--ink-on-accent` while it did. Measured with
+ * `packages/ui`'s own contrast function, that pair is **1.22:1 in the light scheme and
+ * 1.04:1 in the dark one** — white on near-white, on the one control each client offers as
+ * the way forward.
+ *
+ * `apps/web/e2e/primary-action.spec.ts` is the same case for the website, and it was
+ * written first. **A repair in one stylesheet proves nothing about the other**, which is
+ * precisely how this defect came to exist twice: the rules were copied, and no instrument
+ * in either tier ever read a control's colour in a state other than rest.
+ *
+ * ## What it does not establish
+ *
+ * - **Nothing about how the popup looks.** A ratio is not a judgement about emphasis.
+ * - **Nothing about the side panel's filled control.** `Panel.tsx`'s `control--primary` is
+ *   a different surface with its own `:disabled` state, and no case in this file drives it;
+ *   see `side-panel.spec.ts` for what that tier does read.
+ * - **Nothing about a provider.** Every response here is a recorded one.
+ */
+test.describe("the primary action, as Chromium paints it", () => {
+  /**
+   * **The same two constants as the website's file, and duplicated on purpose.**
+   *
+   * A shared helper would have to live somewhere both Playwright programs can import, and
+   * the repository's own recorded reason for two copies of `servedStylesheet` applies
+   * unchanged: a shared module has to live in a directory one of the two suites does not
+   * own. Two programs, two copies, and the comment names the other so a reader editing one
+   * can find the second.
+   */
+  const PRIMARY_ACTION_NAME = "Create an address";
+
+  interface ResolvedPair {
+    readonly ink: string;
+    readonly surface: string;
+  }
+
+  /** `rgb(r, g, b)` → `#rrggbb`, throwing rather than guessing on anything else. */
+  function hexOf(resolved: string): string {
+    const parts = /^rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)\s*\)$/.exec(resolved.trim());
+    if (parts === null) {
+      throw new Error(`not an opaque rgb() colour, so it cannot be held to a ratio: ${resolved}`);
+    }
+    return `#${parts
+      .slice(1, 4)
+      .map((channel) => Number(channel).toString(16).padStart(2, "0"))
+      .join("")}`;
+  }
+
+  test("paints its label in a readable pair at rest, on hover and while pressed, in both schemes", async () => {
+    const page = await openPopup();
+
+    const primary = page.getByRole("button", { name: PRIMARY_ACTION_NAME });
+    await expect(primary).toBeVisible();
+
+    /** The pair as Chromium computed it, so a media query and a later rule are applied. */
+    const readPair = (): Promise<ResolvedPair> =>
+      primary.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return { ink: style.color, surface: style.backgroundColor };
+      });
+
+    for (const scheme of ["light", "dark"] as const) {
+      // **Both schemes explicitly**, because this palette has two and they fail differently:
+      // the light scheme's hover pair measured 1.22:1 and the dark one 1.04:1.
+      await page.emulateMedia({ colorScheme: scheme });
+
+      // **Off the control before the rest reading**, so the previous iteration's hover
+      // cannot be measured as a rest state — which is this file's own defect wearing its
+      // instrument's clothes.
+      await page.mouse.move(0, 0);
+      const rest = await readPair();
+
+      await primary.hover();
+
+      // **The precondition, and the assertion most likely to be missing.** Everything
+      // below is a claim about a hovered control; a pointer that never moved would leave
+      // the reading at rest, which passes on a popup where hovering does nothing at all.
+      await expect
+        .poll(async () => (await readPair()).surface, {
+          message: `${scheme}: hovering the primary action must repaint its fill`,
+        })
+        .not.toBe(rest.surface);
+
+      const hovered = await readPair();
+
+      /**
+       * **The pressed state, and why it is read here even though this stylesheet has no
+       * `:active` rule.**
+       *
+       * The repair is a single `color` override on `.control--primary:hover:not(:disabled)`,
+       * and **a mouse press is also a hover**, so the pair a person sees while pressing is
+       * the pair the hover reading already took. Reading it separately is the guard against
+       * a future `:active` rule being added here — the website's stylesheet needed exactly
+       * that, because its old `:active` rule set the surface and left the ink behind.
+       *
+       * **The keyboard arm is the website's and not this one, and the difference is real
+       * rather than an omission.** A keyboard activation fires `:active` **without**
+       * `:hover`, so on this stylesheet it falls through to `.control--primary`'s own pair —
+       * `--ink-on-accent` on `--accent`, the rest pair, at 6.87:1 light and 7.02:1 dark. It
+       * is readable because nothing here empties the fill without a pointer.
+       *
+       * **`matches(":active")` is the precondition, not decoration.** Under the repair the
+       * pressed pair is the same pair as the hovered one, so a press that never registered
+       * would leave this reading the hover twice and passing on a popup whose `:active`
+       * state is unreadable.
+       */
+      await page.mouse.down();
+      await expect
+        .poll(() => primary.evaluate((element) => element.matches(":active")), {
+          message: `${scheme}: pressing the primary action must put it in the :active state`,
+        })
+        .toBe(true);
+      const pressed = await readPair();
+
+      // **Released off the control, so the press does not become a click.** A `mouseup` on
+      // "Create an address" would create a mailbox, which unmounts this very button and
+      // leaves the next scheme iteration's locator pointing at nothing.
+      await page.mouse.move(0, 0);
+      await page.mouse.up();
+
+      for (const [state, pair] of [
+        ["at rest", rest],
+        ["hovered", hovered],
+        ["pressed", pressed],
+      ] as const) {
+        expect(
+          meets(hexOf(pair.ink), hexOf(pair.surface), BODY_TEXT),
+          `${scheme} / ${state}: the label measures ${contrastRatio(
+            hexOf(pair.ink),
+            hexOf(pair.surface),
+          ).toFixed(2)}:1 as ${pair.ink} on ${pair.surface}`,
+        ).toBe(true);
+      }
+    }
   });
 });
