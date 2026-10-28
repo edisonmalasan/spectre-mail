@@ -59,11 +59,11 @@
 > the tree rather than an assumption about it. **0 files carry a lone surrogate**, so UTF-16 offsets
 > are not a hazard here.
 >
-> **`tests/architecture/comments.test.ts` holds it: 7 cases**, 158 in `tests/architecture` and 1410
-> across 77 files. **`boundaries.test.ts` stays at 56** — no case is added to it, and the two
+> **`tests/architecture/comments.test.ts` holds it: 8 cases**, 159 in `tests/architecture` and **1411
+> across 77 files**. **`boundaries.test.ts` stays at 56** — no case is added to it, and the two
 > assertions inside it that changed are a repair rather than coverage. **`security-audit.test.ts`'s
 > declared boundary count is unchanged for that reason**, which is the check that makes the claim
-> legible.
+> legible. **The eighth case was added after CI, and the reason it had to be is the finding below.**
 >
 > **And the falsification pass caught 6 of 6 by the assertion each was aimed at**, with `wrongcatch`,
 > `green`, `noop` and `harness-error` **all zero** and **every file restored byte-identical** against
@@ -77,6 +77,35 @@
 > defect put back, the **new** assertion — which names the lines `url()` was found on — goes **red**,
 > and the **old** `toBe(2)` **passes**. **Reproduced, not argued**: an assertion that could not fail
 > for the reason it existed, and a rule and its check agreeing on the wrong answer.
+>
+> **⇒ And the stage shipped a second defect of the same class, found by CI and by nothing local: the
+> new fixpoint read the corpus while another worker was writing to it.** `boundaries.test.ts` stages a
+> deliberately illegal module into the tree, runs the rule over it and deletes it, and **the fixpoint
+> in `comments.test.ts` walks that same tree in a parallel vitest worker**. The first version
+> enumerated then read, so it saw
+> `ENOENT: no such file or directory, open '.../packages/mailbox/__clock-rule-probe.ts'` and `verify`
+> went red on PR #192 while `browser` and `spike self-test` passed. **It was green locally and red in
+> CI for the recorded reason a race is a race: what decides it is which side is slower.** The repair
+> is the one `branding-audit.test.ts` already carries and the reason this stage could find it by
+> reading rather than by guessing — the walk now asks **`isStagedProbe(entry)` before it calls `join`,
+> `statSync` or `readFileSync`**, so a name the vocabulary holds is never handed to the filesystem at
+> all and a file another worker deleted cannot turn the skip into a failed read. The vocabulary is
+> imported from `staged-probes.ts` and **nothing was planted from this file**, because staging a probe
+> here would collide with the case that stages it there and break the suite this one guards.
+>
+> **⇒ And the eighth case holds the vocabulary itself in both directions, because the guard cannot
+> hold itself — measured, not assumed.** Every stem must be recognised by the predicate, and once its
+> extension is appended; and nine shipped names the fixpoint's whole claim depends on must **not** be
+> — `session.ts`, `spec.md`, `package.json`, `index.html`, `styles.css`, `probe.ts`, `probes.ts`,
+> `space-1.ts`, `the-rule-probe.ts` — plus two near-misses a pattern would have swallowed,
+> `__clock-rule-probe-notes.ts` and `__BoundaryProbeX.tsx`. **Both directions, because each alone is
+> satisfied by a degenerate answer**: a predicate that said yes to everything would reduce the
+> fixpoint to a walk over nothing and keep passing, and one that said no to everything would let the
+> `ENOENT` back in the first time CI ran cold. **And what that case cannot hold is the guard's
+> *position*** — measured: with the line deleted the whole file is **8 of 8 green**. **The ordering is
+> held by the code and by the recorded CI failure, not by an assertion**, because a case that staged
+> the collision on purpose would be staging a file another worker is staging. That is written into the
+> walk's own comment rather than left for a reader to infer from a green run.
 >
 > **What this does not establish.** **Nothing about a language the reader does not know** —
 > `languageOf` throws, so a new extension is skipped by the fixpoint until somebody teaches the
@@ -2421,15 +2450,16 @@ Pin versions when exact versions matter.
   sentence that said "There is still no extension build step — that is M8" became false at M8
   and is deleted rather than reworded.**
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running **1410 tests across
+- Testing: Vitest `3.2.7` at the workspace root, verified running **1411 tests across
   77 files** via `pnpm test` (2026-10-28, at `fix/comment-stripper`'s stage,
   counted from a JSON reporter **grouped by project** rather than read off a summary line, and
   **re-measured at this stage from a fresh run rather than carried forward** - because the
   count a ledger carries is only worth what the last person to re-run it made it worth,
   and this repository has now had a standing figure in its own status block go stale by a
   whole milestone for exactly that reason. **`1403 across 76` was accurate one stage earlier**,
-  and this stage moved it by exactly its own seven cases: a new
-  `tests/architecture/comments.test.ts` and nothing else. **And the paragraph was one
+  and this stage moved it by exactly its own eight cases: a new
+  `tests/architecture/comments.test.ts` at seven, and the eighth added under it after CI ran the
+  tree cold. **And the paragraph was one
   change stale when it
   was re-read here, which is the same defect one size smaller:** it read `1379 across 74`,
   which was accurate at `firefox-compatibility-spike`, and **PR #189 took it to `1398 across
@@ -2454,12 +2484,14 @@ Pin versions when exact versions matter.
   **7** — the shared diagnostic's own cases — so the package's count is no longer the flat
   **38** this file has carried through nine milestones, and **a figure that stops moving is
   a figure nobody re-ran**),
-  **158 in `tests/architecture`** (56 boundaries, 22 privacy-disclosure, **19**
+  **159 in `tests/architecture`** (56 boundaries, 22 privacy-disclosure, **19**
   design-record, 18 security-audit, 14 branding-audit, 11 provider-terms, **7**
-  beta-diagnostics, **4** accent-inventory, **7 comments** - **the 151 this line carried was one
-  stage stale**, and the movement is one new file at its own seven cases, which is why the
-  breakdown is re-summed here rather than adjusted in place: 56 + 22 + 19 + 18 + 14 + 11 + 7 + 4
-  + 7 = **158**. **The previous 147 was stale by one change
+  beta-diagnostics, **4** accent-inventory, **8 comments** - **the 151 this line carried was one
+  stage stale**, and the movement is one new file that grew by one case after CI ran it cold, which
+  is why the breakdown is re-summed here rather than adjusted in place: 56 + 22 + 19 + 18 + 14 + 11
+  + 7 + 4 + 8 = **159**. **The eighth case is the reason a count that moves after a merge is worth
+  more than one that does not**: the file was at seven, CI found the `ENOENT` its walk could produce,
+  and the vocabulary case is what a reader is owed for it. **The previous 147 was stale by one change
   before that**, because PR #189 added `design-record.test.ts` at **19** and moved nothing else, and **a
   file that appears in a suite without appearing in its breakdown is the same defect as a
   count that does not move** - so `boundaries.test.ts` is **56**, which is **53** at
