@@ -228,18 +228,25 @@ function normaliseProse(text: string): string {
   // **The three markers are removed with `replaceAll` rather than with one `/[*_`]/g`, and the reason is a
   // red gate this file caused rather than a preference.**
   //
-  // `tests/architecture/boundaries.test.ts`'s `stripComments` recognises `//`, `/* */`, `'`, `"` and a
-  // backtick — **and not a regular-expression literal.** A backtick inside one therefore *opens a string
-  // that runs until the next backtick in the file*, and from that point the reader is out of phase with
-  // the source: it read three provider-adapter identifiers out of **this file's own doc comment** and the
-  // rule *"confines provider adapters to `packages/providers`"* went **red on the shipped tree** with six
-  // violations. That is this repository's recorded *"a check fired on its own documentation"* shape, in
-  // its reverse direction: the documentation was fine and the **other file's reader** could not see it.
+  // `tests/architecture/boundaries.test.ts`'s comment reader used to recognise `//`, `/* */`, `'`, `"` and
+  // a backtick - **and not a regular-expression literal.** A backtick inside one therefore *opened a
+  // string that ran until the next backtick in the file*, and from that point the reader was out of
+  // phase with the source: it read three provider-adapter identifiers out of **this file's own doc
+  // comment** and the rule *"confines provider adapters to `packages/providers`"* went **red on the
+  // shipped tree** with six violations. That is this repository's recorded *"a check fired on its own
+  // documentation"* shape, in its reverse direction: the documentation was fine and the **other file's
+  // reader** could not see it.
   //
-  // **`replaceAll` with string arguments puts no quote character inside a pattern**, so this file cannot
-  // desynchronise a reader that does not understand regex literals. It is the same removal, spelled so
-  // that a reader in another file cannot be desynchronised by it. The allow-list below loses its
-  // `[*_\`]` entry as a result, and the entry was only ever there because the pattern existed.
+  // **That reader is now `tests/architecture/comments.ts`, and it parses the file rather than scanning
+  // characters**, so a backtick inside a pattern literal is a pattern literal and the desynchronisation
+  // cannot happen. Measured over the whole corpus: 314 files read, 0 length mismatches, 0 comments left
+  // visible, and the seven files that had leaked comment text into "code" no longer do.
+  //
+  // **The spelling stays, and it is recorded as retained rather than as necessary.** `replaceAll` with
+  // string arguments still puts no quote character inside a pattern - which is true whether or not the
+  // reader can cope - and reverting it is a change to this file that nothing asks for. The allow-list
+  // below loses its `[*_\`]` entry either way, and the entry was only ever there because the pattern
+  // existed.
   return text
     .replaceAll("*", "")
     .replaceAll("_", "")
@@ -1646,9 +1653,12 @@ const ALLOWED_PATTERNS: readonly string[] = [
   // -- markdown shape, and nothing else (`sentencesOf`, `sectionsOf`, `slugsIn`) -------------------------
   // `normaliseProse`'s three markers are **not** here, because it removes them with `replaceAll` rather
   // than with a pattern. It used to carry a `/[*_\`]/g`, and the backtick inside that character class
-  // desynchronised `boundaries.test.ts`'s `stripComments` — which does not recognise regex literals — for
+  // desynchronised `boundaries.test.ts`'s comment reader - which had no state for regex literals - for
   // the rest of the file. **An allow-list entry is not a neutral list: keeping the pattern would have
-  // meant keeping the red gate**, so the pattern went and the entry went with it. See `normaliseProse`.
+  // meant keeping the red gate**, so the pattern went and the entry went with it. **The reader now
+  // parses** (`tests/architecture/comments.ts`), so keeping the pattern would no longer be a red gate -
+  // and the pattern still does not come back, because the removal it performed is the same removal and
+  // there is nothing for it to earn. See `normaliseProse`.
   "\\s+", // whitespace collapsed so a sentence survives the line break its source has
   "^#{1,6} ", // an ATX heading at any depth
   "^## ", // the `## ` section boundary

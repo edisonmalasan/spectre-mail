@@ -30,12 +30,18 @@
  * owns, which is the same resolution `motion-and-reduced-motion`'s apply stage recorded — **two gates
  * disagreeing is not resolvable by pinning the bytes of a document a formatter owns.**
  *
- * **No literal backtick appears inside any regular-expression literal in this file.** That is not a
- * style preference: `boundaries.test.ts`'s `stripComments` tracks line comments, block comments and
- * three string delimiters and has **no state for a regular-expression literal**, so a backtick inside
- * one opens a string that runs to the next backtick, desynchronises that reader for the rest of the
- * file, and takes a red gate with a cause that reads as correct. The backtick is written `\x60`
- * throughout, and the pattern allow-list below is what makes that a check rather than an intention.
+ * **No literal backtick appears inside any regular-expression literal in this file.** That was not a
+ * style preference: `boundaries.test.ts`'s comment reader tracked line comments, block comments and
+ * three string delimiters and had **no state for a regular-expression literal**, so a backtick inside
+ * one opened a string that ran to the next backtick, desynchronised that reader for the rest of the
+ * file, and took a red gate with a cause that reads as correct.
+ *
+ * **That reader now parses and is `tests/architecture/comments.ts`**, so the hazard is gone. **The
+ * `\x60` spelling and the allow-list below stay, and they stay as a retained workaround rather than as
+ * a live requirement**: the workaround costs nothing, its allow-list makes it a check rather than an
+ * intention, and reverting it is a change to this file that nothing asks for. It is recorded here so
+ * that a reader who finds the workaround does not conclude the reader it was written for still has the
+ * defect.
  *
  * **2. Coverage is deliberately not required** (`design.md` D5, task 3.2). **An area with no
  * requirement governing it is the audit's finding**, so a check that failed on one would make the
@@ -1397,8 +1403,10 @@ const ALLOWED_PATTERNS: readonly string[] = [
   // The citation grammar, in full: capability, em dash, `_heading_`, `(path:line)`. **The underscores
   // are Prettier's markdown emphasis, not a preference**: `format:check` rewrites `*heading*`, and a
   // grammar written against the asterisk resolved none of the eighteen citations on its first run. A
-  // literal backtick in either pattern would desynchronise `boundaries.test.ts`'s `stripComments` for
-  // the rest of this file, which has no state for a regular-expression literal — see the header.
+  // literal backtick in either pattern used to desynchronise `boundaries.test.ts`'s comment reader for
+  // the rest of this file, which had no state for a regular-expression literal - the reader now parses
+  // (`tests/architecture/comments.ts`) and the hazard is gone, so the `\x60` spelling is retained
+  // rather than required. See the header.
   "/\\x60([a-z0-9][a-z0-9-]*)\\x60 — _([^_]+)_ \\(\\x60([^\\x60]+):(\\d+)\\x60\\)/g",
   "/\\x60([^\\x60]+)\\x60/g",
 ];
@@ -1422,8 +1430,8 @@ test("this file contains no pattern beyond the declared three", () => {
   ).toEqual([]);
 
   // **And none of them holds a backtick**, which is the property the header states and the one the
-  // boundary suite's own reader is unable to survive. Asserted here rather than left to the allow-list,
-  // because an allow-list entry is a *declaration* and this is the *consequence*.
+  // boundary suite's reader used to be unable to survive. Asserted here rather than left to the
+  // allow-list, because an allow-list entry is a *declaration* and this is the *consequence*.
   expect(
     found.filter((pattern) => pattern.includes("\x60")),
     "a regular-expression literal in this file holds a literal backtick",

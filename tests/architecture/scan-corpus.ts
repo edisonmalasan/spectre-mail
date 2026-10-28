@@ -71,3 +71,43 @@ export const APPS_DIR = join(CORPUS_ROOT, "apps");
  * The corpus root, for the rules that walk everything.
  */
 export const CORPUS = CORPUS_ROOT;
+
+/**
+ * Whole path segments the rules never walk.
+ *
+ * **This lives here rather than in the suite that walks the tree**, because a second reader of the
+ * corpus is a second chance to disagree with the first. The boundary suite's walk skips these
+ * segments; so does the fixpoint case in `comments.test.ts`, which has to read *the same files the
+ * rules read* to be a measurement of the reader the rules use. A copy of this set in a second file
+ * would be the defect this repository has recorded most often - **a second spelling of a set** - and
+ * it would fail in the silent direction: a fixpoint over a wider set than the rules walk proves
+ * something about files no rule ever sees.
+ *
+ * `.git` and `.agents` matter because the rules that scan the whole repository would otherwise walk
+ * generated content this repository must not edit anyway.
+ *
+ * **`test-results` was added by `side-panel-runtime-facts`, and it is the third recorded instance of
+ * one defect: a scanner that cannot tell a source file from an artefact a measurement itself
+ * creates.** Playwright writes that directory on every run of either browser suite, and the
+ * quarantined probes stage their fixtures *into* it - so a generated copy of a fixture, already
+ * exempt where the fixture lives, arrived at the storage rule a second time from a directory
+ * nothing ships, and the rule reported it for the forbidden identifier its own source was written
+ * with. The run before the entry existed was green, and the run after it was red on a file no
+ * commit had written.
+ *
+ * **The definition is the same one `dist`, `build` and `coverage` already carry**: a directory of
+ * generated output, gitignored, that the repository never ships from. It is a whole-path-segment
+ * match in the walk rather than a substring test, and the boundary suite's control plants a probe in
+ * a directory whose *name contains* `test-results` to hold that down - a substring rule passes the
+ * first assertion and fails the second.
+ */
+export const SKIP_DIRECTORIES: ReadonlySet<string> = new Set([
+  "node_modules",
+  "dist",
+  "build",
+  "coverage",
+  ".vite",
+  ".git",
+  ".agents",
+  "test-results",
+]);

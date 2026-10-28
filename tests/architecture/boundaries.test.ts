@@ -4,9 +4,11 @@ import {
   APPS_DIR as CORPUS_APPS_DIR,
   CORPUS,
   PACKAGES_DIR as CORPUS_PACKAGES_DIR,
+  SKIP_DIRECTORIES,
   corpusPathOf,
 } from "./scan-corpus";
 import { SCAN_ASSERTION_TIMEOUT_MS } from "./scan-budget";
+import { stripComments } from "./comments";
 import {
   cpSync,
   existsSync,
@@ -156,34 +158,11 @@ const CSS_EXTENSION = ".css";
  */
 const TOKEN_LAYER = "packages/ui/src/tokens.css";
 
-// `.git` and `.agents` matter because two rules below scan the whole repository
-// rather than only `packages/` and `apps/`. Walking either would be slow, and
-// `.agents` is generated content this repository must not edit anyway.
-//
-// **`test-results` was added by `side-panel-runtime-facts`, and it is the third recorded
-// instance of one defect: a scanner that cannot tell a source file from an artefact a
-// measurement itself creates.** Playwright writes that directory on every run of either
-// browser suite, and the quarantined probes stage their fixtures *into* it - so a
-// generated copy of a fixture, already exempt where the fixture lives, arrived at the
-// storage rule a second time from a directory nothing ships, and the rule reported it
-// for the forbidden identifier its own source was written with. The run before the entry
-// existed was green, and the run after it was red on a file no commit had written.
-//
-// **The definition is the same one `dist`, `build` and `coverage` already carry**: a
-// directory of generated output, gitignored, that the repository never ships from. It is
-// a whole-path-segment match in `collectSourceFiles`' walk rather than a substring test,
-// and the control below plants a probe in a directory whose *name contains* this one to
-// hold that down - a substring rule passes the first assertion and fails the second.
-const SKIP_DIRECTORIES = new Set([
-  "node_modules",
-  "dist",
-  "build",
-  "coverage",
-  ".vite",
-  ".git",
-  ".agents",
-  "test-results",
-]);
+// **The directories this walk skips live in `scan-corpus.ts`**, beside the roots, because the walk
+// is no longer the only reader of the corpus: the fixpoint that proves this suite's comment reader
+// over the same files walks the same tree, and a copy of the set in a second file would be the
+// defect this repository has recorded most often. See `SKIP_DIRECTORIES` there for which segments
+// are skipped and why `test-results` is one of them.
 
 /**
  * Scripts that reach past what the product ships, and must therefore be unreachable
@@ -250,8 +229,8 @@ const QUARANTINED_PROBES = [
  * whole and can be tested on its own — **and the rule that uses it would otherwise be satisfied by
  * every probe in the list passing, which is a check that cannot fail for the reason it exists.**
  */
-const enginesOf = (source: string): string[] => {
-  const probe = stripComments(source);
+const enginesOf = (source: string, path: string): string[] => {
+  const probe = stripComments(source, path);
   return ["chromium", "firefox"].filter((engine) =>
     probe.includes(`${engine}.launchPersistentContext`),
   );
@@ -640,90 +619,6 @@ function findFilesNamed(name: string): string[] {
 }
 
 /**
- * Replace comment content with spaces, preserving line structure.
- *
- * Needed because several rules here are about what the *code* references, and a
- * prose mention of `fetch(` in a doc comment is documentation rather than a
- * dependency. Blanking rather than deleting keeps every line number correct, so a
- * failure still names the line a reader has to open.
- *
- * Deliberately simple, and known to be imperfect: it does not understand string
- * literals, so a provider field name written inside a string in a non-test file is
- * still caught (correct) while a `"fetch("` inside a string would be a false
- * positive. That direction of error is the safer one.
- */
-function stripComments(source: string): string {
-  let out = "";
-  let inBlock = false;
-  let inLine = false;
-  let inString: '"' | "'" | "`" | null = null;
-
-  for (let i = 0; i < source.length; i += 1) {
-    const char = source[i] as string;
-    const next = source[i + 1];
-
-    if (inLine) {
-      if (char === "\n") {
-        inLine = false;
-        out += char;
-      } else {
-        out += " ";
-      }
-      continue;
-    }
-
-    if (inBlock) {
-      if (char === "*" && next === "/") {
-        inBlock = false;
-        out += "  ";
-        i += 1;
-      } else {
-        out += char === "\n" ? "\n" : " ";
-      }
-      continue;
-    }
-
-    if (inString !== null) {
-      out += char;
-      if (char === "\\") {
-        const following = source[i + 1];
-        if (following !== undefined) {
-          out += following;
-          i += 1;
-        }
-        continue;
-      }
-      if (char === inString) {
-        inString = null;
-      }
-      continue;
-    }
-
-    if (char === "/" && next === "/") {
-      inLine = true;
-      out += " ";
-      i += 1;
-      continue;
-    }
-    if (char === "/" && next === "*") {
-      inBlock = true;
-      out += " ";
-      i += 1;
-      continue;
-    }
-    if (char === '"' || char === "'" || char === "`") {
-      inString = char;
-      out += char;
-      continue;
-    }
-
-    out += char;
-  }
-
-  return out;
-}
-
-/**
  * Report every line containing `needle`, with its 1-based line number and the
  * trimmed text, so a failure is actionable rather than just red.
  */
@@ -785,6 +680,32 @@ function countMatching(violations: readonly string[], label: string): number {
 }
 
 /**
+ * The 1-based line numbers of the findings carrying `label`, in the order they were reported.
+ *
+ * **A count says how many and not which, and that is how one rule here stayed green while missing
+ * a form it existed to catch.** The stylesheet probe plants four remote-origin forms over five
+ * lines, and `url() pointing at an origin` was asserted as a count of `2`. Measured after the
+ * comment reader was repaired, the count is **3** - and the two the old assertion counted were
+ * lines 2 and 5, so the line it never saw was the one the probe was written for: an **unquoted**
+ * `url(https://…)`, whose `//` the old reader blanked as a comment. **A rule that reports two of
+ * three, and an assertion that says two, agree with each other and are both wrong.** Naming the
+ * lines makes that agreement impossible to mistake for coverage.
+ */
+function linesNamedBy(violations: readonly string[], label: string): number[] {
+  return violations
+    .filter((violation) => violation.includes(`(${label})`))
+    .map((violation) => {
+      const named = /line (\d+)/.exec(violation);
+      if (named === null) {
+        throw new Error(
+          `A "${label}" finding names no line, so it cannot be checked: ${violation}`,
+        );
+      }
+      return Number(named[1]);
+    });
+}
+
+/**
  * The global `fetch` references a package in this repository must not contain.
  *
  * `createFetchTransport` receives `fetch` as a **parameter** and never calls the
@@ -808,7 +729,7 @@ const GLOBAL_FETCH_PATTERNS: readonly { readonly label: string; readonly pattern
  * which is the only way to prove a rule fires without editing a package on disk.
  */
 function collectFetchViolations(repoPath: string, contents: string): string[] {
-  const code = stripComments(contents);
+  const code = stripComments(contents, repoPath);
   const violations: string[] = [];
 
   for (const { label, pattern } of GLOBAL_FETCH_PATTERNS) {
@@ -871,7 +792,7 @@ const CLIENT_PROVIDER_IDS_PATTERN = /export\s+const\s+([A-Z][A-Z0-9_]*_PROVIDER_
  * defect.
  */
 function collectUndrivenProviderConfigs(repoPath: string, contents: string): string[] {
-  const code = stripComments(contents);
+  const code = stripComments(contents, repoPath);
   const declared = [...code.matchAll(CLIENT_PROVIDER_IDS_PATTERN)];
   const violations: string[] = [];
 
@@ -1023,7 +944,7 @@ function storageApiViolations(): string[] {
 
     for (const file of collectSourceFiles(join(PACKAGES_DIR, packageName))) {
       if (file.endsWith(".test.ts")) continue;
-      const contents = stripComments(readFileSync(file, "utf8"));
+      const contents = stripComments(readFileSync(file, "utf8"), file);
       for (const hit of findPatternOccurrences(contents, STORAGE_API_PATTERN)) {
         violations.push(`${toRepoPath(file)} ${hit} (reaches a global store or the URL)`);
       }
@@ -1058,7 +979,7 @@ function storageImportViolations(): string[] {
       const repoPath = toRepoPath(file).split("\\").join("/");
       if (/\.test\.tsx?$/.test(file)) continue;
 
-      const contents = stripComments(readFileSync(file, "utf8"));
+      const contents = stripComments(readFileSync(file, "utf8"), file);
       for (const hit of findPatternOccurrences(contents, MODULE_SPECIFIER_PATTERN)) {
         if (hit.includes(STORED_STORAGE_SPECIFIER)) {
           violations.push(`${repoPath} ${hit} (imports the storage layer)`);
@@ -1246,7 +1167,7 @@ function chromeGlobalViolationsIn(root: string): string[] {
     const withinTree = relative(root, file).split(sep).join("/");
     if (isTestFile(file) || CHROME_PLATFORM_READER.test(withinTree)) continue;
 
-    const contents = stripComments(readFileSync(file, "utf8"));
+    const contents = stripComments(readFileSync(file, "utf8"), file);
     for (const hit of findPatternOccurrences(contents, CHROME_GLOBAL_PATTERN)) {
       violations.push(`${withinTree} ${hit} (reaches the extension platform global)`);
     }
@@ -1300,7 +1221,7 @@ function extensionSingularWriteViolationsIn(root: string): string[] {
   for (const file of collectSourceFiles(root)) {
     if (isTestFile(file)) continue;
     const withinTree = relative(root, file).split(sep).join("/");
-    const contents = stripComments(readFileSync(file, "utf8"));
+    const contents = stripComments(readFileSync(file, "utf8"), file);
     for (const hit of findPatternOccurrences(contents, EXTENSION_SINGULAR_WRITE_PATTERN)) {
       violations.push(`${withinTree} ${hit} (writes the record this client only reads)`);
     }
@@ -1380,7 +1301,7 @@ function clientStorageApiViolations(): string[] {
     if (isTestFile(file)) continue;
     const repoPath = toRepoPath(file).split("\\").join("/");
     if (harnessDirs.some((dir) => repoPath === dir || repoPath.startsWith(`${dir}/`))) continue;
-    const contents = stripComments(readFileSync(file, "utf8"));
+    const contents = stripComments(readFileSync(file, "utf8"), file);
     for (const hit of findPatternOccurrences(contents, CLIENT_STORAGE_API_PATTERN)) {
       violations.push(`${repoPath} ${hit} (a client reached a global store)`);
     }
@@ -1480,7 +1401,9 @@ function clientViolationsWithIntroducedModule(
   try {
     writeFileSync(probePath, moduleSource, "utf8");
     return collectSourceFiles(APPS_DIR).flatMap((file) =>
-      match(stripComments(readFileSync(file, "utf8"))).map((hit) => `${toRepoPath(file)} ${hit}`),
+      match(stripComments(readFileSync(file, "utf8"), file)).map(
+        (hit) => `${toRepoPath(file)} ${hit}`,
+      ),
     );
   } finally {
     rmSync(probePath, { force: true });
@@ -1636,7 +1559,7 @@ const CSS_VARIABLE_DECLARATION = /(?:^|[;{\s])(--[A-Za-z0-9_-]+)\s*:/g;
  * declaration in one file satisfy a typo'd read in another.
  */
 function collectUnresolvedTokens(repoPath: string, contents: string): string[] {
-  const code = stripComments(contents);
+  const code = stripComments(contents, repoPath);
   const tokenLayer = readFileSync(join(REPO_ROOT, TOKEN_LAYER), "utf8");
 
   const declaredGlobally = new Set<string>();
@@ -1704,7 +1627,7 @@ function stylesheetViolations(): string[] {
   for (const file of shippedStylesheets()) {
     const repoPath = toRepoPath(file);
     const contents = readFileSync(file, "utf8");
-    const code = stripComments(contents);
+    const code = stripComments(contents, repoPath);
 
     for (const { label, pattern } of REMOTE_CSS_PATTERNS) {
       for (const hit of findPatternOccurrences(code, pattern)) {
@@ -1727,7 +1650,7 @@ function stylesheetViolations(): string[] {
   // only one of them.
   for (const html of markupFiles()) {
     const repoPath = toRepoPath(html);
-    const code = stripComments(readFileSync(html, "utf8"));
+    const code = stripComments(readFileSync(html, "utf8"), html);
 
     for (const hit of findPatternOccurrences(code, REMOTE_HTML_ASSET_PATTERN)) {
       violations.push(`${repoPath} ${hit} (a remote asset in markup)`);
@@ -1931,7 +1854,7 @@ function disabledControlViolations(sheets: readonly StylesheetText[]): string[] 
   const violations: string[] = [];
 
   for (const { path, contents } of sheets) {
-    const rules = styleRules(stripComments(contents));
+    const rules = styleRules(stripComments(contents, path));
 
     // The token layer paints no control at all, and a rule that demanded a disabled state from
     // every stylesheet would demand one from a file with no button in it.
@@ -2059,7 +1982,7 @@ function clientClassHooks(): { readonly file: string; readonly hooks: readonly s
  */
 function unstyledClassHooks(): string[] {
   const stylesheets = shippedStylesheets()
-    .map((file) => stripComments(readFileSync(file, "utf8")))
+    .map((file) => stripComments(readFileSync(file, "utf8"), file))
     .join("\n");
 
   const violations: string[] = [];
@@ -2201,7 +2124,7 @@ function frameworkViolationsWithIntroducedModule(moduleSource: string): string[]
     return collectSourceFiles(join(PACKAGES_DIR, "mailbox"))
       .filter((file) => !file.endsWith(".test.ts"))
       .flatMap((file) => {
-        const contents = stripComments(readFileSync(file, "utf8"));
+        const contents = stripComments(readFileSync(file, "utf8"), file);
         return findPatternOccurrences(contents, FRAMEWORK_IMPORT_PATTERN).map(
           (hit) => `${toRepoPath(file)} ${hit}`,
         );
@@ -2223,13 +2146,13 @@ function clockViolationsWithIntroducedModule(moduleSource: string): string[] {
     "mailbox",
     `${STAGED_PROBES.clockRule}.ts`,
     moduleSource,
-    (contents) => collectClockViolations(contents),
+    (contents, path) => collectClockViolations(contents, path),
   );
 }
 
 /** Every clock or timer global in one module's comment-stripped source. */
-function collectClockViolations(contents: string): string[] {
-  const code = stripComments(contents);
+function collectClockViolations(contents: string, path: string): string[] {
+  const code = stripComments(contents, path);
   const violations: string[] = [];
 
   for (const { label, pattern } of CLOCK_GLOBAL_PATTERNS) {
@@ -2254,7 +2177,7 @@ function scanPackageWithProbe(
   packageName: string,
   probeFileName: string,
   moduleSource: string,
-  inspect: (contents: string) => string[],
+  inspect: (contents: string, path: string) => string[],
 ): string[] {
   const probePath = join(PACKAGES_DIR, packageName, probeFileName);
 
@@ -2263,7 +2186,7 @@ function scanPackageWithProbe(
     return collectSourceFiles(join(PACKAGES_DIR, packageName))
       .filter((file) => !file.endsWith(".test.ts"))
       .flatMap((file) =>
-        inspect(readFileSync(file, "utf8")).map((hit) => `${toRepoPath(file)} ${hit}`),
+        inspect(readFileSync(file, "utf8"), file).map((hit) => `${toRepoPath(file)} ${hit}`),
       );
   } finally {
     rmSync(probePath, { force: true });
@@ -2298,7 +2221,7 @@ function parserDirectionViolations(): string[] {
       const importer = relative.split("/")[1];
       if (importer !== undefined && PARSER_ALLOWED_IMPORTERS.includes(importer as never)) continue;
 
-      const contents = stripComments(readFileSync(file, "utf8"));
+      const contents = stripComments(readFileSync(file, "utf8"), file);
       for (const hit of findPatternOccurrences(contents, PARSER_SPECIFIER_PATTERN)) {
         violations.push(`${relative} ${hit} (imports the mail parser directly)`);
       }
@@ -2538,7 +2461,7 @@ describe("architecture boundaries", () => {
       // It still matches real code and real strings — `stripComments` removes
       // comments, not identifiers — and the control below drives a field name through
       // each of those so this is not taken on trust.
-      const contents = stripComments(readFileSync(file, "utf8"));
+      const contents = stripComments(readFileSync(file, "utf8"), file);
 
       for (const field of PROVIDER_FIELD_NAMES) {
         for (const hit of findOccurrences(contents, field)) {
@@ -2550,7 +2473,7 @@ describe("architecture boundaries", () => {
     // The apps keep their own scan, unchanged: provider wire format has no
     // legitimate reason to appear there either.
     for (const file of collectSourceFiles(APPS_DIR)) {
-      const contents = stripComments(readFileSync(file, "utf8"));
+      const contents = stripComments(readFileSync(file, "utf8"), file);
 
       for (const field of PROVIDER_FIELD_NAMES) {
         for (const hit of findOccurrences(contents, field)) {
@@ -2571,9 +2494,9 @@ describe("architecture boundaries", () => {
     const inComment = `/** The sender arrived as \`mail_from\`. */\nexport const x = 1;\n`;
 
     // Positive: a field name read off an object.
-    expect(findOccurrences(stripComments(inCode), "mail_from")).toHaveLength(1);
+    expect(findOccurrences(stripComments(inCode, "fixture.ts"), "mail_from")).toHaveLength(1);
     // Negative: the same name, described rather than used.
-    expect(findOccurrences(stripComments(inComment), "mail_from")).toHaveLength(0);
+    expect(findOccurrences(stripComments(inComment, "fixture.ts"), "mail_from")).toHaveLength(0);
     // And the strip is what makes the difference, not a quirk of the fixture: read
     // raw, the comment *does* match, which is precisely the defect.
     expect(findOccurrences(inComment, "mail_from")).toHaveLength(1);
@@ -2607,7 +2530,7 @@ describe("architecture boundaries", () => {
     const violations: string[] = [];
 
     for (const file of collectSourceFiles(mailboxDir)) {
-      const contents = stripComments(readFileSync(file, "utf8"));
+      const contents = stripComments(readFileSync(file, "utf8"), file);
       for (const hit of findPatternOccurrences(contents, FRAMEWORK_IMPORT_PATTERN)) {
         violations.push(`${toRepoPath(file)} ${hit} (imports a UI framework)`);
       }
@@ -3315,7 +3238,9 @@ describe("architecture boundaries", () => {
       // **And the reader really does read the global**, so the exemption above is not
       // exempting a file that had stopped - which is the whole point of testing an exemption
       // from the side that would catch one doing nothing.
-      expect(stripComments(readFileSync(readerPath, "utf8"))).toMatch(CHROME_GLOBAL_PATTERN);
+      expect(stripComments(readFileSync(readerPath, "utf8"), readerPath)).toMatch(
+        CHROME_GLOBAL_PATTERN,
+      );
     } finally {
       disposable.done();
     }
@@ -3414,18 +3339,25 @@ describe("architecture boundaries", () => {
   });
 
   it("stays quiet on the word framework in a comment", () => {
-    // The negative control for the rule above, and the reason this file has a
-    // comment-stripping helper at all. `packages/mailbox`'s own module
-    // documentation explains at length what it does not depend on, and the first
-    // version of the rule read raw text and fired on exactly that. A rule that
-    // cannot tell a declaration from a comment about that declaration is measuring
-    // the wrong thing - which has happened three times in this repository.
-    const scanned = stripComments(join(PACKAGES_DIR, "mailbox", "src", "session.ts"));
+    // The negative control for the rule above, and the reason this file reads its source
+    // through a comment reader at all. `packages/mailbox`'s own module documentation
+    // explains at length what it does not depend on, and the first version of the rule read
+    // raw text and fired on exactly that. A rule that cannot tell a declaration from a
+    // comment about that declaration is measuring the wrong thing - which has happened three
+    // times in this repository.
+    //
+    // **Both readings come from one read, and that is the repair of a case that had been
+    // proving nothing.** This used to call `stripComments(path)` - a *filename* where the
+    // old signature took file *contents* - so the "stripped" text was the path itself, no
+    // comment was ever stripped, and the case would have passed with the reader deleted. The
+    // positive control below is what makes that shape impossible now: the same text, read
+    // raw, must still name React, so a reader that returned its input unchanged fails here.
+    const sessionPath = join(PACKAGES_DIR, "mailbox", "src", "session.ts");
+    const raw = readFileSync(sessionPath, "utf8");
+    const scanned = stripComments(raw, sessionPath);
 
     // The comment stripped above certainly names React; the stripped source must not.
-    expect(readFileSync(join(PACKAGES_DIR, "mailbox", "src", "session.ts"), "utf8")).toMatch(
-      /react/i,
-    );
+    expect(raw).toMatch(/react/i);
     expect(scanned).not.toMatch(/react/i);
   });
 
@@ -3516,9 +3448,8 @@ describe("architecture boundaries", () => {
     // The other half of the direction rule: a rule that forbade the parser anywhere
     // would pass every assertion above while making the real implementation
     // impossible. So the permitted caller is asserted positively, not left implicit.
-    const contents = stripComments(
-      readFileSync(join(PACKAGES_DIR, "mailbox", "src", "inbox.ts"), "utf8"),
-    );
+    const inboxPath = join(PACKAGES_DIR, "mailbox", "src", "inbox.ts");
+    const contents = stripComments(readFileSync(inboxPath, "utf8"), inboxPath);
     expect(findPatternOccurrences(contents, PARSER_SPECIFIER_PATTERN).length).toBeGreaterThan(0);
   });
 
@@ -3564,7 +3495,7 @@ describe("architecture boundaries", () => {
     const violations: string[] = [];
 
     for (const file of collectSourceFiles(APPS_DIR)) {
-      const contents = stripComments(readFileSync(file, "utf8"));
+      const contents = stripComments(readFileSync(file, "utf8"), file);
       for (const hit of findPatternOccurrences(contents, MARKUP_ESCAPE_PATTERN)) {
         violations.push(`${toRepoPath(file)} ${hit} (renders untrusted content as markup)`);
       }
@@ -3653,11 +3584,15 @@ describe("architecture boundaries", () => {
       // ── Every form of the remote-origin rule, by its own label. ───────────────────
       // Four forms rather than one, because a CSS author has four ways to name the same
       // URL and this milestone's whole point is that a CDN webfont must not ship.
-      expect(countMatching(violations, "@import of a URL")).toBe(1);
-      expect(countMatching(violations, "@import of a bare string")).toBe(1);
-      // `url()` matches the https form and the protocol-relative form — two probes, two
-      // hits — and a rule that matched only one would report one.
-      expect(countMatching(violations, "url() pointing at an origin")).toBe(2);
+      //
+      // **Named by line rather than counted by label, and the measurement that forced it is in
+      // `linesNamedBy`'s own doc comment**: `url()` counted 2 while the probe planted three, and
+      // the form it missed was the unquoted one - line 4, whose `//` the old reader blanked.
+      expect(linesNamedBy(violations, "@import of a URL")).toEqual([2]);
+      expect(linesNamedBy(violations, "@import of a bare string")).toEqual([3]);
+      // Line 2 as well as 4 and 5, because `@import url(…)` is a `url()` too - so a rule that
+      // reported only two of these three would be missing one of the forms it claims.
+      expect(linesNamedBy(violations, "url() pointing at an origin")).toEqual([2, 4, 5]);
 
       // ── Every form of the focus-suppression rule. ─────────────────────────────────
       expect(countMatching(violations, "outline removed")).toBe(2);
@@ -4107,7 +4042,7 @@ describe("architecture boundaries", () => {
       );
       const names: string[] = [];
       for (const file of adapterFiles) {
-        for (const match of stripComments(readFileSync(file, "utf8")).matchAll(
+        for (const match of stripComments(readFileSync(file, "utf8"), file).matchAll(
           /displayName:\s*"([^"]+)"/g,
         )) {
           const value = match[1];
@@ -4132,7 +4067,7 @@ describe("architecture boundaries", () => {
       expect(clientFiles.length).toBeGreaterThan(0);
 
       for (const file of clientFiles) {
-        const code = stripComments(readFileSync(file, "utf8"));
+        const code = stripComments(readFileSync(file, "utf8"), file);
         for (const value of owned) {
           // **Exact string match, and only in a string position.** A provider's id
           // (`mailtm`) is a different value from its display name (`Mail.tm`) and is
@@ -4269,7 +4204,7 @@ describe("architecture boundaries", () => {
         // run the check, and a rule matching raw text would either report this repository's own
         // documentation or be silenced by rewording it — the two outcomes this file records as
         // the same defect.
-        const scripts = stripComments(readFileSync(manifestPath, "utf8"));
+        const scripts = stripComments(readFileSync(manifestPath, "utf8"), manifestPath);
         expect(
           scripts,
           `${toRepoPath(manifestPath)} names the live check in a script`,
@@ -4291,7 +4226,7 @@ describe("architecture boundaries", () => {
         planted.scripts = { ...planted.scripts, "test:live-permission": `node ${LIVE_CHECK}` };
         writeFileSync(rootManifest, JSON.stringify(planted, null, 2), "utf8");
 
-        const plantedScripts = stripComments(readFileSync(rootManifest, "utf8"));
+        const plantedScripts = stripComments(readFileSync(rootManifest, "utf8"), rootManifest);
         expect(
           plantedScripts.includes(LIVE_CHECK),
           "a script naming the live check must be detectable, or the four assertions above are inert",
@@ -4316,9 +4251,8 @@ describe("architecture boundaries", () => {
     // must name the same two flags. **This was already true before the second probe existed,
     // and unasserted** — the rule closes a gap that predates it rather than only the one it
     // was written for.
-    const helper = stripComments(
-      readFileSync(join(APPS_DIR, "extension", "playwright.config.ts"), "utf8"),
-    );
+    const helperPath = join(APPS_DIR, "extension", "playwright.config.ts");
+    const helper = stripComments(readFileSync(helperPath, "utf8"), helperPath);
     const REQUIRED_LOAD_FLAGS = ["--load-extension=", "--disable-extensions-except="];
 
     for (const flag of REQUIRED_LOAD_FLAGS) {
@@ -4330,7 +4264,7 @@ describe("architecture boundaries", () => {
       for (const probeName of QUARANTINED_PROBES) {
         const [probePath] = findFilesNamed(probeName);
         expect(probePath, `${probeName} must exist, or this rule checks nothing`).toBeDefined();
-        const probe = stripComments(readFileSync(probePath as string, "utf8"));
+        const probe = stripComments(readFileSync(probePath as string, "utf8"), probePath as string);
 
         /**
          * **Which engine this probe loads its extension in, read from the probe's own code and
@@ -4351,7 +4285,7 @@ describe("architecture boundaries", () => {
          * list**, because **a second list is a second spelling of a set**, and this repository's
          * recorded defect — and the two lists could disagree without anything reporting it.
          */
-        const engines = enginesOf(readFileSync(probePath as string, "utf8"));
+        const engines = enginesOf(readFileSync(probePath as string, "utf8"), probePath as string);
 
         /**
          * **Exactly one**, and **this is also the positive control the rule needs**: a matcher
@@ -4391,16 +4325,21 @@ describe("architecture boundaries", () => {
    */
   it("separates the probes by the engine they load through, and reports a probe that does neither", () => {
     // **The two shapes the list actually holds.**
-    expect(enginesOf("await chromium.launchPersistentContext(userDataDir);")).toEqual(["chromium"]);
-    expect(enginesOf("await firefox.launchPersistentContext(userDataDir);")).toEqual(["firefox"]);
+    expect(enginesOf("await chromium.launchPersistentContext(userDataDir);", "probe.mjs")).toEqual([
+      "chromium",
+    ]);
+    expect(enginesOf("await firefox.launchPersistentContext(userDataDir);", "probe.mjs")).toEqual([
+      "firefox",
+    ]);
 
     // **And the arm the rule exists to report: a probe that names neither engine.**
-    expect(enginesOf("await browser.launch();")).toEqual([]);
+    expect(enginesOf("await browser.launch();", "probe.mjs")).toEqual([]);
 
     // **And the other arm: a probe that names both, whose flags cannot be known to be right.**
     expect(
       enginesOf(
         "await chromium.launchPersistentContext(a); await firefox.launchPersistentContext(b);",
+        "probe.mjs",
       ),
     ).toEqual(["chromium", "firefox"]);
 
@@ -4410,6 +4349,7 @@ describe("architecture boundaries", () => {
     expect(
       enginesOf(
         "// compared against firefox.launchPersistentContext\nawait chromium.launchPersistentContext(a);",
+        "probe.mjs",
       ),
     ).toEqual(["chromium"]);
   });
@@ -4546,7 +4486,7 @@ describe("architecture boundaries", () => {
       if (file === corpusPathOf(__filename)) continue;
 
       const repoPath = toRepoPath(file);
-      const contents = stripComments(readFileSync(file, "utf8"));
+      const contents = stripComments(readFileSync(file, "utf8"), file);
       const seamAllowed = PROVIDER_SEAM_ALLOWED_FILES.some((pattern) => pattern.test(repoPath));
       const adapterAllowed = PROVIDER_ADAPTER_ALLOWED_FILES.some((pattern) =>
         pattern.test(repoPath),
@@ -4845,7 +4785,7 @@ describe("architecture boundaries", () => {
       const violations: string[] = [];
       const workspaceFiles = [...collectSourceFiles(PACKAGES_DIR), ...collectSourceFiles(APPS_DIR)];
       for (const file of workspaceFiles) {
-        if (stripComments(readFileSync(file, "utf8")).includes("provider-spike")) {
+        if (stripComments(readFileSync(file, "utf8"), file).includes("provider-spike")) {
           violations.push(`${toRepoPath(file)} references the spike`);
         }
       }

@@ -512,9 +512,14 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > **3 identifier hits + 3 pattern hits**, and repairing it makes the file green with its SHA-256
 > byte-identical. **The remembered split was 4+2 and the measured split is 3+3** — the total was
 > right and the split was wrong, and the split is what explains the mechanism.
-> **The cause was repaired; the reader defect is recorded and not fixed**, because
-> `boundaries.test.ts` is outside this change's write scope and **any future file putting a backtick
-> inside a regex literal will take a green gate red with a cause that reads as correct.**
+> **The cause was repaired on that branch; the reader defect was outside that change's write scope
+> and is fixed now**, by `fix/comment-stripper`, which is why the sentence here no longer reads as a
+> standing warning. **`tests/architecture/comments.ts` holds the reader and it parses with the
+> TypeScript compiler rather than scanning characters**, so a backtick inside a pattern literal is a
+> pattern literal; its second argument is the **path**, required rather than defaulted, so a call site
+> that forgets it throws. **Measured over the corpus: 314 files, 0 length mismatches, 0 comments left
+> visible**, against **7 of 262** shipped script files that had been leaking comment text into
+> "code".
 >
 > **The falsification pass found a real gap that was not a gap in the code.** `expect.arrayContaining`
 > over the panel's removal-copy keys is a **subset** assertion, and the specification-relevant
