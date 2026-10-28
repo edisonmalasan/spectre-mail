@@ -719,9 +719,6 @@ li {
  * scheme — the best of them is `--surface-raised`, which is declared as a background and
  * would be a lie about its role here. So the pair is declared and checked rather than
  * borrowed.
- *
- * The hover and pressed states change the *surface*, never the label's colour, so the text
- * never leaves the threshold it was checked at.
  */
 .control--primary {
   background-color: var(--accent);
@@ -729,14 +726,39 @@ li {
   border-color: var(--accent);
 }
 
-.control--primary:hover {
-  background-color: var(--surface-sunken);
-  color: var(--ink-on-accent);
-  border-color: var(--accent);
-}
-
+/*
+ * **Every interaction state repaints the ink with the surface, and that is the repair.**
+ *
+ * `.control:hover` empties a control's fill, which is right for a quiet control because
+ * its ink is already `--ink-primary` on that surface. This control kept `--ink-on-accent`
+ * while its fill emptied, so the label was white on near-white the moment a person moved
+ * onto it: measured with the token layer's own contrast function, **1.22:1 in the light
+ * scheme and 1.04:1 in the dark one**. A label at 1.22:1 is not dim — it is gone, on the
+ * one control this page offers as its primary action.
+ *
+ * **Nothing could see it, and that is why it shipped.** `pairs.ts` declares the pairs the
+ * palette is held to, and a *hover* pair was not one of them; every contrast assertion in
+ * this repository reads a declared pair or a rest-state computed style, and no instrument
+ * read a computed style in an interaction state at all.
+ *
+ * **The repair borrows no colour.** `pairs.ts` already holds *body copy on a sunken
+ * surface* — `--ink-primary` on `--surface-sunken` — at 14.83:1 light and 17.09:1 dark,
+ * because that is the surface a message's readable body sits on. So interaction empties
+ * the fill and the label returns to the page ink, which is what EVERY other control on this
+ * page does; the accent keeps meaning *this one moves you forward* by being the only fill
+ * at rest.
+ *
+ * **`:active` shares the rule instead of trailing it.** A keyboard activation fires
+ * `:active` without `:hover`, so a separate rule that set only the surface would put the
+ * label back on a near-white background for exactly the person who cannot see a pointer.
+ * `apps/web/e2e/primary-action.spec.ts` reads both states, in both schemes, as Chromium
+ * computes them.
+ */
+.control--primary:hover,
 .control--primary:active {
   background-color: var(--surface-sunken);
+  color: var(--ink-primary);
+  border-color: var(--accent);
 }
 
 /* ── The steps ────────────────────────────────────────────────────────────────── */
