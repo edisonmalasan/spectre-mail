@@ -73,6 +73,12 @@ typography:
     fontFamily: "ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', Menlo, Consolas, monospace"
     fontSize: "1.125rem"
     letterSpacing: "0.08em"
+  region-label:
+    fontFamily: "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
+    fontSize: "0.75rem"
+    fontWeight: 500
+    lineHeight: 1.5
+    letterSpacing: "0.08em"
 rounded:
   radius-sm: "2px"
   radius-md: "4px"
@@ -210,11 +216,16 @@ font would be a contradiction with a nice typeface.
 
 ### Hierarchy
 
+**The rule the scale exists to state: a region's name is the quietest text in the system, and the
+datum a region presents outranks it.** A name tells a person where they are — once, and then it stops
+mattering. A value is what they came for. The steps below are ordered by that rule rather than by a
+document outline, which is why the role a region heading takes is not the largest one in the scale.
+
 - **Display** (600, 2.5rem, 1.15, tight tracking): the product's name, once, at the top of
   the page. Nothing else is set at this size.
-- **Headline** (500, 1.375rem, 1.15, tight tracking): a region's name — _Inbox_,
-  _Message_. Medium rather than bold, because a region heading is a label on a working area
-  rather than a claim.
+- **Headline** (500, 1.375rem, 1.15, tight tracking): a surface's own name, where the page's
+  display step would not fit. **No surface takes it at the role's own weight today** — the popup
+  and the panel name themselves at this size in bold, which is one of the crossings below.
 - **Title** (500, 1.125rem, 1.15): a named step, or a message's subject line.
 - **Subtitle** (600, 1rem, 1.5): the heading of a finding inside a message — _One-time
   codes found_. Body size at bold weight, so a sub-section of a reading surface stays
@@ -228,14 +239,22 @@ font would be a contradiction with a nice typeface.
   link, an arrival time.
 - **Code** (400, 1.125rem, mono, wide tracking): a detected one-time code. Wide tracking
   separates the glyphs of a value a person reads once and retypes by hand.
+- **Region label** (500, 0.75rem, 1.5, wide tracking): the name of a region, on every surface that
+  names one — the website's five regions and the working areas inside the product, and the popup's
+  and the panel's sections. **The quietest role in the system**, and the only one whose subject is
+  where a person is rather than what they are reading. **It carries no colour**: an ordinary
+  region's name takes the muted ink and a failure region's takes the danger ink, because a failure
+  heading is not the quietest text in its own region.
 
-Two elements cross roles deliberately, and both are readouts. The **address** is set in
-monospace at the headline step, and a **code** is monospace at the title step, because a
-readout is set in the family that says _this is a value_ at the size its position on the
-page has earned. Everything else sits at the step named above.
+Three elements cross roles deliberately, and each crossing is a value earning a size its position did
+not give it. The **address** is monospace at `type-2xl` — the largest datum on any surface that shows
+one, because a person came for it. A **code** is monospace at the title step, because a code is read
+_inside_ an opened message and the message's subject is the reading surface's principal datum. And a
+**surface's own name** is the product's name at the headline step in bold, because 2.5rem in a 352 px
+column is a poster rather than a header.
 
-The scale declares seven sizes. `type-2xl` is declared and unused today, and is recorded
-here rather than left for someone to discover and assume a home.
+The scale declares seven sizes and every one of them is in use. `type-2xl` is the address, and it is
+the step that was declared and unused until the address took it.
 
 ### Named Rules
 
@@ -259,10 +278,13 @@ space scale above and below. That measure is a decision and not a default: a mar
 wants a width a headline can fill, and this page wants the width the mailbox needs.
 
 Inside the column, the page is a stack of regions separated by space and, where a
-separation has to be visible, by one hairline. Prose inside a region is additionally
-measured — paragraphs and list items cap at 62 characters even though the column is
-wider — so that a reading surface and a control surface can share a column without the
-prose becoming a wall.
+separation has to be visible, by one hairline. **Prose inside a region is additionally
+measured — paragraphs and the items of a reading list cap at 62 characters even though the column is
+wider** — so that a reading surface and a control surface can share a column without the prose
+becoming a wall. **A row of fields is not prose and does not take the measure**: an inbox row, a
+message's metadata, and a list of controls take the width of the list they sit in, because a row
+that stops at 62 characters inside a wider list reads as a row that ran out rather than as one that
+ended.
 
 The rhythm is a 4-point scale, and it is closed. Spacing steps are `space-0` through
 `space-9`; there is no arbitrary gap anywhere in either stylesheet. A region opens with a
@@ -399,6 +421,20 @@ scales, nothing glows, nothing changes colour family.
 - **Internal Padding:** `space-3` by `space-4` for a compact container, `space-4` all round
   for a reading one, `space-5` for a depiction.
 
+### The Address
+
+**The largest datum on any surface that shows one**, at `type-2xl` in monospace, in `ink-primary`. It
+is the value a person came for, so it outranks every heading above it: a region's name is a label on
+the way there, and the address is the thing itself. `type-2xl` is the step this role gave a home to —
+until the address took it, it was declared and unused.
+
+It wraps at `@` before it wraps anywhere else, because an address is two parts and the domain is the
+half a person reads second; `overflow-wrap: anywhere` remains the fallback for a domain that cannot
+fit at all. The website presents it on a `surface-raised` plate with a `line-strong` hairline and a
+4px radius, because it is the one container on that page built to hold a single value. The popup and
+the panel set it bare, because a 352 px column has no room for a plate around the thing it exists to
+show.
+
 ### The Inbox Row
 
 A row is a control that is also a readout, and it is the densest thing in the product. It
@@ -480,3 +516,7 @@ used.
 - **Don't** invent a breakpoint, a radius, a spacing step or a type size outside the scale.
   There is one scale, and a value outside it is a value nobody chose; a declared step that is
   unused stays unused until somebody decides otherwise, and the decision is written down.
+- **Don't** transform a region name's case. `text-transform` changes what the accessibility tree
+  reports as the heading's name — measured, a heading whose `textContent` reads _Ready_ is announced
+  as _READY_ — so a transform is a copy decision wearing a typographic one, and it is made here or
+  not at all.

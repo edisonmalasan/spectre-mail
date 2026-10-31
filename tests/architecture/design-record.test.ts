@@ -27,7 +27,7 @@
  * as readily as by the right one — the defect this repository records as *a set spelled twice* —
  * so the assertions compare sets and name the key that disagreed.
  *
- * The groups: **thirty** colour entries (fifteen tokens in two declared schemes), **eight** type
+ * The groups: **thirty** colour entries (fifteen tokens in two declared schemes), **nine** type
  * roles, **four** radii, **ten** spacing steps. **The second entry per colour is deliberate**: the
  * product ships two declared schemes and holds both to the same contrast thresholds, so a
  * light-only map would be a false record of a palette that has a dark half.
@@ -145,6 +145,13 @@ const TYPE_ROLES: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   code: {
     fontFamily: "font-mono",
     fontSize: "type-lg",
+    letterSpacing: "tracking-wide",
+  },
+  "region-label": {
+    fontFamily: "font-sans",
+    fontSize: "type-xs",
+    fontWeight: "weight-medium",
+    lineHeight: "leading-normal",
     letterSpacing: "tracking-wide",
   },
 };

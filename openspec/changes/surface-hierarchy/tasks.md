@@ -10,25 +10,25 @@ rank rather than a missing value.
 
 ## 1. The design record owns the role before any stylesheet reads it
 
-- [ ] 1.1 Add `region-label` to `DESIGN.md`'s frontmatter `typography:` map, built from
+- [x] 1.1 Add `region-label` to `DESIGN.md`'s frontmatter `typography:` map, built from
   `type-xs` + `weight-medium` + `leading-normal` + `tracking-wide`. **No colour and no
   `text-transform` in the frontmatter** — the property map describes typography, and D1.1 records why
   the transformation is not part of it.
-- [ ] 1.2 Add the same role to `tests/architecture/design-record.test.ts`'s `TYPE_ROLES` map and change
+- [x] 1.2 Add the same role to `tests/architecture/design-record.test.ts`'s `TYPE_ROLES` map and change
   the file's doc block from *eight type roles* to *nine*. The map is asserted in both directions, so a
   role in one home and not the other fails; that assertion is the instrument for 1.1.
-- [ ] 1.3 Rewrite `DESIGN.md`'s Hierarchy section: state the rule (*a region's name is the quietest
+- [x] 1.3 Rewrite `DESIGN.md`'s Hierarchy section: state the rule (*a region's name is the quietest
   text in the system; the datum a region presents outranks it*), list nine roles, and **delete** the
   sentence *"The **address** is set in monospace at the headline step"* rather than adding a caveat
   beside it. **Deletion is the deliverable**: that sentence is the defect the change exists to repair,
   and leaving it in place would put the record at odds with the page.
-- [ ] 1.4 Qualify `DESIGN.md`'s Layout paragraph: keep *"paragraphs and list items cap at 62
+- [x] 1.4 Qualify `DESIGN.md`'s Layout paragraph: keep *"paragraphs and list items cap at 62
   characters"* for prose, and state that a row of fields is not prose and takes the width of its list.
   The two sentences it carries today contradict each other and a reader cannot tell which wins.
-- [ ] 1.5 Record in `DESIGN.md`'s Components section that an address is the largest datum on any
+- [x] 1.5 Record in `DESIGN.md`'s Components section that an address is the largest datum on any
   surface that shows one, at `type-2xl`, and that `type-2xl` is no longer unused. A record that still
   says the step is unused is a record nobody re-read.
-- [ ] 1.6 `pnpm test tests/architecture` — expect `design-record.test.ts` green with the ninth role and
+- [x] 1.6 `pnpm test tests/architecture` — expect `design-record.test.ts` green with the ninth role and
   its own count **unmoved**, because the assertions are table-driven over the map's entries. A moved
   count here means a case was written per role and the prediction was wrong.
 
