@@ -209,9 +209,11 @@ fault**, and the repair is a requirement plus the composition it describes.
    `--type-xl`. **`DESIGN.md`'s Hierarchy section is amended to say so**, and its claim that the
    address is a *Headline* is deleted rather than reworded, because that sentence is the defect.
    **The step carries no case transformation**, for the reason item 10 measures.
-2. **The website's `product` region recomposed**: the state heading demoted to a label, the seven
-   inner regions labelled rather than shouted, the address enlarged and unboxed, the accent moved to
-   `Copy address`, and the inbox row given a grid that spans its list.
+2. **The website recomposed**: every region name on the page labelled rather than shouted — the
+   product's seven inner regions and its state heading, the three marketing regions and the footer —
+   the address enlarged to `--type-2xl` and unbroken at `@`, the accent moved to `Copy address`, and
+   the inbox row given a grid that spans its list. **The four non-product regions keep their
+   composition**; only their headings move, for the reason D1.3 records.
 3. **The extension's three surfaces recomposed**: the popup's report moved below the address, its
    address raised to the product's own step, the mail list turned into a real row grid with no
    bullet, the panel's removal section moved below the inbox, and the address heading naming the
@@ -235,8 +237,11 @@ and a movement in any of them is evidence this change did something it did not d
 - **Nothing about how any of it looks.** No test in this repository reads a rendered pixel's colour or
   position. The measurements above are boxes, computed styles and DOM order; whether the result reads
   as right is a human judgement, and the screenshots that produced the diagnosis are not a gate.
-- **Nothing about the website's four non-product regions.** `steps`, `reasons`, `extension` and
-  `footer` are untouched. Their share of the page is recorded above and is **not** addressed here.
+- **Nothing about the website's four non-product regions' composition.** `steps`, `reasons`,
+  `extension` and `footer` keep their grids, their content and their order; **their headings take the
+  label step**, because a region's name is the role's subject and D1.3 records why leaving them out
+  would have set the explanation above the product. Their share of the page is recorded above and is
+  **not** addressed here.
 - **Nothing about whether the address should be bigger.** That the address outranks a section label is
   a decision argued from what the page is for; it is not a measurement, and the measurement only
   establishes that today they are the same size.
@@ -249,16 +254,20 @@ and a movement in any of them is evidence this change did something it did not d
 
 ## Recorded rather than repaired
 
-Each of these was found by this diagnosis and is outside this change's scope. They are written down so
+Each of these was found by this diagnosis. **The first was recorded here and then repaired during
+apply**, for the reason D1.3 records; the rest are outside this change's scope and are written down so
 a later change does not have to rediscover them.
 
-1. **The website's footer is the one `h2` on the page set at a size no other `h2` uses.** Its heading,
-   `What this page can and cannot do`, is `--type-lg` (18 px) while the page's other ten `h2` are
-   `--type-xl` (22 px) — and `--type-lg` is the record's *Title* step, which `DESIGN.md` assigns to
-   *"a named step, or a message's subject line"*. So the footer states its subject at the size the
-   record reserves for a step inside a surface, and it is also the only `h2` on the page whose
-   children are `--type-sm`. **The outline is sound** — the footer is a sibling landmark with its own
-   `h2`, and it is the heading's *size* that is outside the scale's own pattern, not its level.
+1. ~~**The website's footer is the one `h2` on the page set at a size no other `h2` uses.**~~
+   **Repaired, decision recorded during apply (2026-10-31).** Its heading, `What this page can and
+   cannot do`, was `--type-lg` (18 px) while the page's other nine `h2` were `--type-xl` (22 px) — and
+   `--type-lg` is the record's *Title* step, which `DESIGN.md` assigns to *"a named step, or a
+   message's subject line"*, so the footer stated its subject at the size the record reserves for a
+   step inside a surface. It takes the label role with every other region name. **Leaving it out
+   would have made it the loudest heading on a page whose every other region name is a label** — a
+   defect this change would have created rather than found — and the outline was never the problem:
+   the footer is a sibling landmark with its own `h2`, and it was the heading's *size* that was
+   outside the scale's own pattern, not its level.
 2. **The in-page control's accent is `#7c6cf0`, spelled twice as a literal**, inside a shadow-root
    stylesheet that cannot read the token layer's custom properties. Its comment claims *"the same
    violet the token layer declares"* — a coupling stated in prose and held by nothing.

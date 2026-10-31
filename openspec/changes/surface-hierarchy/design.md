@@ -101,6 +101,35 @@ Dropping it exposes the heading above the address, and the heading is a provider
 as a brand; rendered in sentence case they read as a slug.** The uppercase was load-bearing for a copy
 defect, which is the one thing a treatment must never be.
 
+### D1.3 — The role's scope is every region name, and the first draft of the tasks was narrower
+
+The requirement says *a client names a region* at the label step. The proposal's scope list and
+`tasks.md` 2.7 said the website's `steps`, `reasons`, `extension` and `footer` were untouched.
+**Those cannot both be true, and the narrower one would have shipped a requirement the product
+breaks** — the failure this repository records as worse than never writing the requirement.
+
+**Two of this change's own measurements already treat those four as in scope.** Claim 2 is *"nine
+`h2`s share one size (22 px), so nothing on the page is subordinate to anything else"*, and three of
+the nine are `What happens, in order`, `Why SpectreMail` and `The extension, in this browser`, with
+the footer's `What this page can and cannot do` as the tenth. **And D1.1's argument against the
+uppercase is made out of those four names**, because they are the long ones — the argument would not
+exist if the role stopped at `data-region="product"`.
+
+**Scoping the step to the product region would invert the hierarchy it exists to build.** The
+product's own working areas — *Your address*, *Inbox*, *What this browser remembers* — would set
+their names at 12 px while *Why SpectreMail*, three sections below, kept 22 px. The page would then
+say the explanation outranks the product, which is the measurement the change was opened to repair.
+
+**The footer is the same argument at its sharpest.** Left at `--type-lg` it would be **the loudest
+heading on a page whose every other region name is a label**, so proposal finding 1 is repaired here
+rather than recorded: recording it and shipping the rest would have created it.
+
+**So the step reaches every area either client names with a heading of its own**, and what stays out
+of scope is those regions' *composition* — their share of the page, their grids, their content, and
+whether the explanation belongs below the product at all. **A heading's rank and a region's share are
+two different questions**, and the earlier scope list answered the second by also forbidding the
+first. The distinction is what the amended tasks and the requirement's note now carry.
+
 ## D2 — The surface names the provider, and the name already exists
 
 `panel-copy.ts`'s `addressHeading` documents itself as *"It names the provider rather than this
@@ -306,19 +335,22 @@ Both are the same sentence about order rather than two layout opinions, which is
 `ADDED` requirement in `extension-client` and not two.
 
 **`page-composition` is not amended and no region moves.** It governs the website's five regions and
-their order, and this change relocates nothing at that level: the nine `h2` sections live *inside*
-`data-region="product"`, and the extension has no regions in that sense at all. **A sixth region is
+their order, and this change relocates nothing at that level: every section keeps its place in the
+five, the product's working areas stay inside `data-region="product"`, and the extension has no regions
+in that sense at all. **A sixth region is
 not added, no region is renamed, no control is renamed, and no state-to-region mapping changes** —
 which is why the ~20 assertions that read a region by its accessible name are expected to pass
 unchanged, and a movement in any of them is evidence this change did something it did not declare.
 
 ## D9 — What is not done, and why each is a different change
 
-- **The website's four non-product regions are untouched.** `steps`, `reasons`, `extension` and
-  `footer` are 44 % of the document between them, and their share of the page is a **composition**
+- **The website's four non-product regions keep their composition.** `steps`, `reasons`, `extension`
+  and `footer` are 44 % of the document between them, and their share of the page is a **composition**
   question — whether the explanation belongs below the product at all — that this change records and
-  does not answer. Restyling them here would spend the hierarchy decision on regions the diagnosis did
-  not find defective, and shrinking them is a decision about the page's argument, not its scale.
+  does not answer. **Their headings take the label step and nothing else in them moves**, because a
+  region's rank and a region's share are different questions; D1.3 records why the first could not be
+  left out without inverting the hierarchy the change exists to build. **Shrinking a region is a
+  decision about the page's argument, not its scale**, and it is not taken here.
 - **`RecentMailboxes`' own composition is untouched.** It gains the accent on its current entry,
   because a promoted requirement names that surface; it gains no grid, no measure and no heading of
   its own. Its unboxed list is measured in the proposal and is not restyled here.
@@ -354,7 +386,8 @@ and each assertion is named in `tasks.md` with the mutation that must turn it re
 - **Nothing about a real provider, a real clipboard, a popup a person clicked, or a side panel a
   person docked.** The extension's surfaces are driven at their own viewport sizes as tabs, which is
   the substitute `in-page-fill`'s D10 already records.
-- **Nothing about the four non-product regions**, beyond the share of the page they take.
+- **Nothing about the four non-product regions' composition**, beyond the share of the page they take.
+  Their headings take the label step; their grids, their content and their order are not touched.
 - **Nothing about a second engine, a high-contrast mode, or a zoom level.** Chromium, one machine.
 - **Nothing about `region-label` being the right size for every language.** The labels are English and
   `tracking-wide` on a longer translated string is untested; this repository has one locale.

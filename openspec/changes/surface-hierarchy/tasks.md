@@ -34,18 +34,24 @@ rank rather than a missing value.
 
 ## 2. The website's product region
 
-- [ ] 2.1 Apply the label step to `apps/web/src/styles.css` for the region headings inside
-  `data-region="product"` and for the state name. **Read the step from the role's four tokens** — a
-  literal `0.75rem` is the defect a token layer exists to prevent. Prove it by computed style in the
-  browser tier: `font-size` resolves to `--type-xs`, `letter-spacing` to `--tracking-wide`, `color` to
-  `--ink-muted`, and `text-transform` is `none`.
+- [ ] 2.1 Apply the label step to `apps/web/src/styles.css` for **every region heading on the page** —
+  the product's inner regions, the state heading, the three marketing regions and the footer — because
+  the requirement's subject is a region's name, and a page where only the product's names are quiet
+  would set the explanation above the product. **The global `h2` rule carries the four typographic
+  tokens and no colour**; the colour is semantic — `ink-muted` on an ordinary region, `ink-danger` on
+  a failure region, both declared pairs. **Read every value from the role's tokens** — a literal
+  `0.75rem` is the defect a token layer exists to prevent. Prove it by computed style in the browser
+  tier for one heading in each of the five `data-region`s: `font-size` resolves to `--type-xs`,
+  `letter-spacing` to `--tracking-wide`, `text-transform` is `none`, and the colour is the declared
+  one for that region's kind.
 - [ ] 2.2 Set `.address__value` at `--type-2xl` and change it from `inline-block` to a block that fills
   its container, so the line box is the container's width rather than the string's. **Keep
   `overflow-wrap: anywhere`** as the fallback for a domain that cannot fit.
-- [ ] 2.3 Insert one `<wbr>` after the `@` in `Address.tsx` and split the value into two spans so the
-  element's text is unchanged. Prove it in the browser tier at 390 px: the rendered line's break
-  happens after `@`, and the element's `textContent` equals the address with nothing inserted.
-  **A zero-width space is rejected** — it would enter the copied value.
+- [ ] 2.3 Insert one `<wbr>` after the `@` in `Address.tsx`. **No wrapper spans**: `<wbr>` is the whole
+  mechanism, and a span pair carrying no declaration is markup a reader has to explain. Prove it in
+  the browser tier at 390 px: the rendered line's break happens after `@`, and the element's
+  `textContent` equals the address with nothing inserted. **A zero-width space is rejected** — it
+  would enter the copied value.
 - [ ] 2.4 Move `control--primary` from `Replace address` to `Copy address`, leaving `Replace address`
   its border and its position. Prove it in the browser tier: the resolved `background-color` of the
   copy control is the declared `accent` and the replace control's is not, **with the replace control's
@@ -59,8 +65,11 @@ rank rather than a missing value.
   difference it already carries. Prove it in the browser tier: the current entry's marking resolves to
   `--ink-accent`, and the entry is still the only one without a control — **so the accent is not the
   only difference**, which the requirement forbids.
-- [ ] 2.7 Leave `steps`, `reasons`, `extension` and `footer` untouched. A diff in any of them is out of
-  scope: their share of the page is a composition question this change records and does not answer.
+- [ ] 2.7 Leave `steps`, `reasons`, `extension` and `footer` **composed as they are**. Their grids,
+  their content, their order and their share of the page are a composition question this change
+  records and does not answer; **their headings take the role, and a diff anywhere else in them is
+  out of scope.** A diff in one of those headings is the work, not an overrun — D1.3 records why
+  leaving them out would have inverted the hierarchy.
 
 ## 3. The extension's popup
 
@@ -156,7 +165,8 @@ rank rather than a missing value.
 
 ## Out of scope, recorded rather than done
 
-- The four non-product website regions' share of the page — a composition question.
+- The four non-product website regions' share of the page and their composition — their headings are
+  in scope, everything else about them is not.
 - The in-page shadow-root control's literal accent and its inability to read custom properties.
 - The diagnostic report's code vocabulary (`MAILBOX_EXPIRED` in a person's face).
 - The panel chooser's label, which repeats the full address to label a choice about it.

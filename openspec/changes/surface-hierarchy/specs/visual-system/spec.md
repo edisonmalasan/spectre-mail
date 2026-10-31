@@ -104,6 +104,16 @@ and the extension's existing treatment had already renamed five of its own, whic
 because that client's reader matches names case-insensitively. **The step is size, weight, leading,
 tracking and colour, and it is still subordinate by four independent signals.**
 
+**The subject is every area a client names with a heading of its own, and the website's four
+non-product regions are in it.** `steps`, `reasons`, `extension` and the footer are named by their own
+`h2`s, and the requirement exempts none of them: a page whose product regions were labelled while
+*Why SpectreMail* kept a 22 px name would set the explanation above the product. **What the change
+leaves alone is their composition** — their share of the page, their grids, their content — because a
+heading's rank and a region's share are two different questions. **The colour is semantic and is not
+part of the role's declaration**: an ordinary region's name takes `ink-muted` and a failure region's
+takes `ink-danger`, both declared pairs, because a failure heading is not the quietest text in its own
+region.
+
 #### Scenario: A region names itself quietly
 
 - **WHEN** a client renders a named region
