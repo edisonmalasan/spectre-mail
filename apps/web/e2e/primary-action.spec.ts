@@ -3,9 +3,11 @@
  *
  * ## What this is the only instrument for
  *
- * `Replace address` is the website's **primary action** and the only control that takes the
- * accent fill. Until this file, nothing in the repository read that control's colour in a
- * state other than rest — and the gap was not theoretical.
+ * `Copy address` is the website's **primary action** and the only control that takes the
+ * accent fill. `surface-hierarchy` moved it here from `Replace address` (task 2.4): the page
+ * exists to hand a person an address, and the control that completes that job is the one
+ * that puts the address where they need it. Until this file, nothing in the repository read
+ * that control's colour in a state other than rest — and the gap was not theoretical.
  *
  * **The hover state painted `--ink-on-accent` on `--surface-sunken`**: white on near-white,
  * measured with `packages/ui`'s own contrast function at **1.22:1 in the light scheme and
@@ -45,7 +47,7 @@ import { BODY_TEXT, contrastRatio, meets } from "@spectre-mail/ui";
 import { openFreshMailbox } from "./open-mailbox";
 
 /** The filled control's accessible name, which is what a person reads on it. */
-const PRIMARY_ACTION_NAME = "Replace address";
+const PRIMARY_ACTION_NAME = "Copy address";
 
 /** A foreground/background pair as the browser resolved it, still in `rgb()` form. */
 interface ResolvedPair {

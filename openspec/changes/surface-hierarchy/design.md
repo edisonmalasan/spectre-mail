@@ -185,7 +185,7 @@ record's only size above body that a readout could take was the heading's.
 records for a retired rule: keeping it and adding a caveat beside it would leave the record asserting
 two things about one value. What replaces it is a rule: **the address is the largest datum on the
 surface that shows it**, at `type-2xl`, which is the declared step that has been unused since the
-layer was written. A code stays at `type-xl` (the `code` role) because a code is read *inside* an
+layer was written. A code stays at `type-lg` (the `code` role) because a code is read *inside* an
 opened message and the message's subject is the reading surface's principal datum.
 
 This is where the website and the extension are the same decision in two directions. The website
@@ -270,6 +270,15 @@ is a break opportunity with no text content, so `textContent`, an accessible nam
 from state, and a test that reads the element's text are all unchanged. **The element is chosen because
 it is not content**, and that is the test: any fix that changes what the address *is* to make it wrap
 better is fixing the rendering by breaking the thing rendered.
+
+**Measured, because "the browser would break there anyway" is the obvious objection and it is false.**
+Removing the single `<wbr>` and rebuilding — nothing else changed — leaves
+`randomuser123456@sharklasers.com` **not wrapping at all** at 390 px: the domain's first character
+resolves to the same line as the `@` and the string overflows its container, so
+`surface-hierarchy.spec.ts`'s break case goes red naming the address. So the element is load-bearing
+rather than decorative, and the case is measuring the mechanism rather than the line-breaking
+algorithm's own behaviour. The file was restored byte-identical afterwards, checked against a SHA-256
+taken before the mutation.
 
 ## D7 — The opened message is a requirement gap, and the requirement is where it is repaired
 

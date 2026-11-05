@@ -391,19 +391,23 @@ export function App({ session, storage, mailboxes }: AppProps = {}) {
                   if (id !== null) openMessage(id);
                 }}
               />
-              {/* **The primary action, and it is filled.**
-              The Accent block asks for an accent on a *primary action*, and slice 1
-              deliberately deferred this surface because nothing on the page was a primary
-              action yet. **This page has no submit** â€” it creates an address on load â€” so the
-              only control that moves a visitor forward is the one that replaces the address.
 
-              The filled treatment needs an ink the palette did not have: measured against
-              `--accent`, no other ink in the palette reaches the body threshold in either
-              scheme, so `--ink-on-accent` was declared and paired rather than one being
-              borrowed and mislabelled. Nothing else on the page takes the fill â€”
-              `LocalData`'s removal is destructive, and a destructive control wearing the
-              product's most emphatic treatment would be a design error. */}
-              <button type="button" className="control control--primary" onClick={replace}>
+              {/*
+                **This control was the page's primary action, and it is not any more.**
+                The note that used to sit here read *"the only control that moves a visitor
+                forward is the one that replaces the address"* — a measurement of the
+                control's direction rather than of its job. The page exists to hand a person
+                an address, so the control that completes that job is `Copy address`, and
+                `visual-system` now names it as the primary action.
+
+                This control keeps its border and its position; what it loses is the fill.
+                Dressing a control as primary when it is not the page's primary action is the
+                fake-UI failure the design rules name, and the earlier reading of *forward* is
+                that same error reached from the other side. Nothing else on the page takes
+                the fill: `LocalData`'s removal is destructive, and a destructive control
+                wearing the product's most emphatic treatment would be a design error.
+              */}
+              <button type="button" className="control" onClick={replace}>
                 Replace address
               </button>
             </section>

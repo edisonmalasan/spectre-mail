@@ -55,6 +55,7 @@ import {
 
 import { openFreshMailbox } from "./open-mailbox";
 import { PROVIDER_ORIGIN, serveRecordedProvider } from "./recorded-provider";
+import { declared, rgbOf } from "./resolved-tokens";
 
 /** A mailbox whose address the recorded listing does not echo, so the provider reports it gone. */
 const UNREACHABLE = {
@@ -337,6 +338,68 @@ test.describe("the mailboxes this device holds", () => {
     await expect(page.getByTestId(`recent-unchecked-${reachable.id}`)).toBeVisible();
     await expect(page.getByTestId(`recent-gone-${reachable.id}`)).toHaveCount(0);
     await expect(page.getByTestId("restore-failed-explanation")).toBeVisible();
+  });
+
+  test("paints a failure region's name in the danger ink rather than the muted one", async ({
+    page,
+  }) => {
+    // **A first visit, then the stub, then a reload** — the ordering every case in this file
+    // uses, and the reason is in this file's note: no stub can be installed before the page has
+    // created a database for it to answer about.
+    await openFreshMailbox(page);
+    serveRecordedProvider(page);
+    failEveryListing(page);
+    await page.reload();
+
+    const heading = page.locator("#restore-failed-heading");
+    await expect(heading).toBeVisible();
+
+    const danger = rgbOf(await declared(page, "--ink-danger"));
+    const muted = rgbOf(await declared(page, "--ink-muted"));
+    const colour = await heading.evaluate((element) => getComputedStyle(element).color);
+
+    // **Both directions on one element.** Equality with the danger ink proves the alert rule
+    // applied; inequality with the muted ink proves the ordinary rule did not win. The two
+    // selectors have equal specificity, so only source order separates them — and a page
+    // holding one kind of region cannot tell an ordered pair from a single rule, which is why
+    // the muted reading is taken here rather than only in `surface-hierarchy.spec.ts`.
+    expect(colour, "the failure region's name is not in --ink-danger").toBe(danger);
+    expect(colour, "the failure region's name took the muted ink").not.toBe(muted);
+  });
+
+  test("marks the mailbox in use with the accent, and with carrying no control", async ({
+    page,
+  }) => {
+    await openFreshMailbox(page);
+    const reachable = await readStoredMailbox(page);
+    await plantMailboxes(page, [UNREACHABLE], "back");
+
+    serveRecordedProvider(page);
+    await page.reload();
+    await expect(page.getByTestId("ready")).toBeVisible();
+
+    const current = page.getByTestId(`recent-current-${reachable.id}`);
+    await expect(current).toBeVisible();
+
+    const accent = rgbOf(await declared(page, "--ink-accent"));
+
+    expect(
+      await current.evaluate((element) => getComputedStyle(element).color),
+      "the entry in use is not marked with --ink-accent",
+    ).toBe(accent);
+
+    // **The second difference, and the one the requirement will not let the accent replace.**
+    // A marking that were the only difference would be a colour-only signal, which
+    // `visual-system` forbids. The entry carries no control because the address is already on
+    // the page; every other entry carries one, and that is counted rather than assumed.
+    expect(
+      await current.evaluate((element) => element.closest("li")?.querySelectorAll("button").length),
+      "the entry in use carries a control, so the accent would be its only marking",
+    ).toBe(0);
+    expect(
+      await page.locator('[data-testid^="recent-return-"]').count(),
+      "the other entry offers no control, so no entry on the page is pressable",
+    ).toBe(1);
   });
 
   test("a newer mailbox does not remove an older one from the page", async ({ page }) => {

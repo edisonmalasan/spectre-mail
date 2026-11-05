@@ -95,7 +95,7 @@ export function Inbox({ inbox, onCheck, onOpenMessage }: InboxProps) {
   if (inbox.kind === "checkFailed") {
     return (
       <section className="region" aria-labelledby="inbox-heading">
-        <h3 id="inbox-heading">Inbox</h3>
+        <h2 id="inbox-heading">Inbox</h2>
         <InboxCheckFailed failure={inbox.failure} rateLimit={inbox.listing.rateLimit} />
         {/* The messages already learned are still true, so they are still shown. A
             failed check is a condition of the inbox, not the loss of it. */}
@@ -129,7 +129,7 @@ export function Inbox({ inbox, onCheck, onOpenMessage }: InboxProps) {
 
   return (
     <section className="region" aria-labelledby="inbox-heading">
-      <h3 id="inbox-heading">Inbox</h3>
+      <h2 id="inbox-heading">Inbox</h2>
       <InboxRows listing={inbox.listing} onOpenMessage={onOpenMessage} />
       <p data-testid="inbox-cadence-note">
         This page checks while it is open and stops when you switch away.
@@ -152,7 +152,7 @@ export function Inbox({ inbox, onCheck, onOpenMessage }: InboxProps) {
 function CheckingInbox() {
   return (
     <section className="region" aria-labelledby="inbox-heading">
-      <h3 id="inbox-heading">Inbox</h3>
+      <h2 id="inbox-heading">Inbox</h2>
       <p data-testid="inbox-checking">Checking this address for mail.</p>
       <p data-testid="inbox-cadence-note">
         This page checks while it is open and stops when you switch away.
@@ -165,7 +165,7 @@ function CheckingInbox() {
 function EmptyInbox() {
   return (
     <section className="region" aria-labelledby="inbox-heading">
-      <h3 id="inbox-heading">Inbox</h3>
+      <h2 id="inbox-heading">Inbox</h2>
       <p data-testid="inbox-empty">No mail has arrived at this address yet.</p>
       <p data-testid="inbox-cadence-note">
         This page checks while it is open and stops when you switch away.

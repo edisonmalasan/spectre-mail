@@ -34,7 +34,7 @@ rank rather than a missing value.
 
 ## 2. The website's product region
 
-- [ ] 2.1 Apply the label step to `apps/web/src/styles.css` for **every region heading on the page** —
+- [x] 2.1 Apply the label step to `apps/web/src/styles.css` for **every region heading on the page** —
   the product's inner regions, the state heading, the three marketing regions and the footer — because
   the requirement's subject is a region's name, and a page where only the product's names are quiet
   would set the explanation above the product. **The global `h2` rule carries the four typographic
@@ -44,28 +44,28 @@ rank rather than a missing value.
   tier for one heading in each of the five `data-region`s: `font-size` resolves to `--type-xs`,
   `letter-spacing` to `--tracking-wide`, `text-transform` is `none`, and the colour is the declared
   one for that region's kind.
-- [ ] 2.2 Set `.address__value` at `--type-2xl` and change it from `inline-block` to a block that fills
+- [x] 2.2 Set `.address__value` at `--type-2xl` and change it from `inline-block` to a block that fills
   its container, so the line box is the container's width rather than the string's. **Keep
   `overflow-wrap: anywhere`** as the fallback for a domain that cannot fit.
-- [ ] 2.3 Insert one `<wbr>` after the `@` in `Address.tsx`. **No wrapper spans**: `<wbr>` is the whole
+- [x] 2.3 Insert one `<wbr>` after the `@` in `Address.tsx`. **No wrapper spans**: `<wbr>` is the whole
   mechanism, and a span pair carrying no declaration is markup a reader has to explain. Prove it in
   the browser tier at 390 px: the rendered line's break happens after `@`, and the element's
   `textContent` equals the address with nothing inserted. **A zero-width space is rejected** — it
   would enter the copied value.
-- [ ] 2.4 Move `control--primary` from `Replace address` to `Copy address`, leaving `Replace address`
+- [x] 2.4 Move `control--primary` from `Replace address` to `Copy address`, leaving `Replace address`
   its border and its position. Prove it in the browser tier: the resolved `background-color` of the
   copy control is the declared `accent` and the replace control's is not, **with the replace control's
   accessible name and effect unchanged** — a promotion that renamed a control would break
   `page-composition`'s freeze.
-- [ ] 2.5 Scope `li { max-width: 62ch }` so it no longer caps `.inbox-row`, and let the row's grid span
+- [x] 2.5 Scope `li { max-width: 62ch }` so it no longer caps `.inbox-row`, and let the row's grid span
   its list. Prove it in the browser tier: the row's width equals the list's width at 1440 px, and the
   row's grid resolves to two columns rather than three. **Keep the ISO instant verbatim** — this task
   changes its column's share, not its text.
-- [ ] 2.6 Put the accent on `RecentMailboxes`' current entry, beside the text and the structural
+- [x] 2.6 Put the accent on `RecentMailboxes`' current entry, beside the text and the structural
   difference it already carries. Prove it in the browser tier: the current entry's marking resolves to
   `--ink-accent`, and the entry is still the only one without a control — **so the accent is not the
   only difference**, which the requirement forbids.
-- [ ] 2.7 Leave `steps`, `reasons`, `extension` and `footer` **composed as they are**. Their grids,
+- [x] 2.7 Leave `steps`, `reasons`, `extension` and `footer` **composed as they are**. Their grids,
   their content, their order and their share of the page are a composition question this change
   records and does not answer; **their headings take the role, and a diff anywhere else in them is
   out of scope.** A diff in one of those headings is the work, not an overrun — D1.3 records why

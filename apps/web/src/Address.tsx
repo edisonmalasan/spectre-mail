@@ -31,6 +31,24 @@ export interface AddressProps {
 export function Address({ mailbox }: AddressProps) {
   const [copy, setCopy] = useState<CopyState>("idle");
 
+  /*
+   * **The break opportunity is placed here rather than in the stylesheet, because CSS cannot
+   * say "break after the at-sign".** Measured on the built page at 390 px, the address
+   * rendered as `randomuser123456@sharklasers.c` / `om` — a domain split across two lines,
+   * which is a domain a person copies wrong. `<wbr>` is the only mechanism that adds a break
+   * opportunity without adding a character: a zero-width space would be the obvious
+   * alternative and it would travel with the value into whatever the user pastes, which
+   * `website-client` forbids. `overflow-wrap: anywhere` stays as the fallback for a domain
+   * that cannot fit on a line of its own.
+   *
+   * The split is at the **last** `@`, so a quoted local part keeps its own at-signs. An
+   * address with no `@` at all still renders whole: a provider that sent one is a provider
+   * problem, and dropping the value to protect the split would hide the thing the page is for.
+   */
+  const at = mailbox.address.lastIndexOf("@");
+  const localPart = at === -1 ? mailbox.address : mailbox.address.slice(0, at + 1);
+  const domainPart = at === -1 ? "" : mailbox.address.slice(at + 1);
+
   async function copyAddress(): Promise<void> {
     try {
       await navigator.clipboard.writeText(mailbox.address);
@@ -59,10 +77,21 @@ export function Address({ mailbox }: AddressProps) {
         markup rather than by the styling.
       */}
       <p className="address" data-testid="address">
-        <code className="address__value">{mailbox.address}</code>
+        <code className="address__value">
+          {localPart}
+          <wbr />
+          {domainPart}
+        </code>
       </p>
 
-      <button type="button" className="control" onClick={() => void copyAddress()}>
+      {/*
+        **This is the page's primary action, and it carries the accent for that reason.**
+        `visual-system` names the subject as "the control that completes the page's own job":
+        the page exists to hand a person an address, and putting that address where they need
+        it is the job. `Replace address` — further down, beside the removal control — keeps its
+        border and its position and loses only the claim to be primary.
+      */}
+      <button type="button" className="control control--primary" onClick={() => void copyAddress()}>
         Copy address
       </button>
 

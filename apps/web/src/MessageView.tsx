@@ -94,7 +94,7 @@ export interface MessageViewProps {
 export function MessageView({ opened, onClose, onRetry }: MessageViewProps) {
   return (
     <section className="region message" aria-labelledby="message-heading">
-      <h3 id="message-heading">Message</h3>
+      <h2 id="message-heading">Message</h2>
 
       {opened.kind === "none" && (
         <p data-testid="message-none">No message is open. Choose one from the inbox.</p>

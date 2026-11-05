@@ -283,8 +283,13 @@ export function RecentMailboxes({
 
                   {isCurrent ? (
                     // **No control, and its absence is the claim.** The address is on screen and working,
-                    // or the session's own region is already saying why it is not.
-                    <p data-testid={`recent-current-${mailbox.id}`}>
+                    // or the session's own region is already saying why it is not. The note also
+                    // carries the accent, so the selection is marked twice: by ink and by the fact
+                    // that nothing here can be pressed.
+                    <p
+                      className="notice notice--selected"
+                      data-testid={`recent-current-${mailbox.id}`}
+                    >
                       {verdict === undefined
                         ? "This is the address on this page."
                         : "This is on this page."}

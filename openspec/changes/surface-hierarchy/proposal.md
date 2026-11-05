@@ -206,7 +206,7 @@ fault**, and the repair is a requirement plus the composition it describes.
    loud.** Region and state names take the quiet label step the extension already uses — `--type-xs`,
    `--ink-muted`, `--tracking-wide` — and the product's data takes the large steps: the
    address at `--type-2xl`, a message's sender and subject above body size, a detected code at
-   `--type-xl`. **`DESIGN.md`'s Hierarchy section is amended to say so**, and its claim that the
+   `--type-lg`. **`DESIGN.md`'s Hierarchy section is amended to say so**, and its claim that the
    address is a *Headline* is deleted rather than reworded, because that sentence is the defect.
    **The step carries no case transformation**, for the reason item 10 measures.
 2. **The website recomposed**: every region name on the page labelled rather than shouted — the
