@@ -57,7 +57,11 @@ import { createMailboxSession } from "@spectre-mail/mailbox";
 
 import { readChromeLocalArea } from "./extension-platform";
 import { Panel } from "./Panel";
-import { createExtensionProviderManager, primaryProviderName, providerDisplayNames } from "./provider-config";
+import {
+  createExtensionProviderManager,
+  primaryProviderName,
+  providerDisplayNames,
+} from "./provider-config";
 import { extensionScheduler } from "./scheduler";
 import { createExtensionStorage, loadInsertableMailboxes } from "./storage";
 import { extensionTransport } from "./transport";

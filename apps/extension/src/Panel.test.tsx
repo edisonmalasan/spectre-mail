@@ -491,7 +491,14 @@ describe("the panel renders the mailbox beside the page", () => {
 
     const records = options.records ?? stubRecords({ held: [MAILBOX], association: MAILBOX.id });
 
-    render(<Panel session={session} records={records} primaryProviderName="Mail.tm" providerNames={PROVIDER_NAMES} />);
+    render(
+      <Panel
+        session={session}
+        records={records}
+        primaryProviderName="Mail.tm"
+        providerNames={PROVIDER_NAMES}
+      />,
+    );
 
     return { session, records };
   }
@@ -1028,7 +1035,14 @@ describe("the panel names the page beside it", () => {
     const platform = installPlatform(options);
     const session = readySession();
 
-    render(<Panel session={session} records={records} primaryProviderName="Mail.tm" providerNames={PROVIDER_NAMES} />);
+    render(
+      <Panel
+        session={session}
+        records={records}
+        primaryProviderName="Mail.tm"
+        providerNames={PROVIDER_NAMES}
+      />,
+    );
 
     await waitFor(() => {
       expect(screen.getByTestId("panel-host").textContent).not.toMatch(/asking/i);
@@ -1094,7 +1108,14 @@ describe("the panel names the page beside it", () => {
     const platform = installPlatform({ host: "first.example.test" });
     const session = readySession();
 
-    render(<Panel session={session} records={records} primaryProviderName="Mail.tm" providerNames={PROVIDER_NAMES} />);
+    render(
+      <Panel
+        session={session}
+        records={records}
+        primaryProviderName="Mail.tm"
+        providerNames={PROVIDER_NAMES}
+      />,
+    );
 
     await waitFor(() => {
       expect(platform.asked).toHaveLength(1);
@@ -1364,7 +1385,14 @@ describe("the panel names the page beside it", () => {
       },
     };
 
-    render(<Panel session={readySession()} records={records} primaryProviderName="Mail.tm" providerNames={PROVIDER_NAMES} />);
+    render(
+      <Panel
+        session={readySession()}
+        records={records}
+        primaryProviderName="Mail.tm"
+        providerNames={PROVIDER_NAMES}
+      />,
+    );
 
     // **While the boot read is outstanding the panel shows nothing and asks nothing.** A page
     // question is only meaningful against a device that knows its own contents, and asking first
@@ -1405,7 +1433,14 @@ describe("the panel names the page beside it", () => {
       opened: null,
     } as unknown as SessionState);
 
-    render(<Panel session={session} records={records} primaryProviderName="Mail.tm" providerNames={PROVIDER_NAMES} />);
+    render(
+      <Panel
+        session={session}
+        records={records}
+        primaryProviderName="Mail.tm"
+        providerNames={PROVIDER_NAMES}
+      />,
+    );
 
     await waitFor(() => {
       expect(screen.getByTestId("panel-host").textContent).toContain("first.example.test");
@@ -1727,7 +1762,14 @@ describe("the panel names the page beside it", () => {
         association: MAILBOX.id,
       });
 
-      render(<Panel session={session} records={records} primaryProviderName="Mail.tm" providerNames={PROVIDER_NAMES} />);
+      render(
+        <Panel
+          session={session}
+          records={records}
+          primaryProviderName="Mail.tm"
+          providerNames={PROVIDER_NAMES}
+        />,
+      );
 
       await screen.findByTestId("panel-held");
 
@@ -2315,7 +2357,14 @@ describe("removing what this device keeps", () => {
     installPlatform({ host: "signup.example.test" });
     const own = session();
 
-    render(<Panel session={own} records={records} primaryProviderName="Mail.tm" providerNames={PROVIDER_NAMES} />);
+    render(
+      <Panel
+        session={own}
+        records={records}
+        primaryProviderName="Mail.tm"
+        providerNames={PROVIDER_NAMES}
+      />,
+    );
 
     await waitFor(() => {
       expect(screen.getByTestId("panel-host").textContent).not.toMatch(/asking/i);

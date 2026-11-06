@@ -853,7 +853,9 @@ describe("the popup's delivery controls", () => {
     // property: a grid can move a box without moving the words, and the order a screen reader
     // reads is the order the DOM holds.
     expect(
-      screen.getByTestId("message-opened").compareDocumentPosition(screen.getByTestId("code-list")) &
+      screen
+        .getByTestId("message-opened")
+        .compareDocumentPosition(screen.getByTestId("code-list")) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).not.toBe(0);
   });
