@@ -193,7 +193,7 @@ export function MessageList({
   }
 
   return (
-    <ul aria-label={COPY.messages} data-testid="message-list">
+    <ul className="message-list" aria-label={COPY.messages} data-testid="message-list">
       {state.listing.messages.map((message) => {
         /**
          * **`verdictFor` rather than a lookup written here**, because its default is the whole
@@ -207,18 +207,60 @@ export function MessageList({
         const marking = verdictWording?.[verdict.kind] ?? "";
 
         return (
-          <li key={message.id}>
+          /**
+           * **`message-row`, and every field below names its own grid area.** Until
+           * `surface-hierarchy` this was a bare `<li>`: measured on the built popup,
+           * `display: list-item`, `list-style-type: disc`, 65 px wide. A bullet beside a message is
+           * a marker that says the list is a list and nothing about the message, and at 65 px there
+           * was no column for a time or a verdict to sit in.
+           *
+           * **DOM order is reading order**, and the grid areas are arranged to match it rather than
+           * to replace it: a grid can move a box without moving the words, and a row a screen reader
+           * reads in a different order from the one it draws is a row with two structures.
+           */
+          <li key={message.id} className="message-row">
             <span className="message__from">{describeSender(message)}</span>
-            <span className="message__subject">{message.subject}</span>
+
             {/**
-             * **A bare `<p>` carrying a `data-testid` and no class at all.**
+             * **The arrival instant, in the field beside the sender.**
              *
-             * `.panel p` and `.popup p` are declared already, so the words are styled by a rule that
-             * exists today, and **a new class hook would be a stylesheet obligation** the boundary
-             * rule reports by name. The marking is **words only, with no accent rule**: a rule beside
-             * a row is a claim that something is in it, and an undetermined row must not carry one.
+             * An ISO 8601 instant in UTC rather than a formatted local time, which is
+             * `apps/web/src/InboxRow.tsx`'s decision mirrored rather than re-made: it is
+             * unambiguous whatever the reader's locale and time zone, and it is the same string on
+             * every machine - which is what lets a test assert a row's contents without pinning a
+             * locale. `dateTime` carries the machine-readable value so the rendered text and the
+             * attribute cannot disagree.
              */}
-            {marking !== "" && <p data-testid="message-verdict">{marking}</p>}
+            <time className="message__time" dateTime={new Date(message.receivedAt).toISOString()}>
+              {new Date(message.receivedAt).toISOString()}
+            </time>
+
+            {/**
+             * **An empty subject still gets words, for the reason {@link describeSender} gives.**
+             * A real Guerrilla Mail message arrived with an empty subject while its sender and body
+             * were present (`docs/PROVIDERS.md`, run `2026-10-01T18-08-41-251Z`), and a grid row whose
+             * subject is an empty box collapses to the gap between two other fields - which reads as
+             * a rendering fault rather than as a message with no subject.
+             */}
+            <span className="message__subject">
+              {message.subject === "" ? COPY.noSubject : message.subject}
+            </span>
+
+            {/**
+             * **A `<p>` that now carries a class, and the class is the grid's.**
+             *
+             * The marking is **words only, with no accent rule**: a rule beside a row is a claim that
+             * something is in it, and an undetermined row must not carry one. `DESIGN.md` gives the
+             * accent to a *verification a row carries* on the website's inbox, whose closed set of
+             * positive verdicts this client has no consumer for - so the marking's own position is
+             * the whole of what the grid gives it here.
+             */}
+            {marking !== "" && (
+              <p className="message__verdict" data-testid="message-verdict">
+                {marking}
+              </p>
+            )}
+
             <button
               type="button"
               className="control"
@@ -304,6 +346,48 @@ export function OpenedMessageView({
       {opened.kind === "openFailed" && <p role="alert">{COPY.readFailed}</p>}
       {opened.kind === "opened" && (
         <>
+          {/**
+           * ## The message, before the things found in it
+           *
+           * **`OpenedMessage` extends `MessageSummary` and adds `readable`, `codes` and `links`, and
+           * until `surface-hierarchy` this view read the last three and discarded the first four.**
+           * A person who opened a message was shown the codes detected in it and nothing about the
+           * message itself - no sender, no subject, no arrival time, no body - so a surface satisfied
+           * its own requirement (*"the one-time codes detected in that message"*) while showing
+           * nobody the message. `design.md` D7 records it.
+           *
+           * **Nothing here is a new control and nothing here is interpreted.** The four fields are
+           * text, `readable` is already the parser's safe text, and React escapes it - which is the
+           * requirement's *"SHALL NOT be interpreted as markup"* held by the renderer rather than by a
+           * promise.
+           */}
+          <div className="message__opened" data-testid="message-opened">
+            <p className="message__from" data-testid="message-from">
+              {describeSender(opened.message)}
+            </p>
+
+            <p className="message__subject" data-testid="message-subject">
+              {opened.message.subject === "" ? COPY.noSubject : opened.message.subject}
+            </p>
+
+            <p className="message__time" data-testid="message-received-at">
+              <time dateTime={new Date(opened.message.receivedAt).toISOString()}>
+                {new Date(opened.message.receivedAt).toISOString()}
+              </time>
+            </p>
+
+            {/**
+             * `<pre>` rather than a styled `<div>`, which is `apps/web/src/MessageView.tsx`'s choice
+             * mirrored: it preserves the line breaks the message arrived with, and it is a plain text
+             * container with no semantics a screen reader would have to be taught. **The provider's
+             * text, not ours** - so it is set in monospace on a sunken surface rather than in the
+             * grotesk at prose measure.
+             */}
+            <pre className="message__body" data-testid="message-readable">
+              {opened.message.readable}
+            </pre>
+          </div>
+
           {/* **`exactOptionalPropertyTypes` is why this is spread rather than passed as
               `undefined`.** The shared `tsconfig.base.json` enables it, so naming an optional prop
               `undefined` is a type error - and omitting a prop is not the same thing as passing

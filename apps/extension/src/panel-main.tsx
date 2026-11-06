@@ -57,7 +57,7 @@ import { createMailboxSession } from "@spectre-mail/mailbox";
 
 import { readChromeLocalArea } from "./extension-platform";
 import { Panel } from "./Panel";
-import { createExtensionProviderManager, primaryProviderName } from "./provider-config";
+import { createExtensionProviderManager, primaryProviderName, providerDisplayNames } from "./provider-config";
 import { extensionScheduler } from "./scheduler";
 import { createExtensionStorage, loadInsertableMailboxes } from "./storage";
 import { extensionTransport } from "./transport";
@@ -82,6 +82,11 @@ if (container) {
         <Panel
           session={createMailboxSession(manager, extensionScheduler)}
           primaryProviderName={primaryProviderName(manager)}
+          /**
+           * **Both names from the one manager**, which is the property the note above claims: the
+           * panel's address heading and its failure sentences cannot name one provider two ways.
+           */
+          providerNames={providerDisplayNames(manager)}
           records={{
             /**
              * **The same function the popup and the in-page control use**, and for the same reason

@@ -84,6 +84,16 @@ export const POPUP_COPY = {
   noCodes: "No one-time code was found in this message.",
   /** A message whose sender the provider gave as an empty string. */
   unnamedSender: "No sender",
+  /**
+   * A message whose subject the provider gave as an empty string.
+   *
+   * **A measurement rather than a hypothetical**, and the same one {@link unnamedSender} rests on: a
+   * real Guerrilla Mail message arrived with an empty subject while its sender and body were present
+   * (`docs/PROVIDERS.md`, run `2026-10-01T18-08-41-251Z`). An empty subject renders as an empty box,
+   * which in a grid row collapses to the gap between two other fields and reads as a rendering fault
+   * rather than as a message with no subject.
+   */
+  noSubject: "No subject",
   /** A page answered that it is not the top-level document. */
   fillNotTopFrame: "That is not the top of that page, so nothing was filled.",
 

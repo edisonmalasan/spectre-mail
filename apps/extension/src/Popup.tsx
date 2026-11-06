@@ -56,6 +56,7 @@ import { PRODUCT_NAME } from "@spectre-mail/ui/name";
 
 import { findActiveTab, sendToTab } from "./extension-platform";
 import { fillCodeRequest, readFillCodeAnswer } from "./protocol";
+import { AddressText } from "./address-text";
 import {
   diagnosticReport,
   emptyInPageAnswers,
@@ -63,6 +64,7 @@ import {
   observeInPageAnswer,
   type InPageAnswers,
 } from "./diagnostic";
+import { providerDisplayName } from "./provider-config";
 import { PopupDiagnostic } from "./PopupDiagnostic";
 import { useSessionDiagnostic } from "./useSessionDiagnostic";
 import { MessageList, OpenedMessageView } from "./MessageSurface";
@@ -94,6 +96,19 @@ export interface PopupProps {
   readonly storage: PopupStorage;
   /** The provider this client reaches first, named before any mailbox exists. */
   readonly primaryProviderName: string;
+  /**
+   * What this build calls each provider it declares, by identifier.
+   *
+   * **Required rather than optional, and the reason is the requirement this prop satisfies.**
+   * `surface-hierarchy` requires a surface to name a provider by the display name the abstraction
+   * declares for it, and an optional map would make the id the default — so a composition that forgot
+   * the prop would render `mailtm` and every test written against it would agree. `App.tsx` supplies
+   * it from the same manager the session was built over, which is what keeps the two from disagreeing.
+   *
+   * **The map rather than a lookup function**, because a surface must be able to name a provider this
+   * build no longer offers; `providerDisplayName` carries the fallback and the reasoning.
+   */
+  readonly providerNames: Readonly<Record<string, string>>;
   /**
    * Told when the boot read has finished, and whether it found a mailbox.
    *
@@ -135,6 +150,7 @@ export function Popup({
   session,
   storage,
   primaryProviderName,
+  providerNames,
   onBooted,
   requestBackgroundAlarm,
 }: PopupProps) {
@@ -311,18 +327,6 @@ export function Popup({
     <main className="popup">
       <h1 className="popup__heading">{PRODUCT_NAME}</h1>
 
-      {/* **The report of what this session did, and it renders in every state.**
-       * The popup has an address on screen a few lines below it, and **a report that could
-       * not hold an address cannot leak one** -- so the report's shape is the claim, and the
-       * claim is beside the thing it is about.
-       *
-       * **The in-page answers are counted here**, in the surface that is told them, and
-       * reported here for the same reason. **It holds counts, normalized outcomes and one
-       * elapsed duration, and nothing else.** */}
-      <PopupDiagnostic
-        entries={diagnosticReport(diagnostic, inPageAnswers, EXTENSION_DIAGNOSTIC_LABELS).entries}
-      />
-
       {mailbox === null ? (
         <section aria-labelledby="create-heading">
           <h2 id="create-heading">{COPY.reaching.replace("{provider}", primaryProviderName)}</h2>
@@ -333,8 +337,24 @@ export function Popup({
       ) : (
         <>
           <section aria-labelledby="address-heading">
-            <h2 id="address-heading">{mailbox.provider}</h2>
-            <p className="popup__address">{mailbox.address}</p>
+            {/**
+             * **The display name the abstraction declares, not the identifier.** Until
+             * `surface-hierarchy` this heading rendered `mailbox.provider` - the id - so the popup's
+             * most prominent label read `mailtm` while the surface above it said *"Asking Mail.tm
+             * first"*. Measured: one surface named the same provider two ways. The fallback is the id
+             * itself, which is the requirement rather than a defensive default: a stored mailbox
+             * outlives the build that recorded it.
+             */}
+            <h2 id="address-heading">{providerDisplayName(providerNames, mailbox.provider)}</h2>
+            {/**
+             * **`AddressText`, so the address breaks after its `@` and nowhere else.** At
+             * `--type-2xl` a 32-character Guerrilla address is wider than this surface's 304 px
+             * content box, and `overflow-wrap: anywhere` alone would split it inside the domain -
+             * which is a domain a person copies wrong.
+             */}
+            <p className="popup__address">
+              <AddressText address={mailbox.address} />
+            </p>
             <button type="button" className="control" onClick={() => void copyAddress()}>
               {COPY.copy}
             </button>
@@ -395,6 +415,27 @@ export function Popup({
           )}
         </>
       )}
+
+      {/**
+       * **The report of what this session did, and it comes last.**
+       *
+       * Until `surface-hierarchy` this component rendered **first** - 234 px, on a surface already
+       * 863 px tall in a 760 px viewport - so the popup opened on an account of the session and put
+       * the address a person came for below it. The panel already rendered it last, and `Panel.tsx`
+       * records why: *"it is the only section here that is about the session rather than about the
+       * device or the page."* **One component, two placements, and the one that contradicted the
+       * reason written for it was the surface a person opens to copy an address.**
+       *
+       * **Its shape is still the claim about what it can leak**: it holds counts, normalized outcomes
+       * and one elapsed duration, and nothing else - so a report that could not hold an address
+       * cannot leak one, wherever on the surface it sits.
+       *
+       * **The in-page answers are counted here**, in the surface that is told them, for the same
+       * reason.
+       */}
+      <PopupDiagnostic
+        entries={diagnosticReport(diagnostic, inPageAnswers, EXTENSION_DIAGNOSTIC_LABELS).entries}
+      />
     </main>
   );
 }

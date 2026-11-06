@@ -130,6 +130,19 @@ function armingAlarm(): () => Promise<unknown> {
   return vi.fn(async () => ({ kind: "reconciled" }));
 }
 
+/**
+ * What this build calls the providers it declares, by identifier.
+ *
+ * **A map rather than a function, and required rather than optional, so every render in this file
+ * passes one** — `PopupProps.providerNames` gives the reason. The ids are the keys because that is
+ * what a stored `Mailbox` carries; the names are the abstraction's, which is what
+ * `provider-config.test.ts` asserts against the real manager.
+ */
+const PROVIDER_NAMES: Readonly<Record<string, string>> = {
+  mailtm: "Mail.tm",
+  guerrilla: "Guerrilla Mail",
+};
+
 describe("the popup", () => {
   /**
    * Unmount between tests.
@@ -151,6 +164,7 @@ describe("the popup", () => {
         session={session}
         storage={storageReading(null)}
         primaryProviderName="Mail.tm"
+        providerNames={PROVIDER_NAMES}
         requestBackgroundAlarm={armingAlarm()}
       />,
     );
@@ -169,6 +183,7 @@ describe("the popup", () => {
         session={session}
         storage={storageReading(MAILBOX)}
         primaryProviderName="Mail.tm"
+        providerNames={PROVIDER_NAMES}
         requestBackgroundAlarm={armingAlarm()}
       />,
     );
@@ -188,6 +203,7 @@ describe("the popup", () => {
         session={session}
         storage={storageReading(new Error("storage unavailable"))}
         primaryProviderName="Mail.tm"
+        providerNames={PROVIDER_NAMES}
         requestBackgroundAlarm={armingAlarm()}
       />,
     );
@@ -214,6 +230,7 @@ describe("the popup", () => {
         session={session}
         storage={storage}
         primaryProviderName="Mail.tm"
+        providerNames={PROVIDER_NAMES}
         requestBackgroundAlarm={armingAlarm()}
       />,
     );
@@ -241,6 +258,7 @@ describe("the popup", () => {
         session={session}
         storage={storage}
         primaryProviderName="Mail.tm"
+        providerNames={PROVIDER_NAMES}
         requestBackgroundAlarm={requestBackgroundAlarm}
       />,
     );
@@ -288,6 +306,7 @@ describe("the popup", () => {
         session={session}
         storage={storageReading(null)}
         primaryProviderName="Mail.tm"
+        providerNames={PROVIDER_NAMES}
         requestBackgroundAlarm={armingAlarm()}
       />,
     );
@@ -326,6 +345,7 @@ describe("the popup", () => {
         session={session}
         storage={storageReading(null)}
         primaryProviderName="Mail.tm"
+        providerNames={PROVIDER_NAMES}
         requestBackgroundAlarm={armingAlarm()}
       />,
     );
@@ -358,6 +378,7 @@ describe("the popup", () => {
         session={session}
         storage={storageReading(null)}
         primaryProviderName="Mail.tm"
+        providerNames={PROVIDER_NAMES}
         requestBackgroundAlarm={armingAlarm()}
       />,
     );
@@ -382,7 +403,17 @@ describe("the popup", () => {
     // **`primaryProviderName` is not on screen once a mailbox exists.** The heading names
     // the mailbox's own provider, so a mailbox served by the fallback is never described
     // by the preference that was tried first.
-    expect(screen.getByRole("heading", { name: "guerrilla" })).toBeDefined();
+    //
+    // **And it names it the way the provider names itself** (`surface-hierarchy`). Until that
+    // change this assertion read `"guerrilla"` and passed, because the heading rendered
+    // `record.provider` — the identifier a `Mailbox` stores — rather than a display name. **The
+    // assertion and the defect agreed with each other**, which is why the id survived on screen:
+    // `panel-copy.test.ts`'s `PROVIDERS` fixture is `["Mail.tm", "Guerrilla Mail"]`, a list of
+    // *names*, while production's map is keyed by *ids*.
+    expect(screen.getByRole("heading", { name: "Guerrilla Mail" })).toBeDefined();
+    // **The negative control survives the change and is what makes it a claim rather than a
+    // spelling**: the heading names the provider that served this mailbox, not the one this build
+    // reaches first.
     expect(screen.queryByText("Mail.tm")).toBeNull();
   });
 
@@ -398,6 +429,7 @@ describe("the popup", () => {
         session={session}
         storage={storageReading(null)}
         primaryProviderName="Mail.tm"
+        providerNames={PROVIDER_NAMES}
         requestBackgroundAlarm={armingAlarm()}
       />,
     );
@@ -496,12 +528,18 @@ describe("the popup's delivery controls", () => {
     cleanup();
   });
 
-  /** A session holding one listed message, and the popup asked to show it. */
-  function renderWithOpened(opened: unknown) {
+  /**
+   * A session holding one listed message, and the popup asked to show it.
+   *
+   * **The listing is a parameter because one case needs a message with no subject**, and a second
+   * helper that differed only in its `messages` array would be two spellings of "a popup with a
+   * listing" — the shape this repository records as a defect rather than as convenience.
+   */
+  function renderWithOpened(opened: unknown, messages: readonly unknown[] = [LISTED]) {
     const session = stubSession({
       kind: "ready",
       mailbox: MAILBOX,
-      inbox: { kind: "checked", listing: { messages: [LISTED], verdicts: new Map() } },
+      inbox: { kind: "checked", listing: { messages, verdicts: new Map() } },
       opened,
     } as unknown as SessionState);
 
@@ -510,6 +548,7 @@ describe("the popup's delivery controls", () => {
         session={session}
         storage={storageReading(null)}
         primaryProviderName="Mail.tm"
+        providerNames={PROVIDER_NAMES}
         requestBackgroundAlarm={armingAlarm()}
       />,
     );
@@ -528,6 +567,68 @@ describe("the popup's delivery controls", () => {
     expect(screen.getByText("Example")).toBeDefined();
     expect(screen.getByRole("button", { name: "Read" })).toBeDefined();
     expect(row).toBeDefined();
+  });
+
+  /**
+   * **Each field is its own node, and that is the claim rather than a layout preference.**
+   *
+   * Until `surface-hierarchy` a row was a bare `<li>` carrying a sender, a subject and a control:
+   * measured on the built popup it was `display: list-item`, `list-style: disc`, 65 px wide, with
+   * **no field for the arrival instant at all**. `extension-client` now names four fields, and a
+   * case that read the row's whole text could not tell four fields from one sentence containing
+   * four values.
+   */
+  it("gives each row its own field for the sender, the arrival instant and the subject", async () => {
+    renderWithOpened({ kind: "none" });
+
+    const row = (await screen.findByText("Your sign-in code")).closest("li");
+
+    if (row === null) {
+      throw new Error("the listed subject rendered outside any row");
+    }
+
+    expect(row.querySelector(".message__from")?.textContent).toBe("Example");
+    expect(row.querySelector(".message__subject")?.textContent).toBe("Your sign-in code");
+
+    // **The instant, in UTC and in ISO 8601**, which is `apps/web/src/InboxRow.tsx`'s decision
+    // mirrored rather than re-made: it is unambiguous whatever the reader's locale is, and it is
+    // the same string on every machine — which is what lets a test assert a row without pinning a
+    // locale.
+    expect(row.querySelector(".message__time")?.textContent).toBe(
+      new Date(LISTED.receivedAt).toISOString(),
+    );
+
+    // **And the `dateTime` attribute carries the same instant**, so the rendered text and the
+    // machine-readable value cannot disagree - a row that dropped the attribute would pass a
+    // text-only assertion.
+    expect(row.querySelector("time")?.getAttribute("dateTime")).toBe(
+      new Date(LISTED.receivedAt).toISOString(),
+    );
+  });
+
+  /**
+   * **An empty subject still gets words, and the field is still a field.**
+   *
+   * A real Guerrilla Mail message arrived with an empty subject while its sender and body were
+   * present (`docs/PROVIDERS.md`, run `2026-10-01T18-08-41-251Z`). A grid row whose subject is an
+   * empty box collapses to the gap between two other fields, which reads as a rendering fault
+   * rather than as a message with no subject — and `describeSender`'s unnamed-sender fallback is
+   * the same decision one field over.
+   */
+  it("says a message has no subject rather than leaving its subject field empty", async () => {
+    renderWithOpened({ kind: "none" }, [{ ...LISTED, subject: "" }]);
+
+    const row = (await screen.findByText("No subject")).closest("li");
+
+    if (row === null) {
+      throw new Error("the fallback subject rendered outside any row");
+    }
+
+    // **The fallback is the field's text and not a replacement for the field**, which is the
+    // difference between a message with no subject and a row that failed to render one.
+    expect(row.querySelector(".message__subject")?.textContent).toBe("No subject");
+    expect(row.querySelector(".message__from")?.textContent).toBe("Example");
+    expect(row.querySelector("button")?.textContent).toBe("Read");
   });
 
   /**
@@ -717,6 +818,46 @@ describe("the popup's delivery controls", () => {
     expect(sent).toEqual([{ tabId: 41, request: { kind: "spectre:fill-code", code: "222222" } }]);
   });
 
+  /**
+   * **The message, before the things found in it — and its text rendered as text.**
+   *
+   * `OpenedMessage extends MessageSummary` and adds `readable`, `codes` and `links`, and until
+   * `surface-hierarchy` this view read the last three and discarded the first four: a person who
+   * opened a message was shown the codes detected in it and nothing about the message itself. The
+   * surface satisfied its own requirement (*"the one-time codes detected in that message"*) while
+   * showing nobody the message.
+   */
+  it("shows the message it opened before the codes found in it, and renders its text as text", async () => {
+    const readable = "<b>Your code is 493028</b> <img src=x onerror=alert(1)>";
+    renderWithOpened({ kind: "opened", message: { ...OPENED, readable } });
+
+    expect((await screen.findByTestId("message-from")).textContent).toBe("Example");
+    expect(screen.getByTestId("message-subject").textContent).toBe("Your sign-in code");
+    expect(screen.getByTestId("message-received-at").textContent).toBe(
+      new Date(OPENED.receivedAt).toISOString(),
+    );
+    expect(screen.getByTestId("message-readable").textContent).toBe(readable);
+
+    /**
+     * **And the body is text, not markup.** `mail-parser` already hands this surface safe text and
+     * React escapes it, so the requirement's *"SHALL NOT be interpreted as markup"* is held by the
+     * renderer rather than by a promise. **These two assertions are what fail if somebody reaches
+     * for `dangerouslySetInnerHTML`** to "preserve" a message's formatting — the text assertion
+     * above would still pass, because the escaped and the parsed renderings have the same
+     * `textContent`.
+     */
+    expect(screen.getByTestId("message-readable").querySelector("b")).toBeNull();
+    expect(screen.getByTestId("message-readable").querySelector("img")).toBeNull();
+
+    // **The message precedes the codes found in it**, read as document order rather than as a CSS
+    // property: a grid can move a box without moving the words, and the order a screen reader
+    // reads is the order the DOM holds.
+    expect(
+      screen.getByTestId("message-opened").compareDocumentPosition(screen.getByTestId("code-list")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).not.toBe(0);
+  });
+
   it("says it looked and found no code, when the message carries none", async () => {
     renderWithOpened({ kind: "opened", message: { ...OPENED, codes: [] } });
 
@@ -738,5 +879,29 @@ describe("the popup's delivery controls", () => {
 
     expect(await screen.findByRole("alert")).toBeDefined();
     expect(screen.queryByRole("button", { name: /Fill in code/ })).toBeNull();
+  });
+
+  /**
+   * **The report of the session comes after the mail it is about, and it is last.**
+   *
+   * Until `surface-hierarchy` this component rendered **first** — 234 px, on a surface already
+   * 863 px tall in a 760 px viewport — so the popup opened on an account of the session and put the
+   * address a person came for below it. The panel already rendered it last; one component with two
+   * placements, and the one that contradicted the reason written for it was the surface a person
+   * opens to copy an address.
+   *
+   * **Read as document order rather than as a CSS property**, because the claim is about the order
+   * a screen reader and a reader both get, and the second assertion is the one that holds the
+   * *"last"*: a report merely after the listing would still stand between a person and anything a
+   * later change put below it.
+   */
+  it("puts the report of the session after the mail it is about", async () => {
+    renderWithOpened({ kind: "none" });
+
+    const listing = await screen.findByTestId("message-list");
+    const report = screen.getByTestId("popup-diagnostic-entries");
+
+    expect(listing.compareDocumentPosition(report) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    expect(report.closest("section")?.nextElementSibling).toBeNull();
   });
 });
