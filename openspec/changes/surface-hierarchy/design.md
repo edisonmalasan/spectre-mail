@@ -280,6 +280,21 @@ rather than decorative, and the case is measuring the mechanism rather than the 
 algorithm's own behaviour. The file was restored byte-identical afterwards, checked against a SHA-256
 taken before the mutation.
 
+**And the extension has the same defect, pre-existing, which is why the ninth block exists.** Measured
+on the built popup: the address box is **304 px** (`22rem` less `--space-5` on each side) and the
+recorded Guerrilla address is **32 characters**, about **307 px** at `--type-base`'s 16 px — so the
+popup was **already** splitting its domain, at the size this change *enlarges*. **The website's
+requirement is a `MODIFIED` block on a page requirement and cannot bind a popup**, so the extension
+needed its own sentence; leaving it out would have meant shipping a bigger address with a smaller
+chance of surviving a line, in a change whose whole subject is hierarchy. `address-text.tsx` is one
+component serving both extension surfaces, so the two cannot drift, and the requirement carries the
+`@`-less arm because a malformed value must render whole rather than be split somewhere invented.
+
+**This is the second block this change added after its proposal, and the two arrived the same way.**
+D1.3 widened the label role's scope during apply, and this requirement arrived during apply; both are
+written into the delta with their reasons rather than into the promoted spec afterwards, because a
+gap recorded at the sync stage is a gap the archived delta understates.
+
 ## D7 — The opened message is a requirement gap, and the requirement is where it is repaired
 
 No `extension-client` requirement names a message's own fields. The closest says a person who opens a
@@ -289,12 +304,12 @@ requirement's fault** — the same shape `mailbox-history` recorded when a docum
 the instrument watched an entry point no client used.
 
 **One `ADDED` requirement for this claim, and no `MODIFIED` block anywhere in this capability's
-delta.** Three further `ADDED` blocks carry the row, the order and the provider's own name, and none
-of them amends an existing requirement — so the capability grows by four requirements and every one of
-its seventeen existing requirement blocks is byte-identical after this change. The first
-shape considered was two amendments — the popup's requirement and the panel's — plus a shared
-addition, and it was rejected for three reasons that are each a defect this repository records by
-name:
+delta.** Four further `ADDED` blocks carry the row, the order, the provider's own name and the
+address's `@` break, and none of them amends an existing requirement — so the capability grows by five
+requirements and every one of its seventeen existing requirement blocks is byte-identical after this
+change. The first shape considered was two amendments — the popup's requirement and the panel's — plus
+a shared addition, and it was rejected for three reasons that are each a defect this repository
+records by name:
 
 - **It would state one claim three times.** Both surfaces render one component,
   `OpenedMessageView`, so "a message shows its sender, subject, arrival time and readable text" is one

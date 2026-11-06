@@ -1,7 +1,12 @@
 # Tasks — surface hierarchy
 
-Nine measured claims, eight requirement blocks, three capabilities. Every task names the instrument
+Nine measured claims, nine requirement blocks, three capabilities. Every task names the instrument
 that proves it, and no task is ticked until that instrument has been run against the built artefact.
+
+**The block count moved from eight to nine during apply (2026-11-01)**, when the extension's address
+turned out to be breaking inside its domain *before* this change enlarged it. `proposal.md` and
+`design.md` D6 carry the measurement and the reason; the fifth `extension-client` requirement is task
+3.6 below.
 
 **Predicted before the work, so it cannot be adjusted after it**: `packages/ui/src/tokens.ts` is
 untouched, `docs/DESIGN_SYSTEM.md`'s generated region is untouched, and `packages/ui`'s test count
@@ -80,9 +85,25 @@ rank rather than a missing value.
 - [ ] 3.2 Set the popup's address at `--type-2xl`, above `.popup__heading`'s size, and drop the muted
   colour to `ink-primary`. Prove it in the browser tier: the address's resolved `font-size` is larger
   than the brand heading's, which is the reversal the proposal measured.
-- [ ] 3.3 Give the message list a real row: no marker, full width of the list, and four fields in their
-  own cells. Prove it in the browser tier: `list-style-type` is not `disc`, the row's width equals the
-  list's, and a row with a long subject keeps its time and verdict in their own columns.
+- [ ] 3.3 Give the message list a real row: no marker, full width of the list, and four fields as
+  distinct fields. Prove it in the browser tier: `list-style-type` is not `disc`, the row's width
+  equals the list's, and a row with a long subject keeps its time and verdict in their own fields.
+
+  **Amendment, recorded during apply (2026-11-01), by `surface-hierarchy`.** This task said *"four
+  fields in their own cells"*, and the shipped grid is `"from time" / "subject subject" / "verdict
+  verdict" / "open open"` — **two cells on the first line and a full-width field for each of the
+  other three**. The requirement's words are *"distinct fields rather than as one wrapped line"*, and
+  a full-width field is a field; the cell count was this task's own shorthand for the claim and not
+  the claim. **The reason for the deviation is the verdict's shape**: it is a full sentence
+  (`"No verification was found in this message."`), and a column sized for a sentence would take most
+  of the row away from the subject. **The time keeps a column of its own because it is `nowrap`** —
+  the one field whose width cannot move.
+
+  **And the fourth field needed a fallback the task did not name.** `POPUP_COPY.noSubject` (*"No
+  subject"*) mirrors the website's row and `describeSender`'s unnamed-sender fallback, because a grid
+  row whose subject is an empty box collapses to the gap between two other fields — which reads as a
+  rendering fault rather than as a message with no subject. Measured: a real Guerrilla message arrived
+  with an empty subject (`docs/PROVIDERS.md`, run `2026-10-01T18-08-41-251Z`).
 - [ ] 3.4 Move the diagnostic report below the address, the status, the inbox and any opened message.
   Prove it in the unit tier by DOM order, and in the browser tier by `getBoundingClientRect().top`
   ordering on the built popup. **The component is moved, not rewritten** — a changed sentence in
@@ -91,6 +112,18 @@ rank rather than a missing value.
   manager it already builds. Update `Popup.test.tsx`'s heading assertion from `guerrilla` to
   `Guerrilla Mail` and keep its negative control (*`Mail.tm` is not on screen once a mailbox exists*),
   which is what stops the preference being rendered in place of the mailbox's own provider.
+- [ ] 3.6 Render the address through one `AddressText` component that puts a `<wbr>` after its last
+  `@`, so a 32-character address breaks between its local part and its domain instead of inside the
+  domain. Prove it in the browser tier at the popup's own width: the rendered line breaks after `@`,
+  and the element's `textContent` equals the address with nothing inserted. **A zero-width space is
+  rejected** — it would enter the copied value.
+
+  **This task did not exist when the change was proposed, and the measurement is why it does.** At
+  `--type-base` a 32-character Guerrilla address is about 307 px in a 304 px content box, so **the
+  shipped popup was already splitting its domain** — this is a pre-existing defect that enlarging the
+  address makes certain rather than likely. `extension-client` gains the fifth `ADDED` requirement for
+  it, because the website's `@`-break clause is a `MODIFIED` block on a page requirement and cannot
+  bind a popup.
 
 ## 4. The extension's panel
 

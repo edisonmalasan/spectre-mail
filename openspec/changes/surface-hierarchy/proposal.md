@@ -220,11 +220,20 @@ fault**, and the repair is a requirement plus the composition it describes.
    provider the way the provider names itself.
 4. **The extension's opened message shows the message**: sender, subject, arrival time and readable
    text, above the codes, on both the popup and the panel — pinned by a new requirement.
-5. **Eight requirement blocks across three capabilities**: `visual-system` gains the label role as an
+5. **Nine requirement blocks across three capabilities**: `visual-system` gains the label role as an
    `ADDED` requirement and has its accent requirement `MODIFIED`; `website-client` has the address and
-   the inbox `MODIFIED`; `extension-client` gains four `ADDED` requirements — the opened message, the
-   message row, the surface order, and the provider's own name. **No block is `REMOVED`, no capability
-   is added, and `page-composition` is untouched.**
+   the inbox `MODIFIED`; `extension-client` gains five `ADDED` requirements — the opened message, the
+   message row, the surface order, the provider's own name, and the address's `@` break. **No block is
+   `REMOVED`, no capability is added, and `page-composition` is untouched.**
+
+   **The ninth block was added during apply (2026-11-01), and the reason is that the measurement it
+   rests on arrived during apply.** The extension's address was already breaking inside its domain
+   before this change — 32 characters at 16 px in a 304 px box — so raising it to the headline step
+   would have shipped a larger version of a defect no requirement named. **A change that enlarges a
+   value owes the requirement that keeps it readable**, and the alternative was to leave the address
+   at the label step and call the enlargement somebody else's milestone. **The block count moved and
+   no other block changed**, which is why the earlier four are byte-identical to what the proposal
+   approved.
 
 **Every region name, every control name and every state-to-region mapping is unchanged.**
 `page-composition` freezes all three on purpose, and this change works within that freeze rather than
