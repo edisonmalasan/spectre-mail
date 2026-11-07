@@ -805,9 +805,14 @@ const SURFACES: readonly Surface[] = [
   {
     name: "popup heading",
     sites: [
-      { file: "apps/extension/src/Popup.tsx", at: "292", form: "jsx-reference" },
-      { file: "apps/extension/src/Popup.tsx", at: "312", form: "jsx-reference" },
-      { file: "apps/extension/src/Popup.tsx", at: "304", form: "jsx-reference" },
+      // **Re-measured by `surface-hierarchy`, and the movement is the finding.** The three headings
+      // did not change; everything above them did, because the popup's diagnostic moved below its
+      // mail and its address gained a `<wbr>`. **A line number is a claim about a file, and any edit
+      // above it falsifies the claim** — which is why this array and `docs/BRANDING.md`'s table are
+      // both re-read here rather than adjusted from memory.
+      { file: "apps/extension/src/Popup.tsx", at: "308", form: "jsx-reference" },
+      { file: "apps/extension/src/Popup.tsx", at: "320", form: "jsx-reference" },
+      { file: "apps/extension/src/Popup.tsx", at: "328", form: "jsx-reference" },
     ],
   },
   {
@@ -826,12 +831,12 @@ const SURFACES: readonly Surface[] = [
       // live in **two** places, this array and `docs/BRANDING.md`'s own table, so a change to one
       // does not change the other. **Two copies of a claim is one copy too many**, and the copy
       // that fails is the one that asserts.
-      at: [736, 749, 814],
+      at: [752, 765, 830],
     },
   },
   {
     name: "panel heading, storage-not-ready branch",
-    sites: [{ file: "apps/extension/src/panel-main.tsx", at: "117", form: "jsx-reference" }],
+    sites: [{ file: "apps/extension/src/panel-main.tsx", at: "126", form: "jsx-reference" }],
   },
 ];
 
