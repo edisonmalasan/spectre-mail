@@ -2977,12 +2977,12 @@ For frontend, UI, UX, visual-design, or styling work, use the installed skills i
 
 
 - **`PRODUCT.md`** says what the product is, who it is for, what it refuses to do, and what would count as winning. It is the input to a design decision, not a description of the interface.
-- **`DESIGN.md`** says what the interface already is: the palette in both declared schemes, the eight type roles, the measures, the radius scale, the flat depth model, the component character, and the named rules that survive a restyle.
+- **`DESIGN.md`** says what the interface already is: the palette in both declared schemes, the nine type roles, the measures, the radius scale, the flat depth model, the component character, and the named rules that survive a restyle.
 - **Neither is generated.** Both are prose a person owns, because design work has to be able to rewrite them. What is machine-checked is the one part that can drift silently: `DESIGN.md`'s frontmatter.
 
 
 
-**Every value in that frontmatter is a value `packages/ui/src/tokens.ts` declares, and `tests/architecture/design-record.test.ts` asserts it in both directions** — thirty colour entries across two schemes, eight type roles, four radii, ten spacing steps, the eight canonical sections in their canonical order, and a ban on hex literals in the body. So a token change and its frontmatter entry land in the same commit, and an entry naming a token that does not exist fails the build rather than waiting to be noticed.
+**Every value in that frontmatter is a value `packages/ui/src/tokens.ts` declares, and `tests/architecture/design-record.test.ts` asserts it in both directions** — thirty colour entries across two schemes, nine type roles, four radii, ten spacing steps, the eight canonical sections in their canonical order, and a ban on hex literals in the body. So a token change and its frontmatter entry land in the same commit, and an entry naming a token that does not exist fails the build rather than waiting to be noticed.
 
 
 

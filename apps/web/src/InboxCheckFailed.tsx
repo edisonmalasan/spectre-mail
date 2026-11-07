@@ -81,7 +81,7 @@ export function InboxCheckFailed({ failure, rateLimit }: InboxCheckFailedProps) 
       aria-labelledby="inbox-failure-heading"
       data-testid="inbox-check-failed"
     >
-      <h4 id="inbox-failure-heading">This address could not be checked</h4>
+      <h2 id="inbox-failure-heading">This address could not be checked</h2>
 
       <p data-testid="inbox-failure-explanation">{explain(failure)}</p>
 

@@ -37,6 +37,8 @@ import {
   createExtensionProviderManager,
   EXTENSION_PROVIDER_IDS,
   primaryProviderName,
+  providerDisplayName,
+  providerDisplayNames,
 } from "./provider-config";
 
 /**
@@ -177,6 +179,59 @@ describe("the extension's provider configuration", () => {
     const empty = { available: [], createMailbox: async () => ({}) } as unknown as ProviderManager;
 
     expect(() => primaryProviderName(empty)).toThrow(/no providers/);
+  });
+
+  /**
+   * **The map a surface heads its address region with, and the reason it is a map rather than a
+   * function.**
+   *
+   * A stored mailbox outlives the build that recorded it, so a surface must be able to name a
+   * provider this build no longer offers. A lookup function could only answer for the providers
+   * this build happened to build; the map holds the answers this build has, and the surface falls
+   * back to the identifier for anything else.
+   */
+  it("maps every provider this build declares to the name the abstraction gives it", () => {
+    const { transport } = scriptedTransport({});
+    const manager = createExtensionProviderManager(transport);
+
+    const names = providerDisplayNames(manager);
+
+    // **Read from the manager rather than compared against `{ mailtm: "Mail.tm" }`**, for the
+    // reason the case above gives: a literal here would be the second copy of a value
+    // `packages/providers` owns, in the one kind of file an architecture rule exempts — and an
+    // exempt copy reads as permitted.
+    expect(names).toEqual(
+      Object.fromEntries(manager.available.map((provider) => [provider.id, provider.displayName])),
+    );
+
+    // **Every id this client declares is a key**, which is the property a surface relies on: a
+    // mailbox is stored with an id, and a map missing one would head that surface with the id.
+    expect(Object.keys(names).sort()).toEqual([...EXTENSION_PROVIDER_IDS].sort());
+
+    // **And the values are names, not ids.** A function returning the ids would satisfy every
+    // assertion above it, because the two would then be the same value.
+    for (const provider of manager.available) {
+      expect(names[provider.id]).not.toBe(provider.id);
+    }
+  });
+
+  it("answers a provider's display name for an identifier it holds", () => {
+    const { transport } = scriptedTransport({});
+    const manager = createExtensionProviderManager(transport);
+
+    // **The id a `Mailbox` stores, answered with the name its adapter declares** — read from the
+    // adapter rather than written here, for the same reason `primaryProviderName`'s case is.
+    expect(providerDisplayName(providerDisplayNames(manager), "guerrilla")).toBe(
+      manager.available.find((provider) => provider.id === "guerrilla")?.displayName,
+    );
+  });
+
+  it("answers the identifier itself for a provider this build no longer offers", () => {
+    // **The requirement rather than a defensive default.** A mailbox recorded by an older build can
+    // name a provider this one does not declare, and an identifier is a name — while an empty
+    // heading is a surface that has lost the subject of its own region. **The fallback is what
+    // makes the map usable at all**, so it is asserted against a map that cannot hold the id.
+    expect(providerDisplayName({ mailtm: "Mail.tm" }, "retired-provider")).toBe("retired-provider");
   });
 
   it("creates a mailbox through Mail.tm and never reaches the fallback", async () => {

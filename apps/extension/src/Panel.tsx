@@ -91,8 +91,10 @@ import {
   readHostContextAnswer,
 } from "./protocol";
 import type { CreateMailboxAnswer } from "./protocol";
+import { AddressText } from "./address-text";
 import { MessageList, OpenedMessageView } from "./MessageSurface";
 import { PanelDiagnostic } from "./PanelDiagnostic";
+import { providerDisplayName } from "./provider-config";
 import { diagnosticReport, emptyInPageAnswers, EXTENSION_DIAGNOSTIC_LABELS } from "./diagnostic";
 import { useSessionDiagnostic } from "./useSessionDiagnostic";
 import type { CodeClipboardActions, FillReport, LinkCopyLabels } from "./MessageSurface";
@@ -242,6 +244,20 @@ export interface PanelProps {
   readonly records: PanelRecords;
   /** The provider this client reaches first, named before any mailbox exists. */
   readonly primaryProviderName: string;
+  /**
+   * What this build calls each provider it declares, by identifier.
+   *
+   * **Required rather than optional, and the reason is the requirement this prop satisfies.**
+   * `surface-hierarchy` requires a surface to name a provider by the display name the abstraction
+   * declares for it, and an optional map would make the id the default — so a composition that forgot
+   * the prop would render `mailtm` and every test written against it would agree. `panel-main.tsx`
+   * supplies it from the same manager the session was built over, which is what keeps the two from
+   * disagreeing.
+   *
+   * **The map rather than a lookup function**, because a surface must be able to name a provider this
+   * build no longer offers; `providerDisplayName` carries the fallback and the reasoning.
+   */
+  readonly providerNames: Readonly<Record<string, string>>;
 }
 
 /**
@@ -305,7 +321,7 @@ function platformWords(failure: unknown): string {
   return String(failure);
 }
 
-export function Panel({ session, records, primaryProviderName }: PanelProps) {
+export function Panel({ session, records, primaryProviderName, providerNames }: PanelProps) {
   const [state, setState] = useState<SessionState>(() => session.current());
   /**
    * The session's own report, counted as the session goes.
@@ -827,8 +843,25 @@ export function Panel({ session, records, primaryProviderName }: PanelProps) {
        */}
       {shown.kind === "named" && record !== undefined && (
         <section aria-labelledby="panel-address-heading" data-testid="panel-address">
-          <h2 id="panel-address-heading">{PANEL_COPY.addressHeading(record.provider)}</h2>
-          <p className="panel__address">{record.address}</p>
+          {/**
+           * **The display name the abstraction declares, not the identifier.** Until
+           * `surface-hierarchy` this heading rendered `record.provider` - the id - so the panel's
+           * most prominent label read `mailtm` while its own failure sentences said *"Mail.tm"*. The
+           * fallback is the id itself, which is the requirement rather than a defensive default: a
+           * stored mailbox outlives the build that recorded it.
+           */}
+          <h2 id="panel-address-heading">
+            {PANEL_COPY.addressHeading(providerDisplayName(providerNames, record.provider))}
+          </h2>
+          {/**
+           * **`AddressText`, so the address breaks after its `@` and nowhere else.** At
+           * `--type-2xl` a 32-character Guerrilla address is wider than this surface's content box,
+           * and `overflow-wrap: anywhere` alone would split it inside the domain - which is a domain
+           * a person copies wrong.
+           */}
+          <p className="panel__address">
+            <AddressText address={record.address} />
+          </p>
         </section>
       )}
 
@@ -958,108 +991,6 @@ export function Panel({ session, records, primaryProviderName }: PanelProps) {
         </section>
       )}
 
-      {/**
-       * ## The removal region
-       *
-       * **Four hooks and no fifth (`design.md` D5):** a `<section>`, an `<h2>`, `<p>`s and
-       * `<button className="control">`. **Every one of those is already selected by a rule that
-       * exists** — `.panel section`, `.panel h2`, `.panel p` and `.control` — so this region adds no
-       * class hook and no stylesheet rule, **and a fifth hook here is a declared failure of this
-       * change** rather than a taste question. **The cost is stated rather than hidden: the region
-       * cannot be made prettier, and it will not be.**
-       *
-       * **The shape is decided by what has been established, and `unknown` renders nothing at all**
-       * (`tasks.md` 2.3) — before the boot read has finished the panel may say neither that something
-       * is kept nor that nothing is.
-       *
-       * **The control that removes exists only from `confirmed` onwards.** That is the requirement's
-       * *"the control that performs the removal SHALL exist only after a further explicit step"*,
-       * and it is a property of the render rather than of the person remembering a dialog.
-       *
-       * **The further step is this region and not a dialog the platform owns** — the requirement says
-       * so, and `chrome.windows`' own confirm is not reachable from here without a platform this
-       * panel has no seam for. `LocalData.tsx:135`–`:172` is the shape the model is copied from, and
-       * **not** its wording: every sentence below is `PANEL_COPY`'s.
-       */}
-      {removal.kind !== "unknown" && (
-        <section aria-labelledby="panel-removal-heading" data-testid={REMOVAL_TESTID[removal.kind]}>
-          <h2 id="panel-removal-heading">{PANEL_COPY.removalHeading}</h2>
-
-          {/**
-           * **A device holding nothing is told so and offered no removal at all**, rather than a
-           * disabled control: a control that cannot act is a control misreporting what is available,
-           * and this panel has refused that twice already (`createRefusal`, and the boot refusal above).
-           */}
-          {removal.kind === "holdsNothing" && <p>{PANEL_COPY.removalHoldsNothingYet}</p>}
-
-          {removal.kind === "offering" && (
-            <button
-              type="button"
-              className="control"
-              onClick={() => setConfirming(true)}
-              data-testid="panel-removal-offer"
-            >
-              {PANEL_COPY.removalOffers}
-            </button>
-          )}
-
-          {/**
-           * **Confirmed and in-flight render the same two controls, and differ only in `disabled`.**
-           * That is deliberate: the pair is one decision — *remove, or keep what is here* — and
-           * rendering it from one place means a change cannot add a third button to one shape and
-           * forget the other.
-           */}
-          {(removal.kind === "confirmed" || removal.kind === "working") && (
-            <>
-              <p>{PANEL_COPY.removalConfirmWarning}</p>
-
-              <button
-                type="button"
-                className="control"
-                disabled={removal.kind === "working"}
-                onClick={() => void removeEverything()}
-                data-testid="panel-removal-confirm"
-              >
-                {removal.kind === "working" ? PANEL_COPY.removing : PANEL_COPY.removalConfirm}
-              </button>
-
-              <button
-                type="button"
-                className="control"
-                disabled={removal.kind === "working"}
-                onClick={() => setConfirming(false)}
-                data-testid="panel-removal-keep"
-              >
-                {PANEL_COPY.removalKeep}
-              </button>
-            </>
-          )}
-
-          {/**
-           * **The removed shape, and it is two sentences rather than one** because they answer two
-           * different questions — *"did it work?"* and *"what did it do?"* — and the requirement makes
-           * both claims separately. **The second is the one that must never say the address is gone**,
-           * which is what {@link PANEL_COPY.removalDoneMeans} is for.
-           */}
-          {removal.kind === "removed" && (
-            <>
-              <p>{PANEL_COPY.removalDone}</p>
-              <p>{PANEL_COPY.removalDoneMeans}</p>
-            </>
-          )}
-
-          {/**
-           * **The refusal is an alert and lives inside the region**, so it is read in the context of the
-           * control that produced it. **`role="alert"` rather than plain text**, for the same reason
-           * every other failure in this panel carries it: a refusal a person cannot notice is a
-           * refusal that reported nothing.
-           */}
-          {removalRefusal !== null && (
-            <p role="alert">{PANEL_COPY.removalRefused(removalRefusal)}</p>
-          )}
-        </section>
-      )}
-
       {state.kind === "expired" && <p role="alert">{PANEL_COPY.mailboxGone}</p>}
 
       {state.kind === "failed" && (
@@ -1142,6 +1073,121 @@ export function Panel({ session, records, primaryProviderName }: PanelProps) {
           )}
         </>
       )}
+      {/**
+       * ## The removal region
+       *
+       * **Four hooks and no fifth (`design.md` D5):** a `<section>`, an `<h2>`, `<p>`s and
+       * `<button className="control">`. **Every one of those is already selected by a rule that
+       * exists** — `.panel section`, `.panel h2`, `.panel p` and `.control` — so this region adds no
+       * class hook and no stylesheet rule, **and a fifth hook here is a declared failure of this
+       * change** rather than a taste question. **The cost is stated rather than hidden: the region
+       * cannot be made prettier, and it will not be.**
+       *
+       * **The shape is decided by what has been established, and `unknown` renders nothing at all**
+       * (`tasks.md` 2.3) — before the boot read has finished the panel may say neither that something
+       * is kept nor that nothing is.
+       *
+       * **The control that removes exists only from `confirmed` onwards.** That is the requirement's
+       * *"the control that performs the removal SHALL exist only after a further explicit step"*,
+       * and it is a property of the render rather than of the person remembering a dialog.
+       *
+       * **The further step is this region and not a dialog the platform owns** — the requirement says
+       * so, and `chrome.windows`' own confirm is not reachable from here without a platform this
+       * panel has no seam for. `LocalData.tsx:135`–`:172` is the shape the model is copied from, and
+       * **not** its wording: every sentence below is `PANEL_COPY`'s.
+       *
+       * ## Why it moved below the inbox and the opened message (`surface-hierarchy`)
+       *
+       * **Measured on the built panel: the region a person is least likely to want sat fourth, above
+       * the mail.** The order was host 68 px, address 71 px, **removal 86 px**, inbox 156 px, message
+       * 318 px — so a destructive maintenance action about this device's stored records stood between
+       * the address and the mail that address exists to receive.
+       *
+       * **The rule is `surface-hierarchy`'s, and it is about subject rather than about danger:** a
+       * surface states its subject before its account of the session. The inbox and the opened message
+       * are what this panel is about; removing what this device keeps is a statement about storage
+       * and belongs after them. **It is not hidden and it is not behind a disclosure** — it is still a
+       * region of this panel with its own heading, in the place a surface puts its housekeeping.
+       */}
+      {removal.kind !== "unknown" && (
+        <section aria-labelledby="panel-removal-heading" data-testid={REMOVAL_TESTID[removal.kind]}>
+          <h2 id="panel-removal-heading">{PANEL_COPY.removalHeading}</h2>
+
+          {/**
+           * **A device holding nothing is told so and offered no removal at all**, rather than a
+           * disabled control: a control that cannot act is a control misreporting what is available,
+           * and this panel has refused that twice already (`createRefusal`, and the boot refusal above).
+           */}
+          {removal.kind === "holdsNothing" && <p>{PANEL_COPY.removalHoldsNothingYet}</p>}
+
+          {removal.kind === "offering" && (
+            <button
+              type="button"
+              className="control"
+              onClick={() => setConfirming(true)}
+              data-testid="panel-removal-offer"
+            >
+              {PANEL_COPY.removalOffers}
+            </button>
+          )}
+
+          {/**
+           * **Confirmed and in-flight render the same two controls, and differ only in `disabled`.**
+           * That is deliberate: the pair is one decision — *remove, or keep what is here* — and
+           * rendering it from one place means a change cannot add a third button to one shape and
+           * forget the other.
+           */}
+          {(removal.kind === "confirmed" || removal.kind === "working") && (
+            <>
+              <p>{PANEL_COPY.removalConfirmWarning}</p>
+
+              <button
+                type="button"
+                className="control"
+                disabled={removal.kind === "working"}
+                onClick={() => void removeEverything()}
+                data-testid="panel-removal-confirm"
+              >
+                {removal.kind === "working" ? PANEL_COPY.removing : PANEL_COPY.removalConfirm}
+              </button>
+
+              <button
+                type="button"
+                className="control"
+                disabled={removal.kind === "working"}
+                onClick={() => setConfirming(false)}
+                data-testid="panel-removal-keep"
+              >
+                {PANEL_COPY.removalKeep}
+              </button>
+            </>
+          )}
+
+          {/**
+           * **The removed shape, and it is two sentences rather than one** because they answer two
+           * different questions — *"did it work?"* and *"what did it do?"* — and the requirement makes
+           * both claims separately. **The second is the one that must never say the address is gone**,
+           * which is what {@link PANEL_COPY.removalDoneMeans} is for.
+           */}
+          {removal.kind === "removed" && (
+            <>
+              <p>{PANEL_COPY.removalDone}</p>
+              <p>{PANEL_COPY.removalDoneMeans}</p>
+            </>
+          )}
+
+          {/**
+           * **The refusal is an alert and lives inside the region**, so it is read in the context of the
+           * control that produced it. **`role="alert"` rather than plain text**, for the same reason
+           * every other failure in this panel carries it: a refusal a person cannot notice is a
+           * refusal that reported nothing.
+           */}
+          {removalRefusal !== null && (
+            <p role="alert">{PANEL_COPY.removalRefused(removalRefusal)}</p>
+          )}
+        </section>
+      )}
+
       {/*
        * **And last in the panel, the report of what this session did.**
        *

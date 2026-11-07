@@ -592,7 +592,7 @@ test.describe("the accent on the surfaces the direction names", () => {
     const accent = await resolvedToken(page, "--accent");
     const onAccent = await resolvedToken(page, "--ink-on-accent");
 
-    const button = page.getByRole("button", { name: "Replace address" });
+    const button = page.getByRole("button", { name: "Copy address" });
     await expect(button).toBeVisible();
 
     const reading = await page.evaluate(() => {
@@ -608,7 +608,7 @@ test.describe("the accent on the surfaces the direction names", () => {
     // **The name is the half that matters.** `website-client`'s delta requires the
     // treatment not to change the accessible name or the effect, and a restyled control
     // that also renamed itself would still pass a colour assertion.
-    await expect(page.getByRole("button", { name: "Replace address" })).toHaveCount(1);
+    await expect(page.getByRole("button", { name: "Copy address" })).toHaveCount(1);
   });
 
   test("nothing but the primary action is filled, and the removal control keeps its framing", async ({
@@ -632,9 +632,7 @@ test.describe("the accent on the surfaces the direction names", () => {
     // **`LocalData`'s removal is destructive, and a destructive control wearing the
     // product's most emphatic treatment would be a design error** whatever the Accent
     // block says. `design.md` D6 records it.
-    expect(filled, "the accent fill belongs to the one forward action").toEqual([
-      "Replace address",
-    ]);
+    expect(filled, "the accent fill belongs to the one forward action").toEqual(["Copy address"]);
   });
 });
 

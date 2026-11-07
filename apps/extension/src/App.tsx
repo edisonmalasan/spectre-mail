@@ -47,6 +47,7 @@ import {
   createExtensionProviderManager,
   EXTENSION_PROVIDER_IDS,
   primaryProviderName,
+  providerDisplayNames,
 } from "./provider-config";
 import { extensionScheduler } from "./scheduler";
 import { extensionTransport } from "./transport";
@@ -114,6 +115,12 @@ export function App({
     return {
       session: injected ?? createMailboxSession(manager, extensionScheduler),
       providerName: primaryProviderName(manager),
+      /**
+       * **The map and the single name come from the same manager**, which is the property the note
+       * above claims for the session: `providerDisplayNames` walks `manager.available`, so a surface
+       * can never head an address with a name this build does not declare.
+       */
+      providerNames: providerDisplayNames(manager),
     };
   });
 
@@ -122,6 +129,7 @@ export function App({
       session={built.session}
       storage={storage}
       primaryProviderName={built.providerName}
+      providerNames={built.providerNames}
       // **Spread rather than a straight pass-through**, because the shared config sets
       // `exactOptionalPropertyTypes`, under which an optional property may be *absent*
       // but may not be present-and-`undefined`. Passing it straight through is the

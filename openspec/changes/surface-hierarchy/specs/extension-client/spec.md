@@ -67,9 +67,18 @@ list and nothing about the message**, and at 65 px the row's four fields had no 
 the time and the verdict had nowhere to go except after the subject on the same line, where a long
 subject pushed them off the row.
 
-**The verdict word keeps its accent and gains a column.** This capability already requires that a
-row's marking not depend on colour alone; the row grid is what gives that marking a position rather
-than a position at the end of a wrapped sentence.
+**The verdict word gains a column, and it gains nothing else.** This capability already requires
+that a row's marking not depend on colour alone, and `panel-verification-state` says in terms that
+*"this requirement adds no accent rule"* — so the grid is what gives the marking a position, and the
+marking keeps the plain ink it already had.
+
+**Amendment, recorded during apply (2026-11-01), by `surface-hierarchy`.** The paragraph above said
+*"the verdict word keeps its accent and gains a column"*, **and the first half is false**: the
+extension's marking has never carried an accent, and the promoted requirement one capability over
+says so explicitly. **The sentence was written from the website's row, where the unread state is
+accented, and copied to a surface whose marking is a sentence in plain ink.** It is corrected rather
+than deleted, because the grid's justification is the same claim either way and a reader comparing
+the two rows should find the difference stated rather than discover it.
 
 #### Scenario: A mailbox holds messages
 
@@ -165,3 +174,51 @@ to name it with.
 - **WHEN** a stored mailbox belongs to a provider no adapter in this build declares
 - **THEN** the surface SHALL render that provider's identifier
 - **AND** it SHALL NOT render nothing, an empty heading, or a placeholder
+
+### Requirement: The address breaks at its `@` on a surface narrower than it
+
+A surface of this client SHALL render the mailbox address as one selectable value, and where that
+surface is narrower than the address, the address SHALL break at its `@` rather than inside its local
+part or inside its domain. The break opportunity SHALL NOT insert a character into the value the
+surface copies.
+
+**Note, recorded during apply (2026-11-01), by `surface-hierarchy`.** Measured on the built popup: the
+address box is **304 px** wide (`22rem` less `--space-5` on each side) and the recorded Guerrilla
+address is **32 characters**, which at `--type-base`'s **16 px** is about **307 px** — so **the
+shipped surface already broke inside the domain**, at a size *smaller* than the one this change gives
+it. **This requirement was added during apply for that reason**: the defect is pre-existing, raising
+the address to the headline step only makes it legible, and a change that enlarged an address without
+requiring it to break correctly would have shipped a bigger version of the same fault. A domain split
+across two lines is a domain a person copies wrong, and this is the surface whose whole purpose is
+handing somebody an address.
+
+**The website's requirement states the same rule, and the two are not one requirement.** The
+website's *"The address is presented as text the user can take"* is about a page, and this client's
+surfaces are two other documents with their own copy controls. **One sentence per client is this
+repository's shape**, and the shared reading is in `visual-system`'s *"the address is the largest
+datum on its surface"* rather than duplicated here.
+
+**A `<wbr>` and not a zero-width space.** A `U+200B` in the string is a character in the value the
+clipboard receives, and this repository has recorded what a substituted character costs: the address
+a person pastes into a signup form must be the address the provider issued. `<wbr>` is a break
+opportunity with no text node, so the copied value is byte-identical to the stored one — and
+`AddressText` is one component so the popup and the panel cannot disagree about where the break goes.
+
+#### Scenario: A surface is narrower than the address
+
+- **WHEN** a surface renders an address wider than the space it has
+- **THEN** the address SHALL break at its `@`
+- **AND** the domain SHALL remain on one line where it fits
+- **AND** the text the surface copies SHALL be the address with nothing inserted and nothing removed
+
+#### Scenario: An address holds no `@`
+
+- **WHEN** a surface renders a value that carries no `@`
+- **THEN** it SHALL render the value whole
+- **AND** it SHALL NOT break it at a position the value does not contain
+
+#### Scenario: Both surfaces render the same address
+
+- **WHEN** the popup and the panel render the same mailbox's address
+- **THEN** both SHALL break it at the same position
+- **AND** both SHALL copy the same value

@@ -98,12 +98,24 @@ h1 {
   letter-spacing: var(--tracking-tight);
 }
 
+/*
+ * **A region's name is a label, not a headline.**
+ *
+ * This is `DESIGN.md`'s `region-label` role: the quietest text in the system, because a name
+ * tells a person where they are and then stops mattering. The datum the region presents
+ * outranks it, and the address's `--type-2xl` is that rule measured.
+ *
+ * **It carries no colour here.** An ordinary region's name takes the muted ink and a failure
+ * region's takes the danger ink; both are declared pairs on their own surfaces, and the two
+ * rules below say which is which. The colour is a decision about the surface and not about the
+ * role, which is why it is not in the role's declaration.
+ */
 h2 {
   margin: 0 0 var(--space-3);
-  font-size: var(--type-xl);
+  font-size: var(--type-xs);
   font-weight: var(--weight-medium);
-  line-height: var(--leading-tight);
-  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-normal);
+  letter-spacing: var(--tracking-wide);
 }
 
 h3 {
@@ -190,6 +202,22 @@ li {
   margin-block-end: 0;
 }
 
+/*
+ * **Every region's name is muted, and a failure region's name is not.**
+ *
+ * The two rules are one decision stated twice, and **their order is load-bearing**: both
+ * selectors have the same specificity, so source order decides and `--alert` has to come
+ * second. `ink-muted` on `surface-danger` is not a declared pair, so muting a failure heading
+ * would create a contrast obligation this token layer does not account for.
+ */
+.region > h2 {
+  color: var(--ink-muted);
+}
+
+.region--alert > h2 {
+  color: var(--ink-danger);
+}
+
 /* ── Technical metadata ───────────────────────────────────────────────────────── */
 
 /*
@@ -213,20 +241,37 @@ li {
    it is the largest monospace on the page and the only thing that gets its own border. */
 .address {
   margin-block-end: var(--space-4);
+  /*
+   * **The prose measure does not apply, and this line is the defect's other half.**
+   * `p` caps at `--measure-prose`, which is 62 characters of the *grotesk* — about 496 px —
+   * and the address inside it was 447 px wide as a result. A measure exists to keep a line
+   * of prose readable; an address is one value on one line, and capping it made the page
+   * wrap a value it had the room to show.
+   */
+  max-width: none;
 }
 
 .address__value {
-  display: inline-block;
+  /*
+   * **`block` rather than `inline-block`, and it is not a layout preference.** An inline
+   * block shrinks to its content and then breaks at the container's edge, which is how the
+   * address came to render as `…@sharklasers.c` / `om` on a 390 px viewport. A block box
+   * takes the width it is given, so the `<wbr>` after the `@` is the break the line breaker
+   * reaches first.
+   */
+  display: block;
   padding: var(--space-3) var(--space-4);
   background-color: var(--surface-raised);
   border: var(--width-hairline) solid var(--line-strong);
   border-radius: var(--radius-md);
   font-family: var(--font-mono);
-  font-size: var(--type-xl);
+  font-size: var(--type-2xl);
   line-height: var(--leading-tight);
   /* A long address has to break somewhere, and `overflow-wrap` breaks it at any
      character rather than only at punctuation — an address is one unbroken token to a
-     browser, so without this the box scrolls horizontally on a narrow screen. */
+     browser, so without this the box scrolls horizontally on a narrow screen. It is the
+     **fallback** now: the `<wbr>` at the `@` is the break the line reaches first, and this
+     only applies to a domain that cannot fit on a line of its own. */
   overflow-wrap: anywhere;
 }
 
@@ -264,6 +309,20 @@ li {
 .notice--danger {
   background-color: var(--surface-danger);
   color: var(--ink-danger);
+}
+
+/*
+ * **The selected mailbox is marked by accent ink, and the ink is not the only mark.**
+ *
+ * `visual-system` requires the accent on the selected mailbox and forbids the accent being
+ * the *only* difference between a selected and an unselected entry. So `RecentMailboxes`
+ * carries the selection in three ways at once: accent ink on the note, the note's own text
+ * naming the page, and — structurally, not by colour — the marked entry is the only one of
+ * the three with no control on it. The rule paints only the text; the absence of the button
+ * is the markup's job and is asserted as such.
+ */
+.notice--selected {
+  color: var(--ink-accent);
 }
 
 /* ── Controls ─────────────────────────────────────────────────────────────────── */
@@ -361,6 +420,21 @@ li {
   /* A list of controls is not a bulleted list. */
   list-style: none;
   border-block-start: var(--width-hairline) solid var(--line-subtle);
+}
+
+/*
+ * **A row of fields is not a line of prose.**
+ *
+ * The measure on `li` caps a line of text, and this list's items are controls rather than
+ * text: each one is a two-column grid that puts a sender, a subject and a verbatim instant on
+ * one line. Measured before the change, the row was 534.75 px inside a 688 px list, with 169 px
+ * of it going to the timestamp column — so the measure was taking width from the subject to
+ * defend a line length that a grid does not have. `website-client` requires a row to take the
+ * width of its list, and a row that stops short inside a wider list reads as a row that ran
+ * out rather than one that ended.
+ */
+.inbox-rows > li {
+  max-width: none;
 }
 
 .inbox-row {
@@ -989,7 +1063,14 @@ li {
 }
 
 .footer__heading {
-  font-size: var(--type-lg);
+  /*
+   * **The colour is stated here because the footer is not a `.region`.** It is a sibling of
+   * `<main>` rather than a descendant of it — a `<footer>` inside `<main>` is not a
+   * `contentinfo` landmark, measured in Chromium — so no `.region > h2` rule reaches this
+   * heading and it would otherwise take the page's body ink. Its size comes from the global
+   * `h2` rule, like every other region name on the page.
+   */
+  color: var(--ink-muted);
 }
 
 .footer__limits {

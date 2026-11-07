@@ -101,6 +101,35 @@ Dropping it exposes the heading above the address, and the heading is a provider
 as a brand; rendered in sentence case they read as a slug.** The uppercase was load-bearing for a copy
 defect, which is the one thing a treatment must never be.
 
+### D1.3 — The role's scope is every region name, and the first draft of the tasks was narrower
+
+The requirement says *a client names a region* at the label step. The proposal's scope list and
+`tasks.md` 2.7 said the website's `steps`, `reasons`, `extension` and `footer` were untouched.
+**Those cannot both be true, and the narrower one would have shipped a requirement the product
+breaks** — the failure this repository records as worse than never writing the requirement.
+
+**Two of this change's own measurements already treat those four as in scope.** Claim 2 is *"nine
+`h2`s share one size (22 px), so nothing on the page is subordinate to anything else"*, and three of
+the nine are `What happens, in order`, `Why SpectreMail` and `The extension, in this browser`, with
+the footer's `What this page can and cannot do` as the tenth. **And D1.1's argument against the
+uppercase is made out of those four names**, because they are the long ones — the argument would not
+exist if the role stopped at `data-region="product"`.
+
+**Scoping the step to the product region would invert the hierarchy it exists to build.** The
+product's own working areas — *Your address*, *Inbox*, *What this browser remembers* — would set
+their names at 12 px while *Why SpectreMail*, three sections below, kept 22 px. The page would then
+say the explanation outranks the product, which is the measurement the change was opened to repair.
+
+**The footer is the same argument at its sharpest.** Left at `--type-lg` it would be **the loudest
+heading on a page whose every other region name is a label**, so proposal finding 1 is repaired here
+rather than recorded: recording it and shipping the rest would have created it.
+
+**So the step reaches every area either client names with a heading of its own**, and what stays out
+of scope is those regions' *composition* — their share of the page, their grids, their content, and
+whether the explanation belongs below the product at all. **A heading's rank and a region's share are
+two different questions**, and the earlier scope list answered the second by also forbidding the
+first. The distinction is what the amended tasks and the requirement's note now carry.
+
 ## D2 — The surface names the provider, and the name already exists
 
 `panel-copy.ts`'s `addressHeading` documents itself as *"It names the provider rather than this
@@ -156,7 +185,7 @@ record's only size above body that a readout could take was the heading's.
 records for a retired rule: keeping it and adding a caveat beside it would leave the record asserting
 two things about one value. What replaces it is a rule: **the address is the largest datum on the
 surface that shows it**, at `type-2xl`, which is the declared step that has been unused since the
-layer was written. A code stays at `type-xl` (the `code` role) because a code is read *inside* an
+layer was written. A code stays at `type-lg` (the `code` role) because a code is read *inside* an
 opened message and the message's subject is the reading surface's principal datum.
 
 This is where the website and the extension are the same decision in two directions. The website
@@ -242,6 +271,30 @@ from state, and a test that reads the element's text are all unchanged. **The el
 it is not content**, and that is the test: any fix that changes what the address *is* to make it wrap
 better is fixing the rendering by breaking the thing rendered.
 
+**Measured, because "the browser would break there anyway" is the obvious objection and it is false.**
+Removing the single `<wbr>` and rebuilding — nothing else changed — leaves
+`randomuser123456@sharklasers.com` **not wrapping at all** at 390 px: the domain's first character
+resolves to the same line as the `@` and the string overflows its container, so
+`surface-hierarchy.spec.ts`'s break case goes red naming the address. So the element is load-bearing
+rather than decorative, and the case is measuring the mechanism rather than the line-breaking
+algorithm's own behaviour. The file was restored byte-identical afterwards, checked against a SHA-256
+taken before the mutation.
+
+**And the extension has the same defect, pre-existing, which is why the ninth block exists.** Measured
+on the built popup: the address box is **304 px** (`22rem` less `--space-5` on each side) and the
+recorded Guerrilla address is **32 characters**, about **307 px** at `--type-base`'s 16 px — so the
+popup was **already** splitting its domain, at the size this change *enlarges*. **The website's
+requirement is a `MODIFIED` block on a page requirement and cannot bind a popup**, so the extension
+needed its own sentence; leaving it out would have meant shipping a bigger address with a smaller
+chance of surviving a line, in a change whose whole subject is hierarchy. `address-text.tsx` is one
+component serving both extension surfaces, so the two cannot drift, and the requirement carries the
+`@`-less arm because a malformed value must render whole rather than be split somewhere invented.
+
+**This is the second block this change added after its proposal, and the two arrived the same way.**
+D1.3 widened the label role's scope during apply, and this requirement arrived during apply; both are
+written into the delta with their reasons rather than into the promoted spec afterwards, because a
+gap recorded at the sync stage is a gap the archived delta understates.
+
 ## D7 — The opened message is a requirement gap, and the requirement is where it is repaired
 
 No `extension-client` requirement names a message's own fields. The closest says a person who opens a
@@ -251,12 +304,12 @@ requirement's fault** — the same shape `mailbox-history` recorded when a docum
 the instrument watched an entry point no client used.
 
 **One `ADDED` requirement for this claim, and no `MODIFIED` block anywhere in this capability's
-delta.** Three further `ADDED` blocks carry the row, the order and the provider's own name, and none
-of them amends an existing requirement — so the capability grows by four requirements and every one of
-its seventeen existing requirement blocks is byte-identical after this change. The first
-shape considered was two amendments — the popup's requirement and the panel's — plus a shared
-addition, and it was rejected for three reasons that are each a defect this repository records by
-name:
+delta.** Four further `ADDED` blocks carry the row, the order, the provider's own name and the
+address's `@` break, and none of them amends an existing requirement — so the capability grows by five
+requirements and every one of its seventeen existing requirement blocks is byte-identical after this
+change. The first shape considered was two amendments — the popup's requirement and the panel's — plus
+a shared addition, and it was rejected for three reasons that are each a defect this repository
+records by name:
 
 - **It would state one claim three times.** Both surfaces render one component,
   `OpenedMessageView`, so "a message shows its sender, subject, arrival time and readable text" is one
@@ -306,19 +359,22 @@ Both are the same sentence about order rather than two layout opinions, which is
 `ADDED` requirement in `extension-client` and not two.
 
 **`page-composition` is not amended and no region moves.** It governs the website's five regions and
-their order, and this change relocates nothing at that level: the nine `h2` sections live *inside*
-`data-region="product"`, and the extension has no regions in that sense at all. **A sixth region is
+their order, and this change relocates nothing at that level: every section keeps its place in the
+five, the product's working areas stay inside `data-region="product"`, and the extension has no regions
+in that sense at all. **A sixth region is
 not added, no region is renamed, no control is renamed, and no state-to-region mapping changes** —
 which is why the ~20 assertions that read a region by its accessible name are expected to pass
 unchanged, and a movement in any of them is evidence this change did something it did not declare.
 
 ## D9 — What is not done, and why each is a different change
 
-- **The website's four non-product regions are untouched.** `steps`, `reasons`, `extension` and
-  `footer` are 44 % of the document between them, and their share of the page is a **composition**
+- **The website's four non-product regions keep their composition.** `steps`, `reasons`, `extension`
+  and `footer` are 44 % of the document between them, and their share of the page is a **composition**
   question — whether the explanation belongs below the product at all — that this change records and
-  does not answer. Restyling them here would spend the hierarchy decision on regions the diagnosis did
-  not find defective, and shrinking them is a decision about the page's argument, not its scale.
+  does not answer. **Their headings take the label step and nothing else in them moves**, because a
+  region's rank and a region's share are different questions; D1.3 records why the first could not be
+  left out without inverting the hierarchy the change exists to build. **Shrinking a region is a
+  decision about the page's argument, not its scale**, and it is not taken here.
 - **`RecentMailboxes`' own composition is untouched.** It gains the accent on its current entry,
   because a promoted requirement names that surface; it gains no grid, no measure and no heading of
   its own. Its unboxed list is measured in the proposal and is not restyled here.
@@ -354,7 +410,8 @@ and each assertion is named in `tasks.md` with the mutation that must turn it re
 - **Nothing about a real provider, a real clipboard, a popup a person clicked, or a side panel a
   person docked.** The extension's surfaces are driven at their own viewport sizes as tabs, which is
   the substitute `in-page-fill`'s D10 already records.
-- **Nothing about the four non-product regions**, beyond the share of the page they take.
+- **Nothing about the four non-product regions' composition**, beyond the share of the page they take.
+  Their headings take the label step; their grids, their content and their order are not touched.
 - **Nothing about a second engine, a high-contrast mode, or a zoom level.** Chromium, one machine.
 - **Nothing about `region-label` being the right size for every language.** The labels are English and
   `tracking-wide` on a longer translated string is untested; this repository has one locale.

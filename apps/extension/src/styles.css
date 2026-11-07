@@ -97,7 +97,16 @@ body {
 .panel__address {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: var(--type-base);
+  /*
+   * **The address is the largest datum on its surface**, which is the reversal `surface-hierarchy`
+   * measured: the brand heading above it resolved to 22 px and the address to 16 px, so the one
+   * value a person came to this popup to take was the third-largest thing on it. `--type-2xl` is
+   * 28 px, which is above `.popup__heading`'s `--type-xl` and below nothing on the surface.
+   *
+   * The size is not the only half: `AddressText` puts a `<wbr>` after the `@`, because at this step
+   * a 32-character Guerrilla address is wider than the popup's 304 px content box.
+   */
+  font-size: var(--type-2xl);
   color: var(--ink-primary);
   /* A long generated address must wrap rather than widen the popup past its size. */
   overflow-wrap: anywhere;
@@ -137,13 +146,32 @@ body {
   width: 100%;
 }
 
+/*
+ * A region name, in the role `DESIGN.md` declares for it.
+ *
+ * **Four typographic tokens and one colour**, and the colour is stated here rather than in the
+ * role because it is a property of where a region sits and not of being a region's name. Both
+ * colours are declared pairs: `ink-muted` on the raised surface these sections sit on.
+ *
+ * **`text-transform: uppercase` is deleted, and the deletion is a measurement rather than a
+ * preference.** Measured on 2026-10-29 in Chromium: a rendered transform changes the computed
+ * accessible name — `Accessibility.getFullAXTree` reported `READY` while `textContent` stayed
+ * `Ready`. So an uppercase region name is a name a screen reader announces differently from the
+ * name the document holds, and the browser tier's own `sections.spec.ts` compares those two
+ * exactly. `design.md` D1.1 records the measurement and the two alternatives that were rejected:
+ * loosening that comparison, and moving the transform into the copy.
+ *
+ * **`line-height` is the role's fourth token and it was missing here.** A one-line label at `1.15`
+ * and a two-line one at `1.5` are different blocks of text, and the panel's "What this device
+ * keeps" already wraps.
+ */
 .popup h2,
 .panel h2 {
   margin: 0;
   font-size: var(--type-xs);
   font-weight: var(--weight-medium);
+  line-height: var(--leading-normal);
   letter-spacing: var(--tracking-wide);
-  text-transform: uppercase;
   color: var(--ink-muted);
 }
 
@@ -154,27 +182,189 @@ body {
 }
 
 /*
- * The message row: who wrote it, what it is about, and a control that opens it.
+ * The message list, and the row each message is.
  *
- * **The sender is monospace because it is an address**, which is the token layer's own rule and
- * not a choice made here — it is the same reason `.popup__address` above is monospace, and the
- * same reason the user might compare two of these character by character. **The subject carries
- * the primary ink** because it is the thing being chosen from, and it is deliberately not
- * emphasised further: this popup is not a mail client and a list it has to be legible in three
- * seconds is not a place for hierarchy beyond which line is which.
+ * **A list of messages is not a bulleted list, and until `surface-hierarchy` it rendered as one.**
+ * Measured on the built popup, a message was a bare `<li>` with no rule selecting it: `display:
+ * list-item`, `list-style-type: disc`, 65 px wide. **A bullet beside a message is a marker that says
+ * the list is a list and nothing about the message**, and at 65 px the row's four fields had no
+ * column to sit in — so the time and the verdict had nowhere to go except after the subject on the
+ * same line, where a long subject pushed them off the row.
  *
- * **No new token, per `design.md` D8** — every value below is one this file already used.
+ * **The row is a grid so every field has a place of its own**, which is the whole of what the
+ * requirement asks: a subject that wraps wraps inside its own field and cannot displace the time.
+ * The areas are named rather than assigned by column number, because a name says which field a rule
+ * is for and a column index only says where it happened to land.
+ *
+ * **The verdict takes a row of its own rather than the second column, and the deviation from
+ * `tasks.md` 3.3's "their own columns" is deliberate.** The marking is a sentence — *"Contains a
+ * one-time code and a verification link."* — and in an `auto` column beside a `1fr` subject it takes
+ * almost the entire row, leaving the subject a dozen characters. The requirement's own words are
+ * **its own field**, and a full-width row is one; a squeezed column beside it is not.
+ *
+ * **`width: 100%` on both, and on the list it is load-bearing.** `.popup section` and `.panel
+ * section` set `align-items: flex-start`, which would shrink a flex item to the width of its own
+ * longest line — and a list of rows that each measured differently is not a list.
+ *
+ * **No new token**: every value below is one this file already resolved, which is `design.md` D8's
+ * constraint and the reason nothing here is a literal.
+ */
+.message-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  width: 100%;
+}
+
+.message-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "from time"
+    "subject subject"
+    "verdict verdict"
+    "open open";
+  gap: var(--space-1) var(--space-3);
+  width: 100%;
+}
+
+/*
+ * **The sender is monospace because it is an address**, which is the token layer's own rule and not
+ * a choice made here — it is the same reason `.popup__address` above is monospace, and the same
+ * reason the user might compare two of these character by character.
  */
 .message__from {
-  display: block;
+  grid-area: from;
   font-family: var(--font-mono);
   font-size: var(--type-xs);
   color: var(--ink-muted);
+  overflow-wrap: anywhere;
 }
 
+/*
+ * The arrival instant, in the field beside the sender.
+ *
+ * **An ISO 8601 instant in UTC rather than a formatted local time**, which is `apps/web`'s
+ * `InboxRow.tsx` decision and is mirrored rather than re-made: it is unambiguous whatever the
+ * reader's locale and time zone, and it is the same string on every machine, which is what lets a
+ * test assert a row's contents without pinning a locale.
+ *
+ * **`nowrap` because a timestamp that reflows is a timestamp two rows disagree with** — the same
+ * reason `apps/web/src/styles.css` gives for its own row time.
+ */
+.message__time {
+  grid-area: time;
+  font-family: var(--font-mono);
+  font-size: var(--type-xs);
+  color: var(--ink-muted);
+  text-align: end;
+  white-space: nowrap;
+}
+
+/*
+ * **The subject carries the primary ink** because it is the thing being chosen from, and it is
+ * deliberately not emphasised further: this is not a mail client, and a list that has to be legible
+ * in three seconds is not a place for hierarchy beyond which line is which.
+ */
 .message__subject {
-  display: block;
+  grid-area: subject;
   color: var(--ink-primary);
+  overflow-wrap: anywhere;
+}
+
+/*
+ * The verdict marking, on its own row.
+ *
+ * **Words only, and no accent rule.** `panel-verification-state` requires that the marking not
+ * depend on colour alone and adds no accent rule of its own; `DESIGN.md` gives the accent to a
+ * *verification a row carries* on the website's inbox, which has a closed set of positive verdicts
+ * this client does not consume. **A rule beside a row is a claim that something is in it**, and an
+ * undetermined row must not carry one — so the marking's own position is the whole of what the grid
+ * gives it here.
+ *
+ * `--type-xs` and `ink-secondary` are already this file's pair for secondary prose, so this rule
+ * introduces no token and no contrast pair.
+ */
+.message__verdict {
+  grid-area: verdict;
+  font-size: var(--type-xs);
+}
+
+/*
+ * **The control spans both columns and sits at the start**, because it is about the whole row
+ * rather than about any one field — and a control centred under a two-column grid reads as
+ * belonging to the right-hand column it happens to align with.
+ */
+.message-row > .control {
+  grid-area: open;
+  justify-self: start;
+}
+
+/*
+ * The opened message's own fields, above the codes found in it.
+ *
+ * **A flex column rather than a grid, because these four fields are a reading order rather than a
+ * table.** The row above is a grid because four fields sit in fixed positions across a list of rows;
+ * a single opened message has one sender, one subject, one instant and one body, and stacking them
+ * is what says so.
+ *
+ * **`width: 100%` is load-bearing**, for the reason `.message-list` gives: the enclosing section sets
+ * `align-items: flex-start`, which would otherwise shrink this block to the width of its own longest
+ * line — and a message body narrower than the section it is in reads as a quotation rather than as
+ * the message.
+ *
+ * **The three field rules are the row's, reused, with two overrides.** The sender is the same datum
+ * with the same treatment (`mono`, `--type-xs`, `ink-muted`); the subject and the instant are the same
+ * datums too. What changes is only what a single message needs and a row does not: a subject at a
+ * step above the body, and a timestamp that starts its line instead of ending one. Reusing the hooks
+ * is what stops the two surfaces drifting into two spellings of "the sender is monospace".
+ */
+.message__opened {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.message__opened .message__subject {
+  font-size: var(--type-lg);
+  font-weight: var(--weight-medium);
+}
+
+.message__opened .message__time {
+  text-align: start;
+}
+
+/*
+ * The readable body.
+ *
+ * **`<pre>` because it preserves the line breaks the message arrived with**, and the reason it reads
+ * as a sunken slab rather than as prose is that it **is** the provider's text, laid out as it was
+ * sent. Setting it in the grotesk at body measure would imply the product wrote it.
+ *
+ * **`max-height` and `overflow: auto`, because a message is somebody else's length.** A 400-line
+ * newsletter would otherwise push every control on the surface below the fold — and this is the one
+ * place in the extension where the content's size is decided by a stranger.
+ *
+ * `28rem` is a length and not one of the five categories this file must carry no literal for, which
+ * is the same reason `apps/web/src/styles.css` carries it in the identical rule. Every colour, radius,
+ * spacing step and type size below is a declared token.
+ */
+.message__body {
+  margin: 0;
+  padding: var(--space-3);
+  max-height: 28rem;
+  overflow: auto;
+  background-color: var(--surface-sunken);
+  border: var(--width-hairline) solid var(--line-subtle);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: var(--type-sm);
+  line-height: var(--leading-relaxed);
+  overflow-wrap: anywhere;
 }
 
 /*

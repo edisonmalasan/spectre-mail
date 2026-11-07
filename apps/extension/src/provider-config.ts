@@ -141,6 +141,39 @@ export function primaryProviderName(manager: ProviderManager): string {
 }
 
 /**
+ * Every provider this build declares, by identifier, with the name the abstraction gives it.
+ *
+ * **A map rather than a lookup function, and the fallback is the reason.** A surface must be
+ * able to name a provider this build does not offer, and the only honest name left for one is
+ * its identifier — so the surface holds the map and asks it, rather than holding a function
+ * that could only answer for the providers this build happened to build.
+ *
+ * **Both halves come from the adapters**, so this module restates neither. A client that wrote
+ * `{ mailtm: "Mail.tm" }` would be a second copy of a value `packages/providers` owns, and
+ * renaming a provider there would leave this popup announcing the old name with every test
+ * green — which is the defect {@link primaryProviderName}'s own note records.
+ */
+export function providerDisplayNames(manager: ProviderManager): Readonly<Record<string, string>> {
+  const names: Record<string, string> = {};
+  for (const provider of manager.available) {
+    names[provider.id] = provider.displayName;
+  }
+  return names;
+}
+
+/**
+ * What a surface calls the provider `id`, falling back to `id` itself.
+ *
+ * **The fallback is the requirement rather than a defensive default.** A stored mailbox
+ * outlives the build that recorded it, so a mailbox whose provider this build no longer offers
+ * must still be nameable — and an identifier is a name, while an empty heading is a surface
+ * that has lost the subject of its own region.
+ */
+export function providerDisplayName(names: Readonly<Record<string, string>>, id: string): string {
+  return names[id] ?? id;
+}
+
+/**
  * A lowercase alphanumeric string of `length` characters.
  *
  * **`crypto.getRandomValues`, not `Math.random`.** This is a password for a provider

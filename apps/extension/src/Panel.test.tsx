@@ -49,6 +49,24 @@ import type { PanelRecords } from "./Panel";
 import { HOST_CONTEXT_REQUEST, fillCodeRequest, hostContextAnswer } from "./protocol";
 import { PANEL_COPY, PANEL_VERDICT_WORDING } from "./panel-copy";
 
+/**
+ * What this build calls the providers it declares, by identifier.
+ *
+ * **The shape production has, and the shape this file did not have.** Until `surface-hierarchy` every
+ * render here passed `primaryProviderName="Mail.tm"` and nothing else, so a surface that headed its
+ * address region with `record.provider` — the id — rendered `guerrilla` while this file's own
+ * assertions looked for a display name only where a copy function supplied one. `panel-copy.test.ts`
+ * carries a `PROVIDERS` fixture of `["Mail.tm", "Guerrilla Mail"]`, which is **not** the shape
+ * production has: the map's keys are ids.
+ *
+ * **A map rather than a function, because the panel must be able to name a provider this build no
+ * longer offers** — `providerDisplayName` falls back to the id, and the case below holds that.
+ */
+const PROVIDER_NAMES: Readonly<Record<string, string>> = {
+  mailtm: "Mail.tm",
+  guerrilla: "Guerrilla Mail",
+};
+
 /** The mailbox a host resolves to in most of these cases. */
 const MAILBOX: Mailbox = createMailbox({
   id: "session-token",
@@ -473,7 +491,14 @@ describe("the panel renders the mailbox beside the page", () => {
 
     const records = options.records ?? stubRecords({ held: [MAILBOX], association: MAILBOX.id });
 
-    render(<Panel session={session} records={records} primaryProviderName="Mail.tm" />);
+    render(
+      <Panel
+        session={session}
+        records={records}
+        primaryProviderName="Mail.tm"
+        providerNames={PROVIDER_NAMES}
+      />,
+    );
 
     return { session, records };
   }
@@ -524,7 +549,12 @@ describe("the panel renders the mailbox beside the page", () => {
     // **The address section's heading is the provider that served the mailbox, not the one this
     // client reaches first** — a mailbox served by the fallback is never described by the
     // preference that was tried first.
-    expect(screen.getByRole("heading", { name: "guerrilla" })).toBeDefined();
+    //
+    // **And it names it the way the provider names itself** (`surface-hierarchy`): this assertion
+    // read `"guerrilla"` until that change, because the heading rendered the identifier a `Mailbox`
+    // stores. **A test that spells the id is a test that agrees with the defect**, which is why the
+    // case did not report it.
+    expect(screen.getByRole("heading", { name: "Guerrilla Mail" })).toBeDefined();
     expect(screen.queryByText("Mail.tm")).toBeNull();
     expect(screen.getByText(MAILBOX.address)).toBeDefined();
 
@@ -686,6 +716,41 @@ describe("the panel renders the mailbox beside the page", () => {
     expect(screen.getByRole("link", { name: /open/i }).getAttribute("href")).toBe(
       "https://verify.example.test/confirm?t=abc",
     );
+  });
+
+  /**
+   * **The same four fields the popup shows, read on this surface too.**
+   *
+   * `OpenedMessageView` is one component serving both surfaces, and `MessageList`'s own precedent
+   * is that a component serving two surfaces needs a case on each: the panel passes a clipboard and
+   * a link list the popup does not, so *"the fields survive this composition"* is a claim about
+   * **this call site** and not about the component in the abstract.
+   */
+  it("shows the message it opened, its four fields before the things found in it", async () => {
+    installPlatform({ host: "signup.example.test" });
+    const session = stubSession({
+      kind: "ready",
+      mailbox: MAILBOX,
+      inbox: { kind: "checked", listing: { messages: [LISTED], verdicts: new Map() } },
+      opened: { kind: "opened", message: OPENED },
+    } as unknown as SessionState);
+
+    renderPanel({ session });
+
+    expect((await screen.findByTestId("message-from")).textContent).toBe("Example");
+    expect(screen.getByTestId("message-subject").textContent).toBe("Your sign-in code");
+    expect(screen.getByTestId("message-received-at").textContent).toBe(
+      new Date(OPENED.receivedAt).toISOString(),
+    );
+    expect(screen.getByTestId("message-readable").textContent).toBe(OPENED.readable);
+
+    // **And the message precedes the codes and the links found in it**, so the panel states what
+    // it opened before it states what was detected inside it.
+    const opened = screen.getByTestId("message-opened");
+    const found = [screen.getByTestId("code-list"), screen.getByTestId("link-list")];
+    for (const list of found) {
+      expect(opened.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    }
   });
 
   it("gives every detected code its own clipboard control", async () => {
@@ -970,7 +1035,14 @@ describe("the panel names the page beside it", () => {
     const platform = installPlatform(options);
     const session = readySession();
 
-    render(<Panel session={session} records={records} primaryProviderName="Mail.tm" />);
+    render(
+      <Panel
+        session={session}
+        records={records}
+        primaryProviderName="Mail.tm"
+        providerNames={PROVIDER_NAMES}
+      />,
+    );
 
     await waitFor(() => {
       expect(screen.getByTestId("panel-host").textContent).not.toMatch(/asking/i);
@@ -1036,7 +1108,14 @@ describe("the panel names the page beside it", () => {
     const platform = installPlatform({ host: "first.example.test" });
     const session = readySession();
 
-    render(<Panel session={session} records={records} primaryProviderName="Mail.tm" />);
+    render(
+      <Panel
+        session={session}
+        records={records}
+        primaryProviderName="Mail.tm"
+        providerNames={PROVIDER_NAMES}
+      />,
+    );
 
     await waitFor(() => {
       expect(platform.asked).toHaveLength(1);
@@ -1093,6 +1172,7 @@ describe("the panel names the page beside it", () => {
         session={session}
         records={stubRecords({ held: [MAILBOX, OLDER], association: MAILBOX.id })}
         primaryProviderName="Mail.tm"
+        providerNames={PROVIDER_NAMES}
       />,
     );
 
@@ -1133,6 +1213,7 @@ describe("the panel names the page beside it", () => {
           session={readySession()}
           records={stubRecords({ held: [MAILBOX, OLDER], association: MAILBOX.id })}
           primaryProviderName="Mail.tm"
+          providerNames={PROVIDER_NAMES}
         />,
       );
 
@@ -1304,7 +1385,14 @@ describe("the panel names the page beside it", () => {
       },
     };
 
-    render(<Panel session={readySession()} records={records} primaryProviderName="Mail.tm" />);
+    render(
+      <Panel
+        session={readySession()}
+        records={records}
+        primaryProviderName="Mail.tm"
+        providerNames={PROVIDER_NAMES}
+      />,
+    );
 
     // **While the boot read is outstanding the panel shows nothing and asks nothing.** A page
     // question is only meaningful against a device that knows its own contents, and asking first
@@ -1345,7 +1433,14 @@ describe("the panel names the page beside it", () => {
       opened: null,
     } as unknown as SessionState);
 
-    render(<Panel session={session} records={records} primaryProviderName="Mail.tm" />);
+    render(
+      <Panel
+        session={session}
+        records={records}
+        primaryProviderName="Mail.tm"
+        providerNames={PROVIDER_NAMES}
+      />,
+    );
 
     await waitFor(() => {
       expect(screen.getByTestId("panel-host").textContent).toContain("first.example.test");
@@ -1667,7 +1762,14 @@ describe("the panel names the page beside it", () => {
         association: MAILBOX.id,
       });
 
-      render(<Panel session={session} records={records} primaryProviderName="Mail.tm" />);
+      render(
+        <Panel
+          session={session}
+          records={records}
+          primaryProviderName="Mail.tm"
+          providerNames={PROVIDER_NAMES}
+        />,
+      );
 
       await screen.findByTestId("panel-held");
 
@@ -1918,6 +2020,7 @@ describe("the panel states, per message, what the session found", () => {
         session={session}
         records={stubRecords({ held: [MAILBOX], association: MAILBOX.id })}
         primaryProviderName="Mail.tm"
+        providerNames={PROVIDER_NAMES}
       />,
     );
   }
@@ -2254,7 +2357,14 @@ describe("removing what this device keeps", () => {
     installPlatform({ host: "signup.example.test" });
     const own = session();
 
-    render(<Panel session={own} records={records} primaryProviderName="Mail.tm" />);
+    render(
+      <Panel
+        session={own}
+        records={records}
+        primaryProviderName="Mail.tm"
+        providerNames={PROVIDER_NAMES}
+      />,
+    );
 
     await waitFor(() => {
       expect(screen.getByTestId("panel-host").textContent).not.toMatch(/asking/i);
@@ -2333,6 +2443,31 @@ describe("removing what this device keeps", () => {
     expect(records.removals).toBe(0);
   });
 
+  /**
+   * **The region's position, and it is a claim about subject rather than about danger.**
+   *
+   * Measured on the built panel before `surface-hierarchy`: host 68 px, address 71 px, **removal
+   * 86 px**, inbox 156 px, message 318 px — so a destructive maintenance action about this device's
+   * stored records stood between the address and the mail that address exists to receive. The panel
+   * is a surface about a mailbox; removing what this device keeps is a statement about storage and
+   * belongs after the mail.
+   *
+   * **It is not hidden and it is not behind a disclosure** — it is still a region with its own
+   * heading, in the place a surface puts its housekeeping — so the assertions below are about order
+   * and not about presence. **The second one is what holds the placement**: after the inbox alone
+   * would be satisfied by a region standing between the inbox and the message.
+   */
+  it("stands after the mail it is not about, and before the report of the session", async () => {
+    await mount(stubRecords({ held: [MAILBOX] }));
+
+    const removal = await screen.findByTestId("panel-removal-offer");
+    const inbox = screen.getByTestId("message-list");
+    const report = screen.getByTestId("panel-diagnostic-entries");
+
+    expect(inbox.compareDocumentPosition(removal) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    expect(removal.compareDocumentPosition(report) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+  });
+
   it("offers no removal and says nothing is kept on a device that holds nothing", async () => {
     await mount(stubRecords({ held: [] }));
 
@@ -2389,6 +2524,7 @@ describe("removing what this device keeps", () => {
           clearAll: async () => undefined,
         }}
         primaryProviderName="Mail.tm"
+        providerNames={PROVIDER_NAMES}
       />,
     );
 
