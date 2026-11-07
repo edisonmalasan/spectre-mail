@@ -116,7 +116,7 @@ test.describe("the popup as an extension page", () => {
     // **The provider is named by the one that *served*, not the one that was preferred.**
     // That distinction is the whole point of `provider-abstraction`'s requirement that a
     // fallback cannot masquerade as the primary.
-    await expect(page.getByRole("heading", { name: "mailtm" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Mail.tm" })).toBeVisible();
 
     // **The address's domain comes from the recorded `/domains` response, and the local
     // part does not.** An earlier draft of this spec asserted a fixed
@@ -224,7 +224,7 @@ test.describe("the popup as an extension page", () => {
     // proving it reported a provider's answer. The tier now imports the measured
     // fixtures by name, and the measured Guerrilla Mail address is a different string.
     await expect(page.locator(".popup__address")).toHaveText(FIXTURE_IDS.guerrilla.address);
-    await expect(page.getByRole("heading", { name: "guerrilla" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Guerrilla Mail" })).toBeVisible();
 
     // **Both were tried, in the declared order.**
     const mailtmIndex = traffic.requested.findIndex((url) => url.includes("api.mail.tm"));
