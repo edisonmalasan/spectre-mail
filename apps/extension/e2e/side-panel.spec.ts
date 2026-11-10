@@ -60,6 +60,7 @@ import {
   recordProviderTraffic,
 } from "./recorded-provider";
 import type { ProviderTraffic } from "./recorded-provider";
+import { declared, pxOf, rgbOf } from "./resolved-tokens";
 import { clearArmedAlarms, waitForTheArmingThenDisarm } from "./helpers/background-state";
 import { openFixturePage, reactState } from "./helpers/in-page-fixture";
 import {
@@ -500,6 +501,62 @@ function entriesOf(panel: Page): Locator {
   return panel.locator('[data-testid="panel-held"]').getByRole("radio");
 }
 
+/**
+ * **A mailbox made the way a person makes one, which is the popup's own flow and not a seeded
+ * fixture.**
+ *
+ * **A first version of this file seeded `STORED_MAILBOX` through `chrome.storage` and waited for
+ * a listing that never arrived.** The seeded record is a `fake-indexeddb`-shaped fixture with a
+ * session id the recorded provider serves no mailbox for, so the panel adopted it and then
+ * correctly reported that the reconcile failed. The case was measuring the fixture.
+ *
+ * **Creating is also the more faithful path**, and it exercises something seeding cannot: the
+ * panel creates by **delegating to the background context** — §5.8, and the reason is that a
+ * provider is contacted from exactly one context — so a listing only exists because the whole
+ * chain ran: the panel's press, the worker's create, the recorded provider, the worker's storage
+ * write, and the panel's own re-read of the device.
+ *
+ * **At module scope since `surface-hierarchy`'s instruments landed, and that is a move rather than
+ * a copy.** The hierarchy group is a **second top-level `describe`**, and a function declared
+ * inside one describe is invisible to another — so the choice was this move or a second spelling
+ * of "make a mailbox the way a person does", which is the defect `open-mailbox.ts` was extracted
+ * to stop one directory over. `stage`, `hostLine` and `entriesOf` were already here.
+ */
+async function createHere(panel: Page): Promise<void> {
+  await panel.getByRole("button", { name: "Create an address" }).click();
+
+  /**
+   * **The address is waited for by shape rather than by its literal**, because the value is the
+   * recorded provider's to choose and `popup.spec.ts` already exists to be named for retyping it.
+   */
+  await expect(panel.locator(".panel__address")).toHaveText(/@/, { timeout: 30_000 });
+}
+
+/**
+ * The built popup, opened **as a tab** of the window the fixture page shares.
+ *
+ * **A substitute, and it is the same one `in-page-fill.spec.ts` uses for the same reason.**
+ * `chrome.action.openPopup()` adds no Playwright `Page` - measured - and a real popup window is
+ * not a tab. What this arrangement holds is that the **built** `popup.html` boots, adopts what
+ * this device holds, and renders; what it cannot hold is anything about how a popup is docked,
+ * which no case in either tier measures.
+ *
+ * **The caller brings the fixture page to front afterwards**, because the panel re-asks the active
+ * tab on every switch and this document's own readers read a *host*.
+ *
+ * **At module scope for `createHere`'s reason**, and it is the reader the hierarchy group needs
+ * most: the claim that both surfaces put their address at the same step is a comparison of two
+ * documents, so the group that makes it has to be able to open the second one.
+ */
+async function openThePopupDocument(): Promise<Page> {
+  const popup = await extension.context.newPage();
+
+  opened.push(popup);
+  await popup.goto(`chrome-extension://${extension.extensionId}/popup.html`);
+
+  return popup;
+}
+
 test.describe("the side panel, in a real Chromium", () => {
   test("names the host of the page beside it, and that host is the page's own", async () => {
     const { page, panel } = await stage();
@@ -627,31 +684,6 @@ test.describe("the side panel, in a real Chromium", () => {
     await expect(held.getByRole("radio").first()).toHaveAttribute("aria-checked", "true");
     await expect(held.getByRole("radio").nth(1)).toHaveAttribute("aria-checked", "false");
   });
-
-  /**
-   * **A mailbox made the way a person makes one, which is the popup's own flow and not a seeded
-   * fixture.**
-   *
-   * **A first version of this file seeded `STORED_MAILBOX` through `chrome.storage` and waited for
-   * a listing that never arrived.** The seeded record is a `fake-indexeddb`-shaped fixture with a
-   * session id the recorded provider serves no mailbox for, so the panel adopted it and then
-   * correctly reported that the reconcile failed. The case was measuring the fixture.
-   *
-   * **Creating is also the more faithful path**, and it exercises something seeding cannot: the
-   * panel creates by **delegating to the background context** — §5.8, and the reason is that a
-   * provider is contacted from exactly one context — so a listing only exists because the whole
-   * chain ran: the panel's press, the worker's create, the recorded provider, the worker's storage
-   * write, and the panel's own re-read of the device.
-   */
-  async function createHere(panel: Page): Promise<void> {
-    await panel.getByRole("button", { name: "Create an address" }).click();
-
-    /**
-     * **The address is waited for by shape rather than by its literal**, because the value is the
-     * recorded provider's to choose and `popup.spec.ts` already exists to be named for retyping it.
-     */
-    await expect(panel.locator(".panel__address")).toHaveText(/@/, { timeout: 30_000 });
-  }
 
   test("lists messages and shows the code in one a person opens", async () => {
     const { panel } = await stage();
@@ -1422,27 +1454,6 @@ test.describe("the side panel, in a real Chromium", () => {
       const words = await renderedWords(surface);
 
       return FORBIDDEN.filter(({ pattern }) => pattern.test(words)).map(({ name }) => name);
-    }
-
-    /**
-     * The built popup, opened **as a tab** of the window the fixture page shares.
-     *
-     * **A substitute, and it is the same one `in-page-fill.spec.ts` uses for the same reason.**
-     * `chrome.action.openPopup()` adds no Playwright `Page` - measured - and a real popup window is
-     * not a tab. What this arrangement holds is that the **built** `popup.html` boots, adopts what
-     * this device holds, and renders; what it cannot hold is anything about how a popup is docked,
-     * which no case in either tier measures.
-     *
-     * **The caller brings the fixture page to front afterwards**, because the panel re-asks the active
-     * tab on every switch and this document's own readers read a *host*.
-     */
-    async function openThePopupDocument(): Promise<Page> {
-      const popup = await extension.context.newPage();
-
-      opened.push(popup);
-      await popup.goto(`chrome-extension://${extension.extensionId}/popup.html`);
-
-      return popup;
     }
 
     /**
@@ -2510,3 +2521,317 @@ async function waitForRequests(traffic: ProviderTraffic, atLeast: number, timeou
     `the recorded provider was asked for ${traffic.requested.length} requests, wanted ${atLeast}`,
   ).toBeGreaterThanOrEqual(atLeast);
 }
+
+/**
+ * The panel's hierarchy, and the one claim in either tier that compares two surfaces.
+ *
+ * ## Why these are here rather than in the popup's group
+ *
+ * `surface-hierarchy` changed the extension's **two** surfaces, and the panel's defects were
+ * different ones: measured on the built panel, the region a person is least likely to want
+ * (removing this device's records) sat **fourth**, above the mail, and a message was a bare
+ * `<li>` with `display: list-item`, `list-style-type: disc`, **65 px wide**.
+ *
+ * **The label step is asserted here as well as in the popup, and that is not duplication.** The
+ * popup's case holds the half that needs Chromium's own tree — a `text-transform` changes a
+ * heading's *accessible name* — and that instrument is written once, there, because it is a fact
+ * about the role rather than about a surface. What this group adds is that **the shared rule
+ * reaches the panel**: a rule scoped to `.popup h2` would leave every panel heading at 22 px with
+ * the popup's case still green.
+ *
+ * **The address parity case is the only place in this tier where two documents are read and
+ * compared**, and it is what makes *"the address is the largest datum"* a claim about the product
+ * rather than about one of its surfaces.
+ *
+ * ## What it does not establish
+ *
+ * - **Nothing about how the panel looks.** The readings are resolved values and geometry; no case
+ *   reads a rendered pixel's colour or position as a judgement.
+ * - **Nothing about the address breaking after its `@` on this surface.** The popup's own case
+ *   holds the break, because the popup is a fixed 22rem box and the panel's width is the
+ *   platform's — a wrap here would be a claim about the viewport `stage()` happens to use.
+ * - **Nothing about `#panel-held-heading`.** The chooser renders only on a device holding more
+ *   than one mailbox, and this group stages the device a person gets by making one address. Its
+ *   heading is selected by the same `h2` rule the five below are, so what is unasserted here is
+ *   one selector and not a treatment.
+ * - **Nothing about a provider.** Every response is recorded; the Guerrilla path is staged by
+ *   making Mail.tm answer 503.
+ */
+test.describe("the panel's hierarchy", () => {
+  test("sets every region's name at the label step, and gives the address the step the popup gives it", async () => {
+    const { panel } = await stage();
+
+    await expect(panel.locator('[data-testid="panel-host"]')).toContainText(FIXTURE_HOST, {
+      timeout: 20_000,
+    });
+    await createHere(panel);
+
+    const rootPx = await panel.evaluate(() =>
+      Number.parseFloat(getComputedStyle(document.documentElement).fontSize),
+    );
+    const size = pxOf(await declared(panel, "--type-xs"), rootPx);
+    const leading = Number.parseFloat(await declared(panel, "--leading-normal"));
+    const tracking = Number.parseFloat(await declared(panel, "--tracking-wide"));
+    const weight = await declared(panel, "--weight-medium");
+    const muted = rgbOf(await declared(panel, "--ink-muted"));
+
+    /**
+     * One region's name, held to the four tokens the role declares and to the colour the panel's
+     * own rule adds.
+     *
+     * **A local function rather than a list declared once at module scope**, because the list is a
+     * claim about *this* staging: a device holding one mailbox renders five regions, and a reader
+     * that carried a sixth selector would fail here for a reason this case does not own.
+     */
+    const assertLabelStep = async (selector: string): Promise<void> => {
+      const heading = panel.locator(selector);
+      await expect(heading, `${selector} is not on the panel`).toHaveCount(1);
+
+      const style = await heading.evaluate((element) => {
+        const computed = getComputedStyle(element);
+        return {
+          fontSize: computed.fontSize,
+          fontWeight: computed.fontWeight,
+          lineHeight: computed.lineHeight,
+          letterSpacing: computed.letterSpacing,
+          textTransform: computed.textTransform,
+          color: computed.color,
+        };
+      });
+
+      expect(style.fontSize, `${selector}: the name is not at --type-xs`).toBe(`${size}px`);
+      expect(style.fontWeight, `${selector}: the name is not at --weight-medium`).toBe(weight);
+      expect(style.lineHeight, `${selector}: the name is not at --leading-normal`).toBe(
+        `${size * leading}px`,
+      );
+      expect(style.letterSpacing, `${selector}: the name is not at --tracking-wide`).toBe(
+        `${size * tracking}px`,
+      );
+
+      // **`none` and not `uppercase`.** The extension's `h2` carried the transform on one client
+      // and the design record required it nowhere, which is the defect the ninth role was born
+      // from. The popup's case holds the accessible-name half; this holds the computed half on
+      // the second surface, because a rule kept on `.panel h2` alone would satisfy neither.
+      expect(style.textTransform, `${selector}: the name is transformed`).toBe("none");
+      expect(style.color, `${selector}: the name is not in --ink-muted`).toBe(muted);
+    };
+
+    for (const selector of [
+      "#panel-host-heading",
+      "#panel-address-heading",
+      "#panel-inbox-heading",
+      "#panel-removal-heading",
+      "#panel-diagnostic-heading",
+    ]) {
+      await assertLabelStep(selector);
+    }
+
+    // **The provider, named the way the provider names itself.** Before this change the panel's
+    // most prominent label rendered the *id* — `mailtm` — while the panel's own failure sentences
+    // said *"Mail.tm"*: one surface naming one provider two ways. `createHere` takes the default
+    // path, so the provider that served is Mail.tm and the heading is its declared name.
+    await expect(
+      panel.locator("#panel-address-heading"),
+      "the panel does not name the provider the way the provider names itself",
+    ).toHaveText("Mail.tm");
+
+    const addressReading = async (surface: Page, selector: string) =>
+      surface.locator(selector).evaluate((element) => {
+        const computed = getComputedStyle(element);
+        return {
+          fontSize: computed.fontSize,
+          color: computed.color,
+          display: computed.display,
+          text: element.textContent ?? "",
+        };
+      });
+
+    // **The panel's address first, then the popup's.** Opening the popup as a tab makes it the
+    // active tab, and the panel re-asks the host on every switch — so reading the panel after the
+    // popup opens would be reading it during a transition this case is not about.
+    const panelAddress = await addressReading(panel, ".panel__address");
+    const addressSize = pxOf(await declared(panel, "--type-2xl"), rootPx);
+    const brandSize = pxOf(await declared(panel, "--type-xl"), rootPx);
+
+    expect(panelAddress.fontSize, "the panel's address is not at --type-2xl").toBe(
+      `${addressSize}px`,
+    );
+    expect(addressSize, "the panel's address is not above its brand heading").toBeGreaterThan(
+      brandSize,
+    );
+
+    const popup = await openThePopupDocument();
+    await expect(popup.locator(".popup__address")).toHaveText(/@/, { timeout: 30_000 });
+    const popupAddress = await addressReading(popup, ".popup__address");
+
+    // **One address, two surfaces, and the same resolved treatment on both.** A rule that reached
+    // only the popup would leave the panel's address at the base step, and every other assertion
+    // in this tier would still pass.
+    expect(popupAddress.text, "the two surfaces are showing different addresses").toBe(
+      panelAddress.text,
+    );
+    expect(panelAddress.fontSize, "the two surfaces size the address differently").toBe(
+      popupAddress.fontSize,
+    );
+    expect(panelAddress.color, "the two surfaces paint the address differently").toBe(
+      popupAddress.color,
+    );
+    expect(panelAddress.display, "the two surfaces lay the address out differently").toBe(
+      popupAddress.display,
+    );
+  });
+
+  test("puts the removal of this device's records below the mail it is a record of", async () => {
+    const { panel } = await stage();
+
+    await expect(panel.locator('[data-testid="panel-host"]')).toContainText(FIXTURE_HOST, {
+      timeout: 20_000,
+    });
+    await createHere(panel);
+
+    /**
+     * **The listing arrives from the adoption, not from a press** — the panel deliberately offers
+     * no "check for mail" control, and this case would otherwise be asserting a control that does
+     * not exist.
+     */
+    await expect(panel.locator('[data-testid="message-list"]')).toBeVisible({ timeout: 20_000 });
+    await panel.getByRole("button", { name: "Read" }).click();
+    await expect(panel.locator('[data-testid="panel-message"]')).toBeVisible();
+
+    const order = await panel.evaluate(() =>
+      [...document.querySelectorAll("main.panel > section")].map((element) => ({
+        name: element.getAttribute("aria-labelledby") ?? "",
+        top: element.getBoundingClientRect().top,
+      })),
+    );
+
+    const names = order.map((entry) => entry.name);
+    const positionOf = (name: string): number => {
+      const at = names.indexOf(name);
+      expect(
+        at,
+        `the panel renders no ${name} section: ${names.join(", ")}`,
+      ).toBeGreaterThanOrEqual(0);
+      return at;
+    };
+
+    /**
+     * **The order, named in the failure message.**
+     *
+     * Measured before this change: host 68 px, address 71 px, **removal 86 px**, inbox 156 px,
+     * message 318 px — so the region a person is least likely to want stood between the address
+     * and the mail that address exists to receive. The rule is about **subject**: a surface states
+     * what it is about before its account of the session, and removing what this device keeps is a
+     * statement about storage rather than about the page or the mail.
+     */
+    expect(
+      positionOf("panel-inbox-heading"),
+      "the inbox is not above the removal region",
+    ).toBeLessThan(positionOf("panel-message-heading"));
+    expect(
+      positionOf("panel-message-heading"),
+      "the opened message is not above the removal region",
+    ).toBeLessThan(positionOf("panel-removal-heading"));
+    expect(
+      positionOf("panel-removal-heading"),
+      "the removal region is not above the session report",
+    ).toBeLessThan(positionOf("panel-diagnostic-heading"));
+
+    /**
+     * **And the boxes, because a stylesheet can move one without moving the words.** A
+     * DOM-order assertion alone is satisfied by a `column-reverse` on `main.panel`, which would put
+     * the report at the top of what a person sees while every string stayed where the JSX wrote it.
+     * The message names every section and its rounded top, so a failure is readable without a
+     * re-run.
+     */
+    let previousTop = Number.NEGATIVE_INFINITY;
+    let previousName = "the top of the panel";
+    for (const entry of order) {
+      expect(
+        entry.top,
+        `${entry.name} is not below ${previousName}: ${order
+          .map((seen) => `${seen.name}@${Math.round(seen.top)}`)
+          .join(", ")}`,
+      ).toBeGreaterThan(previousTop);
+      previousTop = entry.top;
+      previousName = entry.name;
+    }
+  });
+
+  test("gives a message four fields, each in a place of its own", async () => {
+    // **The Guerrilla path, because it is the staging that carries a verdict.** The panel is the
+    // only surface that marks a row (`extension-client` forbids the popup from doing it), and the
+    // marking is what makes the fourth field observable at all.
+    const { panel } = await stage({
+      mailTmUnavailable: true,
+      guerrillaRead: GUERRILLA_READ_ANSWERS.code,
+    });
+
+    await expect(panel.locator('[data-testid="panel-host"]')).toContainText(FIXTURE_HOST, {
+      timeout: 20_000,
+    });
+    await createHere(panel);
+
+    const verdict = panel.locator('[data-testid="message-verdict"]');
+    await expect(verdict, "the recorded listing this stage serves holds one message").toHaveCount(
+      1,
+      { timeout: 20_000 },
+    );
+
+    /**
+     * **One `evaluate`, scoped from the verdict rather than from the list.** The row is the unit
+     * the requirement speaks in, so the reader resolves `verdict.closest("li")` and reads every
+     * field inside *that* element. A document-wide reader would answer the same thing for a panel
+     * that put one row's fields in another row.
+     */
+    const row = await verdict.evaluate((element) => {
+      const item = element.closest("li");
+      if (item === null) throw new Error("the verdict is not inside a row");
+
+      const rect = (selector: string) => {
+        const found = item.querySelector(selector);
+        if (found === null) throw new Error(`the row renders no ${selector}`);
+        const box = found.getBoundingClientRect();
+        return {
+          top: box.top,
+          left: box.left,
+          width: box.width,
+          text: (found.textContent ?? "").trim(),
+        };
+      };
+
+      return {
+        display: getComputedStyle(item).display,
+        from: rect(".message__from"),
+        time: rect(".message__time"),
+        subject: rect(".message__subject"),
+        verdict: rect(".message__verdict"),
+      };
+    });
+
+    // **A row and not a bulleted list item.** Measured before this change: `display: list-item`,
+    // `list-style-type: disc`, 65 px wide — a marker that said the list was a list and nothing
+    // about the message, and no column for a time or a verdict to sit in.
+    expect(row.display, "a message is not a row").toBe("grid");
+
+    // **The four fields the requirement names, each with something in it.** An empty field is the
+    // defect `COPY.noSubject` and `COPY.unnamedSender` exist to prevent, and a row that rendered
+    // three of the four would satisfy every positional assertion below.
+    for (const [name, field] of Object.entries(row)) {
+      if (typeof field !== "object") continue;
+      expect(field.text, `the row's ${name} field is empty`).not.toBe("");
+    }
+
+    // **The places.** The sender and the time share the first line, the subject begins its own,
+    // and the verdict — a full sentence, which is why it takes a row rather than a column — comes
+    // last. A row that put the time after the subject would have all three on one line, which is
+    // the shape the defect had.
+    expect(row.time.top, "the time is not on the sender's line").toBeCloseTo(row.from.top, 0);
+    expect(row.subject.top, "the subject is not on a line of its own").toBeGreaterThan(
+      row.from.top + 1,
+    );
+    expect(row.verdict.top, "the verdict is not below the subject").toBeGreaterThan(
+      row.subject.top + 1,
+    );
+  });
+});
