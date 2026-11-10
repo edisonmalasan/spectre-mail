@@ -39,7 +39,7 @@ import {
   readStoredMailboxCollection,
   SPECTRE_ENVELOPE_VERSION,
 } from "@spectre-mail/storage";
-import type { Page } from "@playwright/test";
+import type { CDPSession, Page } from "@playwright/test";
 
 import { INBOX_POLL_CEILING_MS } from "@spectre-mail/mailbox";
 import { BODY_TEXT, contrastRatio, meets } from "@spectre-mail/ui";
@@ -48,6 +48,7 @@ import { launchExtension } from "./launch-extension";
 import type { LaunchedExtension } from "./launch-extension";
 import { recordProviderTraffic, FIXTURE_IDS } from "./recorded-provider";
 import type { ProviderTraffic } from "./recorded-provider";
+import { declared, pxOf, rgbOf } from "./resolved-tokens";
 import { servedStylesheet, stripGeneratedTokenBlocks } from "./served-stylesheet";
 import { clearStoredMailbox, readSingularRecord } from "./helpers/stored-mailbox";
 import { waitForTheArmingThenDisarm } from "./helpers/background-state";
@@ -305,6 +306,435 @@ test.describe("the popup as an extension page", () => {
     // that nothing did — and it names the origin rather than counting, because a count
     // cannot be told apart from a check that found nothing to complain about.
     expect(traffic.unscripted, `unscripted origins: ${traffic.unscripted.join(", ")}`).toEqual([]);
+  });
+});
+
+/**
+ * A heading's accessible name, from Chromium's own tree rather than from its text.
+ *
+ * ## Why the text is not enough, and why `getByRole` is not either
+ *
+ * Measured on 2026-10-29: **Chromium computes an element's accessible name from the
+ * *rendered* text.** A heading whose `text-transform` is `uppercase` is named `READY` in
+ * the accessibility tree while its `textContent` stays `Ready` — so a role that
+ * transformed its own text would make every region's name disagree with the string the
+ * surface says it is.
+ *
+ * **Playwright's `getByRole("heading", { name })` does not apply the transform.** It
+ * matches the untransformed string, which is why the popup's existing
+ * `getByRole("heading", { name: "Mail.tm" })` passes on a surface whose heading is
+ * painted `MAIL.TM`. Only the platform's own tree can report the difference, and this
+ * helper is the one reader in this tier that asks it.
+ *
+ * `Runtime.evaluate` is asked for the element's handle rather than its value, because
+ * `Accessibility.queryAXTree` takes an `objectId`. The heading is then picked out of the
+ * returned subtree **by role**, so a wrapper or an ignored node cannot be mistaken for it.
+ */
+async function axNameOf(cdp: CDPSession, selector: string): Promise<string> {
+  const { result } = (await cdp.send("Runtime.evaluate", {
+    expression: `document.querySelector(${JSON.stringify(selector)})`,
+  })) as { result: { objectId?: string } };
+
+  expect(result.objectId, `the surface must render ${selector}`).toBeTruthy();
+
+  const { nodes } = (await cdp.send("Accessibility.queryAXTree", {
+    objectId: result.objectId as string,
+  })) as {
+    nodes: { role?: { value?: string }; name?: { value?: string }; ignored?: boolean }[];
+  };
+
+  const heading = nodes.find((node) => node.ignored !== true && node.role?.value === "heading");
+
+  return heading?.name?.value ?? "";
+}
+
+/**
+ * The popup's hierarchy, read from the built popup.
+ *
+ * ## What this file is the only instrument for
+ *
+ * `surface-hierarchy` declared a ninth type role — `region-label` — and gave the
+ * extension's two surfaces the hierarchy the website already had. **No instrument before
+ * these cases read a heading's resolved type on either extension surface**: the popup's
+ * stylesheet sweep proves no *literal* is written, which is a claim about the source, and
+ * `Popup.test.tsx` reads the DOM, which carries no computed style at all. A rule that set
+ * every `h2` back to 22 px would have left every gate green.
+ *
+ * **And three of the four claims here are ones a stylesheet cannot make.** An address
+ * that breaks after its `@` is a property of the *rendered line*; a message row that is a
+ * row is a computed `display` and a measured width; and a report that comes last is a
+ * measured `top` rather than a position in the JSX.
+ *
+ * ## What it does not establish
+ *
+ * - **Nothing about how the popup looks.** No case here reads a rendered pixel's colour
+ *   or position as a judgement; the readings are resolved values and geometry.
+ * - **Nothing about a real popup window.** These pages are `popup.html` opened as a tab;
+ *   `side-panel.spec.ts` records why that substitute is the only one available.
+ * - **Nothing about the verdict field in a popup row**, which the popup does not render
+ *   by design — `MessageSurface.tsx` records the requirement that forbids it. The fourth
+ *   field is read in the panel's own case, where a marking exists.
+ * - **Nothing about a provider.** Every response is recorded; the Guerrilla path is
+ *   staged by making Mail.tm answer 503, which is the only way this tier reaches the
+ *   address that is long enough to wrap.
+ */
+test.describe("the popup's hierarchy", () => {
+  test("sets every region's name at the label step, and Chromium names each one by its own text", async () => {
+    const page = await openPopup();
+
+    const rootPx = await page.evaluate(() =>
+      Number.parseFloat(getComputedStyle(document.documentElement).fontSize),
+    );
+    const size = pxOf(await declared(page, "--type-xs"), rootPx);
+    const leading = Number.parseFloat(await declared(page, "--leading-normal"));
+    const tracking = Number.parseFloat(await declared(page, "--tracking-wide"));
+    const weight = await declared(page, "--weight-medium");
+    const muted = rgbOf(await declared(page, "--ink-muted"));
+
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Accessibility.enable");
+
+    /**
+     * One region's name, held to the role and then to the tree.
+     *
+     * **A local function rather than a loop over a list declared once**, because the
+     * create region's heading only exists before a mailbox does — so the list is read in
+     * two moments and a single array would have had to carry a selector that is gone by
+     * the time half of it is read.
+     */
+    const assertLabelStep = async (selector: string): Promise<void> => {
+      const heading = page.locator(selector);
+      await expect(heading, `${selector} is not on the popup`).toHaveCount(1);
+
+      const style = await heading.evaluate((element) => {
+        const computed = getComputedStyle(element);
+        return {
+          text: element.textContent ?? "",
+          fontSize: computed.fontSize,
+          fontWeight: computed.fontWeight,
+          lineHeight: computed.lineHeight,
+          letterSpacing: computed.letterSpacing,
+          textTransform: computed.textTransform,
+          color: computed.color,
+        };
+      });
+
+      expect(style.fontSize, `${selector}: the name is not at --type-xs`).toBe(`${size}px`);
+      expect(style.fontWeight, `${selector}: the name is not at --weight-medium`).toBe(weight);
+      expect(style.lineHeight, `${selector}: the name is not at --leading-normal`).toBe(
+        `${size * leading}px`,
+      );
+      expect(style.letterSpacing, `${selector}: the name is not at --tracking-wide`).toBe(
+        `${size * tracking}px`,
+      );
+
+      // **`none` and not `uppercase`.** This is the defect the role was born from: the
+      // extension's `h2` carried `text-transform: uppercase` on one client, was absent
+      // from the design record, and was required nowhere.
+      expect(style.textTransform, `${selector}: the name is transformed`).toBe("none");
+      expect(style.color, `${selector}: the name is not in --ink-muted`).toBe(muted);
+
+      // **And the tree, which is the half `getByRole` cannot see.** A transform left in
+      // place would paint the heading in capitals and name it in capitals while every
+      // assertion above except `text-transform` still passed.
+      expect(
+        await axNameOf(cdp, selector),
+        `${selector}: Chromium names this heading with something other than its own text`,
+      ).toBe(style.text);
+    };
+
+    // **The create region's name, read before the region unmounts.** It is a region name
+    // like the rest — `COPY.reaching` is what the surface says before it has an address —
+    // and leaving it out would have excluded the one heading a first-time visitor sees.
+    await assertLabelStep("#create-heading");
+
+    await page.getByRole("button", { name: "Create an address" }).click();
+    await expect(page.locator(".popup__address")).toHaveText(/@uberip\.com$/);
+
+    await page.getByRole("button", { name: "Check for mail" }).click();
+    await expect(page.locator('[data-testid="message-list"]')).toBeVisible({ timeout: 20_000 });
+    await page.getByRole("button", { name: "Read" }).click();
+    await expect(page.locator("#message-heading")).toBeVisible();
+
+    for (const selector of [
+      "#address-heading",
+      "#status-heading",
+      "#inbox-heading",
+      "#message-heading",
+      "#popup-diagnostic-heading",
+    ]) {
+      await assertLabelStep(selector);
+    }
+  });
+
+  test("makes the address the largest datum, and breaks it after the @ when it cannot fit", async () => {
+    // **The Guerrilla path, because it is the only address this tier serves that is long
+    // enough to wrap.** Mail.tm's recorded address fits on one line at this step, so a
+    // case staged on it could not tell a `<wbr>` from a `p` that simply had room.
+    const page = await openPopup({ mailTmUnavailable: true });
+
+    await page.getByRole("button", { name: "Create an address" }).click();
+    await expect(page.locator(".popup__address")).toHaveText(FIXTURE_IDS.guerrilla.address);
+
+    const rootPx = await page.evaluate(() =>
+      Number.parseFloat(getComputedStyle(document.documentElement).fontSize),
+    );
+    const size = pxOf(await declared(page, "--type-2xl"), rootPx);
+    const brandSize = pxOf(await declared(page, "--type-xl"), rootPx);
+    const space = pxOf(await declared(page, "--space-5"), rootPx);
+
+    const address = page.locator(".popup__address");
+    const addressText = (await address.textContent()) ?? "";
+
+    const reading = await address.evaluate((element) => {
+      const computed = getComputedStyle(element);
+      const surface = element.closest(".popup");
+      if (surface === null) throw new Error("the address is not on the popup");
+      return {
+        fontSize: computed.fontSize,
+        display: computed.display,
+        width: element.getBoundingClientRect().width,
+        surfaceWidth: surface.getBoundingClientRect().width,
+        text: element.textContent ?? "",
+        nodes: [...element.childNodes]
+          .filter((node) => node.nodeType === Node.TEXT_NODE)
+          .map((node) => node.textContent ?? ""),
+      };
+    });
+
+    expect(reading.fontSize, "the address is not at --type-2xl").toBe(`${size}px`);
+
+    // **The reversal, as a comparison rather than a value.** `surface-hierarchy` measured
+    // the brand heading at 22 px and the address at 16 px, so the one value a person opens
+    // this popup to take was smaller than the name of the product above it.
+    expect(size, "the address is not above the brand heading").toBeGreaterThan(brandSize);
+
+    expect(reading.display, "the address is not a block, so its line box is its string").toBe(
+      "block",
+    );
+
+    // **The address is not wider than the surface's content box**, which is the defect the
+    // break exists for: at `--type-2xl` the 32-character Guerrilla address is ≈537 px in a
+    // 304 px box, and a `p` that kept its max-content width would push the popup past the
+    // 22rem it declares.
+    expect(
+      reading.width,
+      `the address is wider than the popup's content box: ${addressText}`,
+    ).toBeLessThanOrEqual(reading.surfaceWidth - space * 2 + 1);
+
+    // **The mechanism, named.** The `@` ends one text node and the domain begins the next,
+    // so the break opportunity is the `<wbr>` between them and nothing else. A zero-width
+    // space would satisfy a line-box reading just as well and would enter the copied
+    // value, which is why its absence is asserted rather than assumed.
+    expect(reading.nodes, "the address is not split into two text nodes at the @").toHaveLength(2);
+    expect(reading.text, "the element's text is not the address").toBe(addressText);
+    expect(reading.text.includes("\u200b"), "a zero-width space is in the address").toBe(false);
+
+    // **The rendered line.** The popup is a fixed 22rem surface, so no viewport change is
+    // needed to make the address too wide for its container — which is the one thing this
+    // case does not have to stage.
+    const line = await address.evaluate((element) => {
+      const texts = [...element.childNodes].filter(
+        (node): node is Text => node.nodeType === Node.TEXT_NODE,
+      );
+      const local = texts[0];
+      const domain = texts[1];
+      if (local === undefined || domain === undefined) {
+        throw new Error("the address is not two text nodes");
+      }
+      const rectOf = (node: Text, offset: number) => {
+        const range = document.createRange();
+        range.setStart(node, offset);
+        range.setEnd(node, offset + 1);
+        const rect = range.getBoundingClientRect();
+        return { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right };
+      };
+      const at = (local.textContent ?? "").lastIndexOf("@");
+      return {
+        localText: local.textContent ?? "",
+        domainText: domain.textContent ?? "",
+        at: rectOf(local, at),
+        lastBefore: rectOf(local, at - 1),
+        firstAfter: rectOf(domain, 0),
+      };
+    });
+
+    expect(line.localText, "the first text node does not end at the @").toMatch(/@$/);
+    expect(line.localText + line.domainText, "the two text nodes are not the address").toBe(
+      addressText,
+    );
+
+    // **The break, and where it is.** The character after the `@` must sit on a lower line
+    // than the `@` itself. Equal tops mean the address fitted on one line, or that
+    // `overflow-wrap: anywhere` split it somewhere inside the local part — and this
+    // assertion is the one that would then be reporting the truth.
+    expect(
+      line.firstAfter.top,
+      `the popup did not wrap the domain after the @: ${addressText}`,
+    ).toBeGreaterThan(line.at.top + 1);
+    expect(line.lastBefore.top, "the @ is not on the first line").toBe(line.at.top);
+  });
+
+  test("gives a message a real row, with each field in a place of its own", async () => {
+    const page = await openPopup();
+
+    await page.getByRole("button", { name: "Create an address" }).click();
+    await expect(page.locator(".popup__address")).toHaveText(/@uberip\.com$/);
+
+    await page.getByRole("button", { name: "Check for mail" }).click();
+
+    const list = page.locator('[data-testid="message-list"]');
+    await expect(list).toBeVisible({ timeout: 20_000 });
+
+    const row = list.locator(":scope > li").first();
+    await expect(row).toBeVisible();
+
+    const reading = await row.evaluate((element) => {
+      const computed = getComputedStyle(element);
+      const list = element.closest("ul");
+      if (list === null) throw new Error("the row is not in a list");
+      const rect = (selector: string) => {
+        const found = element.querySelector(selector);
+        if (found === null) throw new Error(`the row renders no ${selector}`);
+        const box = found.getBoundingClientRect();
+        return { top: box.top, left: box.left, height: box.height, width: box.width };
+      };
+      return {
+        display: computed.display,
+        listStyleType: computed.listStyleType,
+        rowWidth: element.getBoundingClientRect().width,
+        listWidth: list.getBoundingClientRect().width,
+        from: rect(".message__from"),
+        time: rect(".message__time"),
+        subject: rect(".message__subject"),
+      };
+    });
+
+    // **A row and not a bulleted list item.** Measured before this change: a message was a
+    // bare `<li>`, `display: list-item`, `list-style-type: disc`, 65 px wide — so the
+    // marker said the list was a list and nothing about the message.
+    expect(reading.display, "a message is not a row").toBe("grid");
+    expect(reading.listStyleType, "a message still carries a bullet").not.toBe("disc");
+    expect(reading.rowWidth, "the row stops short of the list").toBeCloseTo(reading.listWidth, 1);
+
+    // **The fields, in their places.** The sender and the time share the first line and the
+    // subject begins a new one; a row that put the time after the subject would have all
+    // three on one line, which is the shape the defect had.
+    expect(
+      Math.abs(reading.time.top - reading.from.top),
+      "the time is not on the sender's line",
+    ).toBeLessThanOrEqual(1);
+    expect(reading.subject.top, "the subject is not on a line of its own").toBeGreaterThan(
+      reading.from.top + 1,
+    );
+    expect(reading.subject.top, "the subject is not below the time").toBeGreaterThan(
+      reading.time.top + 1,
+    );
+
+    /**
+     * **A long subject, planted into the running DOM**, because both recorded listings carry
+     * an empty subject and no fixture can be made to carry a long one from here.
+     *
+     * The claim is geometry rather than text: a subject that wraps wraps **inside its own
+     * field**, so the time and the sender do not move. A row that let the subject displace
+     * them would satisfy every assertion above and fail here.
+     *
+     * **`side-panel.spec.ts` plants a verdict into the same row by the same mechanism**, and
+     * the reason it is planted rather than served is recorded there: this tier answers every
+     * listing with the one a provider actually sent, and a body it invented under `apps/`
+     * would prove the popup echoed a fixture this repository wrote.
+     */
+    await row.locator(".message__subject").evaluate((element, text) => {
+      element.textContent = text;
+    }, "A subject long enough to wrap several times over inside a narrow row. ".repeat(3));
+
+    const after = await row.evaluate((element) => {
+      const rect = (selector: string) => {
+        const found = element.querySelector(selector);
+        if (found === null) throw new Error(`the row renders no ${selector}`);
+        const box = found.getBoundingClientRect();
+        return { top: box.top, left: box.left, height: box.height };
+      };
+      return {
+        from: rect(".message__from"),
+        time: rect(".message__time"),
+        subject: rect(".message__subject"),
+      };
+    });
+
+    // **The precondition first.** A plant that did not apply would leave the subject's height
+    // unchanged, and every assertion below would then be satisfied by a row nothing had
+    // happened to.
+    expect(after.subject.height, "the planted subject did not wrap").toBeGreaterThan(
+      reading.subject.height,
+    );
+    expect(after.time.top, "a long subject moved the time out of its field").toBeCloseTo(
+      reading.time.top,
+      0,
+    );
+    expect(after.time.left, "a long subject moved the time out of its field").toBeCloseTo(
+      reading.time.left,
+      0,
+    );
+    expect(after.from.top, "a long subject moved the sender out of its field").toBeCloseTo(
+      reading.from.top,
+      0,
+    );
+  });
+
+  test("puts the report of the session below everything it is a report about", async () => {
+    const page = await openPopup();
+
+    await page.getByRole("button", { name: "Create an address" }).click();
+    await expect(page.locator(".popup__address")).toHaveText(/@uberip\.com$/);
+
+    await page.getByRole("button", { name: "Check for mail" }).click();
+    await expect(page.locator('[data-testid="message-list"]')).toBeVisible({ timeout: 20_000 });
+    await page.getByRole("button", { name: "Read" }).click();
+    await expect(page.locator("#message-heading")).toBeVisible();
+
+    const order = await page.evaluate(() =>
+      [...document.querySelectorAll("main.popup > section")].map((element) => ({
+        name: element.getAttribute("aria-labelledby") ?? "",
+        top: element.getBoundingClientRect().top,
+      })),
+    );
+
+    // **The order the surface declares**, and it is the same order `Panel.tsx` records for
+    // its own report. Until `surface-hierarchy` the popup rendered the report **first** —
+    // 234 px, on a surface already 863 px tall in a 760 px viewport — so it opened on an
+    // account of the session and put the address a person came for below it.
+    expect(
+      order.map((entry) => entry.name),
+      "the popup's sections are not in the order it declares",
+    ).toEqual([
+      "address-heading",
+      "status-heading",
+      "inbox-heading",
+      "message-heading",
+      "popup-diagnostic-heading",
+    ]);
+
+    /**
+     * **And the boxes, because a stylesheet can move one without moving the words.**
+     *
+     * A DOM-order assertion alone is satisfied by a `flex-direction: column-reverse` on
+     * `main.popup`, which would put the report at the top of what a person sees while every
+     * string stayed where the JSX wrote it. **The message names what was seen**, because a
+     * reader of a failure needs the tops rather than the fact that a comparison failed.
+     */
+    let previousTop = Number.NEGATIVE_INFINITY;
+    let previousName = "the top of the popup";
+    for (const entry of order) {
+      expect(
+        entry.top,
+        `${entry.name} is not below ${previousName}: ${order
+          .map((seen) => `${seen.name}@${Math.round(seen.top)}`)
+          .join(", ")}`,
+      ).toBeGreaterThan(previousTop);
+      previousTop = entry.top;
+      previousName = entry.name;
+    }
   });
 });
 
