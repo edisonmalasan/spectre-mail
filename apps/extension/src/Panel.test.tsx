@@ -469,12 +469,22 @@ describe("the panel renders the mailbox beside the page", () => {
     cleanup();
   });
 
-  /** A panel showing one ready session, and the platform answering with a host. */
+  /**
+   * A panel showing one ready session, and the platform answering with a host.
+   *
+   * **`providerNames` is an option rather than a constant read inside, and that is the whole of what
+   * makes task 4.5 reachable.** The fallback arm is *"a stored mailbox whose provider this build no
+   * longer offers"*, and no mailbox can be constructed that way — `createMailbox` derives `provider`
+   * from `credentials.provider`, and `ProviderCredentials` is a closed union. **So the arm is staged
+   * from the other side**: the mailbox is real and the map is missing its entry, which is the same
+   * thing a person's device holds after the build that wrote their record stops offering one.
+   */
   function renderPanel(
     options: {
       readonly session?: ReturnType<typeof stubSession>;
       readonly records?: ReturnType<typeof stubRecords>;
       readonly state?: SessionState;
+      readonly providerNames?: Readonly<Record<string, string>>;
     } = {},
   ) {
     const session =
@@ -496,7 +506,7 @@ describe("the panel renders the mailbox beside the page", () => {
         session={session}
         records={records}
         primaryProviderName="Mail.tm"
-        providerNames={PROVIDER_NAMES}
+        providerNames={options.providerNames ?? PROVIDER_NAMES}
       />,
     );
 
@@ -572,6 +582,46 @@ describe("the panel renders the mailbox beside the page", () => {
      * that fails when the id is absent from a panel that **should** be showing the section.
      */
     expect(screen.getByTestId("panel-address").textContent).toContain(MAILBOX.address);
+  });
+
+  /**
+   * `4.5` — *"a stored mailbox whose provider no adapter in this build declares renders that
+   * identifier rather than an empty heading."*
+   *
+   * **The arm is staged from the map, because it cannot be staged from the mailbox.**
+   * `createMailbox` derives `Mailbox.provider` from `credentials.provider` and `ProviderCredentials`
+   * is a closed union, so no record this build can construct names a provider it does not declare.
+   * **What a person's device holds is a different matter**: a record written by an earlier build
+   * outlives the build that wrote it, and this version's manager builds its map from the adapters it
+   * *currently* offers. So the map is the thing that is short an entry, and that is what this case
+   * hands the surface.
+   *
+   * **The fallback is the identifier and not the empty string, and the difference is the whole
+   * assertion.** `providerDisplayName` returning `""` would render a heading that is a region's
+   * accessible name and names nothing — and a case asserting only *"renders without throwing"*
+   * would pass on it, which is why the assertion is the exact string.
+   */
+  it("names a provider this build no longer offers by the identifier its record carries", async () => {
+    installPlatform({ host: "signup.example.test" });
+
+    // **The map is short `guerrilla`, and the mailbox is the file's own Guerrilla record.**
+    renderPanel({ providerNames: { mailtm: "Mail.tm" } });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("panel-address")).toBeDefined();
+    });
+
+    /**
+     * **Read from the section's own heading rather than by role and name.** A role query would have
+     * to spell `"guerrilla"` — the very string under test — which is the shape the case above
+     * records as *"a test that spells the id is a test that agrees with the defect"*, arriving from
+     * the other side. Scoping from the section also means a heading that rendered the identifier
+     * somewhere else on the panel would not satisfy this.
+     */
+    const heading = screen.getByTestId("panel-address").querySelector("h2");
+
+    expect(heading, "the address region renders no heading at all").not.toBeNull();
+    expect(heading?.textContent).toBe("guerrilla");
   });
 
   it("lists what the last check found and opens the one that is pressed", async () => {
