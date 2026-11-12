@@ -117,7 +117,33 @@ test.describe("the popup as an extension page", () => {
     // **The provider is named by the one that *served*, not the one that was preferred.**
     // That distinction is the whole point of `provider-abstraction`'s requirement that a
     // fallback cannot masquerade as the primary.
-    await expect(page.getByRole("heading", { name: "Mail.tm" })).toBeVisible();
+    //
+    // **The heading is read at the address region's own node, and that is a repair this
+    // change's falsification pass forced.** The first form of this line was
+    // `getByRole("heading", { name: "Mail.tm" })`, and Playwright matches `name` as a
+    // **substring** by default — while the create region's own name is *"Asking Mail.tm
+    // first"*, which is on screen at the instant the assertion starts and unmounts a moment
+    // later. So the case was satisfied by a region that is not the address region, and it
+    // stayed **green** with `#address-heading` mutated back to the identifier `mailtm`.
+    // Measured, not suspected: arm A11 of `tasks.md` 6.5, and it is the shape this
+    // repository has recorded more than any other — an assertion satisfied by text that is
+    // not the text it names.
+    const heading = page.locator("#address-heading");
+    await expect(heading).toBeVisible();
+    await expect(
+      heading,
+      "the address region is named by the provider's identifier, not by the provider",
+    ).toHaveText("Mail.tm");
+
+    // **And no region name on this surface spells the identifier at all**, which is the half
+    // a region-scoped assertion cannot hold: a *second* region could name the provider the
+    // old way, and every other line in this case would still pass.
+    expect(
+      await page
+        .locator("h2")
+        .evaluateAll((nodes) => nodes.map((node) => (node.textContent ?? "").trim())),
+      "a region name still spells the provider's identifier",
+    ).not.toContain("mailtm");
 
     // **The address's domain comes from the recorded `/domains` response, and the local
     // part does not.** An earlier draft of this spec asserted a fixed
