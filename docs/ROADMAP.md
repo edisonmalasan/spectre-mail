@@ -154,6 +154,58 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > decisions rather than engineering work: whether the website is deployed, and whether the extension
 > is listed.** **Both are named unmet in §33.2**, both are scoped out of V1 by `AGENTS.md`, and
 > **neither is scheduled here**, because a roadmap that schedules a decision has already taken it.
+>
+> **⇒ And the rendered surfaces were given a hierarchy on 2026-11-01, in `surface-hierarchy` — a
+> refinement rather than a redesign, and the first change to restyle both clients from one record.**
+> **The identity is untouched**: the warm off-white, the one spectral-violet accent, the hairline
+> rather than the card, the monospace that means data, the single column, the single breakpoint and
+> the three weights are all where they were. **What changed is rank, order and the source of one
+> heading's text.**
+>
+> **The cause is a gap in the design record rather than a mistake on a client.** `DESIGN.md` named
+> eight type roles and **none of them was a quiet region name**, so the extension's 12 px uppercase
+> label existed on one client, was absent from the record, and was required nowhere — **a treatment
+> that a person had chosen, a client had implemented, and no document could hold to account**. The
+> ninth role is **`region-label`**, composed of four tokens the layer already declares
+> (`type-xs`, `weight-medium`, `leading-normal`, `tracking-wide`) — **so no token was added,
+> `packages/ui` is unmoved at 49, and the generated region in `docs/DESIGN_SYSTEM.md` needed no
+> re-emit.** **And the role carries no `text-transform`**, measured rather than preferred: Chromium's
+> computed accessible name follows the rendered transform, so an `h2` whose `textContent` is `Ready`
+> is announced as `READY` — a mutation only a CDP read of the accessibility tree can see.
+>
+> **Three reversals are worth naming because each was a claim the record had been making wrongly.**
+> The **address is a datum, not a heading**: it sat below the brand wordmark and the create control,
+> and it is now the largest thing on both surfaces at `type-2xl`; `DESIGN.md`'s sentence placing it
+> *"at the headline step"* is **deleted rather than reworded**, because it had been describing a
+> treatment the page did not use. **The accent follows the job**: `Copy address` completes the page's
+> job and carries it, `Replace address` keeps its border and loses the claim, and `RecentMailboxes`'
+> current entry gains `ink-accent` because a promoted requirement names that surface. **And the
+> provider is named the way the provider names itself** — the panel's most prominent label rendered
+> `mailtm` while the panel's own failure sentences said *"Mail.tm"*, which is one surface naming one
+> provider two ways; `providerDisplayName` now answers the declared name and falls back to the
+> identifier for a provider this build no longer offers.
+>
+> **And a pre-existing defect was found by the measurement the change made necessary.** A
+> 32-character Guerrilla address is about **307 px in the popup's 304 px content box**, so **the
+> shipped popup was already splitting its domain** — enlarging the address makes that certain rather
+> than likely. The address now breaks at its `@` through a `<wbr>`, **and the element's `textContent`
+> is the address with nothing inserted**, because a zero-width space would enter the copied value.
+>
+> **Measured: 1421 unit tests across 77 files** (from 1411, the movement reconciled per package),
+> **58 website and 106 extension browser cases** (from 52 and 99), `boundaries.test.ts` **unmoved at
+> 56**, `page-composition`'s **five regions and their order unmoved**, and `openspec/specs/` untouched
+> at **190 requirements / 629 scenarios / 15 capabilities** until this change's sync.
+>
+> **What it leaves open, and each is a different change rather than a smaller version of this one.**
+> **The website's four non-product regions keep their composition** — `steps`, `reasons`, `extension`
+> and `footer` are 44 % of the document between them, and whether the explanation belongs below the
+> product at all is a question about the page's argument, not its scale; **their headings take the
+> label step and nothing else in them moves.** **The in-page shadow-root control is untouched**,
+> including its literal accent and its inability to read custom properties. **The diagnostic report's
+> code vocabulary is untouched** — `MAILBOX_EXPIRED` is still shown to a person in a person's face.
+> **And the panel's chooser still repeats the full address to label a choice about it.** **Nothing
+> here was judged by a person**: no test in this repository reads a rendered pixel, so whether the
+> hierarchy now reads as right is a human judgement and not a measurement.
 
 >
 > `openspec/specs/` holds **fifteen** capabilities: `provider-abstraction` (promoted

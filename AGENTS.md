@@ -1,5 +1,93 @@
 # AGENTS.md
 
+> **`surface-hierarchy` is a design pass on both rendered surfaces, and it added no capability** —
+> dated **2026-11-01**, proposal PR **#193** merged `8c49349`, apply PR **#194** merged `05cbf8f`,
+> apply-continuation PR **#195** merged `a2674f1` and task-4.5 PR **#196** merged `3924841`. **The
+> stage's ledger-and-test-repair PR is the fourth and its number is not written here**, because it did
+> not exist when this paragraph was written and a predicted PR number is a figure nobody counted.
+>
+> **The identity is untouched and that is the claim the pass was run under.** The warm off-white, the
+> one spectral-violet accent, the hairline rather than the card, the monospace that means data, the
+> single column, the single breakpoint and the three weights are all where they were; **what changed
+> is rank, order, and the source of one heading's text.**
+>
+> **The cause is a gap in the design record rather than a mistake on a client.** `DESIGN.md` named
+> **eight** type roles and **none of them was a quiet region name**, so the extension's 12 px label
+> existed on one client, was absent from the record, and was required nowhere — a treatment a person
+> had chosen, a client had implemented, and no document could hold to account. The ninth role is
+> **`region-label`**, composed of four tokens the layer already declares — `type-xs`,
+> `weight-medium`, `leading-normal`, `tracking-wide` — **so no token was added, `packages/ui` is
+> unmoved at 49, and `docs/DESIGN_SYSTEM.md` is byte-identical to `main`** because the emitter's input
+> did not change. **`DESIGN.md`'s frontmatter moved from eight roles to nine**, and
+> `design-record.test.ts` holds that entry to the layer in both directions.
+>
+> **⇒ And the role carries no `text-transform: uppercase`, which is measured rather than preferred.**
+> Chromium's **computed accessible name follows the rendered transform**: an `h2` whose `textContent`
+> is `Ready` is announced as `READY` while its `textContent` still reads `Ready`. **A unit assertion
+> cannot see that and neither can a `textContent` read in the browser tier** — only a CDP read of the
+> accessibility tree can — so the absence of the transform is a claim about what a screen reader says,
+> and it is held by a browser case that reads the tree rather than the DOM.
+>
+> **Three reversals are worth naming, because each was a claim the record had been making wrongly.**
+> **The address is a datum, not a heading**: it sat below the brand wordmark and the create control on
+> both surfaces, and it is now the largest thing on both at `--type-2xl`; `DESIGN.md`'s sentence
+> placing it *"at the headline step"* is **deleted rather than reworded**, because it had been
+> describing a treatment the page did not use. **The accent follows the job**: `Copy address`
+> completes the page's job and carries it, `Replace address` keeps its border and loses the claim, and
+> `RecentMailboxes`' current entry gains `ink-accent` because a promoted requirement names that
+> surface. **And the provider is named the way the provider names itself** — the panel's most
+> prominent label rendered the **id** `mailtm` while the panel's own failure sentences said *"Mail.tm"*,
+> which is one surface naming one provider two ways; `providerDisplayName` now answers the declared
+> name and **falls back to the identifier** for a provider this build no longer offers, and a case
+> exercises that fallback because a fallback no case exercises is a fallback nobody has re-read.
+>
+> **And a pre-existing defect was found by the measurement the change made necessary.** A
+> 32-character Guerrilla address is about **307 px in the popup's 304 px content box**, so **the
+> shipped popup was already splitting its domain** — enlarging the address makes that certain rather
+> than likely, and the extension's own case had to be written to see it. The address now breaks at its
+> `@` through a block container and a `<wbr>`, **and the element's `textContent` is the address with
+> nothing inserted**, because a zero-width space would enter the copied value.
+>
+> **The falsification pass is 13 arms, and the one that survived is the finding.** Twelve were caught
+> by the assertion each was aimed at on the first run. **A11 survived, and the cause was the
+> assertion rather than the product**: `getByRole(role, { name })` matches the accessible name as a
+> **case-insensitive substring**, and the popup's decoy is `"Asking Mail.tm first"`, so the case
+> asserting the address heading said *"Mail.tm"* was satisfied by a sentence in the status region
+> **after the heading had been mutated back to the identifier**. The repair reads `#address-heading`
+> **at its own node** and adds a surface-wide `h2`-identifier guard, and A11 then failed on *"the
+> address region is named by the provider's identifier, not by the provider"*. **A13 was added after
+> the first run**, because D3 had an assertion and no arm pointed at it.
+>
+> **Measured: 1421 unit tests across 77 files** (from 1411, the movement reconciled per package and
+> **every one of the ten cases in `apps/extension`**: `Popup.test.tsx` 25 → 29, `Panel.test.tsx`
+> 53 → 56, `provider-config.test.ts` 9 → 12), **58 website and 106 extension browser cases** (from 52
+> and 99, in four files: `surface-hierarchy.spec.ts` at 4, `mailbox-history.spec.ts` 8 → 10,
+> `popup.spec.ts` 9 → 13, `side-panel.spec.ts` 28 → 31), `boundaries.test.ts` **unmoved at 56**,
+> `page-composition`'s **five regions and their order unmoved**, `apps/extension/static/manifest.json`
+> **byte-identical by Git blob hash**, and `openspec/specs/` untouched at **190 requirements / 629
+> scenarios / 15 capabilities** until this change's sync.
+>
+> **⇒ And the gate produced two reds that were the instrument working, and the distinction is worth
+> carrying.** Both were `pnpm test` exiting `1` on
+> *"the architecture suites changed the tree they read, and the tree they read is the shipped tree:
+> changed: openspec/changes/surface-hierarchy/tasks.md"* — **the `globalSetup` fingerprint guard
+> naming this stage's own ledger because the ledger was edited while the run was in flight**, with
+> every test passing. **A guard that fires on the harness rather than on the product is the guard
+> doing its job**, and the repair is an order rather than a threshold: finish every write, then start
+> the gate. **Both reds are recorded rather than rounded to green**, and neither is a product
+> failure — which is why the evidence in `tasks.md` 6.1 is taken on a frozen tree.
+>
+> **What it leaves open, and each is a different change rather than a smaller version of this one.**
+> **The website's four non-product regions keep their composition** — `steps`, `reasons`, `extension`
+> and `footer` are 44 % of the document between them, and whether the explanation belongs below the
+> product at all is a question about the page's argument and not its scale; **their headings take the
+> label step and nothing else in them moves.** **The in-page shadow-root control is untouched**,
+> including its literal accent and its inability to read custom properties. **The diagnostic report's
+> code vocabulary is untouched** — `MAILBOX_EXPIRED` is still shown to a person in a person's face.
+> **And the panel's chooser still repeats the full address to label a choice about it.** **Nothing here
+> was judged by a person**: no test in this repository reads a rendered pixel, so whether the hierarchy
+> now reads as right is a human judgement and not a measurement.
+
 > **`comment-reader` is an instrumentation stage, and it shipped no product change** — dated
 > **2026-10-28**, PR **#192**, branch `fix/comment-stripper`. **It repairs the one defect the
 > previous stage's falsification pass found and could not fix in scope**: `boundaries.test.ts`'s
@@ -2450,13 +2538,19 @@ Pin versions when exact versions matter.
   sentence that said "There is still no extension build step — that is M8" became false at M8
   and is deleted rather than reworded.**
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running **1411 tests across
-  77 files** via `pnpm test` (2026-10-28, at `fix/comment-stripper`'s stage,
+- Testing: Vitest `3.2.7` at the workspace root, verified running **1421 tests across
+  77 files** via `pnpm test` (2026-11-12, at `surface-hierarchy`'s stage,
   counted from a JSON reporter **grouped by project** rather than read off a summary line, and
   **re-measured at this stage from a fresh run rather than carried forward** - because the
   count a ledger carries is only worth what the last person to re-run it made it worth,
   and this repository has now had a standing figure in its own status block go stale by a
-  whole milestone for exactly that reason. **`1403 across 76` was accurate one stage earlier**,
+  whole milestone for exactly that reason. **`1411 across 77` was accurate one stage earlier**,
+  and this stage moved it by exactly its own ten cases, **every one of them in `apps/extension`**:
+  `Popup.test.tsx` 25 → 29, `Panel.test.tsx` 53 → 56 and `provider-config.test.ts` 9 → 12.
+  **Every other package is unmoved**, which is how a change that restyles two clients shows it
+  added no test outside the client whose surfaces moved — and the three moved files are each a
+  claim the change made rather than a case added to keep a count company.
+  **`1403 across 76` was accurate one stage before that**,
   and this stage moved it by exactly its own eight cases: a new
   `tests/architecture/comments.test.ts` at seven, and the eighth added under it after CI ran the
   tree cold. **And the paragraph was one
@@ -2502,17 +2596,24 @@ Pin versions when exact versions matter.
   fail for the reason it exists is not a check**, and **the count is read out of the suite's
   own source by `security-audit.test.ts` rather than carried by hand** - so **a declared
   count that does not move when the thing it counts moves is a count nobody has re-read**),
-  **490 in `apps/extension`** across **22** files (**25** in `content-script.test.ts`,
+  **500 in `apps/extension`** across **22** files (**25** in `content-script.test.ts`,
   **123** in `protocol.test.ts`, **70** in `extension-platform.test.ts`, **23** in
-  `content-script-fill.test.ts`, **22** in `code-field.test.ts`, **25** in `Popup.test.tsx`,
-  **53** in `Panel.test.tsx`, **17** in `panel-copy.test.ts`, **17** in
+  `content-script-fill.test.ts`, **22** in `code-field.test.ts`, **29** in `Popup.test.tsx`,
+  **56** in `Panel.test.tsx`, **17** in `panel-copy.test.ts`, **17** in
   `content-script-create.test.ts`, **9** in `content-script-associations.test.ts`, **11** in
-  `create-mailbox.test.ts`, **9** in `storage.test.ts`, **9** in
+  `create-mailbox.test.ts`, **9** in `storage.test.ts`, **12** in
   `provider-config.test.ts`, **17** in `background-check.test.ts`,
   **11** in `notification.test.ts`, **7** in `alarms.test.ts`,
   **10** in `content-script-handlers.test.ts`, **12** in `content-script-host-context.test.ts`,
   **5** in `popup-copy.test.ts`, **8** in `service-worker.test.ts`, **4** in `scheduler.test.ts`,
-  **3** in `diagnostic.test.ts`),
+  **3** in `diagnostic.test.ts` — **and the breakdown is re-summed rather than adjusted in place**:
+  25 + 123 + 70 + 23 + 22 + 29 + 56 + 17 + 17 + 9 + 11 + 9 + 12 + 17 + 11 + 7 + 10 + 12 + 5 + 8 + 4
+  + 3 = **500**. **The three moved files are the change's three claims**: `Panel.test.tsx` +3 for
+  the four fields of an opened message and the removal's order, `Popup.test.tsx` +4 for the same
+  four fields plus the absent subject's fallback, and `provider-config.test.ts` +3 for
+  `providerDisplayNames` / `providerDisplayName` and the identifier fallback. **`popup-copy.test.ts`
+  and `panel-copy.test.ts` are unmoved**, which is the measurement that the change rewrote no copy —
+  `PANEL_COPY.addressHeading` still decides the heading's text and now takes a name,
   **56 architecture boundary assertions** — **a figure that has moved three times since M1**,
   at **53**, then **54** with `architecture-suite-isolation`'s vocabulary check, then **55**
   with `firefox-compatibility-spike`'s discriminator control, and now **56** with this
@@ -3450,25 +3551,31 @@ pnpm test:browser
 
 ```
 
-Playwright `1.63.0`, **two configurations, 18 spec files and 151 test cases** - **Chromium
+Playwright `1.63.0`, **two configurations, 19 spec files and 164 test cases** - **Chromium
 only**. The command builds **both** clients, then the in-page fixture, and then runs the two
-suites in order: the website's **52** in `apps/web/e2e/`, and the extension's **99** in
+suites in order: the website's **58** in `apps/web/e2e/`, and the extension's **106** in
 `apps/extension/e2e/`.
 
-**Both figures were re-measured on 2026-10-28 at `fix/disabled-primary-fill`**, from
+**Both figures were re-measured on 2026-11-12 at `surface-hierarchy`'s stage**, from
 Playwright's own `--list --reporter=json` output walked recursively and attributed to each
 case's enclosing `file` - the instrument this block already names - and then corroborated by a
-full `pnpm test:browser` run: **52 passed and 99 passed**. **The 149/17 this block carried was
-stale by one change**: PR #188 added `apps/web/e2e/primary-action.spec.ts` and one case to
-`apps/extension/e2e/popup.spec.ts`, which is **one** case in each tier and nothing else.
+full `pnpm test:browser` run: **58 passed and 106 passed**. **The 52/99 this block carried was
+stale by one change**: `surface-hierarchy` added `apps/web/e2e/surface-hierarchy.spec.ts` at
+**four** cases, took `mailbox-history.spec.ts` **8 → 10**, took `popup.spec.ts` **9 → 13** and
+took `side-panel.spec.ts` **28 → 31** - **six cases in one tier and ten in the other, and no
+other file moved.** **The re-measurement before that was on 2026-10-28 at
+`fix/disabled-primary-fill`**, and it moved two of its own: PR #188 added
+`apps/web/e2e/primary-action.spec.ts` and one case to `popup.spec.ts`, which is **one** case in
+each tier and nothing else.
 
-**The website's 8 spec files and 52 cases** - `storage.spec.ts`
+**The website's 9 spec files and 58 cases** - `storage.spec.ts`
 (**6**), `focus.spec.ts` (**6**, added by M7 slice 1), `motion.spec.ts` (**9**, added by
 M7 slice 2), `sections.spec.ts` (**16**; **13** added by M7 slice 3 and **three** added by
 M7 slice 4), **`verification-actions.spec.ts` (3**, added by M10 slice 1**)**,
-`mailbox-history.spec.ts` (**8**, added by M13's first slice), **`diagnostic.spec.ts`
-(3**, added by M13's second slice**)** and **`primary-action.spec.ts` (1**, added by PR
-#188**)**. The
+`mailbox-history.spec.ts` (**10**; **eight** added by M13's first slice and **two** by
+`surface-hierarchy`), **`diagnostic.spec.ts`
+(3**, added by M13's second slice**), **`primary-action.spec.ts` (1**, added by PR
+#188**)** and **`surface-hierarchy.spec.ts` (4**, added by `surface-hierarchy`**)**. The
 command serves `apps/web/dist` with `vite preview` on
 `http://127.0.0.1:4173` with `--strictPort`, because the page under test is the **built**
 `<App />` with no props - the page a user receives, not a composition mounted by a test.
@@ -3516,31 +3623,36 @@ depends on **did not work as first written**: with the destination as plain text
 the page said *"No verification link was found in this message"* on a message whose readable
 text plainly contained the URL.
 
-**The extension's 10 spec files and 99 cases** - `side-panel.spec.ts` (**28**; **20** added by
-`side-panel-surface`, M11 slice 1, and **eight** by `extension-clear-data`),
+**The extension's 10 spec files and 106 cases** - `side-panel.spec.ts` (**31**; **20** added by
+`side-panel-surface`, M11 slice 1, **eight** by `extension-clear-data` and **three** by
+`surface-hierarchy`),
 `in-page.spec.ts` (**17**, added by `in-page-address`),
 **`in-page-associations.spec.ts` (**12**, added by `site-associations`)**,
 `manifest.spec.ts` (**13**; **6** added by M8, **three** by `in-page-address`, **one** by
 `incoming-mail-notification`, and **one** by `extension-permissions-review`),
-`popup.spec.ts` (**9**; **eight** added by `extension-preview` and **one** by PR #188, which
-reads the primary control's hover the way the website's new spec does),
+`popup.spec.ts` (**13**; **eight** added by `extension-preview`, **one** by PR #188, which
+reads the primary control's hover the way the website's new spec does, and **four** by
+`surface-hierarchy`),
 `in-page-create.spec.ts` (**8**, added by `in-page-mailbox`),
 **`in-page-fill.spec.ts` (**8**; **seven** added by `in-page-fill` and **one** by
 `incoming-mail-notification`)**,
 **`background-check.spec.ts` (**2**, added by `incoming-mail-notification`)**,
-`measurement.spec.ts` (**1**) and `alarm-floor.spec.ts` (**1**) - **99 in 10 files, against the
-98 in 10 that `extension-permissions-review` recorded, the 97 in 10 that
+`measurement.spec.ts` (**1**) and `alarm-floor.spec.ts` (**1**) - **106 in 10 files, against the
+99 in 10 that `fix/disabled-primary-fill` recorded, the 98 in 10 that
+`extension-permissions-review` recorded, the 97 in 10 that
 `extension-clear-data` recorded, the 89 in 10 that `panel-verification-state` recorded,
 the 67 in 9 that `in-page-fill` recorded before M11 added the side-panel file,
 the 63 in 8 that `in-page-fill` recorded, the 56 in 7 that `verification-actions` recorded,
 the 36 in 5 at slice 1, and the 16 in 4 that `extension-preview` recorded**.
 
-**Every figure in that list was re-measured again on 2026-10-28 at `fix/disabled-primary-fill`**,
-and **two moved and eight did not** — the tier **98 → 99** and `popup.spec.ts` **8 → 9**, both
-from PR #188's one case in that file, with every other entry identical. **The re-measurement
-before that was at `extension-permissions-review`'s archive (2026-10-14)**, and it moved two of
-its own — `manifest.spec.ts` **12 → 13** and the tier **97 → 98** — so **this list has now been
-re-measured at three stages rather than transcribed**; the first
+**Every figure in that list was re-measured again on 2026-11-12 at `surface-hierarchy`'s stage**,
+and **three moved and seven did not** — the tier **99 → 106**, `popup.spec.ts` **9 → 13** and
+`side-panel.spec.ts` **28 → 31**, with every other entry identical. **The re-measurement
+before that was on 2026-10-28 at `fix/disabled-primary-fill`**, and it moved two of
+its own — `popup.spec.ts` **8 → 9** and the tier **98 → 99** — **and the one before that was at
+`extension-permissions-review`'s archive (2026-10-14)**, which moved `manifest.spec.ts`
+**12 → 13** and the tier **97 → 98**. So **this list has now been re-measured at four stages
+rather than transcribed**; the first
 re-measurement was at `extension-clear-data`'s archive (2026-10-13)
 from Playwright's own collection list rather than read off a file or carried forward from the
 proposal's record, and it agrees — which is the outcome worth stating, because the same list
@@ -3549,7 +3661,7 @@ was wrong in two places two stages earlier.** The instrument is `playwright test
 because a `describe` block does not carry one and a reader that assumed otherwise read **zero**
 cases in nine of the ten files and one in the tenth. **`stats` in that same report is not the
 count and must not be used for it: `--list` runs nothing, so it reports `expected: 0` and
-`skipped: 99`** — a figure that looks like a total failure and is in fact the correct
+`skipped: 106`** — a figure that looks like a total failure and is in fact the correct
 description of a run that deliberately executed nothing.
 
 **The per-file figures above were re-measured at `extension-clear-data`'s proposal (2026-10-13)

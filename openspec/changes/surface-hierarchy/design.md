@@ -389,7 +389,55 @@ unchanged, and a movement in any of them is evidence this change did something i
   change moves type, space, grids, order, one control's treatment, and supplies the display name a
   copy function already documents that it takes.
 
-## D10 — What this establishes, and what it does not
+## D11 - The falsification pass found the assertion rather than the product, and that is the finding
+
+Thirteen arms were run, one per claim, each restored byte-identical against a SHA-256 taken before the
+first mutation. **Twelve were caught by the assertion each was aimed at. One was not caught at all, and
+what it found was a defect in a case this change had written.** **The thirteenth arm was added after the
+first run**, because the change's headline reversal — D3, that the address stops being the third-largest
+thing on the surface — had an assertion and no arm; it is caught, and it fails on *"the address is not at
+--type-2xl"*.
+
+The arm is the provider name: `#address-heading` mutated from
+`providerDisplayName(providerNames, mailbox.provider)` back to `mailbox.provider` — the identifier
+`mailtm`, which is the exact defect D2 exists to repair. The case aimed at it was *"creates a mailbox
+and reports the provider that actually served it"*, whose assertion was
+
+```ts
+await expect(page.getByRole("heading", { name: "Mail.tm" })).toBeVisible();
+```
+
+**And it passed.** Playwright matches `name` as a **substring** by default, and the popup's create
+region is headed *"Asking Mail.tm first"* — `COPY.reaching` resolved against the primary provider's
+display name. That heading is on screen at the instant the assertion begins, because the mailbox does
+not exist yet when `click()` returns; it unmounts a moment later. So the assertion was satisfied by a
+region that is about to disappear, and **it never read the address region at all.** The mutation was
+the only thing that could have said so: the case is green on the shipped tree for the right answer and
+green under the mutation for the wrong one.
+
+**The repair is in the assertion, and the product is untouched.** The heading is now read at its own
+node — `page.locator("#address-heading")` — asserted `toHaveText("Mail.tm")`, and the case gains the
+half a region-scoped assertion cannot hold: **no `h2` on the surface may spell the identifier at all**,
+read as the set of heading texts. That second assertion is what a *second* region regressing could not
+survive, and the first is what a role query cannot substitute for.
+
+**Re-run against the repaired case, the same mutation is caught and the failure names the claim** —
+*"the address region is named by the provider's identifier, not by the provider"* — and the
+unmutated case is green in 675 ms.
+
+**Why the panel's half did not have this defect**: it already read
+`#panel-address-heading` at its own node, because the panel has no create region and therefore no
+sentence carrying the provider name to be satisfied by. **The surface that had the defect is the
+surface that had the decoy**, which is worth stating: the decoy was not a stray string, it was the
+product saying something true and useful in the wrong place for this assertion.
+
+**What this establishes.** That the thirteen claims are each held by an assertion that fails when the
+claim is broken — twelve of them on the first run, and the thirteenth after a repair that changed no
+shipped behaviour. **What it does not establish**: that no *other* assertion in this tier is satisfied
+by text it does not name. One arm per claim is a sample of the claims, not a survey of the suite, and
+this repository's recorded count of this shape is now one higher than it was.
+
+## D10 - What this establishes, and what it does not
 
 **Establishes**: that a region's name is smaller than the data it labels on both clients, that a
 stylesheet does not rename a region for assistive technology, that the address is the largest datum on
