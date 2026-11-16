@@ -131,6 +131,33 @@
 > the gate. **Both reds are recorded rather than rounded to green**, and neither is a product
 > failure — which is why the evidence in `tasks.md` 6.1 is taken on a frozen tree.
 >
+> **⇒ And it is APPLIED, SYNCED and ARCHIVED** at
+> `openspec/changes/archive/2026-11-17-surface-hierarchy/` — proposal PR **#193**, apply PRs
+> **#194**, **#195** and **#196**, the gate PR **#197**, sync PR **#198**, and **the archive PR
+> number is left unfilled here** for the reason this file records above: it did not exist when this
+> paragraph was written, and a predicted PR number is a figure nobody counted.
+>
+> **The archive moved 6 files, every one byte-identical to a pre-archive digest taken
+> programmatically, and Git's own rename detection confirms it independently — six renames at
+> `R100` and `0 insertions, 0 deletions`.** All **15** files under `openspec/specs/` are
+> byte-identical throughout, checked against Git rather than against digests typed here. All **9**
+> promoted blocks re-verified **byte-identical against the *archived* delta**, with the verifier
+> pointed at the archived path **after being shown to fail loudly with `ENOENT` on the absent
+> pre-archive one** — because a verifier pointed at a path that no longer exists would otherwise
+> report nothing at all. Counts **re-counted after the move** at **196 requirements / 650 scenarios
+> / 15 capabilities**, unmoved by the archive, `openspec validate --specs --strict` is **15 passed,
+> 0 failed**, and `openspec list` reports **no active changes**. **This change carries no
+> `.openspec.yaml`** — the third archived change in a row without one, and **nothing dropped it;
+> none was ever created.**
+>
+> **⇒ And the verifier's delta path is now an argument rather than a constant, which is the one
+> instrument change this stage made.** It was hardcoded to the pre-archive location, so after the
+> move it could only throw; `--delta-root` is the same parameterisation `--root` already had, and
+> **the self-test and the verify still read through one reader**, which is the defect
+> `mailbox-history` recorded when its two readers looked in different places. **Shown in both
+> directions before it was trusted**: with no override it fails with `ENOENT` on the absent path,
+> and with the archived path it reports **9 blocks checked, every promoted block byte-identical**.
+>
 > **What it leaves open, and each is a different change rather than a smaller version of this one.**
 > **The website's four non-product regions keep their composition** — `steps`, `reasons`, `extension`
 > and `footer` are 44 % of the document between them, and whether the explanation belongs below the
