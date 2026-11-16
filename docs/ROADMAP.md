@@ -154,6 +154,10 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > decisions rather than engineering work: whether the website is deployed, and whether the extension
 > is listed.** **Both are named unmet in §33.2**, both are scoped out of V1 by `AGENTS.md`, and
 > **neither is scheduled here**, because a roadmap that schedules a decision has already taken it.
+> **`surface-hierarchy` was the last change in this repository with work in it, and it is ARCHIVED
+> as of 2026-11-17** — so **the cursor rests on those two decisions rather than on an implementation
+> task**, and `openspec list` reporting no active changes is the correct end state rather than a gap
+> somebody has forgotten to fill.
 >
 > **⇒ And the rendered surfaces were given a hierarchy on 2026-11-01, in `surface-hierarchy` — a
 > refinement rather than a redesign, and the first change to restyle both clients from one record.**
@@ -199,6 +203,37 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > 22 / 101** (five `ADDED`), `visual-system` **9 / 28 → 10 / 32** (one `ADDED` and one `MODIFIED`
 > that replaces), `website-client` **26 / 88 → 26 / 90** (two `MODIFIED`, so **its requirement count
 > did not move and that is the arithmetic working rather than a promotion that missed**).
+>
+> **⇒ And it is APPLIED, SYNCED and ARCHIVED** at
+> `openspec/changes/archive/2026-11-17-surface-hierarchy/` — proposal PR **#193**, apply PRs
+> **#194**, **#195** and **#196**, the gate PR **#197**, sync PR **#198**, and **the archive PR
+> number is left unfilled here** for the reason this file records: it did not exist when this
+> paragraph was written, and a predicted PR number is a figure nobody counted.
+>
+> **The archive moved 6 files, every one byte-identical to a pre-archive digest taken
+> programmatically, and Git's own rename detection confirms it independently — six renames at
+> `R100` and `0 insertions, 0 deletions`.** All **15** files under `openspec/specs/` are
+> byte-identical throughout, checked against Git rather than against digests typed here. All **9**
+> promoted blocks re-verified **byte-identical against the *archived* delta**, with the verifier
+> pointed at the archived path **after being shown to fail loudly with `ENOENT` on the absent
+> pre-archive one**. Counts **re-counted after the move** at **196 requirements / 650 scenarios /
+> 15 capabilities**, unmoved by the archive, and `openspec validate --specs --strict` is **15
+> passed, 0 failed**. `openspec list` reports **no active changes**. **This change carries no
+> `.openspec.yaml`** — the third archived change in a row without one, and **nothing dropped it;
+> none was ever created.**
+>
+> **⇒ And the sync's one red was a document the promotion never touched, which is what a positional
+> citation costs.** Two of `docs/SECURITY.md`'s citations to `website-client` stopped resolving
+> because the two blocks `website-client` *did* receive grew, moving every heading below them; both
+> cited blocks are **byte-identical to their pre-promotion copies**, so the repair is the two line
+> numbers and not the resolver. **And the repair's first attempt lost both citations silently** — a
+> hyphen where the grammar requires U+2014 made them stop *parsing*, so the citation count fell
+> 18 → 16 while the resolver reported zero unresolved; **what caught it is the token-total
+> assertion**, falsified at **1 failed / 17 passed** and restored byte-identically. **The
+> verifier's delta path is now an argument rather than a constant**, because archiving is a move
+> and a verifier pointed at a path that no longer exists would report nothing at all — the shape
+> `mailbox-history` recorded when two readers of one instrument looked in different places.
+
 >
 > **What it leaves open, and each is a different change rather than a smaller version of this one.**
 > **The website's four non-product regions keep their composition** — `steps`, `reasons`, `extension`
