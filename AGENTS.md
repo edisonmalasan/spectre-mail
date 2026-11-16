@@ -64,8 +64,62 @@
 > and 99, in four files: `surface-hierarchy.spec.ts` at 4, `mailbox-history.spec.ts` 8 → 10,
 > `popup.spec.ts` 9 → 13, `side-panel.spec.ts` 28 → 31), `boundaries.test.ts` **unmoved at 56**,
 > `page-composition`'s **five regions and their order unmoved**, `apps/extension/static/manifest.json`
-> **byte-identical by Git blob hash**, and `openspec/specs/` untouched at **190 requirements / 629
-> scenarios / 15 capabilities** until this change's sync.
+> **byte-identical by Git blob hash**, and `openspec/specs/` **promoted at this change's sync from
+> 190 requirements / 629 scenarios to 196 / 650** across the same **15** capabilities.
+>
+> **⇒ And the sync promoted nine blocks in three capabilities, and the arithmetic is the check.**
+> `extension-client` **17 / 86 → 22 / 101** (five `ADDED`), `visual-system` **9 / 28 → 10 / 32** (one
+> `ADDED` and one `MODIFIED` that replaces) and `website-client` **26 / 88 → 26 / 90** (two
+> `MODIFIED`, so **its requirement count did not move and that is the arithmetic working rather than
+> a promotion that missed**). **The twelve other capabilities are identical**, which is the
+> measurement the count exists for. **Every promoted block was compared as a whole block and not by
+> its title**, and `openspec validate --specs --strict` is **15 passed, 0 failed**.
+>
+> **⇒ And the sync's own instruments were wrong three times before they were right, in shapes this
+> file already records.** The verifier's **delta reader ended a block at the next `### Requirement:`
+> and not at the next `## `**, so `visual-system`'s `MODIFIED` block absorbed `## ADDED Requirements`
+> whole and the verifier reported one block as differing — **the recorded "opening is not closing"
+> defect, in the file written to check the promoter**. Its self-test then **compared the block below
+> the planted marker rather than the block that absorbs it**, which is the recorded "self-test of the
+> fixture" shape; and the first repair asked `includes("## ")`, **which is true of `#### Scenario:`**,
+> so the assertion was broader than its claim until it was line-anchored. **The guard falsification
+> is 4 of 4 with the real tree byte-identical**, after two harness defects that would each have
+> reported a guard as missing: a plant that replaced a section the delta does not carry (**a mutation
+> that did not apply is not evidence**), and a scratch seed taken from the **already-promoted** tree,
+> so guard 1 fired on a legitimate block and was read as a miss.
+>
+> **⇒ And the promotion rotted two citations in a document it never touched, which is what a
+> positional citation costs.** `pnpm verify` on the promoted tree was red on exactly one case —
+> `security-audit.test.ts`'s *"every citation the audit makes resolves"* — with **1420 of 1421
+> passing**, and the two failures were `docs/SECURITY.md`'s citations to
+> `website-client`'s *"The website renders no provider data as markup and no provider field"* and
+> *"The user can make this device forget the address"*. **Both blocks are byte-identical to their
+> pre-promotion copies** (738 and 5970 bytes, compared against `pre-sync/`), **so nothing about
+> either claim changed** — the two `MODIFIED` blocks `website-client` *did* receive grew, and every
+> heading below them moved down by 17 and 36 lines. **The repair is the document and not the
+> reader**: all **18** citations in the audit point at their requirement's **heading line**, so the
+> two numbers become **242** and **801**, and widening the resolver to accept a line above its
+> heading would have made the instrument agree with a stale document. **This is the same event the
+> file records against `security-audit.test.ts`'s own comment** — *"once for `docs/SECURITY.md`'s
+> own citations, which a `MODIFIED` promotion moved"* — arriving a second time, from a capability
+> that did not author either cited requirement.
+>
+> **⇒ And the repair's first attempt lost both citations silently, which is the finding worth more
+> than the fix.** Writing the separator with a **hyphen-minus** where the grammar requires
+> **U+2014** made the two citations stop *parsing* rather than stop *resolving*: the audit's
+> citation count fell **18 → 16** and its resolver reported **zero** unresolved, because a reader
+> that never saw a citation cannot report it. **The non-vacuity assertion did not catch it** —
+> `citationCount > 0` is satisfied by sixteen. **What caught it is the token-total assertion**:
+> a requirement cell's backticked tokens must be exactly its citations' capability and `path:line`,
+> so a citation that disappears leaves two tokens unexplained and is reported by name.
+> **Falsified rather than assumed**: with one separator broken the file is **1 failed / 17 passed**
+> on *"backticked tokens in a requirement cell that are not a citation's capability or its
+> path:line"*, and the file is restored byte-identical against a SHA-256 taken before the mutation.
+> **⇒ And the tool wrote the hyphen because its exact-match failed and its retry ignores dash
+> variants** — so a dash-insensitive matcher is a reader that matches more than it should, and its
+> *write* is the silent direction. The repair was a byte-exact replacement from a script, and the
+> two citations are now verified present as exact strings with **0** hyphen-separated
+> `website-client` citations in the document.
 >
 > **⇒ And the gate produced two reds that were the instrument working, and the distinction is worth
 > carrying.** Both were `pnpm test` exiting `1` on
