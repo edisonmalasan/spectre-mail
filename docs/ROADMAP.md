@@ -193,8 +193,12 @@ popup shares the same component and is forbidden by a promoted clause from stati
 >
 > **Measured: 1421 unit tests across 77 files** (from 1411, the movement reconciled per package),
 > **58 website and 106 extension browser cases** (from 52 and 99), `boundaries.test.ts` **unmoved at
-> 56**, `page-composition`'s **five regions and their order unmoved**, and `openspec/specs/` untouched
-> at **190 requirements / 629 scenarios / 15 capabilities** until this change's sync.
+> 56**, `page-composition`'s **five regions and their order unmoved**, and `openspec/specs/`
+> **promoted at this change's sync from 190 requirements / 629 scenarios to 196 / 650** across the
+> same **15** capabilities — **nine blocks in three of them**: `extension-client` **17 / 86 →
+> 22 / 101** (five `ADDED`), `visual-system` **9 / 28 → 10 / 32** (one `ADDED` and one `MODIFIED`
+> that replaces), `website-client` **26 / 88 → 26 / 90** (two `MODIFIED`, so **its requirement count
+> did not move and that is the arithmetic working rather than a promotion that missed**).
 >
 > **What it leaves open, and each is a different change rather than a smaller version of this one.**
 > **The website's four non-product regions keep their composition** — `steps`, `reasons`, `extension`
@@ -215,14 +219,15 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > `spectre-storage` (M6 slice 1), `browser-verification`, `visual-system` (M7 slice
 > 1), `page-composition` (M7 slice 3), `extension-client` (M8),
 > `in-page-integration` (M9 slice 1) and `privacy-disclosure` (M12). Counted
-> mechanically at each sync and again after each archive, they hold **190 requirements
-> and 629 scenarios** in total — **measured by heading across the tree after
-> `firefox-compatibility-spike`'s sync on 2026-10-21**, and *corrected* from the **190 / 626**
-> this line carried until then, **which was itself the figure `load-independent-results`'s
-> sync left behind**. **The change that moved it is a `MODIFIED`, so the requirement count
-> did not move at all and the scenario count moved by three** — and **only
-> `browser-verification` moved**, from **5 / 12** to **5 / 15**, **while the other
-> fourteen capabilities are identical**, which is the measurement the count exists for.
+> mechanically at each sync and again after each archive, they hold **196 requirements
+> and 650 scenarios** in total — **measured by heading across the tree after
+> `surface-hierarchy`'s sync on 2026-11-17**, and *corrected* from the **190 / 629**
+> this line carried until then, **which was itself the figure `firefox-compatibility-spike`'s
+> sync left behind**. **The change that moved it promoted nine blocks and added six
+> requirements**, because six of the nine are `ADDED` and the three `MODIFIED` blocks each
+> *replace* rather than add: `extension-client` **17 / 86 → 22 / 101**, `visual-system`
+> **9 / 28 → 10 / 32** and `website-client` **26 / 88 → 26 / 90**, **with the other twelve
+> capabilities identical**, which is the measurement the count exists for.
 > **And `load-independent-results`'s sync moved the same line the same way** — a `MODIFIED`
 > on `build-and-verification`, from **14 / 46** to **14 / 47**, **and the zero in the
 > requirement column was the arithmetic working and not a promotion that missed**, because a
