@@ -133,9 +133,9 @@
 >
 > **⇒ And it is APPLIED, SYNCED and ARCHIVED** at
 > `openspec/changes/archive/2026-11-17-surface-hierarchy/` — proposal PR **#193**, apply PRs
-> **#194**, **#195** and **#196**, the gate PR **#197**, sync PR **#198**, and **the archive PR
-> number is left unfilled here** for the reason this file records above: it did not exist when this
-> paragraph was written, and a predicted PR number is a figure nobody counted.
+> **#194**, **#195** and **#196**, the gate PR **#197**, sync PR **#198**, and archive PR **#199** —
+> **that last number filled in from `gh pr view` rather than predicted**, because it did not exist
+> when this paragraph was written and a predicted PR number is a figure nobody counted.
 >
 > **The archive moved 6 files, every one byte-identical to a pre-archive digest taken
 > programmatically, and Git's own rename detection confirms it independently — six renames at
