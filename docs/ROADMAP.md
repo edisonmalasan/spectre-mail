@@ -773,6 +773,41 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > M0's own capability spec was archived with
 > `--skip-specs` deliberately: it specifies a harness that M1/M3 must delete, so
 > landing it would create permanent spec debt for disposable scaffolding.
+>
+> **⇒ And the cursor moved again on 2026-11-18, because a live defect was found by looking at
+> the product rather than by reading it.** The built website was opened in the user's own Chrome
+> — **the first time this repository has contacted a provider from a real browser** — and it
+> created `zhepimcj@guerrillamailblock.com`, then rendered *"Your saved address is gone"* while
+> the provider was still serving it. **The sentence above that says `openspec list` reporting no
+> active changes is the correct end state was true on 2026-11-17 and is corrected here**: it was
+> a statement about the milestone program, and a product defect is not one.
+>
+> **The cause is one field name.** `sessionIsLive` decided liveness by reading
+> `body["email_addr"]`, which is returned by `get_email_address` — the **creation** call — and
+> never by `check_email`, the listing call, which echoes the address under `email`. Measured one
+> request apart on a fresh session: creation returns `alias`, `email_addr`, `email_timestamp`,
+> `sid_token`; listing returns `alias`, `auth`, `count`, `email`, `list`, `sid_token`, `stats`,
+> `ts`. **So the check could never succeed, every listing fell through to `return false`, and
+> every live Guerrilla mailbox was reported `MAILBOX_EXPIRED`** — and *"Get a new address"* led
+> back into the same state.
+>
+> **And no gate caught it, because the fixtures disagreed with the record and the code followed
+> the fixtures.** `guerrillaLiveList` was labelled MEASURED and carried `email_addr`, which no
+> listing sends; `guerrillaDeadSession` was labelled MEASURED and carried neither the `error`
+> nor the absent `list` that `docs/PROVIDERS.md` §4.5 records for a dead session. The unit case
+> for a genuinely empty inbox hand-built the same wrong key, so it agreed with the code rather
+> than with the provider. **The active change is `guerrilla-liveness-detection`, PROPOSED**: it
+> repairs the fixtures to the measured shapes first — so the suite goes red naming the right
+> cases, in the browser tier as well as the unit tier — then keys liveness on the signals the
+> provider actually sends. **One `MODIFIED` block in `provider-adapters`, four scenarios, no new
+> capability, no token, no client source change.** `docs/PROVIDERS.md` §3 gains a dated
+> correction under its *"no auth error, empty inbox"* summary line; **§4.5 is untouched, and the
+> change's tasks name the edit, which is the do-not-touch condition.**
+>
+> **What it does not establish**: whether the provider changed shape or the fixture was
+> mis-transcribed in M0 — the spike stored summaries, not bodies — and the extension's fallback
+> failure, which is inferred from shared code because the extension's popup and panel have not
+> been run live.
 
 **Roadmap cursor: M12 - Release Hardening, with all three of its tracked items done. M11 - Side Panel +
 Mailbox Context is COMPLETE IN SCOPE.** `extension-permissions-review` is M12's permissions review
