@@ -653,11 +653,12 @@ describe("createMailboxSession", () => {
      * `.test.ts` because a test has to be able to name what it exercises, and
      * `test-support.ts` is not one. It caught them, correctly.
      *
-     * Recorded shapes, not invented ones: these are the fields
-     * `packages/providers` reads out of a Guerrilla `get_email_address` response and
-     * out of an empty fetch. The empty list is also *meaningful* - a bare `{ list: [] }`
-     * is what a measured Guerrilla answer means for a session it no longer
-     * recognises, so the adapter refuses it, and the test lets it.
+     * **Recorded shapes, and this docblock said so while the bodies were invented.**
+     * Re-measured 2026-11-18: creation answers `email_addr` and a listing answers
+     * `email`, so the creation branch below carries `email_addr` and the listing
+     * branch carries `email`. An empty live listing is `list: []` with the address
+     * echoed and no `error`, and it is **read as live** — the dead body is a
+     * different shape entirely, a top-level `error` with no `list` at all.
      */
     function guerrillaAnswer(url: string): {
       status: number;
@@ -673,7 +674,17 @@ describe("createMailboxSession", () => {
               sid_token: "token-recorded",
             }),
           }
-        : { status: 200, headers: {}, body: JSON.stringify({ list: [] }) };
+        : {
+            status: 200,
+            headers: {},
+            body: JSON.stringify({
+              email: "recorder@mail.example",
+              sid_token: "token-recorded",
+              list: [],
+              count: 0,
+              auth: { success: true, error_codes: [] },
+            }),
+          };
     }
 
     it("adds no request of its own to what the provider makes while polling", async () => {
@@ -698,13 +709,13 @@ describe("createMailboxSession", () => {
       // opened has nothing to poll** - its `checkInbox` would legitimately make no
       // request and the assertion below would pass for the wrong reason.
       const mailbox = await adapter.createMailbox();
-      // Each list is refused by the adapter — a bare `{ list: [] }` is what a measured
-      // Guerrilla answer means for a session it no longer recognises, and refusing it
-      // is that adapter's job. **The request is what this test counts**, and it was
-      // made either way; letting the rejection escape would only stop the test before
-      // it compared anything.
-      await adapter.listMessages(mailbox).catch(() => undefined);
-      await adapter.listMessages(mailbox).catch(() => undefined);
+      // Both lists succeed: an empty listing that echoes the mailbox's own address is
+      // a live session with nothing in it, not a dead one. The `.catch` this used to
+      // carry was there because the old rule refused a listing without `email_addr`,
+      // and it outlived its reason — a rejection path no body can reach reads as
+      // coverage and is not.
+      await adapter.listMessages(mailbox);
+      await adapter.listMessages(mailbox);
       const directRequests = recorder.requests;
       expect(directRequests).toHaveLength(3);
 
@@ -723,18 +734,17 @@ describe("createMailboxSession", () => {
      * How a recorded request is answered when the mailbox genuinely holds a message.
      *
      * **A second responder rather than a parameterised `guerrillaAnswer`.** The
-     * polling test above depends on the empty list — a bare `{ list: [] }` is what a
-     * measured Guerrilla answer means for a session it no longer recognises — so
-     * teaching that responder to return a message would have quietly removed the case
-     * that makes the adapter's refusal worth testing. Two responders, each shaped by
-     * what it is for.
+     * polling test above is about an empty inbox and counts requests; teaching that
+     * responder to return a message would have made the case that drives the empty
+     * path a case that no longer visits it. Two responders, each shaped by what it is
+     * for.
      *
      * **A message leaves the listing by being replaced, not by the list emptying.**
-     * The first version of this responder answered a departure with `{ list: [] }`, and
-     * the adapter refused it — with `MAILBOX_EXPIRED`, and with a description that is
-     * the clearest statement in the codebase of why it refuses: an empty answer is not
-     * evidence that a mailbox is empty. So a departure is modelled as a different
-     * message arriving, which is what a departure looks like in a recording.
+     * A departure is modelled as a different message arriving, which is what a
+     * departure looks like in a recording. The first version of this responder answered
+     * one with `{ list: [] }` and was refused — and that refusal was the old rule's
+     * defect rather than the fixture's, because an empty listing is a live session with
+     * nothing in it and refusing it told every returning user their address was gone.
      *
      * Field names are the ones the adapter reads: `mail_id` as a **number**, because
      * Guerrilla sends it as one and the adapter has a guard for the string form; a
@@ -770,14 +780,17 @@ describe("createMailboxSession", () => {
         return {
           status: 200,
           headers: {},
-          // **`email_addr` is not decoration.** The adapter reads a listing without it
-          // as a dead session — `MAILBOX_EXPIRED` — because a provider that no longer
-          // recognises a session still echoes a token back and nothing else. A first
-          // draft of this responder omitted it and the failure surfaced as an expired
-          // mailbox rather than as the fixture mistake it was.
+          // **`email` is the key a listing sends, and the address it echoes is the
+          // mailbox's own.** A first draft of this responder carried `email_addr`
+          // because the adapter's old rule demanded it — a key no listing sends —
+          // and the comment beside it called the field load-bearing. It was
+          // load-bearing for the rule and not for the provider, which is the defect
+          // this change repaired.
           body: JSON.stringify({
-            email_addr: "recorder@mail.example",
+            email: "recorder@mail.example",
+            sid_token: "token-recorded",
             list: ids.map((id) => member(id)),
+            auth: { success: true, error_codes: [] },
           }),
         };
       }
