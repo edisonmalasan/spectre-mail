@@ -2619,14 +2619,21 @@ Pin versions when exact versions matter.
   sentence that said "There is still no extension build step — that is M8" became false at M8
   and is deleted rather than reworded.**
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running **1421 tests across
-  77 files** via `pnpm test` (2026-11-12, at `surface-hierarchy`'s stage,
+- Testing: Vitest `3.2.7` at the workspace root, verified running **1422 tests across
+  77 files** via `pnpm test` (2026-11-18, at `guerrilla-liveness-detection`'s stage,
   counted from a JSON reporter **grouped by project** rather than read off a summary line, and
   **re-measured at this stage from a fresh run rather than carried forward** - because the
   count a ledger carries is only worth what the last person to re-run it made it worth,
   and this repository has now had a standing figure in its own status block go stale by a
-  whole milestone for exactly that reason. **`1411 across 77` was accurate one stage earlier**,
-  and this stage moved it by exactly its own ten cases, **every one of them in `apps/extension`**:
+  whole milestone for exactly that reason. **`1421 across 77` was accurate one stage
+  earlier**, and this stage moved it by exactly its own one case, in `packages/providers`:
+  `guerrilla.test.ts` 27 → 28, the case requiring a live listing that names **no address at
+  all** to stay live. **Every other package is unmoved, including `packages/mailbox` at
+  172** — which is the measurement that matters for a change that repaired two of that
+  package's test files, because **a repair that changes fixtures and prose must not move the
+  count, and a movement there would have meant a case was added rather than a body
+  corrected.** **`1411 across 77` was accurate one stage before that**,
+  and that stage moved it by exactly its own ten cases, **every one of them in `apps/extension`**:
   `Popup.test.tsx` 25 → 29, `Panel.test.tsx` 53 → 56 and `provider-config.test.ts` 9 → 12.
   **Every other package is unmoved**, which is how a change that restyles two clients shows it
   added no test outside the client whose surfaces moved — and the three moved files are each a
@@ -2646,7 +2653,7 @@ Pin versions when exact versions matter.
   touching this paragraph — and before that it read `1290 across 64` and `1228 across 62`.
   **The record is now six deep in the same defect**, which is the argument for
   re-measuring at every stage rather than every few:
-  54 in `packages/core`, 92 in `packages/providers`, **149 in `packages/mail-parser`**,
+  54 in `packages/core`, 93 in `packages/providers`, **149 in `packages/mail-parser`**,
   **172 in `packages/mailbox`**, **143 in `apps/web`**,
   **103 in `packages/storage`** (7 stored record, 11 mailbox collection, 31 IndexedDB adapter,
   16 IndexedDB mailbox collection, 11 site associations, 7 browser entry point,
@@ -3636,6 +3643,16 @@ Playwright `1.63.0`, **two configurations, 19 spec files and 164 test cases** - 
 only**. The command builds **both** clients, then the in-page fixture, and then runs the two
 suites in order: the website's **58** in `apps/web/e2e/`, and the extension's **106** in
 `apps/extension/e2e/`.
+
+**Both figures were re-measured on 2026-11-18 at `guerrilla-liveness-detection`'s stage**
+by running each tier separately after rebuilding both clients and the in-page fixture:
+**`58 passed (13.3s)` website and `106 passed (1.6m)` extension, both exit `0`** — **and the
+absence of movement is the measurement**, because this change repaired a fixture body both
+tiers read and would have been expected to move a count only if it had added or removed a
+case. The tiers are run **separately** here rather than through `pnpm test:browser`, for the
+reason this block records below: the extension's own script is `playwright test` with **no
+build**, so it runs whatever `dist` holds, and a chained command that failed before the
+extension's build would run the old bundle against the new source.
 
 **Both figures were re-measured on 2026-11-12 at `surface-hierarchy`'s stage**, from
 Playwright's own `--list --reporter=json` output walked recursively and attributed to each

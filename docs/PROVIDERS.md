@@ -441,6 +441,29 @@ genuinely empty mailbox. The product will silently show "no mail" for an address
 that once had mail. The core mailbox manager must detect this (address/session
 mismatch or a known-expired marker) rather than trusting a `200` + empty list.
 
+**Correction, 2026-11-18.** The block above is the M0 probe's *summary* rather than a
+body it captured, and it is wrong in the clause that mattered. The measured dead body is
+
+```text
+dead  200  {"error":"Please call get_email_address or set_email_user first",
+            "auth":{"success":true,"error_codes":[]}}      <- no "list" at all
+```
+
+— **not an empty inbox**, and `auth.success` is `true`, so there is no auth error to see.
+§5.1 records that body, and always did.
+
+**Re-measured live on 2026-11-18, the address key is the other half.** A live listing
+echoes the mailbox address under **`email`**; `email_addr` appears **only** on
+`get_email_address`, the creation call. An empty live listing is `{"list":[],"email":…}`
+with no `error` at all. So the signals an adapter can use are, in order: a top-level
+`error` string, a `list` that is not an array, and an echoed `email` that is present and
+disagrees with the mailbox's own. **An absent address is not evidence that a session is
+dead**, and treating it as one reports a live mailbox as expired.
+
+The product consequence: `packages/providers/src/guerrilla.ts` decides liveness on those
+three signals and reports `MAILBOX_EXPIRED` rather than an empty list. The trap this
+section names is unchanged, and it is still why the check exists.
+
 ### Sending is captcha-gated
 
 ```text
