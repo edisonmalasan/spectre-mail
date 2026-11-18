@@ -37,7 +37,7 @@ The three signals the adapter now uses:
 | an echoed address, when present | equals the mailbox | absent |
 
 **Rejected: `auth.success`.** It is `true` in every body above, including the dead one.
-`docs/PROVIDERS.md` §4.5 records this and says so explicitly; the shipped code's own
+`docs/PROVIDERS.md` §5.1 records this and says so explicitly; the shipped code's own
 comment already knew the `error` key was the clearest signal and then went on to
 require a field that never arrives.
 
@@ -129,9 +129,9 @@ sentence that taught the shape that caused this. It is **not** deleted: it is th
 record of what the spike reported, and rewriting a measurement to agree with a later
 one is the defect this repository has recorded against its own instruments.
 
-Instead a dated correction is appended under it: the bodies in §4.5 and the
+Instead a dated correction is appended under it: the bodies in §5.1 and the
 2026-11-18 re-measurement show a top-level `error` and no `list`, and *"no auth error"*
-is true only in the narrow sense that `auth.success` is `true` in both shapes. §4.5
+is true only in the narrow sense that `auth.success` is `true` in both shapes. §5.1
 itself is untouched — it already records the correct shapes and names the usable
 signals, which is why the code's divergence from it is a defect rather than a gap.
 
@@ -170,31 +170,147 @@ the signal under the new rule exactly as under the old one.
 
 ## D10 — Shipped prose that repeated the false shape
 
-Three statements in shipped source assert the shape the measurement refutes and are
-corrected with the code, because a false comment beside a repaired guard is how the
-next reader reintroduces the defect:
+**Five** statements in shipped source asserted the shape the measurement refutes and are
+corrected with the code, because a false comment beside a repaired guard is how the next
+reader reintroduces the defect:
 
-- `guerrilla.ts:14–17` — *"answers `HTTP 200` with an empty list and no auth error"*;
-- `guerrilla.ts:214–216` — *"returns `HTTP 200` with an empty list and no error"* and
+- `guerrilla.ts:14–18` — *"answers `HTTP 200` with an empty list and no auth error"*;
+- `guerrilla.ts:220–237` — *"returns `HTTP 200` with an empty list and no error"* and
   *"the only signal available is whether the response still names the mailbox's own
   address"*;
-- `guerrilla.test.ts:137–141` — *"carries no `error`"*.
+- `guerrilla.test.ts:138–148` — *"carries no `error`"*;
+- `guerrilla.ts:363–366` — the `MAILBOX_EXPIRED` description, which said the provider
+  answers *"with an empty inbox and no error"*, false in both halves;
+- `conformance.ts:284–290` — the comment beside the dead-session case, which said the
+  measured Guerrilla case answers *"an empty inbox"*.
+
+**The list was three, and the two it missed were found by sweeping the tree for the
+phrase rather than by reading the list.** That is the finding worth carrying: a list of
+sites written from memory is a reading, and a reading is not a search. The sweep is what
+turned up the description and the conformance comment — and the description mattered
+most, because it is the sentence a person reads when their own mailbox is reported gone.
+
+**And the sweep also found eight further occurrences, and the split between the ones this
+change repaired and the ones it reports is a measurement rather than a judgement.**
+`packages/mailbox/src/adoption.test.ts` and `packages/mailbox/src/session.test.ts` **moved
+in scope**, because a fixture carrying the refuted shape is not prose about the defect — it
+is a body the adapter reads. **Six files and three promoted requirements remain reported
+and unedited**: `packages/mailbox/src/session.ts:62`,
+`packages/storage/src/contract.ts:53`, `packages/storage/src/index.ts:29`,
+`apps/extension/src/Popup.tsx:229`, `apps/extension/src/panel-copy.ts:178`,
+`apps/web/src/App.tsx:39`, plus `mailbox-session/spec.md:690`,
+`spectre-storage/spec.md:187` and `provider-adapters/spec.md:186`, the last of which this
+change's own delta replaces at sync. Editing any of them is a different change: none is a
+body a test drives, and a change that repairs every comment it can find is a change that
+cannot say what it measured.
+
+**The two that moved did so for different reasons, and both are worth naming.**
+`adoption.test.ts` **went red** under the repaired adapter — `7 failed / 1415 passed` on
+three consecutive runs, one cause — so leaving it would have shipped a red gate.
+`session.test.ts` **stayed green**, and that is the sharper of the two: its
+`guerrillaMessageAnswer` listing carried `email_addr` set to the mailbox's own address, so
+the *old* rule was satisfied by the fixture and the case passed. **A fixture that satisfies
+the rule it is meant to exercise cannot fail for that rule's absence**, and the instrument
+that found it was a sweep rather than a red — which is the same reason the list above grew
+from three to five in the first place.
+
+**Measured, by restoring the `email_addr` rule and running `packages/mailbox` on the
+otherwise-unrepaired tree: 11 failed.** Reverting **only** the message responder's `email`
+back to `email_addr`, under that same restored rule, gives **10** — and the one that stops
+being caught is *adds no request of its own to what the provider makes while opening*.
+**So that case could not fail for the reason it existed until the fixture was corrected**,
+and the second run is what establishes it: one arm says the repaired fixture is
+load-bearing, and only the pair says the repair is what made it so.
+
+**And one case *name* moved with the body, which is the third repair this change did not
+set out to make.** `adoption.test.ts` carried
+*"does not call an expiry something it could not tell"*, asserting `isExpired(state)` on
+`deadSession` — and under the old fixture that name was defensible, because `deadSession`
+was a bare `{ list: [] }`, which is exactly the shape the adapter could not classify.
+**The repaired body carries the provider's own `error` string and no `list`, so the
+adapter *can* tell**, and a case named for a guess would have gone on asserting the right
+outcome for a reason that no longer existed. It is now *"reports a session the provider
+has disowned as an expiry, not as a failure to ask"*, and the comment says which sentence
+became false and why. **A test title is a claim about the body it drives, and this
+repository has recorded that shape often enough that shipping a false one inside the
+change that falsified it would have been the least defensible place to leave it.**
+
+## D11 — The measured-basis citation was §4.5, and the measurement is §5.1
+
+Every artifact in this change cited `docs/PROVIDERS.md` **§4.5** for the measured session
+shapes, and **§4.5 is *"Notification facts"*** (line 800). The shapes are in **§5.1**,
+*"Harness defects found while closing this gap"*, at lines 1134–1154, recorded
+2026-10-02.
+
+**The correction is the pointer and nothing else.** The bodies this change quotes are
+byte-for-byte what §5.1 records, so the claim was right and the citation was wrong —
+which is the failure a citation has, and it is the reason the delta's note was fixed
+before sync promoted it rather than after. A wrong section number inside a `MODIFIED`
+block becomes a wrong section number in `openspec/specs/`, where nothing re-reads it.
+
+## D12 — The fixture repair found a second consumer, and it was a harness
+
+**One invented field had two dependants, and only one of them was shipped code.**
+`apps/extension/e2e/recorded-provider.ts` held **one** entry for the whole Guerrilla
+host — `[GUERRILLA_AJAX, recorded(guerrillaLiveList)]` — so `get_email_address`
+and `check_email` were both answered with the *listing* body. That was correct only
+while `guerrillaLiveList` carried `email_addr`, a key no listing sends: `createMailbox`
+reads `email_addr` and `sid_token`, found both in a listing, and built a mailbox from a
+body creation never returns.
+
+**Measured in the order it happened, and the order is the finding.** The tier was red at
+`10 failed | 96 passed (106)` in **6.0 minutes** *before* the adapter was fixed — the
+liveness defect. It was red at the **same count, in the same duration, on the same case
+names** *after* the adapter was fixed — creation failing with `UNKNOWN_PROVIDER_ERROR`.
+**Not one number in the summary distinguished them.** What separated them was reading the
+popup's own accessibility snapshot, which said *"Addresses this session created: 0"* where
+the first red had shown a mailbox reported gone.
+
+**A count that matches is not a cause that matches.** This repository already records the
+mirror of this shape — a red that appears and disappears without the tree changing means
+nothing — and the practical consequence here is the same: a second run that reproduces
+the first run's *number* is not a confirmation, and the instrument that separated the two
+causes was the one that reads what the surface **says** rather than how many cases failed.
+
+**The repair is a third branch in the seam that already told operations apart**, not a
+second mechanism: `GUERRILLA_CREATE_OPERATION` is named beside the listing and read
+operations, and `get_email_address` is answered with `guerrillaSessionCreated`. **`SCRIPT`'s
+bare-host entry is deliberately left alone**, because it is the documented default for an
+*unstaged* body read — the `carriesNothing` verdict depends on a read being answered by a
+listing that carries no body field — so keying `SCRIPT` by operation would have broken
+that default in order to fix a different arm. The seam's own docblock said *"two
+operations"* and is corrected to three: it went stale the moment creation needed the same
+treatment, which is the same class of prose this change exists to correct.
+
+**The website's table already keyed by operation**
+(`apps/web/e2e/recorded-provider.ts:73—74`), which is what makes the extension's an
+outlier rather than a convention — and **the two fixtures name the same address and the
+same token**, so no assertion in either tier needed editing. The repair changed which body
+answers, not what a person would see.
+
+**The rule worth carrying out of it: a fixture that is wrong in the generous direction makes
+its consumers look correct.** `guerrillaLiveList` carried one field too many, and both the
+adapter's liveness check and this harness were green because of it. Removing the field found
+both, and a change that had repaired only the shipped half would have shipped a green suite
+over a harness staging a shape the provider never sends.
 
 ## Falsification arms
 
 Each arm is aimed at one assertion; `wrongcatch`, `green`, `noop` and `harness-error`
 are counted separately, and every mutated file is restored byte-identically against a
-SHA-256 taken before the first mutation.
+SHA-256 taken before the first mutation. The instrument is
+`node node_modules/vitest/vitest.mjs run packages/providers --reporter=json`, and the
+control run on the unmutated tree was green at **93 of 93** before the first arm.
 
-| arm | mutation | intended catcher |
+| arm | mutation | measured outcome |
 | --- | --- | --- |
-| A1 | restore the `email_addr` requirement in `sessionIsLive` | the empty-live unit case, and the website tier's listing case |
-| A2 | `sessionIsLive` returns `true` unconditionally | the dead-session unit case and the conformance dead-session case |
-| A3 | key on `auth.success` instead of the measured signals | the dead-session unit case and the conformance case |
-| A4 | drop the address-disagreement branch | the different-address unit case |
-| A5 | treat any non-array `list` as live | the dead-session unit case and the conformance case |
-| A6 | return `[]` when `list` is absent instead of reporting expiry | the dead-session unit case and the conformance case |
-| A7 | remove the `MEASURED` first word from the new fixture's docblock | `fixtures.test.ts`'s provenance case |
+| A1 | restore the `email_addr` requirement in `sessionIsLive` | **caught, 8 failed.** Named by *returns a genuinely empty list for a live session* and *keeps a live session alive when the listing names no address at all*, plus six cases that read `guerrillaLiveList`. |
+| A2 | `sessionIsLive` returns `true` unconditionally | **caught, 4 failed.** *reports a dead session as expired rather than as an empty inbox* and the conformance case *never reports a dead session as a successful empty inbox*, plus the different-address case and the conformance credential case. |
+| A3 | key on `auth.success` instead of the measured signals | **caught, 6 failed.** The two dead-session cases, and **four live cases** — three of them bodies that carry no `auth` block at all, which the mutant therefore expires. |
+| A4 | drop the address-disagreement branch | **caught, 1 failed**, exactly *treats a session reporting a different address as dead*. |
+| A5 | treat any non-array `list` as live | **SURVIVOR, 0 failed.** See below. |
+| A6 | treat an absent `list` as an empty inbox | **SURVIVOR, 0 failed.** Same cause as A5. |
+| A7 | remove `MEASURED` from the new fixture's docblock | **caught, 1 failed**, *declares MEASURED or SYNTHETIC on every exported fixture*. |
 
 **A8 is recorded and not counted.** Reverting the repaired envelope to `email_addr`
 and dropping `email` leaves every case green, and that is the designed result: the new
@@ -203,3 +319,42 @@ rule ignores `email_addr` and treats an absent address as live, so the fixture's
 for the code path. **A survivor means the assertion did not catch this, never that the
 assertion is too weak, until the mutant has been read and shown to be the thing it
 claims.**
+
+**⇒ And two arms survived, and the table's catcher column was a prediction for both.**
+A5 and A6 leave the suite green at 93 of 93, and the reason is structural rather than a
+missing case: **the measured dead body carries both signals at once** — a top-level
+`error` string *and* no `list` — and the `error` check is answered first, so no mutation
+of the `list` check is ever reached by a body the provider has been observed to send.
+**The three signals are not independently falsifiable: the `error` check subsumes the
+`list` check for every measured body.**
+
+**That is not a gap against the requirement, and it is not repaired by inventing a
+body.** The promoted requirement's only dead-session scenario names *an `error` string
+and no message list* together, and no scenario asks the absence of `list` to decide on
+its own. The `list` check is a **defensive second signal** for a body with no `error` and
+no `list`, which the provider has never been measured sending. It stays because it is
+three lines and guards a shape the provider could send; **the record says plainly that no
+measured body isolates it, and that adding it or deleting it changes nothing the suite can
+see.** A case written to make A5 fail would be a fixture composed from belief to satisfy
+an arm, which is the exact artifact this change exists to remove.
+
+**⇒ And A3's six failures are a second finding rather than a longer list.** Keying on
+`auth.success` does not merely fail to detect death — `auth.success` is `true` in the
+dead body too, so the mutant reports it live — **it also expires live listings that omit
+`auth`**, which is why three inline bodies with no `auth` block joined the failure list.
+A signal that is `true` in both states and absent in a third is worse than no signal, and
+the arm demonstrates both halves.
+
+**The browser half of A1 is already measured, and on the tree rather than on a copy.**
+Tasks 2.1 and 2.2 ran the two browser tiers *before* the adapter was touched — that tree
+**was** the A1 mutant — and recorded **15 failed / 43 passed** on the website and
+**10 failed / 96 passed** on the extension, every failure a live mailbox reported gone.
+A copied mutation is a weaker instrument than the shipped defect, so the arm is not re-run
+in the browser tier here.
+
+**Restoration is verified twice, and neither time from Git.** Every mutated file was
+restored from an in-memory copy of its pre-mutation bytes — a restore from a commit would
+discard this branch's uncommitted work — and its SHA-256 was recomputed after **every**
+arm and once more after the last, matching the digest taken before the first. **`dist/`
+was then rebuilt from the restored source**, because a mutation that reaches a build
+artefact outlives the source restore that undid it.

@@ -35,7 +35,7 @@ them apart"*. The intent was right; the key was wrong.
 **And no gate caught it, because the fixtures disagree with the record.** `guerrillaLiveList`
 is labelled MEASURED and carries `email_addr`, which no listing sends; `guerrillaDeadSession`
 is labelled MEASURED and carries no `error` and no `list`, which is neither measured shape.
-The repository's own record says otherwise: `docs/PROVIDERS.md` §4.5 records the healthy body
+The repository's own record says otherwise: `docs/PROVIDERS.md` §5.1 records the healthy body
 as `{"list":[...],"auth":{...}}` and the dead body as
 `{"error":"Please call get_email_address or set_email_user first", ...}` with no `list`, and
 names the usable signals as *the `error` key and the absence of `list`*. The code followed
@@ -58,8 +58,8 @@ the fixture, and the fixture contradicted the measurement.
   different address, no address.
 - **Append a dated correction to `docs/PROVIDERS.md` §3**, whose M0 summary line reads
   *"HTTP 200, no auth error, empty inbox"* and teaches the shape that caused this. The
-  original line is kept; the correction records that §4.5's bodies and the 2026-11-18
-  re-measurement refute it. §4.5 itself is untouched.
+  original line is kept; the correction records that §5.1's bodies and the 2026-11-18
+  re-measurement refute it. §5.1 itself is untouched.
 
 ## Capabilities
 
@@ -82,7 +82,7 @@ None.
   repaired fixture reaches them without a client edit.
 - No API change, no dependency, no storage change, no token or visual change.
 - `docs/PROVIDERS.md` §3 receives one appended correction, explicitly required by this
-  change's tasks; §4.5, the recorded measurement every provider decision cites, is unchanged.
+  change's tasks; §5.1, the recorded measurement every provider decision cites, is unchanged.
 - **Not established by this change**: whether the provider ever had the silent dead shape
   §3 describes. The M0 spike stored summaries and not raw bodies, so its `email_addr` hits are
   creation responses only. The extension's fallback failure is inferred from shared code and

@@ -45,7 +45,7 @@ empty result.
 > `get_email_address`. An empty live listing is `{"list":[],"email":…}`; an
 > unrecognised session is
 > `{"error":"Please call get_email_address or set_email_user first"}` with no
-> `list` at all (`docs/PROVIDERS.md` §4.5, re-measured 2026-11-18). `auth.success`
+> `list` at all (`docs/PROVIDERS.md` §5.1, re-measured 2026-11-18). `auth.success`
 > is `true` in both shapes and cannot decide liveness, and `count` was measured as
 > `"0"` on a one-message listing and `0` on an empty one, so it cannot either.
 >
