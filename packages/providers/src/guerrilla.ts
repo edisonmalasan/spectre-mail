@@ -11,10 +11,11 @@
  *   so a browser refuses to attach `PHPSESSID` cross-origin. The body-returned
  *   `sid_token` is the only session carrier that works from a web page. This
  *   adapter therefore persists that value and never reads a cookie.
- * - **A dead session is not rejected.** An unrecognised session answers `HTTP 200`
- *   with an empty list and no auth error, which makes it indistinguishable from an
- *   empty inbox. `listMessages` therefore cannot return an empty list without first
- *   checking the provider still recognises the session. See design.md D4.
+ * - **A dead session is not rejected, but it is not silent either.** An unrecognised
+ *   session answers `HTTP 200` with a top-level `error` string and **no `list` key at
+ *   all**, and it still reports `auth.success: true`, so the auth flag is not a
+ *   liveness signal. `listMessages` therefore reads the measured signals before it
+ *   returns a list. See design.md D4 and D10.
  * - **The declared content type lies.** A measured message arrived with
  *   `content_type: "text"` and an HTML body. The body is carried as text and no
  *   markup field is emitted.
@@ -59,8 +60,16 @@ interface GuerrillaMessage {
   readonly mail_excerpt?: unknown;
 }
 
+/**
+ * The keys this adapter reads from a `check_email` response.
+ *
+ * `email`, not `email_addr`: measured on 2026-11-18, the listing echoes the session's
+ * address under `email`, while `email_addr` appears only on `get_email_address`. A
+ * listing that carried no address at all would still be declared here as `unknown`,
+ * because the adapter treats an absent address as no evidence either way.
+ */
 interface GuerrillaListResponse {
-  readonly email_addr?: unknown;
+  readonly email?: unknown;
   readonly sid_token?: unknown;
   readonly list?: readonly GuerrillaMessage[];
   readonly error?: unknown;
@@ -211,24 +220,42 @@ export function createGuerrillaAdapter(environment: ProviderEnvironment): MailPr
   /**
    * Whether the provider still recognises this session.
    *
-   * The measured trap: an unrecognised session returns `HTTP 200` with an empty
-   * list and no error, so "no messages" and "dead session" look identical. The only
-   * signal available is whether the response still names the mailbox's own address.
+   * The trap is that a dead session answers `HTTP 200` rather than an error status, so
+   * without this check it would be reported as an empty inbox. Three signals were
+   * measured on 2026-11-18 and only these are used:
+   *
+   * - a top-level `error` string, which the dead body carries and a live body does not;
+   * - a `list` that is not an array, because a live listing always carries one even
+   *   when it is empty, and the dead body carries no `list` key at all;
+   * - an echoed address that is present and disagrees with the mailbox's own.
+   *
+   * **An absent address is not evidence of death.** `auth.success` is `true` in the
+   * dead body too, and `count` was measured as the string `"0"` on a one-message
+   * listing and the number `0` on an empty one, so neither is read here.
    *
    * This is best-effort detection of one known trap, not proof of liveness.
    */
   function sessionIsLive(body: GuerrillaListResponse, mailbox: Mailbox): boolean {
-    // An explicit error key is the clearest signal available.
+    // An explicit error key is the clearest signal available, and the dead body carries
+    // one: "Please call get_email_address or set_email_user first".
     if (typeof body["error"] === "string") {
       return false;
     }
-    const reported = body["email_addr"];
+    // A live listing always carries `list`, even when it is empty. A body without one
+    // is not a listing this adapter knows how to read.
+    if (!Array.isArray(body["list"])) {
+      return false;
+    }
+    // The listing echoes the session's address under `email`. A present address that
+    // disagrees is the one signal that catches a session pointed at another mailbox.
+    const reported = body["email"];
     if (typeof reported === "string" && reported.length > 0) {
       return reported.toLowerCase() === mailbox.address.toLowerCase();
     }
-    // No address at all alongside a token means the provider did not recognise the
-    // session. A dead session still echoes a token back.
-    return false;
+    // No address at all. Measured on every live body seen so far, but its absence is
+    // not evidence of death: the two signals above already decided the question, and
+    // treating an absent address as death is what made every live mailbox look expired.
+    return true;
   }
 
   return {
@@ -335,8 +362,8 @@ export function createGuerrillaAdapter(environment: ProviderEnvironment): MailPr
           provider: "guerrilla",
           description:
             "Guerrilla Mail no longer recognises this session. It answers an expired " +
-            "session with an empty inbox and no error, so the empty list is not " +
-            "evidence that the mailbox is empty.",
+            "session with HTTP 200 and no list, so this answer is not an empty inbox " +
+            "and the mailbox's contents are unknown.",
         } satisfies SpectreError;
       }
 
