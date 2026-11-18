@@ -218,14 +218,18 @@ export const guerrillaSessionCreated: RecordedStep = {
 
 /**
  * MEASURED. `f=check_email` with a **live** session — `200`, one message, empty
- * subject, and the session's own address echoed back.
+ * subject, and the mailbox address echoed under `email`.
  *
- * The echoed address is the only evidence available that the session is alive.
+ * **The address key is `email`, never `email_addr`.** `email_addr` appears only on
+ * `get_email_address`, the creation call. Re-measured 2026-11-18: this fixture used
+ * to carry `email_addr`, a shape no listing sends, and the adapter's liveness check
+ * was written against the fixture rather than against the provider.
  */
 export const guerrillaLiveList: RecordedStep = {
   response: jsonResponse({
-    email_addr: GUERRILLA_ADDRESS,
+    email: GUERRILLA_ADDRESS,
     sid_token: GUERRILLA_SESSION,
+    auth: { success: true, error_codes: [] },
     list: [
       {
         mail_id: 1_000_000,
@@ -238,6 +242,40 @@ export const guerrillaLiveList: RecordedStep = {
         mail_excerpt: "Your verification code is 493028",
       },
     ],
+  }),
+};
+
+/**
+ * MEASURED. `f=check_email` with a live session and **no messages** — captured
+ * 2026-11-18, after deleting the provider's own welcome message.
+ *
+ * This is the body that separates empty from dead: `list: []`, the address echoed
+ * under `email`, and no `error` at all. A dead session answers with an `error` and
+ * no `list` at all — see `guerrillaDeadSession`.
+ *
+ * The address and token are normalised to this file's constants; the envelope is
+ * otherwise verbatim, **including `count` as the number `0` here where the
+ * one-message listing sent the string `"0"`**. That disagreement is recorded rather
+ * than tidied, because a field that contradicts `list.length` is a field no
+ * liveness check may use.
+ */
+export const guerrillaEmptyLiveList: RecordedStep = {
+  response: jsonResponse({
+    list: [],
+    email: GUERRILLA_ADDRESS,
+    alias: "103ebv1+c1x4a3qc8i2mw",
+    ts: 1794942555,
+    sid_token: GUERRILLA_SESSION,
+    count: 0,
+    users: 1,
+    stats: {
+      sequence_mail: "89,579,595",
+      created_addresses: 38_163_242,
+      received_emails: "21,710,921,011",
+      total: "21,621,341,416",
+      total_per_hour: "66046",
+    },
+    auth: { success: true, error_codes: [] },
   }),
 };
 
@@ -333,18 +371,27 @@ export const guerrillaMessageFetched: RecordedStep = {
 };
 
 /**
- * MEASURED. `f=check_email` with an **unrecognised** session — `HTTP 200`, an
- * empty list, no `error`, and `auth.success` still `true`.
+ * MEASURED. `f=check_email` with an **unrecognised** session — `HTTP 200` with a
+ * top-level `error` and **no `list` at all**, while `auth.success` is still `true`.
  *
- * This is the data-loss trap. Dead and empty are the same response, so an adapter
- * that returns the list directly tells a user their mailbox has no mail when in
- * fact the mailbox is unusable. The `email_addr` is deliberately absent here,
- * which is the signal the adapter checks.
+ * This is the data-loss trap, and the shape is not the one this fixture used to
+ * carry. It was recorded here as "an empty list, no `error`" with an invented
+ * `sid_token` and `auth.session_id: "expired"`; re-measured 2026-11-18, the body has
+ * neither a list nor a token, and it does carry an error string. Both this body and
+ * a live listing set `auth.success: true`, so that field cannot decide liveness —
+ * which is why the adapter reads the error and the list instead.
  */
 export const guerrillaDeadSession: RecordedStep = {
   response: jsonResponse({
-    sid_token: GUERRILLA_SESSION,
-    auth: { success: true, session_id: "expired" },
+    auth: { success: true, error_codes: [] },
+    error: "Please call get_email_address or set_email_user first",
+    stats: {
+      sequence_mail: "89,579,595",
+      created_addresses: 38_163_242,
+      received_emails: "21,710,921,011",
+      total: "21,621,341,416",
+      total_per_hour: "66046",
+    },
   }),
 };
 

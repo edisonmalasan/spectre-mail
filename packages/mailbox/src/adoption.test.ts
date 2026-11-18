@@ -5,22 +5,29 @@
  *
  * Two reasons, and the first is a rule rather than a preference.
  *
- * **The empty-inbox trap can only be driven with provider wire fields in the room.**
- * `docs/PROVIDERS.md` §3 records that an unrecognised Guerrilla Mail session answers
- * `HTTP 200` with an empty list and no error, so a dead session and a mailbox that
- * has simply received nothing are the same response. The only way to reproduce that
- * here is to hand the real adapter the two bodies it actually receives — and those
- * bodies are named in provider wire fields. The wire-format rule scans shipped sources
- * and exempts `.test.ts` precisely because a test has to be able to name what it
- * exercises; `test-support.ts` is not a test file, and the rule caught a first draft
- * that put these bodies there, correctly.
+ * **The liveness trap can only be driven with provider wire fields in the room.**
+ * An unrecognised Guerrilla Mail session answers `HTTP 200`, not an HTTP error, so a
+ * client that reads only the status sees no failure at all. What separates the two
+ * bodies is inside the response: a dead session carries a top-level `error` string and
+ * **no `list`**, while a live empty one carries `list: []` and no `error`. So the trap
+ * cannot be reproduced without naming provider wire fields. The wire-format rule scans
+ * shipped sources and exempts `.test.ts` precisely because a test has to be able to
+ * name what it exercises; `test-support.ts` is not a test file, and the rule caught a
+ * first draft that put these bodies there, correctly.
+ *
+ * **The bodies here are minimal rather than captured.** The full measured bodies, with
+ * every key the provider sent, live in `packages/providers/src/fixtures.ts` and are
+ * asserted there; these carry the keys this layer's adapter reads. That is a second
+ * spelling of one shape, and the instrument that keeps the two honest is this file going
+ * red the moment the adapter's rule changes — which is what happened when the rule
+ * moved from the address to the `error` string.
  *
  * **The assertion that matters most is here, not in `session.test.ts`.** Every other
  * adoption assertion could be met by a stub that returns `MAILBOX_EXPIRED` because it
- * was asked to. Only a real adapter over a recording transport can prove that an empty
- * response naming no address is read as *dead* while an empty response naming the
- * mailbox's own address is read as *empty* — which is the distinction the whole
- * feature rests on, and the distinction a stub would have had pre-supplied.
+ * was asked to. Only a real adapter over a recording transport can prove that a body
+ * carrying the provider's own `error` is read as *dead* while an empty listing that
+ * echoes the mailbox's own address is read as *empty* — which is the distinction
+ * the whole feature rests on, and the distinction a stub would have had pre-supplied.
  *
  * @module
  */
@@ -58,7 +65,7 @@ interface Answer {
   readonly body: string;
 }
 
-/** The address the fixture mailbox has, since `email_addr` is compared against it. */
+/** The address the fixture mailbox has, since the echoed `email` is compared against it. */
 const ADDRESS = "stored@mail.example";
 
 /**
@@ -77,50 +84,70 @@ function createsAddress(): Answer {
 }
 
 /**
- * A live session with an empty inbox.
+ * A live session with an empty inbox, as measured.
  *
- * **`email_addr` naming the mailbox's own address is the whole content of this
- * responder.** It is the one thing that separates this body from `deadSession`, and
- * `sessionIsLive` compares it against the mailbox rather than merely checking that
- * something came back. A test that asserted only on `deadSession` would pass against
- * an implementation that treated every empty listing as a dead session — which is a
- * product that tells every returning user their address is gone.
+ * **The echoed `email` is the load-bearing field.** A listing repeats the mailbox's own
+ * address under `email`, and a body whose address disagrees with the mailbox's is the one
+ * shape that is dead on the address alone. This responder agrees, so the positive control
+ * below proves that agreement does not itself expire anything.
+ *
+ * **`email_addr` is deliberately absent**: the provider sends that key only on
+ * `get_email_address`, the creation call, and a listing carrying it would be a body the
+ * provider has never been measured sending.
  */
 function liveEmptyInbox(): Answer {
   return {
     status: 200,
     headers: {},
-    body: JSON.stringify({ email_addr: ADDRESS, sid_token: "token-stored", list: [] }),
+    body: JSON.stringify({
+      email: ADDRESS,
+      sid_token: "token-stored",
+      list: [],
+      count: 0,
+      auth: { success: true, error_codes: [] },
+    }),
   };
 }
 
 /**
  * A session the provider no longer recognises, exactly as measured.
  *
- * A bare `{ list: [] }`: `HTTP 200`, no error, no address, an empty list. This is the
- * body `docs/PROVIDERS.md` §3 records, and it is the case that makes adoption unsafe
- * to do by reading a stored record.
+ * `HTTP 200` with a top-level `error` string and **no `list` at all** — not an empty
+ * list. **`auth.success` is `true` here**, which is why no adapter may key on it: the
+ * field reports whether the call was understood, not whether the session is alive.
+ *
+ * This is the body `docs/PROVIDERS.md` §5.1 records, and §3's summary of it was
+ * corrected on 2026-11-18 to say so.
  */
-function deadSession(url: string): Answer {
-  // **The address-creation request is answered normally**, and that is not a
-  // convenience. The first draft of this responder ignored its argument and returned
-  // the dead body for everything, which meant the *setup* mailbox creation was refused
-  // too — so ten tests failed at their first line and the failures looked like
-  // adoption defects rather than a fixture answering the wrong request. A responder
-  // that ignores its URL is a responder answering a request it was not asked about.
-  return url.includes("f=check_email")
-    ? { status: 200, headers: {}, body: JSON.stringify({ list: [] }) }
-    : createsAddress();
+function deadSession(): Answer {
+  return {
+    status: 200,
+    headers: {},
+    body: JSON.stringify({
+      error: "Please call get_email_address or set_email_user first",
+      auth: { success: true, error_codes: [] },
+      stats: {},
+    }),
+  };
 }
 
-/** A live session holding one message, so the inbox is not trivially empty. */
+/**
+ * A live session holding one message, so the inbox is not trivially empty.
+ *
+ * **`count` is the string `"0"` here and the number `0` on the empty body**, both
+ * measured on 2026-11-18. The inconsistency is reproduced rather than tidied, because it
+ * is the reason no adapter may treat `count` as a signal: one of the two shapes would
+ * have to be believed over the other.
+ */
 function liveInboxWithOneMessage(): Answer {
   return {
     status: 200,
     headers: {},
     body: JSON.stringify({
-      email_addr: ADDRESS,
+      email: ADDRESS,
       sid_token: "token-stored",
+      count: "0",
+      auth: { success: true, error_codes: [] },
       list: [
         {
           mail_id: 1,
@@ -162,8 +189,8 @@ function messageBody(): Answer {
  * test that uses this asserts the code is not an expiry, which is the claim that
  * matters, rather than pinning a classification this change has no business deciding.
  */
-function refusesListing(url: string): Answer {
-  return url.includes("f=check_email") ? { status: 503, headers: {}, body: "" } : createsAddress();
+function refusesListing(): Answer {
+  return { status: 503, headers: {}, body: "" };
 }
 
 /**
@@ -174,10 +201,8 @@ function refusesListing(url: string): Answer {
  * `RATE_LIMITED` failure from the status — passing while proving nothing about the
  * statement being captured.
  */
-function throttled(url: string): Answer {
-  return url.includes("f=check_email")
-    ? { status: 429, headers: { "ratelimit-policy": "30; w=60" }, body: "" }
-    : createsAddress();
+function throttled(): Answer {
+  return { status: 429, headers: { "ratelimit-policy": "30; w=60" }, body: "" };
 }
 
 /**
@@ -192,13 +217,28 @@ function throttled(url: string): Answer {
  *
  * The recorder is reset before returning, so a request count below is the adoption's
  * and never the fixture's.
+ *
+ * **Setup creation is answered here rather than by each case's responder, and that is a
+ * repair rather than a tidy-up.** Every responder used to answer *every* URL with its
+ * own body, so `createMailbox()` succeeded only because the live bodies happened to
+ * carry `email_addr` — a key no listing sends. When the bodies were corrected to the
+ * measured shape, twelve cases failed on *\"Guerrilla Mail returned no address for a new
+ * mailbox\"*, and none of them was about adoption. **A responder that ignores its URL is
+ * a responder answering a request it was not asked about**, and the first draft of
+ * `deadSession` had already demonstrated it by returning the dead body for the setup
+ * creation too.
+ *
+ * The wrapper also means the operation a body answers is named **once**, rather than in
+ * a branch inside each responder where one of them could forget it.
  */
 async function guerrillaMail(respond: (url: string) => Answer): Promise<{
   readonly adapter: ReturnType<typeof createGuerrillaAdapter>;
   readonly recorder: ReturnType<typeof recordingTransport>;
   readonly stored: Awaited<ReturnType<ReturnType<typeof createGuerrillaAdapter>["createMailbox"]>>;
 }> {
-  const recorder = recordingTransport({ respond });
+  const recorder = recordingTransport({
+    respond: (url) => (url.includes("get_email_address") ? createsAddress() : respond(url)),
+  });
   const adapter = createGuerrillaAdapter({ transport: recorder.transport, now: () => FIXED_NOW });
   const stored = await adapter.createMailbox();
   recorder.reset();
@@ -271,11 +311,11 @@ describe("adopting a stored mailbox", () => {
   describe("reconciling it with the provider that owns it", () => {
     it("presents a live empty inbox as a mailbox, not as a dead session", async () => {
       // **The positive control for the trap test below, and it has to exist.** Both
-      // bodies are `HTTP 200` with an empty `list`; the only difference is whether the
-      // response names the mailbox's own address. An implementation that treated every
-      // empty listing as a dead session passes a `deadSession` test and fails this one,
-      // and that implementation tells every returning user their address is gone on
-      // their very first visit.
+      // bodies are `HTTP 200` and neither is an HTTP error; what separates them is
+      // inside the response. An implementation that treated every empty listing as a
+      // dead session passes a `deadSession` test and fails this one, and that
+      // implementation tells every returning user their address is gone on their very
+      // first visit.
       const { adapter, stored } = await guerrillaMail(liveEmptyInbox);
       const session = createMailboxSession(createProviderManager([adapter]), manualScheduler());
 
@@ -292,12 +332,13 @@ describe("adopting a stored mailbox", () => {
     it("never presents an empty inbox as proof that a stored mailbox is alive", async () => {
       // **The assertion this whole change exists for.**
       //
-      // The recorded Guerrilla behaviour is that an unrecognised session answers
-      // `HTTP 200` with an empty list and no error, so a mailbox the provider has
-      // dropped is indistinguishable from an empty one *unless something reads the
-      // response's own account of the session*. This drives the real adapter with the
-      // real body rather than a stub returning `MAILBOX_EXPIRED` because it was asked
-      // to, because only the former proves the reading is actually made.
+      // An unrecognised session answers `HTTP 200` with a top-level `error` string and
+      // no `list`, so a client that read only the status would see a successful call.
+      // A mailbox the provider has dropped is therefore indistinguishable from an
+      // empty one *unless something reads the response's own account of the session*.
+      // This drives the real adapter with the real body rather than a stub returning
+      // `MAILBOX_EXPIRED` because it was asked to, because only the former proves the
+      // reading is actually made.
       const { adapter, stored } = await guerrillaMail(deadSession);
       const session = createMailboxSession(createProviderManager([adapter]), manualScheduler());
 
@@ -464,7 +505,7 @@ describe("adopting a stored mailbox", () => {
     it("reports a mailbox the provider has called gone as gone, not as an empty inbox", async () => {
       // **The whole point of sharing `restore`'s reconciliation.** A listing that skipped
       // it would report this mailbox as `ready` with nothing in it — which is precisely
-      // the dead-session response `docs/PROVIDERS.md` §3 records, read as life.
+      // the dead-session body `docs/PROVIDERS.md` §5.1 records, read as life.
       const { adapter, stored } = await guerrillaMail(deadSession);
       const session = createMailboxSession(createProviderManager([adapter]), manualScheduler());
 
@@ -598,11 +639,21 @@ describe("adopting a stored mailbox", () => {
       expect(isExpired(state)).toBe(false);
     });
 
-    it("does not call an expiry something it could not tell", async () => {
-      // **The other direction of the same pair, which is a separate assertion.** A
-      // design that reported `expired` for everything that went wrong would pass the
-      // test above and fail this one, and it would be wrong in the direction that
-      // destroys a working address.
+    it("reports a session the provider has disowned as an expiry, not as a failure to ask", async () => {
+      // **The other direction of the same pair, and both directions are needed.** The
+      // case above holds a refusal the adapter could not classify to `restoreFailed`;
+      // this one holds a body that *does* say the session is gone to `expired`. A design
+      // that reported `expired` for everything would pass this and fail that one, and a
+      // design that reported `restoreFailed` for everything would pass that one and fail
+      // this.
+      //
+      // **The name used to read "does not call an expiry something it could not tell",
+      // and the fixture repair is what made that false.** `deadSession` was a bare
+      // `{ list: [] }` — the ambiguous shape the old rule guessed at — and it now carries
+      // the provider's own `error` string and no `list` at all, which is a disowning that
+      // was *stated*. A case named for a guess would have gone on asserting the right
+      // outcome for a reason that no longer exists, which is this repository's most
+      // recorded defect.
       const { adapter, stored } = await guerrillaMail(deadSession);
       const session = createMailboxSession(createProviderManager([adapter]), manualScheduler());
 

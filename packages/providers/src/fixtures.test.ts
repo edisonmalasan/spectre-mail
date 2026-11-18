@@ -36,7 +36,7 @@
  * — read the declaration, not the prose around it.
  *
  * So this rule reads the **first content line** and requires the marker to *start* it.
- * The convention is not imposed: measured across this file, **19 of 19** fixtures put
+ * The convention is not imposed: measured across this file, **20 of 20** fixtures put
  * `MEASURED.` or `SYNTHETIC.` on their first content line, and `guerrillaThrottled` and
  * `guerrillaUnclassifiable` put theirs on a single-line comment where there is no second
  * line to hide in at all.
@@ -133,7 +133,7 @@ describe("recorded provider fixtures", () => {
 
   it("is not vacuous: it reads at least the fixtures this file declares", () => {
     // **The scan above could match nothing and pass.** An empty `unmarked` array is the
-    // same value whether the file exports nineteen fixtures or none, so a rule that
+    // same value whether the file exports twenty fixtures or none, so a rule that
     // stopped matching would report success — the shape this repository has recorded
     // repeatedly. This case is the floor under it: the pattern must find the fixtures it
     // is here to police, so a broken pattern fails here rather than passing silently

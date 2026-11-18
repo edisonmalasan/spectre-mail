@@ -71,7 +71,7 @@ export const MAILTM_ACCOUNTS = "https://api.mail.tm/accounts";
 export const GUERRILLA_AJAX = "https://api.guerrillamail.com/ajax.php";
 
 /**
- * The query parameter {@link GUERRILLA_AJAX}'s adapter spells its operation in, and the two
+ * The query parameter {@link GUERRILLA_AJAX}'s adapter spells its operation in, and the three
  * operations a body-verdict staging has to tell apart.
  *
  * **A URL's spelling, not a response field, and that distinction is why these names can live
@@ -80,11 +80,23 @@ export const GUERRILLA_AJAX = "https://api.guerrillamail.com/ajax.php";
  * of them: it travels in the query string and this file already documents its existence on
  * {@link GUERRILLA_AJAX}. **A stage that matched a bare host would match both operations and
  * stage nothing**, and a stage that guessed which is which would stage the wrong answer
- * confidently, so both are named rather than inferred.
+ * confidently, so all three are named rather than inferred.
  *
  * **Exported so a spec can say what it staged rather than re-typing it.**
  */
 export const GUERRILLA_OPERATION_PARAMETER = "f";
+
+/**
+ * The creation request, which is the only call that answers under `email_addr`.
+ *
+ * **Named because a listing answers under a different key, and one stage answered both.**
+ * Re-measured 2026-11-18: `get_email_address` carries `email_addr` and `check_email` carries
+ * `email`. This tier answered **every** Guerrilla URL with the listing body, which worked
+ * only because that fixture carried `email_addr` too — a shape no listing sends.
+ * `guerrilla-liveness-detection` removed the invented field and creation then failed as
+ * *"returned no address for a new mailbox"*, which is the fixture doing its job.
+ */
+export const GUERRILLA_CREATE_OPERATION = "get_email_address";
 
 /** The listing request. */
 export const GUERRILLA_LIST_OPERATION = "check_email";
@@ -373,9 +385,9 @@ export async function recordProviderTraffic(
     }
 
     /**
-     * **Guerrilla Mail's two operations are told apart before {@link SCRIPT} is consulted, and
+     * **Guerrilla Mail's three operations are told apart before {@link SCRIPT} is consulted, and
      * that ordering is the whole seam.** {@link SCRIPT} keys on a URL *prefix*, and
-     * `ajax.php` is the prefix of both operations - so without this block a body read would be
+     * `ajax.php` is the prefix of every operation - so without this block a body read would be
      * answered with a *listing*, the adapter would find no body field, and every staged verdict
      * would be `carriesNothing` while the spec believed it had staged something else.
      *
@@ -386,6 +398,23 @@ export async function recordProviderTraffic(
      */
     if (url.startsWith(GUERRILLA_AJAX)) {
       const operation = new URL(url).searchParams.get(GUERRILLA_OPERATION_PARAMETER);
+
+      // **Creation is answered here for the reason a read is, and it is the arm that was
+      // missing.** Only `get_email_address` carries `email_addr`; a listing carries `email`.
+      // A creation request left to {@link SCRIPT} is therefore answered with a *listing*, and
+      // the adapter refuses it with *"returned no address for a new mailbox"*. That is what
+      // this tier did until the listing fixture stopped carrying the invented field, and the
+      // failure surfaced as `UNKNOWN_PROVIDER_ERROR` on every fallback case — which reads
+      // as a product defect and is not one.
+      if (operation === GUERRILLA_CREATE_OPERATION) {
+        const created = recorded(guerrillaSessionCreated);
+        await route.fulfill({
+          status: created.status,
+          contentType: "application/json",
+          body: created.body,
+        });
+        return;
+      }
 
       if (operation === GUERRILLA_READ_OPERATION && options.guerrillaRead !== undefined) {
         const staged = recorded(options.guerrillaRead);

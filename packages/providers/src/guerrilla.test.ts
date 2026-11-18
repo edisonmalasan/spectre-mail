@@ -2,8 +2,8 @@
  * Guerrilla Mail adapter tests.
  *
  * The shared conformance suite runs here exactly as it does for Mail.tm. Most of
- * what is specific to this adapter is about the session model and the
- * empty-inbox-equals-dead-session trap.
+ * what is specific to this adapter is about the session model and the dead-session
+ * trap: a session the provider no longer honours still answers `HTTP 200`.
  *
  * @module
  */
@@ -63,12 +63,13 @@ describe("Guerrilla Mail adapter", () => {
         response: {
           status: 200,
           headers: {},
-          // The recording must echo the SECOND mailbox's own address. Reusing the
-          // first mailbox's recording made the liveness check reject it - which is
-          // that check working correctly, and the reason a fixture for a second
-          // mailbox cannot be a copy of the first.
+          // The recording must echo the SECOND mailbox's own address under `email`,
+          // which is the key a listing sends. Reusing the first mailbox's recording
+          // made the liveness check reject it - which is that check working
+          // correctly, and the reason a fixture for a second mailbox cannot be a copy
+          // of the first.
           body: JSON.stringify({
-            email_addr: "someone.else@sharklasers.com",
+            email: "someone.else@sharklasers.com",
             sid_token: "second-session-token",
             list: [],
           }),
@@ -135,12 +136,17 @@ describe("Guerrilla Mail adapter", () => {
     const error = await capture(() => createGuerrillaAdapter(environment).listMessages(mailbox));
 
     // The measured trap, and the whole reason the liveness check exists. The
-    // recording answers `HTTP 200`, carries no `error`, and leaves
-    // `auth.success` at `true` while returning no `list`. Without the check this
-    // would be an empty array, and the user would be told their mailbox has no mail
-    // for an address that once had some.
+    // recording answers `HTTP 200`, carries a top-level `error` and **no `list` at
+    // all**, and leaves `auth.success` at `true`. Without the check the missing list
+    // would read as an empty array, and the user would be told their mailbox has no
+    // mail for an address that once had some.
     expect(error?.code).toBe(NormalizedErrorCode.MAILBOX_EXPIRED);
-    expect(error?.description).toContain("empty inbox");
+    // The description must not repeat the shape the measurement refuted. It used to
+    // say the provider answers "with an empty inbox and no error", which is false in
+    // both halves: the measured dead body carries an error and no list. `no longer
+    // recognises` is the claim the adapter can support, and this assertion is what
+    // stops the old sentence coming back.
+    expect(error?.description).toContain("no longer recognises");
   });
 
   it("treats a session reporting a different address as dead", async () => {
@@ -151,7 +157,7 @@ describe("Guerrilla Mail adapter", () => {
           status: 200,
           headers: {},
           body: JSON.stringify({
-            email_addr: "someone.else@example.invalid",
+            email: "someone.else@example.invalid",
             sid_token: GUERRILLA.sessionId,
             list: [],
           }),
@@ -174,7 +180,7 @@ describe("Guerrilla Mail adapter", () => {
           status: 200,
           headers: {},
           body: JSON.stringify({
-            email_addr: GUERRILLA.address.toUpperCase(),
+            email: GUERRILLA.address.toUpperCase(),
             sid_token: GUERRILLA.sessionId,
             list: [],
           }),
@@ -191,25 +197,41 @@ describe("Guerrilla Mail adapter", () => {
 
   it("returns a genuinely empty list for a live session", async () => {
     const mailbox = await createMailbox();
-    const environment = providerOnlyEnvironment([
-      {
-        response: {
-          status: 200,
-          headers: {},
-          body: JSON.stringify({
-            email_addr: GUERRILLA.address,
-            sid_token: GUERRILLA.sessionId,
-            list: [],
-          }),
-        },
-      },
-    ]);
+    // The captured empty body, not a hand-built one. Measured 2026-11-18: a live
+    // session with nothing in it answers `list: []` **and** an echoed address **and**
+    // no `error`, while the dead body carries an error and no `list` at all. A
+    // hand-built body cannot show that difference, because whoever writes it decides
+    // what the difference is - which is how this case stayed green while the fixture
+    // it should have been reading was wrong.
+    const environment = providerOnlyEnvironment([fixtures.guerrillaEmptyLiveList]);
 
     const summaries = await createGuerrillaAdapter(environment).listMessages(mailbox);
 
     // The other half of the requirement. Without this, "expired" would be
     // indistinguishable from "correctly empty", and the liveness check would be
     // unfalsifiable.
+    expect(summaries).toEqual([]);
+  });
+
+  it("keeps a live session alive when the listing names no address at all", async () => {
+    const mailbox = await createMailbox();
+    const environment = providerOnlyEnvironment([
+      {
+        response: {
+          status: 200,
+          headers: {},
+          body: JSON.stringify({ list: [], sid_token: GUERRILLA.sessionId }),
+        },
+      },
+    ]);
+
+    const summaries = await createGuerrillaAdapter(environment).listMessages(mailbox);
+
+    // **The inversion this change exists for.** The adapter used to require an echoed
+    // address and call anything without one dead, so once the fixture stopped carrying
+    // a key no listing sends, every live mailbox was reported expired. An absent
+    // address is not evidence of death: the error and the list already decided the
+    // question, and this body carries neither of the signals that mean dead.
     expect(summaries).toEqual([]);
   });
 

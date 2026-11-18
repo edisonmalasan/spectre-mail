@@ -283,10 +283,11 @@ export function runProviderConformance(conformance: ProviderConformance): void {
 
       // The requirement is about the *absence* of a result, not about a specific
       // code. A provider that honours no session may say so by rejecting, or - the
-      // measured Guerrilla case - by answering an empty inbox; the adapter's job is
-      // to make the second case an error. So the assertion is that no adapter ever
-      // returns a successful empty list here, and it is not written with a branch
-      // that can pass by doing nothing.
+      // measured Guerrilla case - by answering `HTTP 200` with an `error` and no
+      // `list` at all; the adapter's job is to make that an error rather than an
+      // empty inbox. So the assertion is that no adapter ever returns a successful
+      // empty list here, and it is not written with a branch that can pass by doing
+      // nothing.
       const result = await capture(() => adapter.listMessages(mailbox));
 
       expect(result).toBeDefined();
