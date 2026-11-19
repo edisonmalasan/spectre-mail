@@ -60,10 +60,14 @@ export default defineConfig({
   build: {
     outDir: "dist",
     // **`false`, and this changed when the second build was added.** `emptyOutDir: true`
-    // here would delete `content-script.js` on the next popup build — the second build writes
+    // here would delete `content-script.js` on the next popup build - the second build writes
     // into the same `dist`, so whoever runs last decides whether the extension loads at all.
-    // Each build cleans its own kind of output instead: the first emits HTML and ES modules,
-    // the second a single IIFE.
+    // **What that comment used to say was that "Each build cleans its own kind of output
+    // instead", which was false**: neither build cleaned anything, so an artefact a previous
+    // build emitted survived every rebuild. Measured during `release-packaging`: a stale
+    // `content-script.bundle.js` sat beside a correct rebuild and was still in `dist/` after
+    // it. The clean is now one explicit step before both builds - `node scripts/clean.mjs`
+    // in `package.json`'s `build` - and these two configs deliberately keep `false`.
     emptyOutDir: false,
     // **No hash and no content hash in a filename.** `manifest.json` names these
     // files literally, so a hashed name would require rewriting the manifest after

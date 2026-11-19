@@ -2738,13 +2738,20 @@ Pin versions when exact versions matter.
   sentence that said "There is still no extension build step — that is M8" became false at M8
   and is deleted rather than reworded.**
 
-- Testing: Vitest `3.2.7` at the workspace root, verified running **1422 tests across
-  77 files** via `pnpm test` (2026-11-18, at `guerrilla-liveness-detection`'s stage,
-  counted from a JSON reporter **grouped by project** rather than read off a summary line, and
-  **re-measured at this stage from a fresh run rather than carried forward** - because the
-  count a ledger carries is only worth what the last person to re-run it made it worth,
-  and this repository has now had a standing figure in its own status block go stale by a
-  whole milestone for exactly that reason. **`1421 across 77` was accurate one stage
+- Testing: Vitest `3.2.7` at the workspace root, verified running **1439 tests across
+  80 files** via `pnpm test` (**re-measured 2026-11-20 at `release-packaging`'s apply stage from a
+  fresh `--reporter=json` run grouped by package**: 1439 = 500 `apps/extension` + 176
+  `tests/architecture` + 149 `packages/mail-parser` + 143 `apps/web` + 172 `packages/mailbox` +
+  103 `packages/storage` + 93 `packages/providers` + 54 `packages/core` + 49 `packages/ui`, across
+  80 files. **The +17 are all this change's three new architecture files**, 11 in
+  `packaging.test.ts`, 3 in `document-metadata.test.ts` and 3 in `release-record.test.ts`; **every
+  other package is unmoved**, which is the measurement that a packaging-and-documentation change
+  added no client or shared-package behaviour. **`1422 across 77` was accurate one stage
+  earlier**, at `guerrilla-liveness-detection`, counted from a JSON reporter **grouped by project**
+  rather than read off a summary line, and **re-measured at this stage from a fresh run rather than
+  carried forward** - because the count a ledger carries is only worth what the last person to re-run
+  it made it worth, and this repository has now had a standing figure in its own status block go stale
+  by a whole milestone for exactly that reason. **`1421 across 77` was accurate one stage
   earlier**, and this stage moved it by exactly its own one case, in `packages/providers`:
   `guerrilla.test.ts` 27 → 28, the case requiring a live listing that names **no address at
   all** to stay live. **Every other package is unmoved, including `packages/mailbox` at
@@ -2785,24 +2792,15 @@ Pin versions when exact versions matter.
   **7** — the shared diagnostic's own cases — so the package's count is no longer the flat
   **38** this file has carried through nine milestones, and **a figure that stops moving is
   a figure nobody re-ran**),
-  **159 in `tests/architecture`** (56 boundaries, 22 privacy-disclosure, **19**
-  design-record, 18 security-audit, 14 branding-audit, 11 provider-terms, **7**
-  beta-diagnostics, **4** accent-inventory, **8 comments** - **the 151 this line carried was one
-  stage stale**, and the movement is one new file that grew by one case after CI ran it cold, which
-  is why the breakdown is re-summed here rather than adjusted in place: 56 + 22 + 19 + 18 + 14 + 11
-  + 7 + 4 + 8 = **159**. **The eighth case is the reason a count that moves after a merge is worth
-  more than one that does not**: the file was at seven, CI found the `ENOENT` its walk could produce,
-  and the vocabulary case is what a reader is owed for it. **The previous 147 was stale by one change
-  before that**, because PR #189 added `design-record.test.ts` at **19** and moved nothing else, and **a
-  file that appears in a suite without appearing in its breakdown is the same defect as a
-  count that does not move** - so `boundaries.test.ts` is **56**, which is **53** at
-  `architecture-suite-isolation`'s sync, **54** after its vocabulary check, **55** with
-  `firefox-compatibility-spike`'s discriminator control, and **56** with this change's
-  disabled-control paint rule, **and the movement is the measurement**: each move was **one**
-  case, and each was a case that **had to be falsifiable** - because **a check that cannot
-  fail for the reason it exists is not a check**, and **the count is read out of the suite's
-  own source by `security-audit.test.ts` rather than carried by hand** - so **a declared
-  count that does not move when the thing it counts moves is a count nobody has re-read**),
+  **176 in `tests/architecture`** (56 boundaries, 22 privacy-disclosure, **19**
+  design-record, 18 security-audit, **14 branding-audit**, 11 provider-terms, **11 packaging**,
+  **8 comments**, **7** beta-diagnostics, **4** accent-inventory, **3** document-metadata,
+  **3** release-record —
+  **the 159 this line carried was one stage stale**, and the movement is this change's three new
+  architecture files: 56 + 22 + 19 + 18 + 14 + 11 + 11 + 8 + 7 + 4 + 3 + 3 = **176**. **None of the new
+  cases was added to `boundaries.test.ts`**, which stays at **56** — a packaging change adds an
+  instrument where none existed rather than a rule where one already holds, which is the measurement
+  this file records in `design.md` D10.
   **500 in `apps/extension`** across **22** files (**25** in `content-script.test.ts`,
   **123** in `protocol.test.ts`, **70** in `extension-platform.test.ts`, **23** in
   `content-script-fill.test.ts`, **22** in `code-field.test.ts`, **29** in `Popup.test.tsx`,
@@ -3758,13 +3756,19 @@ pnpm test:browser
 
 ```
 
-Playwright `1.63.0`, **two configurations, 19 spec files and 164 test cases** - **Chromium
+Playwright `1.63.0`, **two configurations, 21 spec files and 170 test cases** - **Chromium
 only**. The command builds **both** clients, then the in-page fixture, and then runs the two
-suites in order: the website's **58** in `apps/web/e2e/`, and the extension's **106** in
+suites in order: the website's **61** in `apps/web/e2e/`, and the extension's **109** in
 `apps/extension/e2e/`.
 
-**Both figures were re-measured on 2026-11-18 at `guerrilla-liveness-detection`'s stage**
-by running each tier separately after rebuilding both clients and the in-page fixture:
+**Both figures were re-measured on 2026-11-20 at `release-packaging`'s apply stage** by running
+each tier separately after rebuilding both clients and the in-page fixture: **`61 passed (15.7s)`
+website and `109 passed (1.7m)` extension, both exit `0`**. The movement is accounted for and is
+only this change's cases: the website's 58 → 61 is the new `document.spec.ts` at 3; the extension's
+106 → 109 is `packaged.spec.ts` at 1 and `manifest.spec.ts` 13 → 15 (the notification-icon case
+rewritten and two new icon-family cases). **No other spec file moved in either tier.**
+
+**The stage before measured 58 and 106**, at `guerrilla-liveness-detection`, both unmoved:
 **`58 passed (13.3s)` website and `106 passed (1.6m)` extension, both exit `0`** — **and the
 absence of movement is the measurement**, because this change repaired a fixture body both
 tiers read and would have been expected to move a count only if it had added or removed a
@@ -3792,8 +3796,10 @@ M7 slice 4), **`verification-actions.spec.ts` (3**, added by M10 slice 1**)**,
 `mailbox-history.spec.ts` (**10**; **eight** added by M13's first slice and **two** by
 `surface-hierarchy`), **`diagnostic.spec.ts`
 (3**, added by M13's second slice**), **`primary-action.spec.ts` (1**, added by PR
-#188**)** and **`surface-hierarchy.spec.ts` (4**, added by `surface-hierarchy`**)**. The
-command serves `apps/web/dist` with `vite preview` on
+#188**)** and **`surface-hierarchy.spec.ts` (4**, added by `surface-hierarchy`**)**.
+**Re-measured 2026-11-20 at `release-packaging`'s apply stage: 61 cases in 10 files**, the new
+`document.spec.ts` at **3** (the served description, the icon after render, and no image/font
+request); every other file in the list above is unchanged. The command serves `apps/web/dist` with `vite preview` on
 `http://127.0.0.1:4173` with `--strictPort`, because the page under test is the **built**
 `<App />` with no props - the page a user receives, not a composition mounted by a test.
 
@@ -3861,6 +3867,13 @@ reads the primary control's hover the way the website's new spec does, and **fou
 the 67 in 9 that `in-page-fill` recorded before M11 added the side-panel file,
 the 63 in 8 that `in-page-fill` recorded, the 56 in 7 that `verification-actions` recorded,
 the 36 in 5 at slice 1, and the 16 in 4 that `extension-preview` recorded**.
+
+**Re-measured 2026-11-20 at `release-packaging`'s apply stage from `playwright test --list
+--reporter=json`**: the tier is now **109 in 11 files** — `packaged.spec.ts` is new at **1** and
+`manifest.spec.ts` went **13 → 15** (the notification-icon case rewritten for the family and two
+new icon-family cases). **Every other file is identical to the list above**, which is the
+measurement a packaging change adds no client behaviour: the one new spec loads the archive the
+packager writes, and the two new manifest cases read the icon family it declares.
 
 **Every figure in that list was re-measured again on 2026-11-12 at `surface-hierarchy`'s stage**,
 and **three moved and seven did not** — the tier **99 → 106**, `popup.spec.ts` **9 → 13** and

@@ -40,6 +40,11 @@ build/
 .vite/
 *.tsbuildinfo
 
+# The extension's release archive is a build output, not a committed artefact.
+# `release/` is named rather than assuming `dist/` covers it: the archive is written
+# beside `dist`, and a store submission is a hand-off rather than a checked-in file.
+apps/extension/release/
+
 # Editor / OS
 .DS_Store
 Thumbs.db

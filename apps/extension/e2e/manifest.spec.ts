@@ -31,8 +31,11 @@ import { fileURLToPath } from "node:url";
 
 import { expect, test } from "@playwright/test";
 
+import { NOTIFICATION_ICON_FILE } from "../src/notification";
 import { EXTENSION_DIST } from "../playwright.config";
 import { FIXTURE_HTTP_ORIGIN, FIXTURE_ORIGIN } from "./helpers/in-page-fixture";
+import { decodePng, distinctColours, opaqueBounds } from "./helpers/png";
+import { SCHEMES } from "@spectre-mail/ui";
 import { launchExtension } from "./launch-extension";
 import type { LaunchedExtension } from "./launch-extension";
 import { SCRIPTED_PROVIDER_ORIGINS } from "./recorded-provider";
@@ -555,7 +558,7 @@ test.describe("the built extension's manifest", () => {
     ).toEqual([]);
   });
 
-  test("ships the icon a notification names, and declares it nowhere else", () => {
+  test("ships the icon a notification names, as a member of the one icon family", () => {
     // **Read as bytes, because the failure this exists to catch returns a file.**
     //
     // `docs/PROVIDERS.md` §4.5 measured three arms on this Chromium: a notification with **no
@@ -564,7 +567,12 @@ test.describe("the built extension's manifest", () => {
     // asset does not fail a build, a test, or a callback — **it fails silently, which is the only
     // kind of failure nothing else would notice.** Reading the signature rather than the size is
     // what distinguishes the asset from an HTML error page served in its place.
-    const icon = join(EXTENSION_DIST_PATH, "icon.png");
+    //
+    // **The name is the shipped constant rather than a literal**, so a notification icon and a
+    // manifest icon cannot disagree without this read finding it: `NOTIFICATION_ICON_FILE` is what
+    // the wake hands the platform, and it has to be one of the files `manifest.icons` declares.
+    expect(NOTIFICATION_ICON_FILE).toBe("icons/icon-128.png");
+    const icon = join(EXTENSION_DIST_PATH, NOTIFICATION_ICON_FILE);
     expect(
       existsSync(icon),
       `${icon} is named by every notification and the build did not emit it`,
@@ -578,12 +586,147 @@ test.describe("the built extension's manifest", () => {
     // followed by no `IEND` chunk is a truncated write that every check above would accept.
     expect(bytes.subarray(-8, -4).toString("ascii")).toBe("IEND");
 
-    // **And the toolbar is untouched, which is the half that could be forgotten.** The icon exists
-    // to satisfy a notification, so how the toolbar looks is not this change's business: neither
-    // `manifest.icons` nor `action.default_icon` may name it. **A reader matching nothing would
-    // satisfy the three assertions above for ever**, so this half is what makes them mean anything.
-    expect(manifest.icons).toBeUndefined();
-    expect(manifest.action.default_icon).toBeUndefined();
+    // **And the notification's icon is one the manifest also declares**, which is what makes the
+    // two surfaces one artefact rather than two files nobody compared. **This half used to assert
+    // the opposite** — that neither `manifest.icons` nor `action.default_icon` named it — because
+    // while an icon had exactly one consumer, a manifest icon was surface no capability described.
+    // `release-packaging` amends that: the product is handed to people through a toolbar, an
+    // extensions page and a listing, and a manifest declaring no icons is drawn with a generic
+    // placeholder in all three.
+    const declared = Object.values(manifest.icons as Record<string, string>);
+    expect(declared).toContain(NOTIFICATION_ICON_FILE);
+  });
+
+  /**
+   * The four sizes a store asks for, in one family.
+   *
+   * **Four because three surfaces ask for three different sizes** — a toolbar, an extensions page
+   * and a listing — and one 128 scaled down by the platform is a different image from one drawn at
+   * the size it is shown at. Measured 2026-11-20 before this case existed: `manifest.icons` was
+   * absent entirely, so Chromium drew the product with a generic placeholder in all three.
+   */
+  const ICON_FAMILY_SIZES = [16, 32, 48, 128] as const;
+
+  test("declares one icon family, and the built output carries every member", () => {
+    const icons = manifest.icons as Record<string, string> | undefined;
+    expect(icons, "manifest.icons declares no icon family").toBeDefined();
+
+    // **The sizes as a set, not as a list**: `{ "16": …, "32": … }` has no meaningful order, and a
+    // fourth size added without the requirement moving is a red rather than a quiet extra file.
+    const declaredSizes = Object.keys(icons ?? {})
+      .map((key) => Number(key))
+      .sort((left, right) => left - right);
+    expect(declaredSizes).toEqual([...ICON_FAMILY_SIZES]);
+
+    // **Every member is collected before anything is reported**, so a build missing two sizes says
+    // so once instead of making a reader delete a file to find the second. Each entry names the size
+    // *and* the path, because "an icon is missing" is a report a reader has to reproduce from
+    // scratch.
+    const missing: string[] = [];
+    for (const size of ICON_FAMILY_SIZES) {
+      const path = (icons ?? {})[String(size)];
+      if (typeof path !== "string" || path.length === 0) {
+        missing.push(`${size}: the manifest names no file`);
+        continue;
+      }
+      if (!existsSync(join(EXTENSION_DIST_PATH, path))) {
+        missing.push(`${size}: ${path} is not in the built output`);
+      }
+    }
+    expect(missing, `icon family members that are absent: ${missing.join("; ")}`).toEqual([]);
+
+    // **And the toolbar names a member rather than a fifth file.** `default_icon` is the one place
+    // the manifest could quietly point at an icon the family does not hold, which is the second
+    // spelling of a set this repository records as a defect.
+    const defaultIcon = manifest.action.default_icon;
+    expect(typeof defaultIcon, "action.default_icon names no file").toBe("string");
+    expect(
+      Object.values(icons ?? {}),
+      `action.default_icon names ${String(defaultIcon)}, which is not a member of the icon family`,
+    ).toContain(defaultIcon);
+  });
+
+  test("draws every icon in the family in the declared accent, at the mark's geometry", () => {
+    // **Decoded rather than sized, because the requirement's word is *decoded*.** A file of the
+    // right dimensions and the wrong colour is the failure a byte-length check cannot see, and a
+    // PNG's data is filtered rather than raw — so `helpers/png.ts` inflates and unfilters it and
+    // this case reads pixels.
+    const icons = manifest.icons as Record<string, string>;
+    const accent = SCHEMES.light.accent;
+    const accentRgb: [number, number, number] = [
+      Number.parseInt(accent.slice(1, 3), 16),
+      Number.parseInt(accent.slice(3, 5), 16),
+      Number.parseInt(accent.slice(5, 7), 16),
+    ];
+
+    const decoded = new Map<number, ReturnType<typeof decodePng>>();
+    const wrongColour: string[] = [];
+    const wrongSize: string[] = [];
+
+    for (const size of ICON_FAMILY_SIZES) {
+      const path = icons[String(size)];
+      // **The first case already established that every size names a file**, so a missing one here
+      // is a broken precondition of this case rather than the defect this case exists to catch.
+      if (path === undefined) throw new Error(`icon-${size}: the manifest names no file`);
+      const image = decodePng(
+        readFileSync(join(EXTENSION_DIST_PATH, path)),
+        `icon-${size} (${path})`,
+      );
+      decoded.set(size, image);
+
+      if (image.width !== size || image.height !== size) {
+        wrongSize.push(`${size}: ${path} is ${image.width}x${image.height}`);
+      }
+
+      // **Two colours and no anti-aliasing is what this family ships**, so every opaque pixel is
+      // either the declared accent or a defect. Reported as a set of values rather than a ratio,
+      // because "0.4% of pixels differ" is a number a reader cannot act on.
+      const offenders = distinctColours(image)
+        .filter((colour) => colour.rgba[3] !== 0)
+        .filter(
+          (colour) =>
+            colour.rgba[0] !== accentRgb[0] ||
+            colour.rgba[1] !== accentRgb[1] ||
+            colour.rgba[2] !== accentRgb[2],
+        )
+        .map((colour) => `rgba(${colour.rgba.join(",")}) x${colour.count}`);
+      if (offenders.length > 0) wrongColour.push(`${size}: ${offenders.join(", ")}`);
+    }
+
+    expect(
+      wrongSize,
+      `icon family members at the wrong dimensions: ${wrongSize.join("; ")}`,
+    ).toEqual([]);
+    expect(
+      wrongColour,
+      `icon family members not drawn in ${accent}: ${wrongColour.join("; ")}`,
+    ).toEqual([]);
+
+    // **And they are one drawing rather than four.** Each smaller size's opaque bounding box, taken
+    // back into the 128's coordinate space, has to land on the 128's own box within one pixel of
+    // *that size* — one pixel of resampling tolerance, which is the honest allowance for a
+    // downscaler, and far less than a redrawn mark would move. **The tolerance is stated because a
+    // hand-picked threshold is this repository's recorded defect**: this one is derived from the
+    // size being checked rather than chosen to pass.
+    const reference = opaqueBounds(decoded.get(128)!, "icon-128");
+    const drift: string[] = [];
+    for (const size of [16, 32, 48] as const) {
+      const scale = size / 128;
+      const bounds = opaqueBounds(decoded.get(size)!, `icon-${size}`);
+      const edges = ["minX", "minY", "maxX", "maxY"] as const;
+      for (const edge of edges) {
+        const expected = reference[edge] * scale;
+        if (Math.abs(bounds[edge] - expected) > 1) {
+          drift.push(
+            `${size}.${edge}: ${bounds[edge]}, the 128's ${reference[edge]} scaled is ${expected.toFixed(2)}`,
+          );
+        }
+      }
+    }
+    expect(
+      drift,
+      `icon family members drawn at different geometry from the 128: ${drift.join("; ")}`,
+    ).toEqual([]);
   });
 
   test("declares one content script, on every page, running when the document is idle", () => {

@@ -631,14 +631,16 @@ describe("resolving the address of a file this extension ships", () => {
       },
     });
 
-    expect(extensionAssetUrl("icon.png")).toBe("chrome-extension://measured/icon.png");
-    expect(seen).toEqual(["icon.png"]);
+    expect(extensionAssetUrl("icons/icon-128.png")).toBe(
+      "chrome-extension://measured/icons/icon-128.png",
+    );
+    expect(seen).toEqual(["icons/icon-128.png"]);
   });
 
   it("names no address where the runtime offers no way to build one", () => {
     installPlatform({ runtime: { sendMessage: vi.fn() } });
 
-    expect(extensionAssetUrl("icon.png")).toBeUndefined();
+    expect(extensionAssetUrl("icons/icon-128.png")).toBeUndefined();
   });
 
   it("names no address where the runtime refuses the file", () => {
@@ -653,7 +655,7 @@ describe("resolving the address of a file this extension ships", () => {
       },
     });
 
-    expect(extensionAssetUrl("icon.png")).toBeUndefined();
+    expect(extensionAssetUrl("icons/icon-128.png")).toBeUndefined();
   });
 
   it("names no address where the runtime answers with something that is not a URL", () => {
@@ -662,7 +664,7 @@ describe("resolving the address of a file this extension ships", () => {
     // rather than against the platform that answered wrongly.
     installPlatform({ runtime: { getURL: () => 42 } });
 
-    expect(extensionAssetUrl("icon.png")).toBeUndefined();
+    expect(extensionAssetUrl("icons/icon-128.png")).toBeUndefined();
   });
 });
 
