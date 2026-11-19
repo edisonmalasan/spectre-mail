@@ -10,8 +10,12 @@ extension, both talking to the same provider abstraction.
 Chromium extension over one shared provider abstraction, the shared packages they are built from, the
 measured provider research those were written against, and the OpenSpec specifications that constrain
 them. **Nothing is deployed and the extension is not listed**: it loads unpacked from
-`apps/extension/dist`, and no deployment, hosting or release pipeline exists or is planned for V1.
-See [Current status](#current-status).
+`apps/extension/dist`. **Two of the things a release needs are decisions this repository cannot make
+for itself** — where the website is hosted, and whose developer account publishes the extension — so
+**no deployment, hosting or publishing job exists or is planned for V1.** What the repository does own
+is the part that needs no account: the icon set both clients declare, the archive a store accepts, and
+a procedure that states what each gate does and does not establish. **That work is `release-packaging`,
+and an uploadable archive is not a publication.** See [Current status](#current-status).
 
 ---
 
@@ -52,27 +56,36 @@ never had.
 | `monorepo-foundation`    |            5 |        12 | live                                |
 | `build-and-verification` |           14 |        47 | live                                |
 | `shared-domain-model`    |            9 |        23 | live                                |
-| `provider-adapters`      |           12 |        30 | live                                |
+| `provider-adapters`      |           12 |        32 | live                                |
 | `mail-parsing`           |            9 |        31 | live                                |
 | `mailbox-session`        |           25 |        68 | live                                |
-| `website-client`         |           26 |        88 | live                                |
+| `website-client`         |           26 |        90 | live                                |
 | `spectre-storage`        |           16 |        61 | live — **consumed by both clients** |
-| `visual-system`          |            9 |        28 | live                                |
+| `visual-system`          |           10 |        32 | live                                |
 | `page-composition`       |            6 |        20 | live                                |
 | `browser-verification`   |            5 |        15 | live                                |
-| `extension-client`       |           17 |        86 | live                                |
+| `extension-client`       |           22 |       101 | live                                |
 | `in-page-integration`    |           17 |        68 | live                                |
 | `privacy-disclosure`     |            9 |        23 | live                                |
-| **total**                |      **190** |   **629** | **fifteen capabilities**            |
+| **total**                |      **196** |   **652** | **fifteen capabilities**            |
 
-**Every figure in that table was re-derived on 2026-10-28** by counting `### Requirement:` and
-`#### Scenario:` across `openspec/specs/`, not carried over from a previous claim — **because this
-table has now been stale twice, and the second time is the one worth recording.** It read **nine
-capabilities and 99 requirements** when it was first corrected; it then read **fourteen capabilities,
-151 requirements and 446 scenarios**, and by this measurement it was **missing `privacy-disclosure`
-altogether and behind on ten of its fourteen rows**. **A count nobody re-ran is a count nobody
-checked**, and a table that carries a count per row is fourteen chances to be wrong in the file a
-reader meets first.
+**Every figure in that table was re-derived on 2026-11-20, at `release-packaging`'s proposal**, by
+counting `### Requirement:` and `#### Scenario:` across `openspec/specs/`, not carried over from a
+previous claim — **and it was stale again in four rows.** It read **190 requirements and 629
+scenarios** and the tree holds **196 and 652**: `surface-hierarchy` promoted nine blocks across
+`extension-client`, `visual-system` and `website-client` (**+6 requirements, +21 scenarios**) and
+`guerrilla-liveness-detection` promoted one `MODIFIED` block in `provider-adapters` (**+2
+scenarios**), and this table's last re-derivation was on 2026-10-28, before either. **The history is
+kept rather than replaced, because it is the same defect three times**: the table read **nine
+capabilities and 99 requirements** when it was first corrected, then **fourteen capabilities, 151
+requirements and 446 scenarios** while **missing `privacy-disclosure` altogether**, and now **four
+stale rows**. **A count nobody re-ran is a count nobody checked**, and a table that carries a count
+per row is fifteen chances to be wrong in the file a reader meets first.
+
+**And nothing checks this table.** Every other figure in this repository that matters has an
+instrument; this one has a reader who happened to count. **That is recorded rather than fixed**,
+because a README checker is not release packaging — and a table that is corrected by hand three
+times in a row will be corrected by hand a fourth.
 
 `mailbox-session` and `website-client` were promoted at M5's sync stages, `spectre-storage` at M6
 slice 1's, and `privacy-disclosure` at M12's — the fifteenth capability, and the one whose absence

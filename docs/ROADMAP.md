@@ -159,6 +159,19 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > task**, and `openspec list` reporting no active changes is the correct end state rather than a gap
 > somebody has forgotten to fill.
 >
+> **⇒ And the work since then has been defect repair rather than milestone work, which is why the
+> cursor has not moved.** `guerrilla-liveness-detection` is **APPLIED, SYNCED and ARCHIVED**
+> (archive **#204**, merged 2026-11-19), and it repaired a live Guerrilla mailbox being reported
+> `MAILBOX_EXPIRED` — a defect found by browsing the built site rather than by any test.
+>
+> **⇒ And `release-packaging` is PROPOSED, because the two decisions are not the whole distance to
+> a release.** They are what this repository **cannot** do — deploy the website, publish the
+> extension — and **what it can do is the part that needs no account**: an icon family both clients
+> declare, one command that writes an archive a store accepts, and a procedure that states what each
+> gate establishes and what it does not. **That is a change and not a milestone**, because the
+> milestone program is closed; **and it does not schedule either decision**, because an artefact is
+> not a publication and a zip is not a deploy. **The cursor names it and does not move past it.**
+>
 > **⇒ And the rendered surfaces were given a hierarchy on 2026-11-01, in `surface-hierarchy` — a
 > refinement rather than a redesign, and the first change to restyle both clients from one record.**
 > **The identity is untouched**: the warm off-white, the one spectral-violet accent, the hairline
@@ -802,14 +815,14 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > for a genuinely empty inbox hand-built the same wrong key, so it agreed with the code rather
 > than with the provider. **The change is `guerrilla-liveness-detection`, APPLIED, SYNCED and
 > ARCHIVED** at `openspec/changes/archive/2026-11-20-guerrilla-liveness-detection/` — proposal
-> PR **#201**, apply PR **#202**, sync PR **#203**, and **the archive PR number is left unfilled
-> here**, for the reason this file records above: a predicted PR number is a figure nobody
-> counted. It repairs the fixtures to the measured shapes first — so the suite goes red naming
-> the right cases, in the browser tier as well as the unit tier — then keys liveness on the
-> signals the provider actually sends. **One `MODIFIED` block in `provider-adapters`, four
-> scenarios, no new capability, no token, no client source change.** `docs/PROVIDERS.md` §3 gains
-> a dated correction under its *"no auth error, empty inbox"* summary line; **§5.1 is untouched,
-> and the change's tasks name the edit, which is the do-not-touch condition.**
+> PR **#201**, apply PR **#202**, sync PR **#203** and archive PR **#204**, filled in from
+> `gh pr view 204` rather than predicted, for the reason this file records above: a predicted PR
+> number is a figure nobody counted. It repairs the fixtures to the measured shapes first — so the
+> suite goes red naming the right cases, in the browser tier as well as the unit tier — then keys
+> liveness on the signals the provider actually sends. **One `MODIFIED` block in `provider-adapters`,
+> four scenarios, no new capability, no token, no client source change.** `docs/PROVIDERS.md` §3
+> gains a dated correction under its *"no auth error, empty inbox"* summary line; **§5.1 is
+> untouched, and the change's tasks name the edit, which is the do-not-touch condition.**
 >
 > **Its sync took the tree from 196 / 650 to 196 / 652**, with `provider-adapters` **12 / 30 →
 > 12 / 32** — **the requirement count holding at 12 because a `MODIFIED` block replaces rather
@@ -845,7 +858,11 @@ figures: **a cursor is a headline, and the headline is the one line no change ha
 itself.** **Every change directory created since M13 is at its archive path** —
 `architecture-suite-isolation`, `architecture-suite-cleanup`, `firefox-compatibility-spike`,
 `load-independent-results`, `surface-hierarchy` and `guerrilla-liveness-detection` — and
-`openspec list` reports **no active changes**.
+`openspec list` reports **one active change, `release-packaging`, PROPOSED**: **the work a release
+needs that no account can block** — the icons both clients declare, the archive a store accepts, and
+the procedure that says what each gate does and does not establish. **The two product decisions stay
+where §33.2 put them**: where the website is hosted, and whose developer account publishes the
+extension.
 
 **And the line the cursor replaces is kept, because its PR numbers are measurements and a
 milestone's record is not deleted with a stale cursor:** `extension-permissions-review` is M12's
