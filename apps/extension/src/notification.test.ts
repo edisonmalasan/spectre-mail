@@ -77,7 +77,7 @@ function platformThat(answered: string | null | (() => never)): NotificationPlat
   };
 }
 
-const ICON_URL = "chrome-extension://spectre/icon.png";
+const ICON_URL = "chrome-extension://spectre/icons/icon-128.png";
 
 describe("what a notification says", () => {
   it("names the sender and the subject, and carries exactly those two lines", () => {
@@ -124,7 +124,11 @@ describe("what a notification says", () => {
     // naming no icon resolves its callback and registers nothing, and one naming an SVG is refused
     // with `null`. So the file name is asserted literally rather than read from a constant, because a
     // constant would make this case pass for a value nothing had checked.
-    expect(NOTIFICATION_ICON_FILE).toBe("icon.png");
+    //
+    // **The literal now includes the directory, and that is the whole point of the move.** The
+    // notification icon is the 128 member of the family `manifest.icons` declares, so the wake and
+    // the toolbar name one artefact rather than two that happen to agree today.
+    expect(NOTIFICATION_ICON_FILE).toBe("icons/icon-128.png");
     expect(buildNotificationRequest(summary(), ICON_URL).iconUrl).toBe(ICON_URL);
   });
 

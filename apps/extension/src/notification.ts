@@ -44,8 +44,14 @@ import type { NotificationPlatform, NotificationRequest } from "./extension-plat
  * **A raster image, and the format is a measurement** (`docs/PROVIDERS.md` §4.5, 2026-10-11):
  * the same request naming an SVG resolved `null`. A second file name somewhere would be a second
  * answer to "which icon", and the wrong one would be silently refused.
+ *
+ * **It is the 128 member of the one icon family `manifest.icons` declares**, not a file of its own.
+ * An earlier version of this module named `icon.png` at the build root, which was correct while an
+ * icon had exactly one consumer; a notification icon and a manifest icon naming different files is
+ * this repository's recorded second spelling of a set, and the two would drift the first time the
+ * mark changed. The path keeps its directory because `chrome.runtime.getURL` resolves it as given.
  */
-export const NOTIFICATION_ICON_FILE = "icon.png";
+export const NOTIFICATION_ICON_FILE = "icons/icon-128.png";
 
 /**
  * The notification id for one message.
