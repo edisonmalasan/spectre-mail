@@ -255,10 +255,14 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > 1), `page-composition` (M7 slice 3), `extension-client` (M8),
 > `in-page-integration` (M9 slice 1) and `privacy-disclosure` (M12). Counted
 > mechanically at each sync and again after each archive, they hold **196 requirements
-> and 650 scenarios** in total — **measured by heading across the tree after
-> `surface-hierarchy`'s sync on 2026-11-17**, and *corrected* from the **190 / 629**
+> and 652 scenarios** in total — **measured by heading across the tree after
+> `guerrilla-liveness-detection`'s sync on 2026-11-19**, which promoted **one `MODIFIED`
+> block and added two scenarios**: `provider-adapters` **12 / 30 → 12 / 32**, **its
+> requirement count holding at 12 because a `MODIFIED` block replaces rather than adds**,
+> with the other fourteen capabilities identical. **The figure before that was 196 / 650**,
+> measured after `surface-hierarchy`'s sync on 2026-11-17, and *corrected* from the **190 / 629**
 > this line carried until then, **which was itself the figure `firefox-compatibility-spike`'s
-> sync left behind**. **The change that moved it promoted nine blocks and added six
+> sync left behind**. **That change promoted nine blocks and added six
 > requirements**, because six of the nine are `ADDED` and the three `MODIFIED` blocks each
 > *replace* rather than add: `extension-client` **17 / 86 → 22 / 101**, `visual-system`
 > **9 / 28 → 10 / 32** and `website-client` **26 / 88 → 26 / 90**, **with the other twelve
@@ -794,14 +798,15 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > **And no gate caught it, because the fixtures disagreed with the record and the code followed
 > the fixtures.** `guerrillaLiveList` was labelled MEASURED and carried `email_addr`, which no
 > listing sends; `guerrillaDeadSession` was labelled MEASURED and carried neither the `error`
-> nor the absent `list` that `docs/PROVIDERS.md` §4.5 records for a dead session. The unit case
+> nor the absent `list` that `docs/PROVIDERS.md` §5.1 records for a dead session. The unit case
 > for a genuinely empty inbox hand-built the same wrong key, so it agreed with the code rather
-> than with the provider. **The active change is `guerrilla-liveness-detection`, PROPOSED**: it
+> than with the provider. **The change is `guerrilla-liveness-detection`, APPLIED, and its sync
+> promotes the one block below**: it
 > repairs the fixtures to the measured shapes first — so the suite goes red naming the right
 > cases, in the browser tier as well as the unit tier — then keys liveness on the signals the
 > provider actually sends. **One `MODIFIED` block in `provider-adapters`, four scenarios, no new
 > capability, no token, no client source change.** `docs/PROVIDERS.md` §3 gains a dated
-> correction under its *"no auth error, empty inbox"* summary line; **§4.5 is untouched, and the
+> correction under its *"no auth error, empty inbox"* summary line; **§5.1 is untouched, and the
 > change's tasks name the edit, which is the do-not-touch condition.**
 >
 > **What it does not establish**: whether the provider changed shape or the fixture was
