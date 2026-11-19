@@ -93,6 +93,7 @@ build fails when it does.
 - **THEN** the website's description of the popup SHALL be amended in that same change
 - **AND** it SHALL NOT be left describing a popup that no longer exists in that form
 
+
 ### Requirement: The extension reaches Mail.tm first and Guerrilla Mail behind it
 
 The extension SHALL declare its providers as a single named list in preference order, SHALL
@@ -126,6 +127,7 @@ about either provider.
 
 - **WHEN** a provider id is added to the exported list with no adapter beside it
 - **THEN** the client SHALL NOT compile
+
 
 ### Requirement: The extension declares its non-goals as requirements rather than leaving them absent
 
@@ -331,6 +333,7 @@ merge rather than a hand-authored manifest.
      The two additions are the amendment paragraph and one ADDED scenario; every other
      line is byte-identical to the promoted spec. -->
 
+
 ### Requirement: The extension's popup performs its first milestone's actions over the shared session
 
 The extension's popup SHALL create a mailbox, copy the mailbox address, name the provider it used,
@@ -420,6 +423,7 @@ one it fell back from.
 
 - **WHEN** a background check has listed messages while the popup is closed
 - **THEN** the popup SHALL NOT show that listing until the user asks for a check of its own
+
 ### Requirement: The extension ships its own browser-verification tier
 
 The extension's browser tests SHALL run in a suite that loads the built extension into a real
@@ -447,6 +451,7 @@ path, so narrowing its test directory is reported instead of passing.
 
 - **WHEN** an extension spec is collected by the website's browser suite
 - **THEN** the architecture boundary test SHALL fail
+
 ### Requirement: The background service worker owns exactly one alarm and holds nothing between its wakes
 
 The extension's background service worker SHALL create **exactly one** `chrome.alarms` alarm, SHALL arm
@@ -537,6 +542,7 @@ single wake would have missed — **the first run of its case read the count as 
 zero and failed with two requests where one was expected**, which is a figure a reader could easily
 call "the first wake pays for the analysis". Counting across **two** wakes is what turned that into
 "the cost does not fall", which is the defect.
+
 
 ### Requirement: A message that arrives raises a notification naming its sender and its subject
 
@@ -653,11 +659,30 @@ same shape as a boundary rule enforcing a rule that was retired.
 
 The claim is enforced where it can be, by `manifest.spec.ts` **reading the emitted artefact**: the
 PNG signature and its `IEND` chunk, so a truncated write and an HTML error page served in its place
-are both refused, and `manifest.icons`/`action.default_icon` staying `undefined`, so the icon is
-reachable only from a notification. **A test in the browser tier is the right instrument rather than
-a convenient one** — the failure this exists to catch is silent by measurement (§4.5: the callback
-resolves and the platform registers nothing), so nothing short of reading the artefact and reading
-the registration would ever notice it.
+are both refused, and `manifest.icons`/`action.default_icon` naming members of the one icon family
+this extension ships, so the icon a notification is given is the same artefact the manifest also
+declares. **A test in the browser tier is the right instrument rather than a convenient one** — the
+failure this exists to catch is silent by measurement (§4.5: the callback resolves and the platform
+registers nothing), so nothing short of reading the artefact and reading the registration would ever
+notice it.
+
+**Amendment, recorded during proposal (2026-11-20), by `release-packaging`.** **One clause above is
+replaced, and the property it held is kept.** It read *"and `manifest.icons`/`action.default_icon`
+staying `undefined`, so the icon is reachable only from a notification"*.
+
+**That was the right reading while an icon had exactly one consumer.** It is the wrong reading for a
+product that has to be handed to somebody: a manifest declaring no icons is drawn by Chromium with a
+generic placeholder — in the toolbar, in the extensions page, and in a store listing — so the
+product's mark would reach a person only inside a notification, after they had already installed it
+under a grey puzzle piece. **The raster icon was never the problem; its absence everywhere else
+was.**
+
+**The extension now ships an icon family the manifest declares, and that is the next requirement.**
+This one's claim narrows to **the icon a notification is given**: it SHALL be a raster image the
+built output carries, it SHALL be a member of that family, and the extension's browser suite SHALL
+fail when it is absent. **What changed is that the same artefact is now also reachable from the
+manifest — not that a second icon exists.**
+
 
 ### Requirement: A check with nothing to compare against establishes a baseline and raises nothing
 
@@ -720,6 +745,7 @@ to decide what to do with a record it could not shorten.
 - **AND** it SHALL not read or rewrite the record
 - **AND** a later check finding those messages again SHALL raise notifications for them
 
+
 ### Requirement: A check that fails raises nothing, and a mailbox the provider has reported gone stops the check
 
 A check the provider could not answer SHALL raise no notification and SHALL change nothing this device
@@ -755,6 +781,7 @@ guess.
 - **AND** it SHALL clear the alarm
 - **AND** it SHALL not remove the stored mailbox
 
+
 ### Requirement: The background check watches one mailbox, and it is the one this device would hand a visitor
 
 The background check SHALL watch **one** mailbox per wake, and that mailbox SHALL be the one this
@@ -783,6 +810,7 @@ mean a second ordering on a record this repository deliberately keeps with one.
 
 - **WHEN** this device holds more than one mailbox
 - **THEN** a wake SHALL make one listing request and not one request per mailbox
+
 
 ### Requirement: The side panel renders the mailbox this device holds, beside the page rather than in place of it
 
@@ -926,6 +954,7 @@ clause now names the selection, so the scenario can only be met by a panel holdi
 - **THEN** the extension SHALL write no host association and no mailbox preference
 - **AND** what any other surface of this extension offers for that host SHALL be unchanged
 
+
 ### Requirement: The side panel names the page it is beside, and reports when it cannot
 
 The side panel SHALL name the host of the page docked beside it, SHALL say which mailbox this
@@ -1020,6 +1049,7 @@ carries the same record with the decision attributed.
 
 - **WHEN** the extension's manifest is read
 - **THEN** it SHALL request no permission in order to name the page beside the panel
+
 
 ### Requirement: The side panel states, per message, whether a detected verification was found in it
 
@@ -1154,6 +1184,7 @@ detection — is met here by the marking itself, which names that the message co
 - **AND** a later occasion SHALL NOT offer that statement as though it were current without
   determining it again
 
+
 ### Requirement: The side panel offers to remove what this device holds, and says what that removed
 
 Where the side panel has established that this device holds something, it SHALL offer a way to
@@ -1265,6 +1296,7 @@ second `MODIFIED` block in this change's `spectre-storage` delta rather than lef
 - **THEN** it SHALL NOT say that something is kept
 - **AND** it SHALL NOT say that nothing is kept
 
+
 ### Requirement: The extension renders provider-supplied content as text
 
 The extension SHALL render every value that came from a provider — a sender, a
@@ -1320,6 +1352,7 @@ the other's implementation.
 - **THEN** that control SHALL render its own content as text as well
 - **AND** it SHALL NOT place a value received from a provider into the page as
   markup
+
 
 ### Requirement: The extension's surfaces render the one public name, and its manifest's two name fields agree
 
@@ -1402,6 +1435,7 @@ five times.
 - **AND** the report SHALL distinguish a surface that renders the name from a copy
   string or a control label that contains it
 
+
 ### Requirement: The extension reports its own outcomes on the same terms, and names the conflicts it can see
 
 The extension SHALL report, to the person using it, **the outcomes of the session in progress**,
@@ -1466,6 +1500,7 @@ a diagnostic is a report of what happened, and the two are not the same kind of 
 - **AND** no record of it SHALL be written to any store, in any area
 - **AND** the extension's own stored records SHALL be unaffected
 
+
 ### Requirement: An opened message shows the message
 
 When a message is opened, a surface of this client SHALL show that message's sender, subject,
@@ -1518,6 +1553,7 @@ produced by the extraction the shared session already ran.
 - **THEN** both SHALL show the same four fields
 - **AND** neither SHALL gain a control the surface did not already offer
 
+
 ### Requirement: A message row is a row of fields, not a line of prose
 
 Each message in a mail list of this client SHALL be a row that occupies the width of the list it is
@@ -1556,6 +1592,7 @@ the two rows should find the difference stated rather than discover it.
 - **WHEN** a row's subject is longer than the field it sits in
 - **THEN** the subject SHALL wrap inside its own field
 - **AND** the time and the verdict SHALL stay in their own fields rather than follow the subject
+
 
 ### Requirement: A surface states its subject before its account of the session
 
@@ -1602,6 +1639,7 @@ person came for comes first. The panel's report is already last and does not mov
 - **THEN** the surface SHALL present its own subject first
 - **AND** it SHALL NOT reserve the account's position with an empty region
 
+
 ### Requirement: A surface names a provider the way the provider names itself
 
 A surface of this client SHALL name a provider by the display name the provider abstraction declares
@@ -1638,6 +1676,7 @@ to name it with.
 - **WHEN** a stored mailbox belongs to a provider no adapter in this build declares
 - **THEN** the surface SHALL render that provider's identifier
 - **AND** it SHALL NOT render nothing, an empty heading, or a placeholder
+
 
 ### Requirement: The address breaks at its `@` on a surface narrower than it
 
@@ -1686,3 +1725,91 @@ opportunity with no text node, so the copied value is byte-identical to the stor
 - **WHEN** the popup and the panel render the same mailbox's address
 - **THEN** both SHALL break it at the same position
 - **AND** both SHALL copy the same value
+
+
+### Requirement: The extension ships one icon family, and the manifest declares it
+
+The extension SHALL ship the product's mark at **16, 32, 48 and 128** pixels, `manifest.icons` SHALL
+declare every one of them, and `action.default_icon` SHALL name a member of that family rather than a
+fifth file. The 128 SHALL be the raster file this extension already shipped, byte-identical, and the
+smaller sizes SHALL be derived from it.
+
+**Four sizes because three different surfaces ask for three different sizes** — a toolbar, an
+extensions page, and a listing — and one 128 scaled down by the platform is a different image from
+one drawn at the size it is shown at. **The 128 being byte-identical is the claim that this is a
+move and not a redraw**: the mark did not change, and a change that redrew it while calling itself a
+packaging change would be unreviewable.
+
+**One directory is the mark's home.** A file for the manifest and a second for the notification would
+be the second spelling of a set this repository records as a defect, and the two would drift the
+first time the mark changed. **Nothing here claims a person judged how the smaller sizes look** —
+what is asserted is that they are the product's mark, in the accent the token layer declares, and
+that a missing size is named rather than shipped as a placeholder.
+
+#### Scenario: The manifest declares the icon family
+
+- **WHEN** the built manifest is read
+- **THEN** `icons` SHALL name a file for each of the four sizes
+- **AND** every file it names SHALL be present in the built output
+- **AND** `action.default_icon` SHALL name one of those files
+
+#### Scenario: An icon the manifest names is not the mark
+
+- **WHEN** an icon in the shipped family is decoded
+- **THEN** it SHALL carry the accent the token layer declares
+- **AND** it SHALL NOT be a second drawing of the mark with different geometry
+
+#### Scenario: A size is absent
+
+- **WHEN** the built output is missing one of the four sizes
+- **THEN** the extension's browser suite SHALL fail, naming that size
+
+
+### Requirement: The extension is packaged into one archive a store can accept
+
+One command SHALL produce a single archive of the built extension, and `manifest.json` SHALL sit at
+the archive's root rather than inside a directory. The archive SHALL be produced from that client's
+own build output, SHALL carry the version the built manifest declares, and SHALL contain every file
+the manifest names by literal filename.
+
+**A store rejects an archive for shapes this repository can check without uploading one**, and each
+of them is silent at submission time: a top-level folder, a manifest that is not at the root, and a
+named entry point the archive does not carry. **The command SHALL be reproducible** — two runs over
+the same build output SHALL produce the same bytes — because an artefact whose bytes change on every
+run cannot answer the only question a maintainer asks of it: *did this rebuild change anything?*
+**The archive is a build output and SHALL NOT be committed**, and the repository's ignore rules
+SHALL name the directory it is written to.
+
+#### Scenario: The archive is opened at its root
+
+- **WHEN** the archive is inspected from its central directory
+- **THEN** `manifest.json` SHALL be present with no directory prefix
+- **AND** every other entry SHALL be relative to the same root
+- **AND** no entry SHALL carry a leading `dist/` or a top-level folder of its own
+
+#### Scenario: Every file the built manifest names is inside
+
+- **WHEN** each filename the built manifest declares is looked up in the archive
+- **THEN** every one SHALL be present
+- **AND** a missing entry point SHALL be reported by name rather than as an archive that produced
+  nothing
+
+#### Scenario: The archive's version is the manifest's
+
+- **WHEN** the archive is produced
+- **THEN** the version it reports SHALL be the version the built manifest declares
+- **AND** the version SHALL NOT be typed into the command or into a second file
+
+#### Scenario: The archive is built twice
+
+- **WHEN** the command runs twice over unchanged build output
+- **THEN** the two archives SHALL be byte-identical
+- **AND** the entry order SHALL NOT depend on the order the filesystem happens to list
+
+#### Scenario: There is no build output to package
+
+- **WHEN** the command runs with no built output
+- **THEN** it SHALL refuse, naming the path it looked for
+- **AND** it SHALL NOT write an empty or partial archive
+
+
