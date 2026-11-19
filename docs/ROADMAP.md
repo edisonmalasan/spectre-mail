@@ -164,13 +164,19 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > (archive **#204**, merged 2026-11-19), and it repaired a live Guerrilla mailbox being reported
 > `MAILBOX_EXPIRED` — a defect found by browsing the built site rather than by any test.
 >
-> **⇒ And `release-packaging` is PROPOSED, because the two decisions are not the whole distance to
-> a release.** They are what this repository **cannot** do — deploy the website, publish the
-> extension — and **what it can do is the part that needs no account**: an icon family both clients
-> declare, one command that writes an archive a store accepts, and a procedure that states what each
-> gate establishes and what it does not. **That is a change and not a milestone**, because the
-> milestone program is closed; **and it does not schedule either decision**, because an artefact is
-> not a publication and a zip is not a deploy. **The cursor names it and does not move past it.**
+> **⇒ And `release-packaging` is APPLIED, SYNCED and ARCHIVED** at
+> `openspec/changes/archive/2026-11-20-release-packaging/` — proposal **#205**, apply **#206**,
+> sync **#207** and archive **#208**, that last filled in from `gh pr view 208` once the PR existed —
+> a predicted PR number is a figure nobody counted. **It is the artefact work that needs no account**: an icon family both clients
+> declare, one command that writes an archive a store accepts, and `docs/RELEASE.md` stating what
+> each gate establishes and does not. **It is not a publication.** The two decisions the repository
+> cannot make are still outstanding, exactly where §33.2 put them — where the website is hosted and
+> whose developer account publishes the extension — and the archive stage deliberately leaves the
+> manual Chrome load (task 9.4) unticked and recorded as unverified. The cursor still names this
+> change rather than moving past it, because an artefact is not a deploy and a zip is not a listing.
+> The promoted tree stands at **200 requirements / 666 scenarios across 15 capabilities**; all **7**
+> archived files are byte-identical to a digest taken before the move, and Git confirms seven renames
+> at 100%.
 >
 > **⇒ And the rendered surfaces were given a hierarchy on 2026-11-01, in `surface-hierarchy` — a
 > refinement rather than a redesign, and the first change to restyle both clients from one record.**
@@ -857,12 +863,11 @@ and M15's own section records its decision. **This line read *M12 - Release Hard
 figures: **a cursor is a headline, and the headline is the one line no change has to touch to record
 itself.** **Every change directory created since M13 is at its archive path** —
 `architecture-suite-isolation`, `architecture-suite-cleanup`, `firefox-compatibility-spike`,
-`load-independent-results`, `surface-hierarchy` and `guerrilla-liveness-detection` — and
-`openspec list` reports **one active change, `release-packaging`, PROPOSED**: **the work a release
-needs that no account can block** — the icons both clients declare, the archive a store accepts, and
-the procedure that says what each gate does and does not establish. **The two product decisions stay
-where §33.2 put them**: where the website is hosted, and whose developer account publishes the
-extension.
+`load-independent-results`, `surface-hierarchy`, `guerrilla-liveness-detection` and
+`release-packaging` — and `openspec list` reports **no active changes**: the artefact work is done,
+**the two product decisions stay where §33.2 put them** (where the website is hosted, and whose
+developer account publishes the extension), and **the cursor does not move past M15's outcome** because
+a packaged archive and a deployed site are different claims.
 
 **And the line the cursor replaces is kept, because its PR numbers are measurements and a
 milestone's record is not deleted with a stale cursor:** `extension-permissions-review` is M12's
