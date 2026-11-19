@@ -800,25 +800,59 @@ popup shares the same component and is forbidden by a promoted clause from stati
 > listing sends; `guerrillaDeadSession` was labelled MEASURED and carried neither the `error`
 > nor the absent `list` that `docs/PROVIDERS.md` §5.1 records for a dead session. The unit case
 > for a genuinely empty inbox hand-built the same wrong key, so it agreed with the code rather
-> than with the provider. **The change is `guerrilla-liveness-detection`, APPLIED, and its sync
-> promotes the one block below**: it
-> repairs the fixtures to the measured shapes first — so the suite goes red naming the right
-> cases, in the browser tier as well as the unit tier — then keys liveness on the signals the
-> provider actually sends. **One `MODIFIED` block in `provider-adapters`, four scenarios, no new
-> capability, no token, no client source change.** `docs/PROVIDERS.md` §3 gains a dated
-> correction under its *"no auth error, empty inbox"* summary line; **§5.1 is untouched, and the
-> change's tasks name the edit, which is the do-not-touch condition.**
+> than with the provider. **The change is `guerrilla-liveness-detection`, APPLIED, SYNCED and
+> ARCHIVED** at `openspec/changes/archive/2026-11-20-guerrilla-liveness-detection/` — proposal
+> PR **#201**, apply PR **#202**, sync PR **#203**, and **the archive PR number is left unfilled
+> here**, for the reason this file records above: a predicted PR number is a figure nobody
+> counted. It repairs the fixtures to the measured shapes first — so the suite goes red naming
+> the right cases, in the browser tier as well as the unit tier — then keys liveness on the
+> signals the provider actually sends. **One `MODIFIED` block in `provider-adapters`, four
+> scenarios, no new capability, no token, no client source change.** `docs/PROVIDERS.md` §3 gains
+> a dated correction under its *"no auth error, empty inbox"* summary line; **§5.1 is untouched,
+> and the change's tasks name the edit, which is the do-not-touch condition.**
+>
+> **Its sync took the tree from 196 / 650 to 196 / 652**, with `provider-adapters` **12 / 30 →
+> 12 / 32** — **the requirement count holding at 12 because a `MODIFIED` block replaces rather
+> than adds** — and **the promotion rotted two citations in `docs/SECURITY.md` that it never
+> touched**, from **209 → 238** and **233 → 262**, because both cited blocks are byte-identical
+> to their pre-promotion copies and the replaced block grew the file. **The repair is the
+> document and not the resolver**: widening the reader to accept a line above its heading would
+> have made the instrument agree with a stale document. It is the **second** time a promotion has
+> done this to that file.
+>
+> **Its archive moved 5 files, every one byte-identical to a pre-archive digest taken
+> programmatically, and Git's own rename detection confirms it independently — five renames at
+> `100%` and `0 insertions, 0 deletions`.** All **15** files under `openspec/specs/` are
+> byte-identical throughout, checked against Git. The promoted block re-verified
+> **BYTE-IDENTICAL against the *archived* delta** — 2822 characters, 4 scenarios — with the
+> verifier pointed at the archived path **after being shown to fail loudly with `ENOENT` on the
+> absent pre-archive one**, and its negative control detecting a planted word change. Counts
+> **re-counted after the move** at **196 / 652 / 15**, unmoved by the archive,
+> `openspec validate --specs --strict` at **15 passed, 0 failed**, and `openspec list` reporting
+> **no active changes**. **This stage deliberately edited none of the archived files**, so the
+> digest table needs no expiry-date qualification.
 >
 > **What it does not establish**: whether the provider changed shape or the fixture was
 > mis-transcribed in M0 — the spike stored summaries, not bodies — and the extension's fallback
 > failure, which is inferred from shared code because the extension's popup and panel have not
 > been run live.
 
-**Roadmap cursor: M12 - Release Hardening, with all three of its tracked items done. M11 - Side Panel +
-Mailbox Context is COMPLETE IN SCOPE.** `extension-permissions-review` is M12's permissions review
-and is archived. `privacy-document` is M12's privacy documentation item and is **APPLIED, SYNCED and
-ARCHIVED** — apply PR **#139**, sync PR **#140**, archive PR **#141**, each number filled in by
-`gh pr view` after the merge rather than predicted at the stage that opened the PR.
+**Roadmap cursor: M15 - Post-Beta Evaluation, DECIDED: OUTCOME A — and the milestone program has no
+open milestone.** M0-M13 are complete, **M14 is SKIPPED by product decision** rather than deferred,
+and M15's own section records its decision. **This line read *M12 - Release Hardening* until
+`guerrilla-liveness-detection`'s archive**, which is the defect this block records in its own
+figures: **a cursor is a headline, and the headline is the one line no change has to touch to record
+itself.** **Every change directory created since M13 is at its archive path** —
+`architecture-suite-isolation`, `architecture-suite-cleanup`, `firefox-compatibility-spike`,
+`load-independent-results`, `surface-hierarchy` and `guerrilla-liveness-detection` — and
+`openspec list` reports **no active changes**.
+
+**And the line the cursor replaces is kept, because its PR numbers are measurements and a
+milestone's record is not deleted with a stale cursor:** `extension-permissions-review` is M12's
+permissions review and is archived; `privacy-document` is M12's privacy documentation item and is
+**APPLIED, SYNCED and ARCHIVED** — apply PR **#139**, sync PR **#140**, archive PR **#141**, each
+number filled in by `gh pr view` after the merge rather than predicted at the stage that opened the
+PR.
 
 **`provider-terms-review` is M12's provider review, and it is APPLIED, SYNCED and ARCHIVED** at
 `openspec/changes/archive/2026-10-16-provider-terms-review/`. Proposal PR **#150** merged `ff7082c`;

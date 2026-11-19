@@ -2,9 +2,9 @@
 
 > **`guerrilla-liveness-detection` is a defect repair, and the defect was found by browsing the
 > built site rather than by any test** — dated **2026-11-18**, proposal PR **#201** merged
-> `0b0e077`, apply PR **#202** merged `9219fdf`. **The sync PR and the archive PR are not written
-> here**, because neither existed when this paragraph was written and a predicted PR number is a
-> figure nobody counted.
+> `0b0e077`, apply PR **#202** merged `9219fdf`, sync PR **#203** merged `ff99b0b`. **The archive
+> PR is not written here**, because it did not exist when this paragraph was written and a
+> predicted PR number is a figure nobody counted.
 >
 > **What was broken: every live Guerrilla Mail mailbox was reported `MAILBOX_EXPIRED`.** A
 > returning visitor was told their saved address was gone while the provider was answering
@@ -96,6 +96,19 @@
 > stored address still said *"Your saved address is gone"***, so the change does not report every
 > answer as alive. **Nothing here was judged by a person**: no test in this repository reads a
 > rendered pixel, and the observation that started the change was a page's text.
+>
+> **⇒ And it is APPLIED, SYNCED and ARCHIVED** at
+> `openspec/changes/archive/2026-11-20-guerrilla-liveness-detection/`. **The archive moved 5
+> files, every one byte-identical to a pre-archive digest taken programmatically, and Git's own
+> rename detection confirms it independently — five renames at `R100` and `0 insertions, 0
+> deletions`.** All **15** files under `openspec/specs/` are byte-identical throughout, checked
+> against Git. The promoted block re-verified **BYTE-IDENTICAL against the *archived* delta** —
+> **2822 characters, 4 scenarios** — with the verifier pointed at the archived path **after being
+> shown to fail loudly with `ENOENT` on the absent pre-archive one**, and its negative control
+> detecting a planted word change. Counts **re-counted after the move** at **196 / 652 / 15**,
+> unmoved by the archive, `openspec validate --specs --strict` at **15 passed, 0 failed**, and
+> `openspec list` reporting **no active changes**. **This stage deliberately edited none of the
+> archived files**, so the digest table needs no expiry-date qualification.
 >
 > **What it does not establish.** **Whether the provider changed shape or the fixture was
 > mis-transcribed** — unknown, unguessed. **Nothing about the extension's Guerrilla fallback**, which
