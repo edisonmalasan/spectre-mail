@@ -166,7 +166,7 @@ popup shares the same component and is forbidden by a promoted clause from stati
 >
 > **⇒ And `release-packaging` is APPLIED, SYNCED and ARCHIVED** at
 > `openspec/changes/archive/2026-11-20-release-packaging/` — proposal **#205**, apply **#206**,
-> sync **#207** and an archive PR whose number is left unfilled here until `gh pr view` reports it —
+> sync **#207** and archive **#208**, that last filled in from `gh pr view 208` once the PR existed —
 > a predicted PR number is a figure nobody counted. **It is the artefact work that needs no account**: an icon family both clients
 > declare, one command that writes an archive a store accepts, and `docs/RELEASE.md` stating what
 > each gate establishes and does not. **It is not a publication.** The two decisions the repository
