@@ -109,6 +109,7 @@ it, rather than merely documented as not violating it. The alternative — keepi
 the comment and calling the requirement satisfied — is the same defect this
 repository has recorded seven times: a check narrower than the rule it documents.
 
+
 ### Requirement: The website creates a mailbox without asking
 
 On load the website SHALL look for a mailbox this device has stored, and SHALL
@@ -149,6 +150,7 @@ asked for and the promoted spec agree exactly.
 - **WHEN** the page has loaded and has not yet learned whether a mailbox is stored
 - **THEN** the website SHALL say it is checking
 - **AND** it SHALL NOT display any address
+
 
 ### Requirement: The address is presented as text the user can take
 
@@ -193,6 +195,7 @@ person copies wrong**, which is why the break is required rather than preferred.
 - **AND** the domain SHALL remain on one line where it fits
 - **AND** the text the user takes SHALL be the address with nothing inserted and nothing removed
 
+
 ### Requirement: The website never claims a mailbox lifetime it cannot know
 
 The website SHALL NOT display a countdown, an expiry time, or a remaining lifetime
@@ -220,6 +223,7 @@ that costs a user a verification code.
 - **AND** it SHALL attribute it to the provider rather than present it as
   SpectreMail's guarantee
 
+
 ### Requirement: A failure is visible and retryable
 
 When the website cannot obtain an address it SHALL say so in the user's terms,
@@ -239,6 +243,7 @@ show an empty address, an example address, or a silent failure.
 - **THEN** the website SHALL say the provider is asking it to slow down
 - **AND** it SHALL NOT retry automatically on the user's behalf
 
+
 ### Requirement: The website renders no provider data as markup and no provider field
 
 The website SHALL render untrusted message and provider content as text only, and
@@ -256,6 +261,7 @@ SHALL NOT contain a provider's JSON field name or interpret a provider's respons
 - **THEN** no value received from a provider SHALL be inserted as markup
 - **AND** untrusted content SHALL be escaped by the rendering layer rather than
   pre-rendered to HTML by the client
+
 
 ### Requirement: The page is built with correct structure, accessible names, and states
 
@@ -313,6 +319,7 @@ passes through them.
 - **THEN** each SHALL be rendered as distinct, labelled content
 - **AND** none SHALL be conveyed by colour alone
 
+
 ### Requirement: The inbox lists the current mailbox's messages
 
 The website SHALL present the current mailbox's messages as a list, and each row
@@ -369,6 +376,7 @@ one.
 - **THEN** the row SHALL occupy the full width of the list
 - **AND** the prose measure SHALL NOT constrain it
 
+
 ### Requirement: A message carrying a verification is marked as one
 
 The website SHALL mark a message that the session determined carries a one-time
@@ -392,6 +400,7 @@ carry either. An undetermined message SHALL NOT be presented as carrying nothing
 - **THEN** the row SHALL say so
 - **AND** it SHALL NOT say the message carries nothing
 
+
 ### Requirement: The address survives anything the inbox does
 
 A mailbox that exists SHALL remain on screen with its address whether or not the
@@ -411,6 +420,7 @@ selectable throughout.
 - **WHEN** a later listing succeeds after a failed one
 - **THEN** the website SHALL show the messages
 - **AND** it SHALL NOT continue to claim the inbox cannot be checked
+
 
 ### Requirement: The website's inbox states no cadence it cannot support
 
@@ -442,6 +452,7 @@ worse than one that was amended.
 - **THEN** no interval, countdown, or rate SpectreMail chose SHALL be shown
 - **AND** the checking behaviour SHALL be described without a number
 
+
 ### Requirement: The mailbox is checked again when the page is looked at
 
 When the page becomes visible again after having been hidden, the website SHALL ask
@@ -458,6 +469,7 @@ for a listing promptly rather than waiting out an interval that elapsed unseen.
 - **WHEN** the page becomes hidden
 - **THEN** the website SHALL report that nothing is displaying the inbox
 - **AND** it SHALL NOT request listings
+
 
 ### Requirement: A message can be opened and read without leaving the page
 
@@ -492,6 +504,7 @@ be rendered as text and never as markup.
 - **THEN** it SHALL be shown as text
 - **AND** no markup in it SHALL be interpreted
 
+
 ### Requirement: The page never reports a message it could not read as empty
 
 Where the session could not read a message, the website SHALL say so in words distinct
@@ -510,6 +523,7 @@ request to open a message SHALL be a user-initiated request with a visible outco
 - **WHEN** a message is being opened
 - **THEN** the page SHALL say it is being read
 - **AND** it SHALL NOT show a message with no content in place of it
+
 
 ### Requirement: The page states that its detections can be wrong
 
@@ -530,6 +544,7 @@ traceable to a published rule rather than a probability.
 - **WHEN** a message was read and no code or link was found in it
 - **THEN** the page SHALL say so as a finding rather than leaving the absence to be
   inferred from an empty area
+
 
 ### Requirement: A detection is acted on only when the user asks
 
@@ -555,6 +570,7 @@ prohibition, and which would otherwise have been retired with it.
 
 - **WHEN** an open message remains on screen without further interaction
 - **THEN** the page SHALL NOT act on any detection it carries
+
 
 ### Requirement: A detected one-time code can be put on the clipboard
 
@@ -599,6 +615,7 @@ know. **The ranking still orders the list; it does not choose from it.**
 - **WHEN** a message carries two or more detected codes
 - **THEN** each SHALL have its own copy control
 - **AND** no control SHALL copy a code the user did not ask for
+
 
 ### Requirement: A detected verification link is opened only by the user
 
@@ -712,6 +729,7 @@ three additions sit where the retired requirement stood rather than at the end o
 because a reader who reaches this section is reading about what the page does with a message, and
 the requirement that used to say it acted on nothing was here.*
 
+
 ### Requirement: A reload returns the user to the address they came back for
 
 The website SHALL offer the mailbox this device stored on a previous visit, and
@@ -797,6 +815,7 @@ about stored data that is not true.
 
 - **WHEN** the page presents a restored mailbox
 - **THEN** it SHALL NOT also present a different address as the user's
+
 
 ### Requirement: The user can make this device forget the address
 
@@ -920,6 +939,7 @@ assert something unverified.
 - **THEN** it SHALL NOT describe that stored data as something it cannot delete
 - **AND** any statement about removal SHALL match what the page offers
 
+
 ### Requirement: What the page reports about its storage survives a re-render during a write
 
 The website's report of whether it holds an address SHALL be established by a **completed
@@ -964,6 +984,7 @@ component. A re-render is not an unmount.
 - **THEN** the resolved write SHALL NOT update state on a page that no longer exists
 - **AND** the guard that achieves this SHALL NOT be withdrawn by a re-render
 
+
 ### Requirement: Deferred and recorded work is not reported as delivered
 
 Where an implementation reveals that an approved requirement is not met, the change
@@ -1001,6 +1022,7 @@ it.
 - **WHEN** the platform's behaviour and the substitute's disagree
 - **THEN** the platform's behaviour SHALL be the one treated as correct
 - **AND** the substitute SHALL NOT be carried forward as the thing that was verified
+
 
 ### Requirement: The page's limits are stated in its footer
 
@@ -1083,6 +1105,7 @@ controls.
 - **THEN** it SHALL point to the region that offers the removal control
 - **AND** it SHALL NOT restate a guarantee about storage that the region itself owns
 
+
 ### Requirement: The public name is one exported value, and the website renders that value wherever it names the product
 
 The product's public name SHALL be declared exactly once, as an exported value in the
@@ -1141,6 +1164,7 @@ a declared map of those surfaces rather than by a scan.
 - **THEN** that place SHALL be reported by name
 - **AND** the report SHALL distinguish a surface that renders the name from a copy
   string that contains it
+
 
 ### Requirement: The page offers the mailboxes this device holds, and returns a person to one
 
@@ -1201,6 +1225,7 @@ figure this repository has not measured**. It does not say how the list looks.
 - **THEN** the offer SHALL still render
 - **AND** the reason it renders in that state SHALL be recorded beside the surface rather than left
   for a reader to infer
+
 
 ### Requirement: The page reports this session's outcomes, and persists none of them
 
@@ -1275,3 +1300,47 @@ SHALL report the code and SHALL NOT report the provider's raw answer.
 - **WHEN** a message has not arrived and nothing has failed
 - **THEN** the page SHALL NOT report that as a failure
 - **AND** it SHALL NOT report a message that has not arrived as though it had
+
+
+### Requirement: The document states what the page is, and carries the mark its tab shows
+
+The website's HTML document SHALL declare **one** description of what the product does, and SHALL
+declare the product's mark as the icon a tab shows. The description SHALL be a single sentence
+stating the product's purpose, and the icon SHALL be the product's mark **rendered from the same
+path data the page draws it from**.
+
+**These are the two things about the page that no component can declare.** The title is already held
+to the exported public name by reading the document, for the same reason: a build input is checked
+by reading it, because no module imports it. The description and the icon share that property and
+did not have that check — measured 2026-11-20, the document carried a `<title>` and nothing else, so
+a search result, a link preview and a browser tab all had nothing but the name and a placeholder.
+
+**The icon is data rather than a file, and that is a consequence rather than a preference.** This
+page is required to draw its mark **without fetching anything** — `visual-system` forbids a
+third-party asset and the browser suite asserts that no image or font file is requested at all. An
+icon served as a file would be a second request for the same drawing, and a page that has to fetch
+something in order to draw anything is the property that case exists to hold. **So the document
+declares an inline `data:image/svg+xml` URI, and one instrument asserts its path data is the page's
+own mark rather than a second drawing that happens to agree** — a duplicated drawing is the second
+spelling of a set this repository records as a defect, and it would drift the first time the mark
+changed.
+
+#### Scenario: The document is read for its description
+
+- **WHEN** the website's HTML document is read as a build input
+- **THEN** it SHALL carry exactly one description of what the product does
+- **AND** the description SHALL be a sentence rather than the product's name alone
+- **AND** a document carrying none SHALL be reported by name
+
+#### Scenario: The icon's path data is compared with the page's
+
+- **WHEN** the document's declared icon is decoded
+- **THEN** its path data SHALL equal the path data the page draws its mark from
+- **AND** an icon drawn from different path data SHALL be reported by name
+
+#### Scenario: The page is loaded with a description and an icon declared
+
+- **WHEN** the built page is opened in a browser
+- **THEN** it SHALL request no image and no font file
+- **AND** the icon SHALL still be present, because it was never a request
+

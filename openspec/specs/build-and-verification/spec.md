@@ -49,6 +49,7 @@ cover every workspace member.
 - **AND** a recorded result SHALL NOT depend on whether the working tree
   happened to be freshly written by the implementer
 
+
 ### Requirement: A passing test run asserts something
 
 The test command SHALL fail when an asserted property is violated. A test
@@ -113,6 +114,7 @@ ask its question once, rather than the budget being enlarged until the expensive
 - **AND** **a pass that appears and disappears without the tree changing SHALL NOT be reported as
   a result**, because a green that means only that the machine was idle is a claim about nothing
 
+
 ### Requirement: Toolchain configuration is shared, not duplicated
 
 Type checking configuration SHALL be defined once in a base configuration that
@@ -132,6 +134,7 @@ to make their own type check pass.
 - **THEN** the difference SHALL be deliberate and recorded
 - **AND** it SHALL NOT be an unnoticed per-package default
 
+
 ### Requirement: Dependencies are pinned to resolved versions
 
 Every dependency and dev dependency SHALL be recorded at an exact resolved
@@ -150,6 +153,7 @@ rather than a claim about what a registry would return later.
 - **WHEN** a clean install runs from the committed lockfile
 - **THEN** it SHALL resolve the same versions as the verified local tree
 
+
 ### Requirement: The website development server starts
 
 A documented command SHALL start the website development server, and that
@@ -161,6 +165,7 @@ defined.
 - **WHEN** the development server is started during M1 verification
 - **THEN** it SHALL be confirmed to respond and serve the application
 - **AND** a command that exists but fails to start SHALL NOT be reported as met
+
 
 ### Requirement: Deferred verification is recorded, not silently dropped
 
@@ -196,6 +201,7 @@ and it is the state this rule exists to prevent.
   it
 - **THEN** the deferral SHALL be reported as undischarged
 - **AND** it SHALL NOT be renewed against a later milestone without saying why
+
 
 ### Requirement: A second verification tier runs a real browser, separately from the first
 
@@ -247,6 +253,7 @@ narrowing a suite's test directory or match pattern is reported instead of passi
 - **THEN** the collection rule SHALL report it by name
 - **AND** it SHALL NOT pass because the spec files are still present
 
+
 ### Requirement: A browser check issues no network request and says so
 
 A check that drives a browser SHALL NOT contact a provider or any third-party origin
@@ -269,6 +276,7 @@ would be the one check whose result could not say that.
 - **WHEN** a check would need to reach a live provider to establish its claim
 - **THEN** it SHALL be recorded as live rather than added to routine verification
 - **AND** the claim it would establish SHALL NOT be reported as established until it runs
+
 
 ### Requirement: The test-substrate boundary is explicit about which substrate is which
 
@@ -293,6 +301,7 @@ because a test written afterwards disagreed with it.
 - **WHEN** a property has been established on a substitute and later on the platform itself
 - **THEN** the record SHALL state that the platform's behaviour was observed directly
 - **AND** it SHALL NOT carry forward the substitute as the thing that was verified
+
 
 ### Requirement: Each client has its own build, and the root build reports each one
 
@@ -332,6 +341,7 @@ lockfile SHALL be recorded with its reason rather than arriving in a diff.
 - **WHEN** a client needs a bundler not already in the lockfile
 - **THEN** the reason SHALL be recorded
 - **AND** a bundler already present SHALL be preferred over a new tool
+
 
 ### Requirement: A shipped security audit's claims are checked against the tree
 
@@ -390,6 +400,7 @@ require every area to have one.
 - **THEN** the check SHALL fail and name the citation
 - **AND** the fix SHALL be the citation rather than the exemption, because an audit
   that stops being checked is one that stops being true without saying so
+
 
 ### Requirement: A shipped branding review names every surface the public name reaches, and says which of its checks it could not measure
 
@@ -456,6 +467,7 @@ unmeasured.**
 - **AND** a figure taken from a secondary summary SHALL be attributed to that summary
   rather than presented as a measurement
 
+
 ### Requirement: The architecture suites do not share a mutable corpus
 
 The repository's architecture suites SHALL NOT read a corpus that another suite mutates while the
@@ -506,6 +518,7 @@ does not carry** — because a vocabulary nothing checks is a list that drifts.
 - **AND** that budget SHALL be one shared decision, **not one file's private copy of it**
 - **AND** **a timeout SHALL NOT be reported as a failure of a property the assertion does not
   measure**, because a timeout means only that the machine was busy
+
 
 ### Requirement: The architecture suite leaves the tree it reads unchanged
 
@@ -567,3 +580,46 @@ the rule proves nothing about the rule.**
 - **THEN** the check SHALL run **outside the suite**, because a check that runs inside the thing it
   checks runs after the damage
 - **AND** it SHALL report **the paths that changed**, not a count
+
+
+### Requirement: The repository states how a release is produced, and what each step does not establish
+
+A document SHALL record the procedure a maintainer follows to produce a release candidate, and it
+SHALL be the one place that procedure is written down. Every command it names SHALL be a command the
+repository exposes, and the document SHALL state for each gate it names **what that gate establishes
+and what it does not**.
+
+**A procedure is not a checklist of green ticks, and the difference is measurable in this
+repository.** `pnpm verify` runs with **no browser installed**; the browser suite runs with **no live
+provider**; the provider adapters are driven by **recorded responses**; and no test here reads a
+rendered pixel. **A release document that said "all checks pass" over those four gates would be
+describing four different holes as one clean result**, which is the defect
+`build-and-verification`'s own passing-run requirement exists to name.
+
+**The document SHALL name every step that cannot be completed without a decision the repository
+cannot make** — a place to deploy to, an account to publish under — and SHALL present them as
+outstanding rather than as done. **A step recorded as outstanding is a record; a step omitted is an
+assumption**, and the roadmap already carries both of this product's as product decisions.
+
+**It SHALL NOT carry a version or a date as though either were generated.** The version lives in the
+manifest a build reads, and a second copy of it in prose is the second spelling of a set this
+repository records as a defect. **A step that has never been run SHALL be written as unverified
+rather than as a pass.**
+
+#### Scenario: A command the procedure names is not a command the repository exposes
+
+- **WHEN** every command the document names is resolved against the repository's own scripts
+- **THEN** a command that does not exist SHALL be reported by name
+- **AND** the check SHALL read the scripts rather than a list of its own
+
+#### Scenario: A step needs a decision the repository cannot make
+
+- **WHEN** the procedure reaches a step that requires a deploy target or a publishing account
+- **THEN** the document SHALL name that step as outstanding
+- **AND** it SHALL NOT report the release as complete
+
+#### Scenario: The document is read for a version
+
+- **WHEN** the document is searched for a version number
+- **THEN** it SHALL NOT carry one, because the built manifest is the only place a version lives
+
