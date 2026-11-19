@@ -54,33 +54,34 @@ never had.
 | ------------------------ | -----------: | --------: | ----------------------------------- |
 | `provider-abstraction`   |           11 |        29 | live                                |
 | `monorepo-foundation`    |            5 |        12 | live                                |
-| `build-and-verification` |           14 |        47 | live                                |
+| `build-and-verification` |           15 |        50 | live                                |
 | `shared-domain-model`    |            9 |        23 | live                                |
 | `provider-adapters`      |           12 |        32 | live                                |
 | `mail-parsing`           |            9 |        31 | live                                |
 | `mailbox-session`        |           25 |        68 | live                                |
-| `website-client`         |           26 |        90 | live                                |
+| `website-client`         |           27 |        93 | live                                |
 | `spectre-storage`        |           16 |        61 | live — **consumed by both clients** |
 | `visual-system`          |           10 |        32 | live                                |
 | `page-composition`       |            6 |        20 | live                                |
 | `browser-verification`   |            5 |        15 | live                                |
-| `extension-client`       |           22 |       101 | live                                |
+| `extension-client`       |           24 |       109 | live                                |
 | `in-page-integration`    |           17 |        68 | live                                |
 | `privacy-disclosure`     |            9 |        23 | live                                |
-| **total**                |      **196** |   **652** | **fifteen capabilities**            |
+| **total**                |      **200** |   **666** | **fifteen capabilities**            |
 
-**Every figure in that table was re-derived on 2026-11-20, at `release-packaging`'s proposal**, by
+**Every figure in that table was re-derived on 2026-11-20, after `release-packaging`'s sync**, by
 counting `### Requirement:` and `#### Scenario:` across `openspec/specs/`, not carried over from a
-previous claim — **and it was stale again in four rows.** It read **190 requirements and 629
-scenarios** and the tree holds **196 and 652**: `surface-hierarchy` promoted nine blocks across
-`extension-client`, `visual-system` and `website-client` (**+6 requirements, +21 scenarios**) and
-`guerrilla-liveness-detection` promoted one `MODIFIED` block in `provider-adapters` (**+2
-scenarios**), and this table's last re-derivation was on 2026-10-28, before either. **The history is
-kept rather than replaced, because it is the same defect three times**: the table read **nine
+previous claim — **and it was stale again in three rows.** It read **196 requirements and 652
+scenarios** and the tree holds **200 and 666**: `release-packaging` promoted one `MODIFIED` block in
+`extension-client` (which replaces rather than adds) plus two `ADDED` there (**+2 requirements,
++8 scenarios**), one `ADDED` in `website-client` (**+1, +3**) and one `ADDED` in
+`build-and-verification` (**+1, +3**). **The history is kept rather than replaced, because it is the
+same defect four times**: the table read **190 requirements and 629 scenarios** before `surface-hierarchy`
+and `guerrilla-liveness-detection` (**+6 requirements, +23 scenarios** across five rows), **nine
 capabilities and 99 requirements** when it was first corrected, then **fourteen capabilities, 151
-requirements and 446 scenarios** while **missing `privacy-disclosure` altogether**, and now **four
-stale rows**. **A count nobody re-ran is a count nobody checked**, and a table that carries a count
-per row is fifteen chances to be wrong in the file a reader meets first.
+requirements and 446 scenarios** while **missing `privacy-disclosure` altogether**. **A count nobody
+re-ran is a count nobody checked**, and a table that carries a count per row is fifteen chances to
+be wrong in the file a reader meets first.
 
 **And nothing checks this table.** Every other figure in this repository that matters has an
 instrument; this one has a reader who happened to count. **That is recorded rather than fixed**,
