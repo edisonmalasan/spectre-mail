@@ -19,6 +19,37 @@
       own tab said the old name.
     -->
     <title>SpectreMail</title>
+    <!--
+      ## The description and the icon, added by `release-packaging`
+
+      Both are the two things about the page **no component can declare**, for the same reason
+      the title cannot: a build input is checked by reading it. The description is the one
+      sentence `PRODUCT.md` names as the Product Purpose, because a search result or a link
+      preview should say what the product does rather than only what it is called.
+
+      **The icon is data rather than a file, and that is a consequence rather than a
+      preference.** This page is required to draw its mark without fetching anything —
+      `visual-system` forbids a third-party asset, and `apps/web/e2e/sections.spec.ts`
+      asserts that no image or font file is requested at all. An icon served as a file would
+      be a second request for the same drawing. Its `d` is the page's own `BRAND_MARK_PATH`,
+      compared by `tests/architecture/document-metadata.test.ts`, so the tab and the page
+      cannot come to show two different marks.
+
+      **This block sits after the `<title>`, not before it.** The brand audit maps that title by
+      its line number, and an earlier draft put this explanation above it and moved the title from
+      line 21 to line 36 — which made the audit report a name literal at a line its map did not
+      carry. The repair is placement rather than a widened reader: a record that matches by line
+      has to keep its line.
+    -->
+    <meta
+      name="description"
+      content="SpectreMail gives a person a temporary email address and lets them read what arrives at it, so they can complete a step that demands an email without disclosing a real one."
+    />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 16'%3E%3Cpath fill='%235a3fd0' d='M2 2 H10 V5 H5 V10 H2 Z M10 10 H14 V14 H10 Z M14 2 H18 V6 H14 Z'/%3E%3C/svg%3E"
+    />
   </head>
   <body>
     <div id="root"></div>
