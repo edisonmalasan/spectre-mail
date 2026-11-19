@@ -1,5 +1,111 @@
 # AGENTS.md
 
+> **`guerrilla-liveness-detection` is a defect repair, and the defect was found by browsing the
+> built site rather than by any test** — dated **2026-11-18**, proposal PR **#201** merged
+> `0b0e077`, apply PR **#202** merged `9219fdf`. **The sync PR and the archive PR are not written
+> here**, because neither existed when this paragraph was written and a predicted PR number is a
+> figure nobody counted.
+>
+> **What was broken: every live Guerrilla Mail mailbox was reported `MAILBOX_EXPIRED`.** A
+> returning visitor was told their saved address was gone while the provider was answering
+> normally. `sessionIsLive` read `body["email_addr"]`, and **that key appears only on
+> `f=get_email_address`** — creation. Every `f=check_email` listing echoes the address under
+> `email` instead, so the check never saw an address and every session looked dead.
+>
+> **Measured 2026-11-18 against `api.guerrillamail.com`, and the key sets are the finding**:
+> creation → `email_addr, email_timestamp, alias, sid_token`; a live listing →
+> `list, count, email, alias, ts, sid_token, stats, auth`; a live **empty** listing →
+> `list, email, alias, ts, sid_token, count, users, stats, auth`; a dead session →
+> `auth, error, stats` with **no `list` at all**. **The dead body is
+> `{"auth":{"success":true,"error_codes":[]},"error":"Please call get_email_address or set_email_user
+> first","stats":{…}}`, and it is identical for a bogus token and an empty one.**
+>
+> **⇒ And three plausible signals were measured and rejected, which is the part worth carrying.**
+> **`auth.success` is `true` in the live body *and* in the dead one**, so it decides nothing.
+> **`count` was the string `"0"` on a listing that carried one message and the number `0` on an
+> empty one**, so it is neither a count nor a discriminator — the new `guerrillaEmptyLiveList`
+> fixture reproduces that contradiction rather than tidying it. **The `sid_token` echo was measured
+> in one direction only**, and a signal measured in one direction is not a signal. **The rule that
+> shipped is three measured signals**: a top-level `error` string, a `list` that is not an array,
+> and an echoed address that is present and disagrees. **An absent address is not evidence of
+> death**, which is the clause the old rule inverted.
+>
+> **⇒ And the suite was green over the defect because the fixtures carried the same wrong shape the
+> adapter read.** `guerrillaLiveList` carried `email_addr`, which no listing sends; the
+> "dead" fixture carried neither `error` nor a missing `list`, plus two fields nobody ever
+> measured. **So the repair was made in the order that makes a red mean something: fixtures first,
+> then the adapter** — and the suite went red naming the right cases, **`5 failed | 87 passed (92)`
+> in `packages/providers`**, before the rule changed at all.
+>
+> **⇒ And the sharpest measurement is a counterfactual rather than a green run.** `session.test.ts`
+> stayed green through the defect **because its fixture satisfied the old rule by accident** — its
+> listing carried `email_addr` equal to the mailbox's own address. Restoring the old rule now makes
+> `packages/mailbox` **11 failed**, and restoring the rule while reverting only that one responder
+> gives **10**: the case that stops being caught is *"adds no request of its own to what the
+> provider makes while opening"*. **A case that could not fail for the reason it existed is not
+> coverage**, and it had been counted as coverage.
+>
+> **⇒ And `adoption.test.ts` moved in scope because the fix reddened it**, which is the rule rather
+> than an expansion: **`7 failed / 1415 passed`, identical on three runs, one cause** — its
+> `deadSession` fake was a bare `{ list: [] }`, which the measurement says is a **live** empty
+> listing. **A fixture the fix reds is in scope by definition**, whatever a sweep concluded before
+> the fix existed. **Six files and three promoted requirements repeated the old shape, and the
+> division of them is the claim**: `mailbox/src/session.ts:62`, `storage/src/contract.ts:53`,
+> `storage/src/index.ts:29`, `Popup.tsx:229`, `panel-copy.ts:178`, `App.tsx:39` are **reported and
+> unedited** because none is a body a test drives, **and the `provider-adapters` requirement is the
+> one this change's delta replaces** — while the `mailbox-session` and `spectre-storage`
+> requirements are **reported and left**, because a change that repairs every comment it can find
+> cannot say what it measured.
+>
+> **⇒ And the record contradicted itself, which is why the defect survived.** `docs/PROVIDERS.md`
+> **§5.1 has always recorded the correct shapes**, and **§3's M0 summary said an unrecognised
+> session answers `HTTP 200` with an empty inbox and no error** — the sentence the adapter was
+> written from. The correction is **appended beneath the original line rather than replacing it**,
+> because a record that quietly rewrites its own measurement cannot be audited; **§5.1 is
+> byte-identical, and the change is a pure insertion of 23 lines in one hunk.** **Whether the
+> provider changed shape or M0 mis-transcribed the body cannot be established** — the spike stored
+> summaries only, and both `email_addr` hits in its runs are creation responses — so **it is not
+> guessed.**
+>
+> **⇒ And the sync is one `MODIFIED` block, and the arithmetic is the check.** The tree moves from
+> **196 requirements / 650 scenarios / 15 capabilities** to **196 / 652 / 15**, with
+> `provider-adapters` **12 / 30 → 12 / 32**. **Requirements moving by zero is the arithmetic working
+> and not a promotion that missed**: a `MODIFIED` block *replaces* rather than adds, so the block's
+> two pre-existing scenarios come forward by title and body and its two new ones are additions.
+> `openspec validate --specs --strict` is **15 passed, 0 failed**, and **no promoted spec carries a
+> delta-only `## MODIFIED Requirements` heading** — the defect this repository recorded twice, once
+> as *"opening is not closing"*, and the promoter refuses on it rather than trusting a count.
+>
+> **⇒ And the promotion rotted two citations in a document it never touched, which is the second
+> time for this document.** `docs/SECURITY.md` cited `provider-adapters/spec.md` at **209** and
+> **233**; both blocks are byte-identical to their pre-promotion copies, and the replaced block
+> grew the file so every heading below it moved — to **238** and **262**. **The repair is the
+> document and not the reader**: widening the resolver to accept a line above its heading would have
+> made the instrument agree with a stale document. `security-audit.test.ts` resolves both, and the
+> backticked-token assertion is untouched because only digits moved.
+>
+> **Measured: `pnpm verify` ×4, all exit `0`**, the fourth reporting **1422 tests across 77
+> files**; **`packages/providers` 93** (+1, the case requiring a live listing that names no address
+> to stay live) and **`packages/mailbox` unmoved at 172**, which is the measurement that two
+> repaired fixtures added and removed nothing. `boundaries.test.ts` **56, unmoved** — this change
+> adds no rule. Browser tier re-run at **58 website / 106 extension**, both unmoved.
+>
+> **⇒ And it was verified against the live provider in a real Chrome, which no test can do.** A
+> fresh mailbox reached `Ready` and **listed a real message** — the defect arm; an empty live
+> listing said *"No mail has arrived at this address yet."* and stayed there; and **a genuinely dead
+> stored address still said *"Your saved address is gone"***, so the change does not report every
+> answer as alive. **Nothing here was judged by a person**: no test in this repository reads a
+> rendered pixel, and the observation that started the change was a page's text.
+>
+> **What it does not establish.** **Whether the provider changed shape or the fixture was
+> mis-transcribed** — unknown, unguessed. **Nothing about the extension's Guerrilla fallback**, which
+> shares the adapter and was not observed failing live; its popup and panel still need a manual
+> unpacked load. **Nothing about whether a fixture matches the provider** — `fixtures.test.ts`
+> checks that a label is present and first. **And a dead body carrying an empty `list` was never
+> measured**, so whether the provider can produce one is unknown; the two falsification arms that
+> survive do so because the measured dead body carries both `error` and no `list`, which is recorded
+> as a finding rather than patched with an invented body.
+
 > **`surface-hierarchy` is a design pass on both rendered surfaces, and it added no capability** —
 > dated **2026-11-01**, proposal PR **#193** merged `8c49349`, apply PR **#194** merged `05cbf8f`,
 > apply-continuation PR **#195** merged `a2674f1` and task-4.5 PR **#196** merged `3924841`. **The

@@ -294,7 +294,61 @@ adapter's liveness check and this harness were green because of it. Removing the
 both, and a change that had repaired only the shipped half would have shipped a green suite
 over a harness staging a shape the provider never sends.
 
+## D13 — The sync promoted one block, and it rotted two citations
+
+**The promotion was rehearsed in full on a throwaway copy of `openspec/` before it touched
+the real tree, and the real promotion produced the rehearsal's exact SHA-256**
+(`AF0A2532…` on both) — so the rehearsal was faithful rather than approximately so. The
+tree moves from **196 requirements / 650 scenarios / 15 capabilities** to **196 / 652 /
+15**, with `provider-adapters` **12 / 30 → 12 / 32**. **Requirements moving by zero is the
+arithmetic working and not a promotion that missed**: a `MODIFIED` block *replaces* rather
+than adds, so the block's two pre-existing scenarios come forward by title and body and its
+two new ones are additions.
+
+**The promoter ends a block at a line-anchored `### Requirement:`, `## ` or `# `**, and
+refuses before writing if the result would carry a delta-only `## MODIFIED Requirements`
+heading or if the delta block carries no scenario. **The first of those is the defect this
+repository recorded twice as *"opening is not closing"***, where a block that simply runs on
+to the next requirement absorbs the section heading above it — and a count cannot see it,
+because the block count is unchanged. **The verifier shares no reader with the promoter**:
+one walks lines with a state machine, the other splits whole text by regex, so neither can
+inherit the other's blind spot. **It also carries a negative control** — a changed word
+planted into the block must be reported, or a reader that returned one string for
+everything would pass the file for ever.
+
+**⇒ And the promotion rotted two citations in a document it never touched, which is the
+second time for this document.** `docs/SECURITY.md` cited `provider-adapters/spec.md` at
+**209** and **233**; **both cited blocks are byte-identical to their pre-promotion
+copies**, and the replaced block grew the file, so every heading below it moved — to
+**238** and **262**. **The repair is the document and not the reader**: widening the
+resolver to accept a line above its heading would have made the instrument agree with a
+stale document, which is the shape this repository records as a check loosened to
+accommodate a wrong pointer. `security-audit.test.ts` resolves both, and its
+backticked-token assertion is untouched because only digits moved.
+
+**And the repair was falsified rather than assumed**: with the two pre-promotion numbers put
+back, `security-audit.test.ts` is **`1 failed`** on *"every citation the audit makes
+resolves, and each is reported by name when it does not"*, and the file was restored
+**byte-identical** against a SHA-256 taken before the mutation — from memory and never from
+Git, because a restore from a commit discards uncommitted work.
+
+**⇒ And the roadmap carried two stale claims about this change, both repaired here.**
+Its **standing** spec figure said `196 / 650` and now says `196 / 652` with the delta
+named; and **the block describing this change cited `docs/PROVIDERS.md` §4.5 for the
+measured dead-session body, where the bodies are §5.1** — **the same error D11 records in
+the delta's own note**, arriving a second time in a document written from it. **A citation
+error that appears twice is a shape rather than a slip**, and both are corrected at the
+section rather than at the reference.
+
+**What this does not establish.** **Nothing about whether the promotion is semantically
+right.** Byte-identity proves the promoted block is the block the change asked for; **it
+says nothing about whether that block is the requirement the product should have**, which
+only reading the implementation against it can answer. **And nothing about the six files
+and two requirements this change reported and left** — they still repeat the old shape, and
+a future change will meet them.
+
 ## Falsification arms
+
 
 Each arm is aimed at one assertion; `wrongcatch`, `green`, `noop` and `harness-error`
 are counted separately, and every mutated file is restored byte-identically against a
