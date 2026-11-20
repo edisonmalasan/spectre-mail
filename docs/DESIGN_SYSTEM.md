@@ -294,7 +294,7 @@ person to move one of these into a pair list would find a red test with no expla
 | `--width-focus`    | `2px`   |
 | `--offset-focus`   | `2px`   |
 | `--measure-prose`  | `62ch`  |
-| `--measure-page`   | `46rem` |
+| `--measure-page`   | `62rem` |
 
 ### Motion
 
