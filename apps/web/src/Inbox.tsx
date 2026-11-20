@@ -184,30 +184,19 @@ interface InboxRowsProps {
 
 function InboxRows({ listing, onOpenMessage }: InboxRowsProps) {
   return (
-    <>
-      {/*
-       * A column header, like the reference's SENDER / SUBJECT / VIEW bar. It mirrors the
-       * rows' two-column grid (fields on the left, the received time on the right) and is
-       * plain text: a table caption, not a control. The rows below keep their pinned grid.
-       */}
-      <div className="inbox-table-head" aria-hidden="true">
-        <span>Sender / Subject</span>
-        <span>Received</span>
-      </div>
-      <ul className="inbox-rows" data-testid="inbox-rows">
-        {listing.messages.map((message) => (
-          <li key={message.id}>
-            <InboxRow
-              message={message}
-              // Read from the session's map. A missing entry is `undetermined` by
-              // `verdictFor`, which is the honest answer for a row whose body this
-              // product has not managed to read.
-              verdict={verdictFor(listing.verdicts, message.id)}
-              onOpen={() => onOpenMessage(message.id)}
-            />
-          </li>
-        ))}
-      </ul>
-    </>
+    <ul className="inbox-rows" data-testid="inbox-rows">
+      {listing.messages.map((message) => (
+        <li key={message.id}>
+          <InboxRow
+            message={message}
+            // Read from the session's map. A missing entry is `undetermined` by
+            // `verdictFor`, which is the honest answer for a row whose body this
+            // product has not managed to read.
+            verdict={verdictFor(listing.verdicts, message.id)}
+            onOpen={() => onOpenMessage(message.id)}
+          />
+        </li>
+      ))}
+    </ul>
   );
 }

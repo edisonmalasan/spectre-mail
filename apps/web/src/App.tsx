@@ -305,29 +305,18 @@ export function App({ session, storage, mailboxes }: AppProps = {}) {
           whole purpose: a hook added to a component and never styled. */}
         <section aria-labelledby="product-heading" data-region="product">
           {/*
-           * The app bar: brand centred, with a truthful status at each side. temp-mail.org
-           * puts download badges left and account actions right; those would be controls this
-           * static page cannot act on, so the sides carry facts instead — no account, and the
-           * one provider this client reaches. The wordmark (with `#product-heading`) stays the
-           * region's accessible name; only its arrangement changes.
+           * The masthead is the page's tool bar: mark and name on the left, the one-line
+           * statement of what this is on the right. It is still inside the product region
+           * and still rendered by the same two values the region has always used — the
+           * wordmark (which carries `#product-heading`) and the lead sentence — so the
+           * region's accessible name and its copy are unchanged. Only their arrangement
+           * is new: temp-mail.org's dark bar becomes our quiet, hairline-topped bar in
+           * the approved palette, with no navigation a static page could not act on.
            */}
-          <div className="appbar">
-            <span className="appbar__meta">No account &middot; no server</span>
+          <div className="masthead">
             <Wordmark />
-            <span className="appbar__meta">
-              Provider &middot; <strong>Guerrilla Mail</strong>
-            </span>
+            <p className="page__lead">Temporary email for the web and the browser.</p>
           </div>
-
-          {/*
-           * The hero line. temp-mail.org's "Your Temporary Email Address" is the page's
-           * headline; here the address itself is the largest datum at `--type-2xl`, so this
-           * title sits one scale below it and names what the field is. It is truthful copy
-           * about the product and is not a region name — `#address-heading` keeps that job.
-           */}
-          <h2 className="hero__title" id="hero-heading">
-            Your temporary email address
-          </h2>
 
           {boot.kind === "blocked" && <BootFailure reason={boot.reason} onRetry={retryBoot} />}
 

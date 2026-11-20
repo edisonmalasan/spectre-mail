@@ -212,8 +212,8 @@ export const METRICS = {
   "offset-focus": "2px",
   /** The reading measure. Long enough for prose, short enough to scan. */
   "measure-prose": "62ch",
-  /** The page column — a working tool surface, wide enough for a mail list beside its fields. */
-  "measure-page": "62rem",
+  /** The page column. The mailbox is a working surface, not a poster. */
+  "measure-page": "46rem",
 } as const;
 
 /**
