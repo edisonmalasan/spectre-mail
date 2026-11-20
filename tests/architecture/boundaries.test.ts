@@ -213,6 +213,10 @@ const QUARANTINED_PROBES = [
   // through a profile instead, which is why the flag rule asks each probe which engine it uses
   // rather than requiring the flags of all of them.
   "firefox-compatibility.mjs",
+  // The live domain-selection probe creates a real mailbox against a real provider,
+  // so it is opt-in like the others: a suite run would rate-limit Mail.tm and make the
+  // result depend on a third party. It still spells Chromium's two load flags below.
+  "live-domain-selection.mjs",
 ] as const;
 
 /**
