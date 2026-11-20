@@ -31,6 +31,7 @@ function scriptedProvider(
     listCalls,
     supports: () => false,
     checkHealth: async () => ({ provider: id, status: "ok" as const }),
+    listDomains: async () => [],
     createMailbox: async (): Promise<Mailbox> => {
       if (behaviour.create !== undefined) {
         return behaviour.create();

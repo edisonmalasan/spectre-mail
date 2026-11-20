@@ -63,6 +63,20 @@ describe("createMessageSummary", () => {
     expect(noName.from).toBe("");
   });
 
+  it("carries an absent date as null rather than as a fabricated instant", () => {
+    // A real Guerrilla message arrived with no date fields at all. `receivedAt`
+    // is required but nullable: the field says "no date was reported", and `0`
+    // would say "this arrived at the epoch", which is a different claim.
+    const summary: MessageSummary = createMessageSummary({
+      id: "message-1",
+      mailboxId: "mailbox-1",
+      receivedAt: null,
+    });
+
+    expect(summary.receivedAt).toBeNull();
+    expect("receivedAt" in summary).toBe(true);
+  });
+
   it("never invents an unread state", () => {
     // No measured provider response established a reliable unread signal, so the
     // field is optional and nothing here fabricates one.

@@ -187,4 +187,32 @@ describe("recorded provider fixtures", () => {
       "guerrillaMessageWithVerificationLink",
     ]);
   });
+
+  it("marks the missing-date and multi-page domain fixtures SYNTHETIC", () => {
+    // These are mapping exercises, not captures: a missing-date message and a
+    // paginated domain collection with reserved `.example` names. A reader must be
+    // able to tell that the wire shape is measured while these values are not.
+    const source = readFileSync(FIXTURES, "utf8");
+    const names = [
+      "mailtmMessageListMissingDate",
+      "mailtmDomainsPage1",
+      "mailtmDomainsPage2",
+      "guerrillaWelcomeList",
+      "guerrillaTimestampOnlyList",
+    ];
+
+    for (const match of source.matchAll(FIXTURE_DECLARATION)) {
+      if (!names.includes(match[1] as string)) continue;
+      expect(
+        declaredMarker(source, match.index ?? -1),
+        `${match[1]} must declare itself SYNTHETIC`,
+      ).toBe("SYNTHETIC");
+    }
+
+    // The floor: all five must actually exist, or the loop above proves nothing.
+    const declared = [...source.matchAll(FIXTURE_DECLARATION)].map((match) => match[1]);
+    for (const name of names) {
+      expect(declared).toContain(name);
+    }
+  });
 });

@@ -9,7 +9,7 @@
  */
 
 import { NormalizedErrorCode } from "@spectre-mail/core";
-import type { Mailbox } from "@spectre-mail/core";
+import type { Domain, Mailbox } from "@spectre-mail/core";
 import { describe, expect, it } from "vitest";
 
 import type { ConformanceAdapter, ProviderConformance } from "./conformance";
@@ -33,6 +33,7 @@ const CONFORMANCE: ProviderConformance = {
   create: [fixtures.guerrillaSessionCreated],
   list: [fixtures.guerrillaLiveList],
   fetch: [fixtures.guerrillaMessageFetched],
+  missingDate: [fixtures.guerrillaWelcomeList],
   messageId: GUERRILLA.messageId,
   deadSession: [fixtures.guerrillaDeadSession],
   // MEASURED, and identical to `deadSession`. Guerrilla has no credential-rejection
@@ -269,6 +270,30 @@ describe("Guerrilla Mail adapter", () => {
     expect(message.text.length).toBeGreaterThan(0);
   });
 
+  it("converts mail_timestamp to milliseconds only when the date fields are absent", async () => {
+    const mailbox = await createMailbox();
+    const environment = providerOnlyEnvironment([fixtures.guerrillaTimestampOnlyList]);
+
+    const [summary] = await createGuerrillaAdapter(environment).listMessages(mailbox);
+
+    // The provider's own welcome message has no `mail_date`/`mail_time`. When it
+    // does send a finite seconds value, seconds -> ms is the one conversion that
+    // does not invent an instant. Fixed by the fixture rather than by the clock.
+    expect(summary?.receivedAt).toBe(1_759_343_721_000);
+  });
+
+  it("maps a message with no date at all to null, never to the epoch", async () => {
+    const mailbox = await createMailbox();
+    const environment = providerOnlyEnvironment([fixtures.guerrillaWelcomeList]);
+
+    const [summary] = await createGuerrillaAdapter(environment).listMessages(mailbox);
+
+    // The message is still there and still readable; only its date is unknown.
+    // `0` would render as 1970-01-01, which is a claim this provider never made.
+    expect(summary?.subject).toBe("Welcome to Guerrilla Mail");
+    expect(summary?.receivedAt).toBeNull();
+  });
+
   it('reads `mail_read: "0"` as unread', async () => {
     const mailbox = await createMailbox();
     const environment = providerOnlyEnvironment([fixtures.guerrillaLiveList]);
@@ -278,6 +303,26 @@ describe("Guerrilla Mail adapter", () => {
     // The provider sends a string `"0"`, not a boolean. A loose `!summary.mail_read`
     // would invert it and mark every unread message read.
     expect(summary?.unread).toBe(true);
+  });
+
+  it("exposes no domains and ignores a domain argument on creation", async () => {
+    const environment = providerOnlyEnvironment([fixtures.guerrillaSessionCreated]);
+    const adapter = createGuerrillaAdapter(environment);
+    const foreign: Domain = {
+      id: "/domains/1",
+      name: "alpha.example",
+      provider: "mailtm",
+      active: true,
+      expiresAt: null,
+    };
+
+    // Guerrilla assigns an address itself and has no domain API. An empty list is
+    // the honest answer, and passing a domain must not change the generated address
+    // or make a request the provider never defined.
+    expect(await adapter.listDomains()).toEqual([]);
+    const mailbox = await adapter.createMailbox(foreign);
+    expect(mailbox.address).toBe(GUERRILLA.address);
+    expect(environment.requests).toHaveLength(1);
   });
 
   it("reports deletion operations as unsupported, because none was observed", () => {

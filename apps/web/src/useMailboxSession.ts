@@ -7,6 +7,15 @@
  * client can render the same state with a different view without this logic
  * having to be rewritten.
  *
+ * **The one thing it does judge is which create answer is still current.** The
+ * session publishes every transition through `subscribe`, which carries no request
+ * identity, so a hook that applied each published `ready` would let a slow answer
+ * from an earlier *Change* replace the mailbox a newer one had already delivered.
+ * A generation token on each user-asked run, a coalescing guard on *Change*, and
+ * a `changing` flag that keeps the previous mailbox truthful on screen are held
+ * here rather than pushed into the session, because they are facts about this
+ * page's input rather than about a mailbox.
+ *
  * **It subscribes rather than re-reading the value.** Slice 1 read the state once and
  * then again when `open` settled, which was the whole truth of the matter while a
  * mailbox was the only thing that existed. Now the state moves on a timer — every
@@ -49,11 +58,33 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { Mailbox } from "@spectre-mail/core";
-import type { MailboxSession, SessionState } from "@spectre-mail/mailbox";
+import { NormalizedErrorCode } from "@spectre-mail/core";
+import type { Domain, Mailbox } from "@spectre-mail/core";
+import type { MailboxSession, SessionFailure, SessionState } from "@spectre-mail/mailbox";
 import { isReady } from "@spectre-mail/mailbox";
 
 import type { WebsiteStorage } from "./storage";
+
+/**
+ * Whether a published state is deferred until the current create run settles.
+ *
+ * **A create publishes its outcome through `subscribe` before its promise settles to
+ * the caller.** That matters for generation-guarding: the outcome must be left to the
+ * promise's handler while a run is in flight, or an older run's `ready` can overwrite a
+ * newer mailbox.
+ *
+ * **Both `ready` and `failed` are deferred, and narrowing by the inbox kind is wrong.**
+ * The first version only deferred `ready` with a `notStarted` inbox. Two overlapping
+ * `open()` calls share one inbox tracker, so a stale create's `ready` published after a
+ * newer run's check carries that check's `checked` inbox and slipped through the
+ * narrow predicate — the stale mailbox won anyway. While a run is outstanding there is
+ * no new mailbox for a *legitimate* `ready` to be about, so deferring both variants is
+ * safe; adoption (`adopting`, `expired`, `restoreFailed`) and inbox transitions
+ * (`checking`, `checked`, `checkFailed`) are never deferred.
+ */
+function isDeferredDuringRun(state: SessionState): boolean {
+  return state.kind === "ready" || state.kind === "failed";
+}
 
 /**
  * Whether the page knows what this device has stored.
@@ -106,6 +137,16 @@ export type LocalDataState = { readonly kind: "stored" } | { readonly kind: "non
 export interface MailboxSessionBinding {
   /** What to render. Never a promise; never partially built. */
   readonly state: SessionState;
+  /**
+   * Whether a user-asked create is still in flight.
+   *
+   * **An additive flag, not a new `SessionState` variant.** The state stays truthful —
+   * a `ready` mailbox remains `ready` while it is being replaced — and this says what
+   * the state cannot: that pressing the change control again would be a second request
+   * and that the surfaces showing the current mailbox must stay mounted. It is optional
+   * so an existing caller that does not read it keeps compiling unchanged.
+   */
+  readonly changing?: boolean;
   /** Whether the page knows what it has stored yet. */
   readonly boot: BootState;
   /** Whether the mailbox it holds has been written. */
@@ -134,7 +175,7 @@ export interface MailboxSessionBinding {
   /** Open a mailbox, or try again after a failure. Always user-initiated. */
   readonly retry: () => void;
   /** Discard the current mailbox and create another. */
-  readonly replace: () => void;
+  readonly replace: (domain?: Domain) => void;
   /** Ask for the mailbox's messages now. What the inbox's own retry calls. */
   readonly checkInbox: () => void;
   /** Open a message from the inbox. User-initiated: a row is a button. */
@@ -158,6 +199,41 @@ export function useMailboxSession(
   // that has not been read yet — which is also why the page offers no removal during
   // the read and never on the strength of this value alone.
   const [localData, setLocalData] = useState<LocalDataState>({ kind: "none" });
+  // **`false` until a user-asked create starts.** Kept as a separate flag rather than
+  // derived from `state.kind === "creating"`, because a replace must leave the previous
+  // mailbox's `ready` state truthful on screen while the new address is being fetched.
+  const [changing, setChanging] = useState(false);
+
+  /**
+   * A monotonic token, incremented once per create run.
+   *
+   * **The response to an older token is ignored.** A create publishes its `ready` or
+   * `failed` through `subscribe` before its promise settles, so a hook that applied
+   * every answer would let a slow create from a previous generation overwrite the
+   * mailbox a newer run just delivered.
+   */
+  const generation = useRef(0);
+
+  /**
+   * How many create runs are still in flight.
+   *
+   * **A count, not a boolean, because two runs can legitimately overlap** (a replace
+   * whose provider is slow and a newer fresh-address request). It drives two things:
+   * the `changing` flag, and the suppression of create outcomes in `subscribe` — an
+   * outcome published while any run is outstanding is left to that run's own
+   * generation-guarded promise handler.
+   */
+  const inFlight = useRef(0);
+
+  /**
+   * Whether a `replace` is in flight, and the one coalescing guard.
+   *
+   * **Separate from `inFlight` so a newer run of a different kind is still possible.**
+   * Two presses of *Change* in one tick must issue one create against a rate-limited
+   * provider; they are detected here, at the call site, rather than by opening every
+   * run to a global guard that would also swallow a deliberate `startFresh`.
+   */
+  const replacePending = useRef(false);
 
   const opened = useRef(false);
   /**
@@ -223,13 +299,18 @@ export function useMailboxSession(
    */
   const persist = useRef(true);
 
-  const run = useCallback((operation: () => Promise<SessionState>) => {
+  const run = useCallback((operation: () => Promise<SessionState>, keepCurrent = false) => {
+    // **Every run takes a token before it starts another.** The token is the answer to
+    // "is this still the newest thing the user asked for" when the promise settles; a
+    // response whose token is no longer current is dropped, so a slow create cannot
+    // replace the mailbox a later run has already delivered.
+    const token = ++generation.current;
+    inFlight.current += 1;
+    setChanging(true);
+
     // Show "creating" before awaiting, not after. Reading the new state only once the
     // promise settles leaves the previous mailbox on screen while the next one is
-    // being fetched, which is a lie about what the user is looking at. The promise's
-    // own result is deliberately not used: the session reports every transition
-    // through `subscribe`, and setting state here as well would deliver the same
-    // value twice.
+    // being fetched, which is a lie about what the user is looking at.
     // **`opened: { kind: "none" }` rather than leaving it out, and that is the point of
     // `SessionState` carrying the field on `creating`.** A previous version pushed
     // `{ kind: "creating" }` with no opened state at all, which the compiler rejected —
@@ -237,8 +318,47 @@ export function useMailboxSession(
     // client would have shown the previous mailbox's open message beside "creating your
     // address". The `creating` state has to say what is open as loudly as `ready` does,
     // because a client rendering either reads one field.
-    setState({ kind: "creating", opened: { kind: "none" } });
-    void operation();
+    // A replace keeps the previous ready state on screen (GOAL Problem C: replace the
+    // active address only after the new one exists); a first creation has nothing to
+    // keep and still shows the creating placeholder.
+    if (!keepCurrent) setState({ kind: "creating", opened: { kind: "none" } });
+
+    // **The promise result is now used, and that is the fix.** Previously it was
+    // discarded on the theory that `subscribe` delivers the same value; but `subscribe`
+    // has no generation, so a stale `ready` it published won even when this handler
+    // would have rejected the stale result. Create outcomes are suppressed in
+    // `subscribe` while a run is outstanding (see the subscription below), leaving this
+    // generation-guarded handler as the one place a create writes its outcome.
+    void operation().then(
+      (next) => {
+        // Always release the in-flight count: the run has ended even if its answer is
+        // too old to apply. A `subscribe` publish always precedes this handler, so the
+        // count is still positive at the moment a stale outcome arrives and gets
+        // suppressed there.
+        inFlight.current -= 1;
+        if (token !== generation.current) return;
+        setChanging(inFlight.current > 0);
+        setState(next);
+      },
+      (cause: unknown) => {
+        inFlight.current -= 1;
+        if (token !== generation.current) return;
+        setChanging(inFlight.current > 0);
+        // `session.open()` reports creation failures as a `failed` state rather than a
+        // rejection, so this is a defensive path. Reporting a rejection as a failure
+        // with the platform's own words is still more truthful than leaving the page
+        // claiming a mailbox is being created forever.
+        const description = describe(cause);
+        const failure: SessionFailure = {
+          code: NormalizedErrorCode.UNKNOWN_PROVIDER_ERROR,
+          description,
+          providerFailures: [
+            { provider: "unknown", code: NormalizedErrorCode.UNKNOWN_PROVIDER_ERROR, description },
+          ],
+        };
+        setState({ kind: "failed", failure });
+      },
+    );
   }, []);
 
   /**
@@ -307,14 +427,30 @@ export function useMailboxSession(
     run(() => session.open());
   }, [run, session]);
 
-  const replace = useCallback(() => {
-    // **Persist, unlike `startFresh`.** Replacing an address is a decision to make this
-    // the one that comes back on the next reload, and the restored-mailbox scenario in
-    // `website-client` requires exactly that. A user who replaced and reloaded would
-    // otherwise be handed the address they had just decided to discard.
-    persist.current = true;
-    run(() => session.replace());
-  }, [run, session]);
+  const replace = useCallback(
+    (domain?: Domain) => {
+      // **Two presses in one tick issue one create.** Without this the button's missing
+      // disabled state let a double click ask a rate-limited provider twice, and the
+      // slower answer could overwrite the newer mailbox. The guard lives here rather
+      // than in `run` so a different, deliberate run (`startFresh`, `retry`) is still
+      // allowed while this one is in flight.
+      if (replacePending.current) return;
+      replacePending.current = true;
+      // **Persist, unlike `startFresh`.** Replacing an address is a decision to make this
+      // the one that comes back on the next reload, and the restored-mailbox scenario in
+      // `website-client` requires exactly that. A user who replaced and reloaded would
+      // otherwise be handed the address they had just decided to discard.
+      persist.current = true;
+      run(
+        () =>
+          session.replace(domain).finally(() => {
+            replacePending.current = false;
+          }),
+        true,
+      );
+    },
+    [run, session],
+  );
 
   const checkInbox = useCallback(() => {
     void session.checkInbox();
@@ -395,7 +531,25 @@ export function useMailboxSession(
 
   // Subscribed rather than read: see the module note. `subscribe` delivers the
   // current state on the way in, so this cannot render one render behind.
-  useEffect(() => session.subscribe(setState), [session]);
+  useEffect(
+    () =>
+      session.subscribe((next) => {
+        // A create publishes its outcome here *before* its promise settles, and this
+        // callback has no generation to tell which run the outcome belongs to. While
+        // any create run is outstanding, leave that outcome to the generation-guarded
+        // handler in `run`: applying it here is exactly how a stale answer overwrites a
+        // newer mailbox. Every other transition — `creating`, `adopting`, `checking`,
+        // `checked`, a mailbox change that replaced one — is delivered immediately.
+        // PROBLEM C: during a replace the previous ready state stays on screen until
+        // the new mailbox is confirmed. The session publishes a `creating` transition
+        // for the replace; suppress that one too while the run is in flight.
+        if (inFlight.current > 0 && (isDeferredDuringRun(next) || next.kind === "creating")) {
+          return;
+        }
+        setState(next);
+      }),
+    [session],
+  );
 
   const mailboxId = state.kind === "ready" ? state.mailbox.id : null;
 
@@ -483,6 +637,7 @@ export function useMailboxSession(
 
   return {
     state,
+    changing,
     boot,
     saving,
     localData,

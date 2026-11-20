@@ -50,7 +50,7 @@ afterEach(cleanup);
 
 /** A fixed instant, so a row's rendered time is a value a test can state. */
 const RECEIVED_AT = Date.UTC(2026, 9, 2, 12, 0, 0);
-const RECEIVED_AT_ISO = "2026-10-02T12:00:00.000Z";
+const RECEIVED_AT_LABEL = "2 Oct 2026, 12:00 UTC";
 
 function mailbox(): Mailbox {
   return {
@@ -98,6 +98,7 @@ function providerReturning(options: StubOptions = {}): MailProvider {
     displayName: "Guerrilla Mail",
     supports: () => false,
     checkHealth: () => Promise.resolve({ provider: "guerrilla", status: "ok" }),
+    listDomains: () => Promise.resolve([]),
     createMailbox: () => Promise.resolve(mailbox()),
     listMessages: async () => {
       calls += 1;
@@ -209,9 +210,28 @@ describe("the inbox on the page", () => {
       expect(rows).toEqual(["Unread", "Read"]);
 
       // One instant, in a form that does not depend on the reader's locale or time
-      // zone — which is what lets a test state it.
+      // zone — which is what lets a test state it. It is a date a person can read,
+      // not an ISO string and not a fabricated epoch.
       const times = screen.getAllByTestId("inbox-row-time").map((node) => node.textContent);
-      expect(times).toEqual([RECEIVED_AT_ISO, RECEIVED_AT_ISO]);
+      expect(times).toEqual([RECEIVED_AT_LABEL, RECEIVED_AT_LABEL]);
+    });
+
+    it("says the date is unavailable for a message with no reported date", async () => {
+      // The real Guerrilla welcome message has no date fields. The adapter maps
+      // that to `null`; the row must say so rather than render 1970 or "Invalid Date".
+      await renderPage(
+        providerReturning({
+          listings: [[summary("welcome", { receivedAt: null })]],
+          bodies: { welcome: "Welcome." },
+        }),
+      );
+      await screen.findByTestId("inbox-rows");
+
+      const time = screen.getByTestId("inbox-row-time");
+      expect(time.textContent).toBe("Date unavailable");
+      // With no instant to name, there is no `datetime` to assert either.
+      expect(time.querySelector("time")?.hasAttribute("datetime")).toBe(false);
+      expect(document.body.textContent).not.toContain("1970");
     });
 
     it("says so when the provider did not report an unread state, rather than guessing", async () => {

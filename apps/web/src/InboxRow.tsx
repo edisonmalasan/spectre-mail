@@ -93,6 +93,53 @@ function unreadWording(message: MessageSummary): string {
   return "Unread state not reported";
 }
 
+/** Month abbreviations for a rendered date, fixed rather than locale-dependent. */
+const MONTHS: readonly string[] = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+/**
+ * An arrival instant as a person can read it.
+ *
+ * **The fallback is exact and states the absence.** A real Guerrilla welcome
+ * message arrived with no date, which the adapters now map to `null`. Zero is not
+ * absence — it is `1970-01-01T00:00:00.000Z` on screen — and `NaN` is "Invalid Date",
+ * so neither is ever turned into text here. UTC is named in the output so a reader
+ * is never invited to guess a time zone the provider did not send.
+ *
+ * Exported because the open-message reader renders the same field, and two copies
+ * of the date format would be two claims about how this product shows a date.
+ */
+export function formatReceivedAt(receivedAt: number | null): string {
+  if (receivedAt === null || !Number.isFinite(receivedAt)) {
+    return "Date unavailable";
+  }
+  const date = new Date(receivedAt);
+  const month = MONTHS[date.getUTCMonth()] ?? "???";
+  const hours = String(date.getUTCHours()).padStart(2, "0");
+  const minutes = String(date.getUTCMinutes()).padStart(2, "0");
+  return `${date.getUTCDate()} ${month} ${date.getUTCFullYear()}, ${hours}:${minutes} UTC`;
+}
+
+/** The machine-readable instant, omitted entirely when there is no instant to name. */
+export function receivedAtDateTime(receivedAt: number | null): string | undefined {
+  if (receivedAt === null || !Number.isFinite(receivedAt)) {
+    return undefined;
+  }
+  return new Date(receivedAt).toISOString();
+}
+
 export function InboxRow({ message, verdict, onOpen }: InboxRowProps) {
   const marking = MARKING[verdict.kind];
 
@@ -126,20 +173,15 @@ export function InboxRow({ message, verdict, onOpen }: InboxRowProps) {
       </p>
 
       {/*
-        An ISO 8601 instant in UTC rather than a formatted local time. It is
-        unambiguous whatever the reader's locale and time zone, and it is the same
-        string on every machine — which is what lets a test assert a row's contents
-        without pinning a locale.
-
-        **M7 kept it, and that is the decision rather than an omission.** Rendering this
-        as the reader's local time would be ambiguous across locales and would make a
-        row's contents unpinnable in a test; the design answer is to treat an arrival
-        instant as what it is — a technical datum — and set it in monospace at the
-        smallest size, right-aligned, where it reads as metadata rather than as prose.
+        A readable UTC date, with the machine-readable ISO instant beside it only
+        when one exists. The old code rendered `new Date(receivedAt).toISOString()`
+        unconditionally, so a missing date became 1970 on screen. The fallback is
+        now words that say the date was not reported, and there is no `datetime`
+        attribute to claim an instant nobody sent.
       */}
       <p className="inbox-row__time" data-testid="inbox-row-time">
-        <time dateTime={new Date(message.receivedAt).toISOString()}>
-          {new Date(message.receivedAt).toISOString()}
+        <time dateTime={receivedAtDateTime(message.receivedAt)}>
+          {formatReceivedAt(message.receivedAt)}
         </time>
       </p>
 

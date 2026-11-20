@@ -49,7 +49,18 @@ export interface MessageSummary {
    * is not corruption and must not be treated as a delivery failure.
    */
   readonly subject: string;
-  readonly receivedAt: number;
+  /**
+   * When the provider says the message arrived, in epoch milliseconds — or `null`
+   * when it reported no usable date.
+   *
+   * **Required but nullable, never zero.** A real Guerrilla Mail welcome message
+   * arrived with no `mail_date`/`mail_time`, and both measured adapters used to map
+   * that to `0`. Zero is not "no date": it is a fabricated instant in 1970 that a
+   * reader renders as `1970-01-01T00:00:00.000Z`. `null` is the only honest value
+   * for a date a provider did not send, and keeping the field required means a
+   * constructor cannot forget to decide which of the two it is holding.
+   */
+  readonly receivedAt: number | null;
   /** Whether the provider reported this message as unread. See the note on this field. */
   readonly unread?: boolean;
 }

@@ -70,6 +70,7 @@ function providerReturning(over: {
         over.failWith !== undefined
           ? Promise.reject(over.failWith)
           : Promise.resolve(over.mailbox ?? mailbox("guerrilla-1"))),
+    listDomains: () => Promise.resolve([]),
     listMessages: () => Promise.resolve([]),
     getMessage: () => Promise.reject(new Error("unused")),
   };
@@ -125,30 +126,16 @@ function visibleText(): string {
 }
 
 /**
- * The provider named in the header's provider pill.
+ * The header's own text, read at its node.
  *
- * Scoped deliberately, because a whole-page text search is satisfied by coincidence.
- * The first version of the state-coverage test asserted `visibleText()` contained
- * "Guerrilla Mail", and the falsification pass caught it immediately: making that
- * line conditional on the `ready` state left the suite **green**, because the
- * `creating` state's prose and the `failed` state both name the provider in their
- * own words. Two of the three assertions
- * were therefore passing on unrelated text ++ and a test that passes on unrelated
- * text is not coverage, however true the statement it appears to be checking.
- *
- * **The rebuilt page carries no limits list and no `contentinfo` landmark.** The
- * provider's name lives in the header pill, which the header renders in every state,
- * so reading that one node is both scoped and state-independent. The old limits list was
- * found by an accessible name, and the element carrying that name moved from a `region`
- * to a `contentinfo` landmark and was then deleted with the informational sections. A
- * helper that finds content by its own handle is asserting something real about the
- * document, so relocating the content is a change to the contract rather than a refactor
- * to absorb. Copy changes inside the pill are fine; moving the name out of the header is not.
+ * Scoped deliberately: a whole-page search would be satisfied by provider prose in a
+ * failure message even if the header advertised a provider. GOAL §3 removes the
+ * provider badge, so the assertion is now that this node carries product facts only.
  */
-function providerPillText(): string {
-  const pill = document.querySelector(".app-header__pill--provider");
-  if (pill === null) throw new Error("the header's provider pill is missing");
-  return pill.textContent ?? "";
+function headerText(): string {
+  const header = document.querySelector(".app-header");
+  if (header === null) throw new Error("the page has no header");
+  return header.textContent ?? "";
 }
 
 /**
@@ -245,15 +232,20 @@ describe("the website", () => {
       await screen.findByTestId("ready");
       expect(visibleText()).toContain("guerrilla-1@mail.example");
 
+      // Change opens the domain picker; Automatic is the only truthful option here.
       await act(async () => {
-        // The toolbar's Change control replaces the old in-field "Replace address" button.
         screen.getByTestId("toolbar-change").click();
       });
+      await act(async () => {
+        screen.getByRole("button", { name: /Automatic/i }).click();
+      });
 
-      // The old address is gone while the new one is in flight. Keeping it on screen
-      // would be a lie about which address the user currently holds.
-      expect(screen.queryByTestId("ready")).toBeNull();
-      expect(visibleText()).not.toContain("guerrilla-1@mail.example");
+      // PROBLEM C: the page structure stays stable while a new address is generated.
+      // The old address remains visible until the new mailbox is actually created, and
+      // the Change control announces progress instead of collapsing the hero and inbox.
+      expect(screen.getByTestId("ready")).not.toBeNull();
+      expect(visibleText()).toContain("guerrilla-1@mail.example");
+      expect(screen.getByTestId("toolbar-change")).toHaveProperty("disabled", true);
 
       await act(async () => {
         release(mailbox("guerrilla-2"));
@@ -312,7 +304,7 @@ describe("the website", () => {
       });
 
       const session = sessionOver(providerReturning({}));
-      render(<App session={session} storage={EMPTY_STORE} />);
+      const { container } = render(<App session={session} storage={EMPTY_STORE} />);
       await screen.findByTestId("ready");
 
       await act(async () => {
@@ -322,7 +314,9 @@ describe("the website", () => {
       // The address goes over unchanged - no trimming, no normalisation - because a
       // silently altered address is one the user pastes and finds rejected.
       expect(writeText).toHaveBeenCalledWith("guerrilla-1@mail.example");
-      expect(screen.getByRole("status").textContent).toContain("on your clipboard");
+      // PROBLEM B: the confirmation is a concise, auto-dismissing toast outside the field.
+      expect(screen.getByTestId("copy-feedback").textContent).toBe("Copied");
+      expect(container.querySelector(".address .status")).toBeNull();
     });
 
     it("reports a refused clipboard and keeps the address selectable", async () => {
@@ -342,8 +336,8 @@ describe("the website", () => {
         screen.getByRole("button", { name: "Copy address" }).click();
       });
 
-      expect(screen.getByRole("status").textContent).toContain("was not copied");
-      // Still there, still selectable: copying by hand is a complete answer.
+      expect(screen.getByTestId("copy-feedback").textContent).toContain("Clipboard refused");
+      // Still there, still selectable, and in the same box: copying by hand is a complete answer.
       expect(screen.getByTestId("address").textContent).toContain("guerrilla-1@mail.example");
     });
 
@@ -795,14 +789,16 @@ describe("the website", () => {
       expect(screen.queryByRole("combobox")).toBeNull();
       expect(screen.queryByRole("listbox")).toBeNull();
 
-      // And the page names exactly one provider in its header pill, rather than
-      // offering or apologising for a choice it does not have.
-      expect(providerPillText()).toContain("Guerrilla Mail");
-      expect(visibleText()).not.toMatch(/mail\.tm/i);
+      // GOAL §3: the header advertises no provider. It carries only product facts.
+      expect(headerText()).not.toContain("Guerrilla Mail");
+      expect(headerText()).toContain("SpectreMail");
+      expect(visibleText(), "no provider this website cannot reach").not.toMatch(
+        /mail\.tm|mail\.gw|dropmail/i,
+      );
       expect(providerChoiceClaims(visibleText())).toEqual([]);
     });
 
-    it("says which provider it reaches, and offers no choice of one, in every state", async () => {
+    it("advertises no provider in the header in any state", async () => {
       // `website-client`'s unconditional scenario says "WHEN the website is displayed
       // in any state". The test above covers `ready` only, and `ready` is the state
       // least likely to lose a shared block: the limits list is rendered outside every
@@ -812,9 +808,8 @@ describe("the website", () => {
       // Each state is therefore rendered for real. Nothing is asserted about a string
       // the page never produced.
       //
-      // `providerPillText()` rather than `visibleText()`: see its note. A whole-page
-      // search for "Guerrilla Mail" is satisfied by the failure prose alone, so it
-      // would pass with the header's pill removed entirely.
+      // `headerText()` rather than `visibleText()`: a whole-page search is satisfied
+      // by provider prose in a failure message, so it would pass with a header ad.
       const pending = new Promise<Mailbox>(() => undefined);
       const creating = sessionOver(providerReturning({ create: () => pending }));
 
@@ -823,7 +818,7 @@ describe("the website", () => {
       );
       await screen.findByTestId("creating");
       expect(creatingContainer.querySelector("select")).toBeNull();
-      expect(providerPillText()).toContain("Guerrilla Mail");
+      expect(headerText()).not.toContain("Guerrilla Mail");
       expect(providerChoiceClaims(visibleText())).toEqual([]);
 
       cleanup();
@@ -843,7 +838,7 @@ describe("the website", () => {
       await screen.findByTestId("failure-explanation");
 
       expect(document.querySelector("select")).toBeNull();
-      expect(providerPillText()).toContain("Guerrilla Mail");
+      expect(headerText()).not.toContain("Guerrilla Mail");
       expect(providerChoiceClaims(visibleText())).toEqual([]);
     });
 

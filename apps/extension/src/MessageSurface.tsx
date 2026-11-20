@@ -231,9 +231,13 @@ export function MessageList({
              * locale. `dateTime` carries the machine-readable value so the rendered text and the
              * attribute cannot disagree.
              */}
-            <time className="message__time" dateTime={new Date(message.receivedAt).toISOString()}>
-              {new Date(message.receivedAt).toISOString()}
-            </time>
+            {message.receivedAt === null ? (
+              <time className="message__time">Date unavailable</time>
+            ) : (
+              <time className="message__time" dateTime={new Date(message.receivedAt).toISOString()}>
+                {new Date(message.receivedAt).toISOString()}
+              </time>
+            )}
 
             {/**
              * **An empty subject still gets words, for the reason {@link describeSender} gives.**
@@ -371,9 +375,13 @@ export function OpenedMessageView({
             </p>
 
             <p className="message__time" data-testid="message-received-at">
-              <time dateTime={new Date(opened.message.receivedAt).toISOString()}>
-                {new Date(opened.message.receivedAt).toISOString()}
-              </time>
+              {opened.message.receivedAt === null ? (
+                <time>Date unavailable</time>
+              ) : (
+                <time dateTime={new Date(opened.message.receivedAt).toISOString()}>
+                  {new Date(opened.message.receivedAt).toISOString()}
+                </time>
+              )}
             </p>
 
             {/**

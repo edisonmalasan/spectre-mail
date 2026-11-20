@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Website client root — a reconstruction of temp-mail.org's working surface.
  *
  * The page is deliberately small: a dark header, a dark hero holding a compact
@@ -13,8 +13,10 @@
  * @module
  */
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
+import type { Domain } from "@spectre-mail/core";
+import { createDomainCatalog } from "@spectre-mail/providers";
 import { createMailboxSession } from "@spectre-mail/mailbox";
 import type { MailboxSession, OpenedMessageState } from "@spectre-mail/mailbox";
 
@@ -72,18 +74,62 @@ export function App({ session, storage }: AppProps = {}) {
     checkInbox,
     openMessage,
     closeMessage,
+    changing,
   } = useMailboxSession(active, store);
 
   useInboxVisibility(active);
 
-  /** The one clipboard write, shared by the in-field and toolbar Copy controls. */
-  const [copyState, setCopyState] = useState<CopyState>("idle");
+  /**
+   * Domains come only from a provider's own listDomains() answer. The website's
+   * only browser-reachable provider (Guerrilla Mail) exposes none, so the list is
+   * honestly empty here; the catalog is shared with the extension, where Mail.tm
+   * can enumerate its real domains.
+   */
+  const [domains, setDomains] = useState<readonly Domain[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    const catalogs = active.providers.map((provider) => createDomainCatalog(provider));
+    void Promise.all(catalogs.map((catalog) => catalog.listDomains())).then((lists) => {
+      if (!cancelled) setDomains(lists.flat());
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [active]);
+
+  /**
+   * Clipboard feedback lives in one fixed toast, never inside the address field.
+   * It auto-dismisses and is cleared when the mailbox changes, so a stale "Copied"
+   * can never describe a different address.
+   */
+  const [feedback, setFeedback] = useState<{
+    readonly seq: number;
+    readonly ok: boolean;
+    readonly mailboxId: string;
+  } | null>(null);
+  const currentMailboxId = state.kind === "ready" ? state.mailbox.id : null;
+  // Deriving the visible state from the mailbox id means a stale toast cannot
+  // describe a different address after a Change, with no state reset needed.
+  const copyState: CopyState =
+    feedback !== null && feedback.mailboxId === currentMailboxId
+      ? feedback.ok
+        ? "copied"
+        : "failed"
+      : "idle";
   const copy = useCallback(() => {
     if (state.kind !== "ready") return;
+    const mailboxId = state.mailbox.id;
     void copyAddressToClipboard(state.mailbox.address).then((ok) =>
-      setCopyState(ok ? "copied" : "failed"),
+      // A sequence, not a state string, so a second copy restarts the timer.
+      setFeedback((previous) => ({ seq: (previous?.seq ?? 0) + 1, ok, mailboxId })),
     );
   }, [state]);
+
+  useEffect(() => {
+    if (feedback === null) return;
+    const timer = window.setTimeout(() => setFeedback(null), 2200);
+    return () => window.clearTimeout(timer);
+  }, [feedback?.seq]);
 
   const loadingText =
     state.kind === "idle"
@@ -149,29 +195,50 @@ export function App({ session, storage }: AppProps = {}) {
       <ActionToolbar
         onCopy={copy}
         onRefresh={checkInbox}
-        onChange={replace}
+        onChange={(domain) => replace(domain)}
         onDelete={clearStored}
+        changing={changing ?? false}
+        domains={domains}
       />
 
       <section className="inbox-section" aria-label="Inbox">
         <div className="inbox-panel">
-          {boot.kind !== "blocked" && state.kind === "ready" && (
-            <>
+          {boot.kind !== "blocked" &&
+            state.kind === "ready" &&
+            /*
+             * The reader takes the panel's place while a message is open; it is
+             * never appended below the list, and it unmounts with the selection
+             * (including when a poll empties the inbox).
+             */
+            (state.opened.kind !== "none" ? (
+              <MessageView
+                opened={state.opened}
+                onClose={closeMessage}
+                onRetry={() => {
+                  const id = openedMessageId(state.opened);
+                  if (id !== null) openMessage(id);
+                }}
+              />
+            ) : (
               <Inbox inbox={state.inbox} onCheck={checkInbox} onOpenMessage={openMessage} />
-              {state.opened.kind !== "none" && (
-                <MessageView
-                  opened={state.opened}
-                  onClose={closeMessage}
-                  onRetry={() => {
-                    const id = openedMessageId(state.opened);
-                    if (id !== null) openMessage(id);
-                  }}
-                />
-              )}
-            </>
-          )}
+            ))}
         </div>
       </section>
+
+      {/*
+       * One fixed live region for clipboard outcomes. It is outside every field,
+       * so announcing a copy cannot resize the address or the toolbar. It clears
+       * itself after a short delay and is announced by assistive technology.
+       */}
+      {/* The live region is always in the DOM so assistive tech registers it before
+          its text changes; mutating the text is what gets announced. */}
+      <p className="toast" role="status" data-testid="copy-feedback">
+        {copyState === "copied"
+          ? "Copied"
+          : copyState === "failed"
+            ? "Clipboard refused — select the address to copy it"
+            : ""}
+      </p>
     </main>
   );
 }

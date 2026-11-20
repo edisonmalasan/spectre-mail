@@ -90,10 +90,6 @@ button {
   font-size: var(--type-xs);
   opacity: 0.85;
 }
-.app-header__pill--provider {
-  font-weight: var(--weight-bold);
-  opacity: 1;
-}
 
 .wordmark {
   display: flex;
@@ -177,6 +173,7 @@ button {
   /* The reference's field is 400px inside a 556px panel, not a full-width bar. A mono
      address is wider than the reference's proportional one, so the field takes a
      little more room to keep the address on one line. */
+  width: 100%;
   max-width: 28rem;
   margin-inline: auto;
   padding: var(--space-2) var(--space-3);
@@ -197,11 +194,19 @@ button {
   margin: 0;
   max-width: none;
   font-family: var(--font-mono);
-  font-size: var(--type-base);
+  font-size: var(--type-lg);
 }
+/* One line always: a long address is clipped and can be scrolled or selected.
+   No break character is inserted, so the text node stays exactly the address. */
 .address__value {
   display: block;
-  overflow-wrap: anywhere;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.address__value::-webkit-scrollbar {
+  display: none;
 }
 .address__copy {
   flex: 0 0 auto;
@@ -217,15 +222,85 @@ button {
   stroke: currentColor;
   stroke-width: var(--width-focus);
 }
+/* The domain picker is a small popover inside the Change flow, not a dashboard. */
+.domain-picker {
+  position: absolute;
+  z-index: 1;
+  inline-size: var(--measure-prose);
+  max-inline-size: 100%;
+  padding: var(--space-4);
+  border: var(--width-hairline) solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background-color: var(--surface-raised);
+  color: var(--ink-primary);
+}
+.domain-picker__title {
+  margin: 0 0 var(--space-3);
+  font-size: var(--type-sm);
+  font-weight: var(--weight-bold);
+}
+.domain-picker__list {
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+  max-block-size: var(--space-9);
+  overflow-y: auto;
+}
+.domain-picker__option,
+.domain-picker__cancel {
+  display: block;
+  inline-size: 100%;
+  margin-block-end: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: var(--width-hairline) solid var(--line-subtle);
+  border-radius: var(--radius-md);
+  background-color: var(--surface-sunken);
+  color: var(--ink-primary);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.domain-picker__option:hover,
+.domain-picker__cancel:hover {
+  background-color: var(--surface-accent);
+}
+.domain-picker__empty {
+  margin: 0 0 var(--space-3);
+  color: var(--ink-muted);
+  font-size: var(--type-xs);
+}
+.domain-picker__option:focus-visible,
+.domain-picker__cancel:focus-visible {
+  outline: var(--width-focus) solid var(--focus);
+  outline-offset: var(--offset-focus);
+}
+
+/* MessageView's per-code clipboard outcome keeps its own quiet status line. */
 .status {
   margin: var(--space-2) 0 0;
   font-size: var(--type-xs);
+  color: var(--ink-secondary);
 }
-/* An idle clipboard writes nothing, and a live region that reserves a line
-   reports its own emptiness as a gap inside the field. */
-.address-region .status:empty {
+
+/* Clipboard feedback is a fixed toast, never an in-flow child of the field. */
+.toast {
+  position: fixed;
+  inset-block-end: var(--space-5);
+  inset-inline: 0;
+  z-index: 1;
+  width: max-content;
+  max-width: var(--measure-prose);
+  margin-inline: auto;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  background-color: var(--surface-console);
+  color: var(--ink-on-console);
+  font-size: var(--type-sm);
+  text-align: center;
+  border: var(--width-hairline) solid var(--line-strong);
+}
+.toast:empty {
   display: none;
-  margin: 0;
 }
 
 /* ── Action toolbar ────────────────────────────────────────────────────────────── */
@@ -258,6 +333,11 @@ button {
 }
 .toolbar__button:hover {
   background-color: var(--surface-accent);
+}
+.toolbar__button:disabled {
+  color: var(--ink-muted);
+  background-color: var(--surface-sunken);
+  cursor: progress;
 }
 .toolbar__icon {
   width: var(--space-4);
@@ -383,27 +463,35 @@ button {
   margin: var(--space-5) 0 var(--space-2);
   color: var(--ink-secondary);
   font-family: var(--font-mono);
-  font-size: var(--type-lg);
+  font-size: var(--type-xl);
   text-align: center;
 }
 .inbox-empty__hint {
   margin: 0;
   color: var(--ink-muted);
   font-family: var(--font-mono);
-  font-size: var(--type-sm);
+  font-size: var(--type-base);
   text-align: center;
 }
 
 /* ── Message reader and shared surfaces ───────────────────────────────────────── */
 
+/* The reader occupies the panel while a message is open, with its own header
+   treatment so it reads as a distinct view rather than text under the table. */
 .message {
   padding: var(--space-5);
+  border-block-start: var(--width-focus) solid var(--line-strong);
+}
+.message > h2 {
+  display: none;
 }
 .message__subject {
-  font-size: var(--type-lg);
+  margin: 0 0 var(--space-3);
+  font-size: var(--type-2xl);
   font-weight: var(--weight-bold);
 }
 .message__meta {
+  margin: 0 0 var(--space-2);
   color: var(--ink-muted);
   font-size: var(--type-sm);
 }

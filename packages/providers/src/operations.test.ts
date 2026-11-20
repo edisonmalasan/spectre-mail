@@ -96,6 +96,7 @@ describe("guarded optional operations", () => {
         return false;
       },
       checkHealth: async () => ({ provider: "mailtm", status: "ok" }),
+      listDomains: async () => [],
       createMailbox: async () => MAILBOX,
       listMessages: async () => [],
       getMessage: async () => {

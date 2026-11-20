@@ -93,6 +93,7 @@ function countingProvider(
     displayName: "Guerrilla Mail",
     supports: () => false,
     checkHealth: () => Promise.resolve({ provider: "guerrilla", status: "ok" }),
+    listDomains: () => Promise.resolve([]),
     createMailbox: () => {
       creates += 1;
       return over.createMailbox
@@ -129,6 +130,17 @@ function sessionOver(provider: MailProvider) {
 /** Every character of visible text on the page. */
 function visibleText(): string {
   return document.body.textContent ?? "";
+}
+
+/**
+ * Change now opens a small domain picker before generating. With no browser-reachable
+ * provider exposing domains, "Automatic" is the only real option; selecting it drives
+ * the same replace path the toolbar button used to call directly.
+ */
+async function chooseAutomatic(): Promise<void> {
+  fireEvent.click(screen.getByTestId("toolbar-change"));
+  await screen.findByRole("button", { name: /Automatic/i });
+  fireEvent.click(screen.getByRole("button", { name: /Automatic/i }));
 }
 
 describe("the website's own storage", () => {
@@ -257,7 +269,7 @@ describe("the website's own storage", () => {
 
     await act(async () => {
       // The toolbar's Change control is the rebuilt page's replacement action.
-      fireEvent.click(screen.getByTestId("toolbar-change"));
+      await chooseAutomatic();
     });
     await screen.findByTestId("ready");
 
@@ -804,7 +816,7 @@ describe("making this device forget the address", () => {
     fireEvent.click(screen.getByTestId("toolbar-delete"));
     await vi.waitFor(() => expect(store.clearCount()).toBe(1));
 
-    fireEvent.click(screen.getByTestId("toolbar-change"));
+    await chooseAutomatic();
     // **Waited on the save rather than on `ready`, for the same reason as the flaky test
     // above.** A replacement address is stored by an effect that runs after the session
     // publishes its new mailbox, so `ready` can be on screen with the write outstanding.
@@ -986,9 +998,7 @@ describe("a stored mailbox the provider will not confirm", () => {
     await screen.findByTestId("ready");
     expect(store.saves).toEqual([]);
 
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("toolbar-change"));
-    });
+    await chooseAutomatic();
     await screen.findByTestId("ready");
 
     await vi.waitFor(() => {
@@ -998,7 +1008,7 @@ describe("a stored mailbox the provider will not confirm", () => {
 });
 
 describe("the state where a mailbox could not be created", () => {
-  it("still names the provider it reached, in the failure state", async () => {
+  it("advertises no provider in the header, in the failure state", async () => {
     // **Kept from `App.test.tsx`, because that test grew a fourth state and this one
     // is the case it does not cover.** The limits list is rendered outside every
     // conditional, and a change that moved it into one branch would keep the other
@@ -1023,14 +1033,169 @@ describe("the state where a mailbox could not be created", () => {
     );
     await screen.findByTestId("failure-explanation");
 
-    // The rebuilt page has no limits list or `contentinfo` landmark. The provider's
-    // name is in the header pill, which is rendered in every state, so reading that
-    // one node is still a scoped check rather than a whole-page search that the
-    // failure prose could satisfy on its own.
-    expect(document.querySelector(".app-header__pill--provider")?.textContent).toContain(
-      "Guerrilla Mail",
-    );
+    // GOAL §3: the header carries product facts only, in every state — a failed
+    // creation must not turn it into a provider advertisement. A scoped header read
+    // matters here because a whole-page search would be satisfied by the failure prose.
+    expect(document.querySelector(".app-header")?.textContent).not.toContain("Guerrilla Mail");
+    expect(document.querySelector(".app-header")?.textContent).toContain("SpectreMail");
     // And nothing was stored, because there was nothing to store.
     expect(screen.queryByTestId("save-failed")).toBeNull();
+  });
+});
+
+/**
+ * Replacing an address under rapid input, and the state a stale answer may write.
+ *
+ * **These are hook-level tests on purpose.** A page-level test that presses *Change*
+ * twice could pass because the button became disabled rather than because the hook
+ * coalesced the requests, and the requirement is about the requests a provider sees.
+ * The provider's `createMailbox` counter is the instrument.
+ */
+describe("replacing the address under rapid input", () => {
+  /** The id of the ready mailbox, read from the state a client renders. */
+  function readyMailboxId(result: {
+    current: ReturnType<typeof useMailboxSession>;
+  }): string | null {
+    const state = result.current.state;
+    return state.kind === "ready" ? state.mailbox.id : null;
+  }
+
+  it("issues one create for two rapid replaces", async () => {
+    // A provider that holds the replace create open, so both presses would land
+    // while it is still in flight. The boot create resolves immediately.
+    let release!: (mailbox: Mailbox) => void;
+    const gate = new Promise<Mailbox>((resolve) => {
+      release = resolve;
+    });
+    let call = 0;
+    const provider = countingProvider({
+      createMailbox: () => {
+        call += 1;
+        return call === 1 ? Promise.resolve(mailbox("first")) : gate;
+      },
+    });
+    const session = sessionOver(provider);
+    const store = stubStore();
+    const { result } = renderHook(() => useMailboxSession(session, store.storage));
+
+    await waitFor(() => expect(result.current.state.kind).toBe("ready"));
+    expect(readyMailboxId(result)).toBe("first");
+    expect(provider.creates()).toBe(1);
+
+    // Two presses in the same tick, while the first replace create is in flight.
+    act(() => {
+      result.current.replace();
+      result.current.replace();
+    });
+
+    // One create for the two presses, not two: a rate-limited provider is asked once.
+    expect(provider.creates()).toBe(2);
+
+    await act(async () => {
+      release(mailbox("second"));
+      await gate;
+    });
+    await waitFor(() => expect(readyMailboxId(result)).toBe("second"));
+  });
+
+  it("does not let an older create response overwrite a newer mailbox", async () => {
+    // Two creates genuinely in flight from two different entry points: a replace
+    // that answers late and a newer startFresh that answers promptly. A hook whose
+    // generation guard is missing lets the late answer win.
+    let releaseOld!: (mailbox: Mailbox) => void;
+    const oldGate = new Promise<Mailbox>((resolve) => {
+      releaseOld = resolve;
+    });
+    let call = 0;
+    const provider = countingProvider({
+      createMailbox: () => {
+        call += 1;
+        if (call === 1) return Promise.resolve(mailbox("first"));
+        if (call === 2) return oldGate;
+        return Promise.resolve(mailbox("newest"));
+      },
+    });
+    const session = sessionOver(provider);
+    const store = stubStore();
+    const { result } = renderHook(() => useMailboxSession(session, store.storage));
+
+    await waitFor(() => expect(result.current.state.kind).toBe("ready"));
+    expect(provider.creates()).toBe(1);
+
+    act(() => {
+      result.current.replace();
+    });
+    act(() => {
+      result.current.startFresh();
+    });
+    expect(provider.creates()).toBe(3);
+
+    // The newer run lands first and its mailbox is what the page holds.
+    await waitFor(() => expect(readyMailboxId(result)).toBe("newest"));
+
+    // The older create answers last. Its response must not replace the newer one.
+    await act(async () => {
+      releaseOld(mailbox("stale"));
+      await oldGate;
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(readyMailboxId(result)).toBe("newest");
+  });
+
+  it("reports a failed replace truthfully without saving a new mailbox", async () => {
+    // The device already holds a mailbox, so boot adopts it and creates nothing.
+    const store = stubStore({ stored: mailbox("stored-1") });
+    const provider = countingProvider({
+      createMailbox: () => Promise.reject(new Error("provider refused the new address")),
+    });
+    const session = sessionOver(provider);
+    const { result } = renderHook(() => useMailboxSession(session, store.storage));
+
+    await waitFor(() => expect(result.current.state.kind).toBe("ready"));
+    expect(readyMailboxId(result)).toBe("stored-1");
+    expect(provider.creates()).toBe(0);
+
+    act(() => {
+      result.current.replace();
+    });
+    await waitFor(() => expect(result.current.state.kind).toBe("failed"));
+    const failed = result.current.state;
+    if (failed.kind !== "failed") throw new Error(`expected failed, got ${failed.kind}`);
+    expect(failed.failure.description).toContain("provider refused the new address");
+    // Nothing new was written: the device still holds the address it was handed.
+    expect(store.saves).toEqual([]);
+  });
+
+  it("reports a change in progress until the new mailbox resolves", async () => {
+    let release!: (mailbox: Mailbox) => void;
+    const gate = new Promise<Mailbox>((resolve) => {
+      release = resolve;
+    });
+    let call = 0;
+    const provider = countingProvider({
+      createMailbox: () => {
+        call += 1;
+        return call === 1 ? Promise.resolve(mailbox("first")) : gate;
+      },
+    });
+    const session = sessionOver(provider);
+    const { result } = renderHook(() => useMailboxSession(session, stubStore().storage));
+
+    await waitFor(() => expect(result.current.state.kind).toBe("ready"));
+    expect(result.current.changing ?? false).toBe(false);
+
+    act(() => {
+      result.current.replace();
+    });
+    expect(result.current.changing).toBe(true);
+
+    await act(async () => {
+      release(mailbox("second"));
+      await gate;
+    });
+    await waitFor(() => expect(result.current.changing ?? false).toBe(false));
+    expect(readyMailboxId(result)).toBe("second");
   });
 });

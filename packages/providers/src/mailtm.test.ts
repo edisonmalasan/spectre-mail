@@ -10,7 +10,7 @@
  */
 
 import { NormalizedErrorCode } from "@spectre-mail/core";
-import type { Mailbox } from "@spectre-mail/core";
+import type { Domain, Mailbox } from "@spectre-mail/core";
 import { describe, expect, it } from "vitest";
 
 import type { ConformanceAdapter, ProviderConformance } from "./conformance";
@@ -34,6 +34,7 @@ const CONFORMANCE: ProviderConformance = {
   create: [fixtures.mailtmDomains, fixtures.mailtmAccountCreated, fixtures.mailtmToken],
   list: [fixtures.mailtmMessageList],
   fetch: [fixtures.mailtmMessageFetched],
+  missingDate: [fixtures.mailtmMessageListMissingDate],
   messageId: MAILTM.messageId,
   deadSession: [fixtures.mailtmGoneAfterDelete],
   authFailure: [fixtures.mailtmBadCredentials],
@@ -110,6 +111,69 @@ describe("Mail.tm adapter", () => {
     ]);
   });
 
+  it("pages through domains, deduping and filtering inactive and expired ones", async () => {
+    const environment = stubEnvironment([fixtures.mailtmDomainsPage1, fixtures.mailtmDomainsPage2]);
+    const adapter = createMailTmAdapter(environment);
+
+    const domains = await adapter.listDomains();
+
+    // Alpha from page 1, delta from page 2. Beta is inactive, gamma expired in
+    // 2020, and the second alpha is a duplicate — none of those is selectable.
+    expect(domains.map((each) => each.name)).toEqual(["alpha.example", "delta.example"]);
+    for (const entry of domains) {
+      expect(entry.provider).toBe("mailtm");
+      expect(entry.active).toBe(true);
+      expect(entry.id.length).toBeGreaterThan(0);
+    }
+    expect(domains[0]?.expiresAt).toBeNull();
+    expect(domains[1]?.expiresAt).toBe(Date.parse("2030-01-01T00:00:00Z"));
+    // The next link was actually followed, not just read.
+    expect(environment.requests.map((request) => request.url)).toEqual([
+      "https://api.mail.tm/domains?page=1",
+      "https://api.mail.tm/domains?page=2",
+    ]);
+  });
+
+  it("stops paging at a bounded maximum rather than following a loop forever", async () => {
+    const looping: RecordedStep = {
+      response: {
+        status: 200,
+        headers: {},
+        body: JSON.stringify({
+          "hydra:member": [{ domain: "alpha.example", isActive: true }],
+          "hydra:view": { "hydra:next": "/domains?page=2" },
+        }),
+      },
+    };
+    const environment = stubEnvironment(Array.from({ length: 64 }, () => looping));
+
+    const domains = await createMailTmAdapter(environment).listDomains();
+
+    // A provider that repeats the same next link must not spin. The bound is a
+    // number of pages, so a bounded number of requests is the observable proof.
+    expect(domains).toHaveLength(1);
+    expect(environment.requests.length).toBeLessThan(64);
+  });
+
+  it("creates on a chosen domain's name, without a discovery request", async () => {
+    const environment = stubEnvironment([fixtures.mailtmAccountCreated, fixtures.mailtmToken]);
+    const chosen: Domain = {
+      id: "/domains/5",
+      name: "delta.example",
+      provider: "mailtm",
+      active: true,
+      expiresAt: null,
+    };
+
+    const mailbox = await createMailTmAdapter(environment).createMailbox(chosen);
+
+    expect(mailbox.address).toContain("@delta.example");
+    expect(environment.requests.map((request) => request.url)).toEqual([
+      "https://api.mail.tm/accounts",
+      "https://api.mail.tm/token",
+    ]);
+  });
+
   it("stores the hydrated resource URL as the mailbox id", async () => {
     const mailbox = await createMailbox();
 
@@ -174,6 +238,18 @@ describe("Mail.tm adapter", () => {
     // The recording carries `seen: false`, so the message is unread. Getting this
     // backwards would mark every new message read and suppress the badge.
     expect(summary?.unread).toBe(true);
+  });
+
+  it("maps a missing createdAt to null, keeping the message", async () => {
+    const environment = stubEnvironment([fixtures.mailtmMessageListMissingDate]);
+
+    const mailbox = await createMailbox();
+    const [summary] = await createMailTmAdapter(environment).listMessages(mailbox);
+
+    // No `createdAt` in the recording. The message is real and must not be
+    // dropped; the date is unknown and must not be fabricated as `0`.
+    expect(summary?.subject).toBe("A message without a transmission date");
+    expect(summary?.receivedAt).toBeNull();
   });
 
   it("leaves `unread` absent when the provider says nothing about it", async () => {

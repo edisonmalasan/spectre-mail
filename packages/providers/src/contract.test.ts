@@ -127,9 +127,18 @@ describe("the MailProvider contract", () => {
   it("keeps supports() required rather than optional", () => {
     expect(DECLARATIONS).toMatch(/\bsupports\(operation: ProviderOperation\): boolean;/);
   });
+
+  it("declares listDomains and an optional domain argument to createMailbox", () => {
+    // Both are read over declarations with comments stripped, so a doc comment
+    // describing a domain picker cannot satisfy this while the method is absent.
+    expect(DECLARATIONS).toMatch(/\blistDomains\(\): Promise<Domain\[\]>;/);
+    expect(DECLARATIONS).toMatch(/\bcreateMailbox\(domain\?: Domain\): Promise<Mailbox>;/);
+  });
 });
 
 /* -- compile-time invariants, checked by `tsc --noEmit` --------------------- */
+
+import type { Domain } from "@spectre-mail/core";
 
 import type { MailProvider } from "./contract";
 
@@ -175,6 +184,25 @@ type _CreateReturnsMailbox = AssertSame<
 >;
 
 /**
+ * Every adapter can answer "which domains can you use", and the answer is a list
+ * of shared `Domain` values — never a provider-specific shape.
+ */
+type _ListDomainsReturnsSharedDomains = AssertSame<
+  Awaited<ReturnType<MailProvider["listDomains"]>>,
+  Domain[]
+>;
+
+/**
+ * The domain argument to `createMailbox` is optional. Guerrilla assigns addresses
+ * itself and must keep compiling with no argument; the exact `Domain | undefined`
+ * also refuses a widened `string` sneakily replacing the typed value.
+ */
+type _CreateMailboxTakesAnOptionalDomain = AssertSame<
+  Parameters<MailProvider["createMailbox"]>[0],
+  Domain | undefined
+>;
+
+/**
  * Present only so the assertions above are read as used.
  *
  * `noUnusedLocals` would otherwise reject every type alias in this file, which
@@ -182,4 +210,8 @@ type _CreateReturnsMailbox = AssertSame<
  * time even when nothing references them at run time.
  */
 export type CONTRACT_INVARIANTS =
-  _NoSubscribe | _OperationsAreTheDeclaredTwo | _CreateReturnsMailbox;
+  | _NoSubscribe
+  | _OperationsAreTheDeclaredTwo
+  | _CreateReturnsMailbox
+  | _ListDomainsReturnsSharedDomains
+  | _CreateMailboxTakesAnOptionalDomain;

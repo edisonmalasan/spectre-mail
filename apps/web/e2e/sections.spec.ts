@@ -354,7 +354,7 @@ test.describe("the accent on the surfaces the direction names", () => {
 /* ── The claims the page makes ────────────────────────────────────────────────── */
 
 test.describe("what the page is allowed to say", () => {
-  test("it names no licence, and names only the provider it reaches", async ({ page }) => {
+  test("it advertises no provider and claims no licence or own mail servers", async ({ page }) => {
     await openPage(page);
     const text = await pageText(page);
 
@@ -365,11 +365,14 @@ test.describe("what the page is allowed to say", () => {
     // the wrong reason and reports a licence that is not there.
     expect(text).not.toMatch(/\b(?:MIT|ISC|GPL|BSD|MPL|Apache)\b/i);
 
-    // The provider sentence is the measured CORS fact and must still be true.
-    expect(text).toContain("Guerrilla Mail");
-    // And the page reaches one provider only. A second name would be the loudest false
-    // claim available on a page whose provider choice was measured, not preferred.
-    expect(text, "no provider this website cannot reach").not.toMatch(/mail\s*\.?\s*tm/i);
+    // GOAL §3: SpectreMail presents as one product, not as an advertisement for a
+    // single upstream provider, and never claims to run its own mail servers.
+    expect(text, "no provider advertised in the primary interface").not.toContain("Guerrilla Mail");
+    expect(text, "no claim to operate mail servers").not.toMatch(/our (own )?mail servers/i);
+    // A provider this website cannot reach must not be named as if it were available.
+    expect(text, "no provider this website cannot reach").not.toMatch(
+      /mail\s*\.?\s*tm|mail\.gw|dropmail/i,
+    );
 
     // **The controls, in both directions.** A reader matching nothing would satisfy both
     // negative assertions above forever, so each is exercised against a planted sentence.
@@ -389,6 +392,17 @@ test.describe("what the page is allowed to say", () => {
     });
     expect(await pageText(page), "the provider sweep must fire on a planted name").toMatch(
       /mail\s*\.?\s*tm/i,
+    );
+
+    // And the provider-advertising sweep must fire on a planted badge too, so its
+    // silence on the shipped page is evidence rather than a pattern that matches nothing.
+    await page.evaluate(() => {
+      const planted = document.createElement("p");
+      planted.textContent = "Guerrilla Mail is our mail provider.";
+      document.body.append(planted);
+    });
+    expect(await pageText(page), "the badge sweep must fire on a planted provider name").toContain(
+      "Guerrilla Mail",
     );
   });
 });

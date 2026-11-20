@@ -102,6 +102,7 @@ function recordingClipboard(options: { readonly refuses?: boolean } = {}): strin
 
 /** A fixed instant, so a rendered time is a value a test can state. */
 const RECEIVED_AT = Date.UTC(2026, 9, 2, 12, 0, 0);
+const RECEIVED_AT_LABEL = "2 Oct 2026, 12:00 UTC";
 
 /** A body carrying a code, in the wording the parser detects. */
 const CODE_BODY = "Your verification code is 492187. It expires in 10 minutes.";
@@ -177,6 +178,7 @@ function providerReturning(
     displayName: "Guerrilla Mail",
     supports: () => false,
     checkHealth: () => Promise.resolve({ provider: "guerrilla", status: "ok" }),
+    listDomains: () => Promise.resolve([]),
     createMailbox: () => Promise.resolve(mailbox()),
     listMessages: async () => {
       calls += 1;
@@ -250,8 +252,8 @@ function codeStatuses(): string[] {
  * Everything the opened-message region renders, minus the one timestamp.
  *
  * **Why the timestamp is removed rather than the check being scoped.** A rendered time
- * legitimately contains a decimal — `2026-10-02T12:00:00.000Z` — so a check for the
- * absence of a confidence value over the whole region can never pass. The alternatives
+ * is the one piece of metadata that is not a detection, so leaving it in the string — `2026-10-02T12:00:00.000Z` — so a check for the
+ * would make a whole-region check for a confidence value depend on the date format. The alternatives
  * were to scope the check to each list (which cannot see a confidence rendered
  * somewhere else) or to exempt a spelling (which is how a real absence quietly stops
  * being checked). Removing one element's own text keeps the check whole.
@@ -348,7 +350,7 @@ describe("the message view", () => {
       // unchanged if the component stopped rendering at all.
       expect(textOf("message-from")).toContain("sender-a@mail.example");
       expect(textOf("message-subject")).toContain("Subject for a");
-      expect(textOf("message-received-at")).toContain("2026-10-02T12:00:00.000Z");
+      expect(textOf("message-received-at")).toContain(RECEIVED_AT_LABEL);
       expect(textOf("message-readable")).toContain("492187");
       expect(shows("message-codes")).toBe(true);
       // And the finding it made about links is stated rather than left to an empty area.
@@ -370,6 +372,25 @@ describe("the message view", () => {
       expect(textOf("message-subject")).toMatch(/no subject/i);
       // Still readable — the body was there and the message was openable.
       expect(textOf("message-readable")).toContain("492187");
+    });
+
+    it("says the date is unavailable rather than rendering an epoch", async () => {
+      // The real Guerrilla welcome message carries no date. The adapter maps that
+      // to `null`, and the reader must not turn it into 1970 or "Invalid Date".
+      const provider = providerReturning({
+        listings: [[summary("welcome", { receivedAt: null })]],
+        bodies: { welcome: "Welcome to Guerrilla Mail." },
+      });
+      await renderPage(provider);
+      await openFirstRow();
+
+      const stamp = document.querySelector('[data-testid="message-received-at"] time');
+      expect(stamp?.textContent).toBe("Date unavailable");
+      // No instant exists to put in the machine-readable attribute.
+      expect(stamp?.hasAttribute("datetime")).toBe(false);
+      expect(visibleText()).not.toContain("1970");
+      // The message itself is still readable — only its date is unknown.
+      expect(textOf("message-readable")).toContain("Welcome to Guerrilla Mail");
     });
 
     it("says a message it read and found nothing in, as a finding", async () => {
@@ -800,19 +821,20 @@ describe("the message view", () => {
   });
 
   describe("getting back", () => {
-    it("returns to the inbox, which never left", async () => {
+    it("returns to the inbox after reading in a structured panel", async () => {
       const provider = providerReturning({
         listings: [[summary("a"), summary("b")]],
         bodies: { a: CODE_BODY, b: LINK_BODY },
       });
       await renderPage(provider);
 
-      // **The inbox stays on screen while a message is open.** A user who opened a
-      // message to read one code and found their list gone has to hunt for it again,
-      // and the list is what tells them the message arrived at all.
+      // PROBLEM D: the reader takes the panel's place while a message is open, rather
+      // than being appended as an uncontrolled block below the table. The Back control
+      // restores the inbox; it is never left behind.
       expect(shows("inbox-rows")).toBe(true);
       await openFirstRow();
-      expect(shows("inbox-rows")).toBe(true);
+      expect(shows("inbox-rows")).toBe(false);
+      expect(document.querySelector(".message")).not.toBeNull();
 
       await act(async () => {
         fireEvent.click(screen.getByTestId("message-close"));

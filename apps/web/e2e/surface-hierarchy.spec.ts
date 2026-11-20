@@ -47,7 +47,7 @@ import { declared, pxOf, rgbOf } from "./resolved-tokens";
  */
 
 test.describe("the page's hierarchy", () => {
-  test("renders the address as a block that breaks after the @ when it cannot fit", async ({
+  test("keeps the address on one line with its exact value, and never resizes on Copy", async ({
     page,
   }) => {
     await openFreshMailbox(page);
@@ -59,85 +59,83 @@ test.describe("the page's hierarchy", () => {
     const rootPx = await page.evaluate(() =>
       Number.parseFloat(getComputedStyle(document.documentElement).fontSize),
     );
-    // The rebuilt page sets the address at the base step; the old 2xl claim belonged to
-    // the previous composition and is not what the shipped stylesheet declares.
-    const size = pxOf(await declared(page, "--type-base"), rootPx);
+    const size = pxOf(await declared(page, "--type-lg"), rootPx);
 
-    const reading = await address.evaluate((element) => {
-      const computed = getComputedStyle(element);
-      const container = element.parentElement;
-      if (container === null) throw new Error("the address has no container");
-      return {
-        fontSize: computed.fontSize,
-        display: computed.display,
-        width: element.getBoundingClientRect().width,
-        containerWidth: container.getBoundingClientRect().width,
-        text: element.textContent ?? "",
-        nodes: [...element.childNodes]
-          .filter((node) => node.nodeType === Node.TEXT_NODE)
-          .map((node) => node.textContent ?? ""),
-      };
-    });
+    const read = () =>
+      address.evaluate((element) => {
+        const computed = getComputedStyle(element);
+        const container = element.parentElement;
+        if (container === null) throw new Error("the address has no container");
+        return {
+          fontSize: computed.fontSize,
+          display: computed.display,
+          whiteSpace: computed.whiteSpace,
+          width: element.getBoundingClientRect().width,
+          height: element.getBoundingClientRect().height,
+          containerWidth: container.getBoundingClientRect().width,
+          containerHeight: container.getBoundingClientRect().height,
+          text: element.textContent ?? "",
+          nodes: [...element.childNodes]
+            .filter((node) => node.nodeType === Node.TEXT_NODE)
+            .map((node) => node.textContent ?? ""),
+          title: container.getAttribute("title") ?? "",
+        };
+      });
 
-    expect(reading.fontSize, "the address is not at --type-base").toBe(`${size}px`);
-    expect(reading.display, "the address is not a block, so its line box is its string").toBe(
-      "block",
+    const before = await read();
+    expect(before.fontSize, "the address is not at --type-lg").toBe(`${size}px`);
+    expect(before.display, "the address is not a block").toBe("block");
+    expect(before.whiteSpace, "the address may wrap").toBe("nowrap");
+    expect(before.nodes, "the address is not one text node").toHaveLength(1);
+    expect(before.text, "the element's text is not the address").toBe(addressText);
+    expect(before.text.includes("\u200b"), "a zero-width space is in the address").toBe(false);
+    expect(before.title, "the full address is not available as a title").toBe(addressText);
+
+    // **One line at the narrowest viewport**, verified by a single bounding box rather
+    // than by splitting text nodes: a long address is clipped/scrollable, never wrapped.
+    for (const width of [1440, 956, 390]) {
+      await page.setViewportSize({ width, height: 844 });
+      const line = await read();
+      const range = await address.evaluate((element) => {
+        const r = document.createRange();
+        r.selectNodeContents(element);
+        const rects = [...r.getClientRects()];
+        return rects.length;
+      });
+      expect(range, `the address wrapped at ${width}px`).toBe(1);
+      expect(line.height, `the address grew vertically at ${width}px`).toBe(before.height);
+    }
+
+    // **Copy must not resize the field.** Press both controls and read the geometry
+    // again after each feedback state appears.
+    await page.setViewportSize({ width: 956, height: 885 });
+    const field = page.locator(".hero__address");
+    const boxOf = () => field.boundingBox();
+    const boxBefore = await boxOf();
+    await page.getByTestId("address-copy").click();
+    // Headless Chromium may refuse the clipboard without a permission; either outcome
+    // is a real feedback state, and both must leave the field's box unchanged.
+    await expect(page.getByTestId("copy-feedback")).toBeVisible();
+    const boxAfterFieldCopy = await boxOf();
+    expect(boxAfterFieldCopy?.width, "field-copy feedback resized the address field").toBe(
+      boxBefore?.width,
     );
-    expect(reading.width, "the address does not fill its container").toBeCloseTo(
-      reading.containerWidth,
-      1,
-    );
-
-    // **The mechanism, named.** The `@` ends one text node and the domain begins the
-    // next, so the break opportunity is the `<wbr>` between them and nothing else. A
-    // zero-width space would satisfy a line-box reading just as well and would enter the
-    // copied value, which is why its absence is asserted rather than assumed.
-    expect(reading.nodes, "the address is not split into two text nodes at the @").toHaveLength(2);
-    expect(reading.text, "the element's text is not the address").toBe(addressText);
-    expect(reading.text.includes("\u200b"), "a zero-width space is in the address").toBe(false);
-
-    // **The rendered line, at the narrowest viewport the page is laid out for.**
-    await page.setViewportSize({ width: 390, height: 844 });
-
-    const line = await address.evaluate((element) => {
-      const texts = [...element.childNodes].filter(
-        (node): node is Text => node.nodeType === Node.TEXT_NODE,
-      );
-      const local = texts[0];
-      const domain = texts[1];
-      if (local === undefined || domain === undefined) {
-        throw new Error("the address is not two text nodes");
-      }
-      const rectOf = (node: Text, offset: number) => {
-        const range = document.createRange();
-        range.setStart(node, offset);
-        range.setEnd(node, offset + 1);
-        const rect = range.getBoundingClientRect();
-        return { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right };
-      };
-      const at = (local.textContent ?? "").lastIndexOf("@");
-      return {
-        localText: local.textContent ?? "",
-        domainText: domain.textContent ?? "",
-        at: rectOf(local, at),
-        lastBefore: rectOf(local, at - 1),
-        firstAfter: rectOf(domain, 0),
-      };
-    });
-
-    expect(line.localText, "the first text node does not end at the @").toMatch(/@$/);
-    expect(line.localText + line.domainText, "the two text nodes are not the address").toBe(
-      addressText,
+    expect(boxAfterFieldCopy?.height, "field-copy feedback resized the address field").toBe(
+      boxBefore?.height,
     );
 
-    // The character after the `@` sits on a lower line than the `@` itself. Equal tops
-    // mean the address fitted on one line at this width, and this assertion is the one
-    // that would then be reporting the truth.
-    expect(
-      line.firstAfter.top,
-      `at 390 px the domain did not wrap after the @: ${addressText}`,
-    ).toBeGreaterThan(line.at.top + 1);
-    expect(line.lastBefore.top, "the @ is not on the first line").toBe(line.at.top);
+    await page.getByTestId("toolbar-copy").click();
+    await expect(page.getByTestId("copy-feedback")).toBeVisible();
+    const boxAfterToolbarCopy = await boxOf();
+    expect(boxAfterToolbarCopy?.width, "toolbar-copy feedback resized the address field").toBe(
+      boxBefore?.width,
+    );
+    expect(boxAfterToolbarCopy?.height, "toolbar-copy feedback resized the address field").toBe(
+      boxBefore?.height,
+    );
+
+    // The toast is a fixed live region outside the field and dismisses itself.
+    await expect(page.getByTestId("copy-feedback")).toBeHidden({ timeout: 5000 });
   });
 
   test("gives the accent to the in-field Copy, and keeps the toolbar Change framed", async ({
@@ -174,7 +172,9 @@ test.describe("the page's hierarchy", () => {
     const creationsBefore = traffic.served.filter((url) =>
       url.includes("f=get_email_address"),
     ).length;
+    // Change opens the domain picker; Automatic is the only option this browser can serve.
     await change.click();
+    await page.getByRole("button", { name: /Automatic/i }).click();
     await expect
       .poll(() => traffic.served.filter((url) => url.includes("f=get_email_address")).length, {
         message: "toolbar Change asked the provider for no new address",

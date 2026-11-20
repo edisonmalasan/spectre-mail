@@ -14,7 +14,7 @@
  * @module
  */
 
-import type { Mailbox } from "@spectre-mail/core";
+import type { Domain, Mailbox } from "@spectre-mail/core";
 
 import type { MailProvider } from "./contract";
 
@@ -28,7 +28,7 @@ export interface ProviderManager {
    * rethrown unaltered. A manager that retried a provider the client cannot reach
    * would present a known limitation as redundancy.
    */
-  createMailbox(): Promise<Mailbox>;
+  createMailbox(domain?: Domain): Promise<Mailbox>;
   /**
    * The provider that owns `mailbox`.
    *
@@ -66,13 +66,17 @@ export function createProviderManager(providers: readonly MailProvider[]): Provi
   return {
     available: providers,
 
-    async createMailbox(): Promise<Mailbox> {
+    async createMailbox(domain?: Domain): Promise<Mailbox> {
       const failures: string[] = [];
       let lastCause: unknown;
 
       for (const provider of providers) {
+        // A chosen domain belongs to one provider. Offering it to another would
+        // construct an address on a service that does not own the name; skip those
+        // rather than let a fallback silently switch providers.
+        if (domain !== undefined && domain.provider !== provider.id) continue;
         try {
-          return await provider.createMailbox();
+          return await provider.createMailbox(domain);
         } catch (cause) {
           lastCause = cause;
           failures.push(`${provider.id}: ${describe(cause)}`);

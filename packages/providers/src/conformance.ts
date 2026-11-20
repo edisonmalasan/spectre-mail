@@ -54,6 +54,13 @@ export interface ProviderConformance {
   readonly list: readonly RecordedStep[];
   /** Recordings for fetching that mailbox's message. */
   readonly fetch: readonly RecordedStep[];
+  /**
+   * Recordings for listing a message with no usable date.
+   *
+   * Every adapter must map that to `receivedAt: null`. `0` is forbidden: it is not
+   * a missing date, it is a fabricated instant in 1970 that a UI would render.
+   */
+  readonly missingDate: readonly RecordedStep[];
   /** The message the recordings above contain, whose subject is empty. */
   readonly messageId: string;
   /** Recordings for a session the provider no longer honours. */
@@ -150,6 +157,24 @@ export function runProviderConformance(conformance: ProviderConformance): void {
       }
     });
 
+    it("lists only domains this provider can serve", async () => {
+      // Built over the creation recording because a domain listing is itself a
+      // provider request; an adapter with no steps at all has no answer to give.
+      const { adapter } = conformance.build(conformance.create);
+      const domains = await adapter.listDomains();
+
+      expect(Array.isArray(domains)).toBe(true);
+      for (const entry of domains) {
+        // A catalog entry must name its owner. Applying another provider's domain
+        // to this adapter would build an address on a service that cannot serve it.
+        expect(entry.provider).toBe(provider);
+        expect(entry.id.length).toBeGreaterThan(0);
+        expect(entry.name).toContain(".");
+        expect(typeof entry.active).toBe("boolean");
+        expect(entry.expiresAt === null || Number.isFinite(entry.expiresAt)).toBe(true);
+      }
+    });
+
     it("lists a mailbox's messages without their bodies", async () => {
       const mailbox = await create();
       const summaries = await list(mailbox);
@@ -158,12 +183,30 @@ export function runProviderConformance(conformance: ProviderConformance): void {
       for (const summary of summaries) {
         expect(summary.id.length).toBeGreaterThan(0);
         expect(summary.mailboxId).toBe(mailbox.id);
-        expect(Number.isNaN(summary.receivedAt)).toBe(false);
+        // A date is either absent (`null`) or a finite instant. `NaN` used to slip
+        // through a bare `Number.isNaN(x) === false` guard only because `0` is not
+        // `NaN`; this form also refuses the fabricated epoch.
+        expect(summary.receivedAt === null || Number.isFinite(summary.receivedAt)).toBe(true);
         // Required but possibly empty, so only the type is asserted here.
         expect(typeof summary.subject).toBe("string");
         expect(typeof summary.from).toBe("string");
         // Listing must not require fetching a body.
         expect("text" in summary).toBe(false);
+      }
+    });
+
+    it("reports a missing date as null, never as the epoch", async () => {
+      const mailbox = await create();
+      const { adapter } = conformance.build(conformance.missingDate);
+
+      const summaries = await adapter.listMessages(mailbox);
+
+      // The recording holds a message but no usable date for it. Dropping the
+      // message would hide real mail; inventing `0` would show 1970 to a user.
+      // Only one honest answer exists, and it is the same for every adapter.
+      expect(summaries.length).toBeGreaterThan(0);
+      for (const summary of summaries) {
+        expect(summary.receivedAt).toBeNull();
       }
     });
 
