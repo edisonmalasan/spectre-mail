@@ -31,6 +31,8 @@ export const POPUP_COPY = {
   bootFailed: "SpectreMail could not read its own storage, so it will not create an address.",
   create: "Create an address",
   creating: "Asking for an address",
+  /** Shown only when a reachable provider actually reported domains. */
+  chooseDomain: "Choose a domain",
   /**
    * **The one template in this object.**
    *

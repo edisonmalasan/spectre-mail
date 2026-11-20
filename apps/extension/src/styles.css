@@ -405,6 +405,20 @@ body {
   background: var(--surface-sunken);
 }
 
+/* A provider-sourced domain list, shown only when a reachable provider reported one. */
+.popup__domains {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+}
+.popup__domains li {
+  margin: 0 0 var(--space-2);
+}
+.popup__domains .control {
+  width: 100%;
+  text-align: start;
+}
+
 .control:disabled {
   /*
    * **The quiet treatment, and the fill is declared here rather than inherited — that is the
