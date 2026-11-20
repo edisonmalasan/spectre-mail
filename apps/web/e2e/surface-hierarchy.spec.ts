@@ -103,7 +103,12 @@ test.describe("the page's hierarchy", () => {
         return rects.length;
       });
       expect(range, `the address wrapped at ${width}px`).toBe(1);
-      expect(line.height, `the address grew vertically at ${width}px`).toBe(before.height);
+      // Sub-pixel layout differences between CI and local Chromium are not a wrap:
+      // a wrap would roughly double the height, far outside this tolerance.
+      expect(line.height, `the address grew vertically at ${width}px`).toBeCloseTo(
+        before.height,
+        0,
+      );
     }
 
     // **Copy must not resize the field.** Press both controls and read the geometry
