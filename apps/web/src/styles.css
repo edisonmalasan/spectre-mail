@@ -153,52 +153,64 @@ li {
 }
 
 /*
- * The masthead: a quiet tool bar, in the palette.
+ * The app bar — temp-mail.org's full-width dark band, in this product's palette.
  *
- * temp-mail.org opens with a dark bar carrying the mark and the product's name. This page
- * keeps that arrangement — identity on the left, the one-line statement of what this is on
- * the right — but not that colour: the approved direction is a warm off-white page with a
- * violet accent, and a dark slab would introduce a surface the token layer does not declare.
- * So the bar is a raised surface closed by a hairline, and the mark stays the accent's one
- * non-text use. No navigation is added: a static page cannot act on a nav item, and a control
- * that does nothing is the fake-UI defect this product removes twice.
+ * The reference centres the mark on a dark slab with a pill at each end. This page keeps
+ * that arrangement but not that colour: `--ink-primary` is the darkest surface the approved
+ * palette declares, and pairing it with `--surface-page` ink is a declared contrast pair in
+ * both schemes. The two end pills are plain text facts, not controls — a static page cannot
+ * act on a nav item, and a control that does nothing is the fake-UI defect removed elsewhere.
  */
-.masthead {
-  display: flex;
-  flex-wrap: wrap;
+.appbar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3) var(--space-6);
-  margin-block-end: var(--space-7);
-  padding-block-end: var(--space-5);
-  border-block-end: var(--width-hairline) solid var(--line-subtle);
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  background-color: var(--ink-primary);
+  color: var(--surface-page);
 }
 
-/* The Wordmark keeps the mark on the name's baseline; in the bar it simply loses its own
-   bottom margin, which the bar's gap replaces. */
-.masthead .wordmark {
+.appbar__meta {
   margin: 0;
+  font-size: var(--type-xs);
+  letter-spacing: var(--tracking-wide);
+  color: var(--surface-page);
+  opacity: 0.8;
 }
 
-.masthead .wordmark h1 {
+.appbar__meta:last-child {
+  text-align: end;
+}
+
+.appbar__meta strong {
+  font-weight: var(--weight-bold);
+  opacity: 1;
+}
+
+/* On the dark band the mark keeps the accent from the base `.wordmark` rule and the name takes
+   the band's ink — the wordmark stays one value, and only the surface under it changed. */
+.appbar .wordmark h1 {
   margin: 0;
+  font-size: var(--type-xl);
+  color: var(--surface-page);
 }
 
-/* The lead sits beside the mark at body size now: a caption on the bar, not a hero line
-   above the tool. Its ink and size are tokens, so it stays a declared pair in both schemes. */
-.page__lead {
+/* The hero line sits under the bar, large and left: the name of the field, one scale below the
+   address itself. temp-mail.org leads with this sentence; here the address remains the datum. */
+.hero__title {
+  margin: var(--space-7) 0 var(--space-5);
+  font-size: var(--type-2xl);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink-primary);
+}
+
+/* The Wordmark is now only rendered inside the app bar; keep its base rule for other surfaces
+   but drop the old bottom margin, which the bar's own spacing replaces. */
+.wordmark {
   margin: 0;
-  color: var(--ink-secondary);
-  font-size: var(--type-base);
-}
-
-/* The first state region sits directly under the bar; the bar already provides the rule
-   and the space a leading hairline used to. (The selector changed with the masthead: the
-   lead is no longer the region's previous sibling.) */
-.masthead + .region {
-  margin-block-start: 0;
-  border-block-start: 0;
-  padding-block-start: 0;
 }
 
 /* ── Regions ──────────────────────────────────────────────────────────────────── */
@@ -292,10 +304,10 @@ li {
   align-items: center;
   gap: var(--space-3) var(--space-4);
   margin-block-end: var(--space-4);
-  padding: var(--space-4);
+  padding: var(--space-4) var(--space-5);
   background-color: var(--surface-raised);
-  border: var(--width-hairline) solid var(--line-strong);
-  border-radius: var(--radius-md);
+  border: var(--width-focus) solid var(--line-strong);
+  border-radius: var(--radius-pill);
 }
 
 .address {
@@ -467,6 +479,20 @@ li {
 }
 
 /* ── The inbox ────────────────────────────────────────────────────────────────── */
+
+/* The reference's SENDER / SUBJECT / VIEW bar, mirrored to this list's two columns. It is a
+   caption, not a control, and carries no accent or literal value. */
+.inbox-table-head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  color: var(--ink-muted);
+  font-size: var(--type-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  border-block-end: var(--width-hairline) solid var(--line-subtle);
+}
 
 .inbox-rows {
   margin: 0;
@@ -888,6 +914,10 @@ li {
   background-color: var(--accent);
   color: var(--ink-on-accent);
   border-color: var(--accent);
+  /* The reference's copy action is a circle. A pill radius plus equal padding makes this one
+     filled control round without changing its name, its fill, or any other control on the page. */
+  border-radius: var(--radius-pill);
+  padding-inline: var(--space-5);
 }
 
 /*
