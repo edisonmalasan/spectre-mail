@@ -58,6 +58,83 @@ export const mailtmAccountCreated: RecordedStep = {
   ),
 };
 
+/**
+ * SYNTHETIC. `GET /messages?page=1` with a message carrying **no `createdAt`**.
+ *
+ * The mapping under test is ours, not the provider's: a message with no usable date
+ * must carry `receivedAt: null`, never `0` and therefore never an epoch on screen.
+ * The envelope is otherwise the measured one.
+ */
+export const mailtmMessageListMissingDate: RecordedStep = {
+  response: jsonResponse({
+    "@context": "/contexts/Message",
+    "@id": "/messages/1",
+    "@type": "Collection",
+    "hydra:member": [
+      {
+        "@id": `/messages/${MAILTM_MESSAGE_ID}`,
+        "@type": "Message",
+        id: MAILTM_MESSAGE_ID,
+        from: { "@type": "MessageSender", address: "noreply@uberip.com", name: "Uber" },
+        subject: "A message without a transmission date",
+        seen: false,
+        text: "Your verification code is 493028.",
+        html: [],
+      },
+    ],
+    "hydra:totalItems": 1,
+  }),
+};
+
+/**
+ * SYNTHETIC. Multi-page `GET /domains` over reserved `.example` names.
+ *
+ * Page 1 carries one active domain, one inactive one, one expired one, and a second
+ * copy of the active name (dedupe). `hydra:view["hydra:next"]` points at page 2,
+ * which carries one more active domain and no next link. Provenance is SYNTHETIC
+ * because these names are test data; the wire shape is the measured Hydra one.
+ */
+export const mailtmDomainsPage1: RecordedStep = {
+  response: jsonResponse({
+    "@context": "/contexts/Domain",
+    "@id": "/domains/1",
+    "@type": "Collection",
+    "hydra:member": [
+      { "@id": "/domains/1", "@type": "Domain", domain: "alpha.example", isActive: true },
+      { "@id": "/domains/2", "@type": "Domain", domain: "beta.example", isActive: false },
+      {
+        "@id": "/domains/3",
+        "@type": "Domain",
+        domain: "gamma.example",
+        isActive: true,
+        expiresAt: "2020-01-01T00:00:00Z",
+      },
+      { "@id": "/domains/4", "@type": "Domain", domain: "alpha.example", isActive: true },
+    ],
+    "hydra:view": { "@id": "/domains?page=1", "hydra:next": "/domains?page=2" },
+    "hydra:totalItems": 4,
+  }),
+};
+
+/** SYNTHETIC. The second page of {@link mailtmDomainsPage1}. */
+export const mailtmDomainsPage2: RecordedStep = {
+  response: jsonResponse({
+    "@context": "/contexts/Domain",
+    "@id": "/domains/2",
+    "@type": "Collection",
+    "hydra:member": [
+      {
+        "@id": "/domains/5",
+        "@type": "Domain",
+        domain: "delta.example",
+        isActive: true,
+        expiresAt: "2030-01-01T00:00:00Z",
+      },
+    ],
+    "hydra:totalItems": 1,
+  }),
+};
+
 /** MEASURED. `POST /token` — `200`, a bearer token. */
 export const mailtmToken: RecordedStep = {
   response: jsonResponse({ token: MAILTM_TOKEN }),
@@ -240,6 +317,56 @@ export const guerrillaLiveList: RecordedStep = {
         mail_time: "18:08:41",
         mail_read: "0",
         mail_excerpt: "Your verification code is 493028",
+      },
+    ],
+  }),
+};
+
+/**
+ * SYNTHETIC. `f=check_email` with a live session holding a message that carries
+ * **no date fields at all**, modelled on the provider's own welcome message.
+ *
+ * The mapping under test is ours: a message with no date is `receivedAt: null`,
+ * never `0`. Provenance is SYNTHETIC because the exact welcome body was not
+ * captured here; the liveness envelope is the measured one.
+ */
+export const guerrillaWelcomeList: RecordedStep = {
+  response: jsonResponse({
+    email: GUERRILLA_ADDRESS,
+    sid_token: GUERRILLA_SESSION,
+    auth: { success: true, error_codes: [] },
+    list: [
+      {
+        mail_id: 1_000_001,
+        mail_from: "postmaster@guerrillamail.com",
+        mail_recipient: GUERRILLA_ADDRESS,
+        mail_subject: "Welcome to Guerrilla Mail",
+        mail_read: "1",
+      },
+    ],
+  }),
+};
+
+/**
+ * SYNTHETIC. `f=check_email` with a live session holding a message whose only
+ * date signal is `mail_timestamp`, in whole seconds.
+ *
+ * Exercises the one honest conversion available for the welcome message: a real,
+ * finite seconds value becomes milliseconds; an absent or invalid one stays null.
+ */
+export const guerrillaTimestampOnlyList: RecordedStep = {
+  response: jsonResponse({
+    email: GUERRILLA_ADDRESS,
+    sid_token: GUERRILLA_SESSION,
+    auth: { success: true, error_codes: [] },
+    list: [
+      {
+        mail_id: 1_000_002,
+        mail_from: "postmaster@guerrillamail.com",
+        mail_recipient: GUERRILLA_ADDRESS,
+        mail_subject: "Welcome to Guerrilla Mail",
+        mail_timestamp: 1_759_343_721,
+        mail_read: "1",
       },
     ],
   }),

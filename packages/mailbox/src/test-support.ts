@@ -236,6 +236,9 @@ export function stubProvider(id: ProviderId, options: StubOptions = {}): StubPro
       return [...listedFor];
     },
     supports: () => false,
+    // A stub has no domain API: the contract's listDomains is answered with the
+    // honest empty list, so no test can accidentally build an address from a guess.
+    listDomains: async () => [],
     checkHealth: async () => {
       healthCalls += 1;
       return options.health ?? { provider: id, status: "ok" };

@@ -234,6 +234,18 @@ describe("the extension's provider configuration", () => {
     expect(providerDisplayName({ mailtm: "Mail.tm" }, "retired-provider")).toBe("retired-provider");
   });
 
+  it("offers no domains for Guerrilla, which assigns an address itself", async () => {
+    const { transport } = scriptedTransport({});
+    const manager = createExtensionProviderManager(transport);
+
+    // This client keeps both providers, but only Mail.tm has a domain API. A
+    // catalog over the Guerrilla adapter must be empty rather than invent names,
+    // even though it is configured as this client's fallback.
+    const guerrilla = manager.available.find((provider) => provider.id === "guerrilla");
+    expect(guerrilla).toBeDefined();
+    expect(await guerrilla?.listDomains()).toEqual([]);
+  });
+
   it("creates a mailbox through Mail.tm and never reaches the fallback", async () => {
     const { transport, requested } = scriptedTransport(MAILTM_SCRIPT);
 

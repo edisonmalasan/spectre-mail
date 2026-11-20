@@ -49,6 +49,9 @@
 
 export type { MailProvider, ProviderHealth, ProviderOperation } from "./contract";
 
+export { createDomainCatalog, DOMAIN_CATALOG_TTL_MS } from "./catalog";
+export type { DomainCatalog } from "./catalog";
+
 export type { Transport, TransportMethod, TransportRequest, TransportResponse } from "./transport";
 export { createFetchTransport, readHeader } from "./transport";
 

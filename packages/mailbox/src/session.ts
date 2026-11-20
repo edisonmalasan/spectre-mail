@@ -36,7 +36,7 @@ export interface MailboxSession {
    * be surfaced rather than silently retried, so a caller that wants to try again
    * calls this again, visibly.
    */
-  open(): Promise<SessionState>;
+  open(domain?: import("@spectre-mail/core").Domain): Promise<SessionState>;
 
   /**
    * Recover a stored mailbox, or create one when there is none.
@@ -97,7 +97,7 @@ export interface MailboxSession {
    * so one mailbox's analysis carried onto another's message would be a claim about
    * a body this session never read.
    */
-  replace(): Promise<SessionState>;
+  replace(domain?: import("@spectre-mail/core").Domain): Promise<SessionState>;
 
   /**
    * Ask the provider that owns the current mailbox how it is doing.
@@ -459,7 +459,7 @@ export function createMailboxSession(
       };
     },
 
-    async open() {
+    async open(domain?: import("@spectre-mail/core").Domain) {
       inbox.reset();
       // **Both reset together, and `creating` picks the state up from the tracker.**
       // An opened message is a provider-scoped id, so carrying one across a mailbox
@@ -469,7 +469,7 @@ export function createMailboxSession(
       // so the two cannot disagree about whether anything is open.
       opened.reset();
       withInbox({ kind: "creating", opened: opened.state });
-      return withInbox(await createOnce(manager));
+      return withInbox(await createOnce(manager, domain));
     },
 
     /**
@@ -502,8 +502,8 @@ export function createMailboxSession(
       return adopt(stored, inbox.listSummaries);
     },
 
-    async replace() {
-      return session.open();
+    async replace(domain?: import("@spectre-mail/core").Domain) {
+      return session.open(domain);
     },
 
     async health() {
@@ -555,9 +555,12 @@ export function createMailboxSession(
  * Separate from `open` so the "creating" transition and the outcome are distinct
  * steps, and so `replace` can be `open` rather than a second copy of it.
  */
-async function createOnce(manager: ProviderManager): Promise<SessionState> {
+async function createOnce(
+  manager: ProviderManager,
+  domain?: import("@spectre-mail/core").Domain,
+): Promise<SessionState> {
   try {
-    const mailbox = await manager.createMailbox();
+    const mailbox = await manager.createMailbox(domain);
     return { kind: "ready", mailbox, inbox: { kind: "notStarted" }, opened: { kind: "none" } };
   } catch (cause) {
     return { kind: "failed", failure: normalize(cause, manager.available) };

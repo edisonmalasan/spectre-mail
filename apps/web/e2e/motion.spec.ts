@@ -586,12 +586,24 @@ test("the keyframes read the token layer rather than a literal", async ({ page }
 
 test("the three entrances carry declared durations and the declared easing", async ({ page }) => {
   await openFreshMailbox(page);
+  // The row entrance exists only before a message is opened: the reader now takes the
+  // panel's place. Read the row here, then open and read the address and the code.
+  await page.locator(".inbox-row").first().waitFor();
+  const rowReading = await resolved(page, ".inbox-row");
+  expect(rowReading.present, ".inbox-row is in the inbox").toBe(true);
   await openTheRecordedMessage(page);
 
   const declared = await declaredMotion(page);
-  const used = new Set<number>();
+  const used = new Set<number>([rowReading.durationSeconds]);
+  expect(rowReading.animationName, ".inbox-row names the materialisation").toBe(KEYFRAMES);
+  expect(declared.durations, ".inbox-row's duration is one the token layer declares").toContain(
+    rowReading.durationSeconds,
+  );
+  expect(rowReading.timingFunction, ".inbox-row's easing is the declared one").toBe(
+    declared.timingFunction,
+  );
 
-  for (const selector of ENTRANCE_SELECTORS) {
+  for (const selector of [".address__value", ".code"]) {
     const reading = await resolved(page, selector);
     expect(reading.present, `${selector} is on the page`).toBe(true);
     expect(reading.animationName, `${selector} names the materialisation`).toBe(KEYFRAMES);
@@ -619,13 +631,13 @@ test("no element carries an animation under reduced motion, and the same sweep f
   page,
 }) => {
   await openFreshMailbox(page);
-  await openTheRecordedMessage(page);
-
-  // **First, without the preference**, so the half below cannot be satisfied by a page that
-  // animates nothing. A sweep that finds nothing here is a sweep with no power, and the
-  // assertion after it would be theatre.
+  // Sweep the inbox before opening (for the row), then the reader after (for the code),
+  // and union the two: the new reader replaces the inbox rather than sitting below it.
   await page.emulateMedia({ reducedMotion: NOT_REDUCED });
-  const withoutPreference = await carriedAnimations(page);
+  await page.locator(".inbox-row").first().waitFor();
+  const inboxSweep = await carriedAnimations(page);
+  await openTheRecordedMessage(page);
+  const withoutPreference = [...inboxSweep, ...(await carriedAnimations(page))];
   const carriedClasses = withoutPreference.flatMap((entry) => entry.classes);
   for (const entrance of ENTRANCE_CLASSES) {
     expect(
@@ -640,9 +652,9 @@ test("no element carries an animation under reduced motion, and the same sweep f
     ).toBe(KEYFRAMES);
   }
 
-  // Now the preference, over the same page and the same function.
+  // Now the preference, over both states and the same function.
   await page.emulateMedia({ reducedMotion: REDUCED });
-  const withPreference = await carriedAnimations(page);
+  const withPreference = [...(await carriedAnimations(page))];
   expect(
     withPreference.map((entry) => `${entry.tagName}.${entry.classes.join(".")}`),
     "no element on the page may carry an animation under reduced motion",

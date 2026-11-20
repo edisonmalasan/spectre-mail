@@ -24,7 +24,7 @@
  */
 
 import { NormalizedErrorCode, createMailbox, createMessageSummary } from "@spectre-mail/core";
-import type { Mailbox, Message, MessageSummary, SpectreError } from "@spectre-mail/core";
+import type { Domain, Mailbox, Message, MessageSummary, SpectreError } from "@spectre-mail/core";
 
 import type { MailProvider, ProviderHealth, ProviderOperation } from "./contract";
 import { readHeader } from "./transport";
@@ -56,6 +56,11 @@ interface GuerrillaMessage {
   readonly mail_subject?: unknown;
   readonly mail_date?: unknown;
   readonly mail_time?: unknown;
+  /**
+   * A whole-seconds timestamp the welcome message carries when it has no date.
+   * Declared rather than assumed absent, and only ever read as a fallback.
+   */
+  readonly mail_timestamp?: unknown;
   readonly mail_read?: unknown;
   readonly mail_excerpt?: unknown;
 }
@@ -81,6 +86,7 @@ interface GuerrillaFetchResponse {
   readonly mail_subject?: unknown;
   readonly mail_date?: unknown;
   readonly mail_time?: unknown;
+  readonly mail_timestamp?: unknown;
   readonly content_type?: unknown;
   readonly mail_body?: unknown;
   /**
@@ -179,27 +185,40 @@ export function createGuerrillaAdapter(environment: ProviderEnvironment): MailPr
     } satisfies SpectreError;
   }
 
-  function toEpochMillis(date: unknown, time: unknown): number {
-    if (typeof date !== "string" || date.length === 0) {
-      return 0;
+  /**
+   * The message's arrival instant, or `null` when the provider gave nothing usable.
+   *
+   * Never `0`: zero is a real instant in 1970, not an absence. The welcome message
+   * has no `mail_date`/`mail_time`, so a finite whole-seconds `mail_timestamp` is
+   * the one fallback that does not invent an instant. A day without a clock is kept
+   * at UTC midnight, which the old comment called "the honest floor"; that is a
+   * claim about the day the provider did send, not a fabrication out of nothing.
+   */
+  function toReceivedAt(date: unknown, time: unknown, timestamp: unknown): number | null {
+    if (typeof date === "string" && date.length > 0) {
+      const day = Date.parse(`${date}T00:00:00Z`);
+      if (!Number.isNaN(day)) {
+        if (typeof time !== "string") {
+          return day;
+        }
+        const clock = /^(\d{2}):(\d{2}):(\d{2})$/.exec(time);
+        if (clock === null) {
+          return day;
+        }
+        return (
+          day + Number(clock[1]) * 3_600_000 + Number(clock[2]) * 60_000 + Number(clock[3]) * 1_000
+        );
+      }
     }
-    // Guerrilla returns `YYYY-MM-DD` plus a separate `HH:MM:SS`. The provider sends
-    // no timezone, and inventing one would place the message in the wrong hour. The
-    // date at UTC midnight is the honest floor: the day is known, the instant is not.
-    const day = Date.parse(`${date}T00:00:00Z`);
-    if (Number.isNaN(day)) {
-      return 0;
+    // Second choice: a genuine whole-seconds value from the provider. Anything
+    // non-finite, negative or zero is not a usable instant and stays null.
+    if (typeof timestamp === "number" && Number.isFinite(timestamp) && timestamp > 0) {
+      const millis = timestamp * 1_000;
+      if (Number.isFinite(millis)) {
+        return millis;
+      }
     }
-    if (typeof time !== "string") {
-      return day;
-    }
-    const clock = /^(\d{2}):(\d{2}):(\d{2})$/.exec(time);
-    if (clock === null) {
-      return day;
-    }
-    return (
-      day + Number(clock[1]) * 3_600_000 + Number(clock[2]) * 60_000 + Number(clock[3]) * 1_000
-    );
+    return null;
   }
 
   function toSummary(member: GuerrillaMessage, mailbox: Mailbox): MessageSummary {
@@ -212,7 +231,7 @@ export function createGuerrillaAdapter(environment: ProviderEnvironment): MailPr
       mailboxId: mailbox.id,
       from: typeof member.mail_from === "string" ? member.mail_from : "",
       subject: typeof member.mail_subject === "string" ? member.mail_subject : "",
-      receivedAt: toEpochMillis(member.mail_date, member.mail_time),
+      receivedAt: toReceivedAt(member.mail_date, member.mail_time, member.mail_timestamp),
       unread: member.mail_read === "0",
     });
   }
@@ -298,7 +317,17 @@ export function createGuerrillaAdapter(environment: ProviderEnvironment): MailPr
       }
     },
 
-    async createMailbox(): Promise<Mailbox> {
+    async listDomains(): Promise<Domain[]> {
+      // Guerrilla assigns a random address itself and publishes no domain API.
+      // Returning an empty list is the honest answer; inventing or hardcoding a
+      // domain would offer a mailbox this provider cannot create.
+      return [];
+    },
+
+    async createMailbox(_domain?: Domain): Promise<Mailbox> {
+      // The optional domain is deliberately ignored: this provider chooses the
+      // address, and a caller-supplied name has no meaning to it.
+      void _domain;
       const response = await call("get_email_address");
       if (response.status !== 200) {
         classify(response, "creating a mailbox");
@@ -393,7 +422,7 @@ export function createGuerrillaAdapter(environment: ProviderEnvironment): MailPr
         // empty subject while its sender and body were present. Dropping it would
         // discard a message that genuinely arrived.
         subject: typeof body.mail_subject === "string" ? body.mail_subject : "",
-        receivedAt: toEpochMillis(body.mail_date, body["mail_time"]),
+        receivedAt: toReceivedAt(body.mail_date, body["mail_time"], body["mail_timestamp"]),
       });
 
       // `content_type` is present in the response and is deliberately not read.

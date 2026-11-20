@@ -92,6 +92,20 @@ const message: Message = {
   verificationLinks: [link],
 };
 
+// The date is required but nullable. A provider that reported no usable date
+// must be representable without inventing one, and this literal compiling is the
+// assertion: if `receivedAt` were narrowed back to `number`, `tsc --noEmit` fails.
+const messageWithoutDate: Message = {
+  id: "message-2",
+  mailboxId: "mailbox-1",
+  from: "",
+  subject: "",
+  receivedAt: null,
+  text: "A welcome message with no date.",
+  verificationCodes: [],
+  verificationLinks: [],
+};
+
 describe("compile-time invariants", () => {
   it("holds together at runtime", () => {
     // The type assertions above are verified by `pnpm typecheck`. This test exists
@@ -107,7 +121,8 @@ describe("compile-time invariants", () => {
       score,
       message.text,
       constructed.id,
-    ]).toHaveLength(9);
+      messageWithoutDate.receivedAt,
+    ]).toHaveLength(10);
   });
 
   it("keeps an empty subject representable on a full message", () => {

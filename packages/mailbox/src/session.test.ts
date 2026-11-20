@@ -1462,6 +1462,38 @@ describe("createMailboxSession", () => {
       expect(provider.readCalls).toBe(before + 1);
     });
 
+    it("clears the open message when a poll reports an empty listing", async () => {
+      // **The session-level half of the stale-message defect.** The tracker's own
+      // state is one thing; what a client reads is `session.current().opened`, which
+      // is republished through `withOpened`. A fix that cleared only the retention
+      // would leave this test red, because the session would still name the message.
+      const a = makeSummary("a", "mailbox");
+      const provider = stubProvider("guerrilla", {
+        messages: { summaries: [a], bodies: { a: CODE_BODY }, listings: [[a], []] },
+      });
+      const session = await readySession(provider, manualScheduler());
+
+      await session.checkInbox();
+      const opened = await session.openMessage("a");
+      expect(opened.kind).toBe("opened");
+      // Premise, asserted on the state a client reads rather than on the return value.
+      const before = session.current();
+      if (!isReady(before)) throw new Error(`expected ready, got ${before.kind}`);
+      expect(before.opened.kind).toBe("opened");
+
+      // A poll that empties the listing must clear the selection too.
+      const checked = await session.checkInbox();
+      if (checked.kind !== "checked") throw new Error(`expected checked, got ${checked.kind}`);
+      expect(checked.listing.messages).toEqual([]);
+
+      const after = session.current();
+      if (!isReady(after)) throw new Error(`expected ready, got ${after.kind}`);
+      // Positive control: the inbox did go empty, so the half that was already right
+      // is established before the half under test is asserted.
+      expect(after.inbox.kind).toBe("checked");
+      expect(openedOf(after)).toEqual({ kind: "none" });
+    });
+
     it("keeps a verdict for a message its reading has shed", async () => {
       const a = makeSummary("a", "mailbox");
       const provider = stubProvider("guerrilla", {

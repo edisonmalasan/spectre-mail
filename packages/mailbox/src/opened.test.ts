@@ -499,6 +499,53 @@ describe("opening a message", () => {
       expect(provider.readCalls).toBe(0);
     });
 
+    /**
+     * **The stale-message defect, held at the tracker that owns it.**
+     *
+     * A message was open, a poll returned an empty listing, the inbox went empty —
+     * and `state` still named the old message, so a client kept rendering it beside
+     * "Your inbox is empty". The retention was pruned but the reported state was not,
+     * so the two halves of one fact disagreed.
+     *
+     * The control is the listing that *does* contain the open message: pruning against
+     * it must leave the selection alone. Without it, a tracker that cleared on every
+     * prune would satisfy the clearing assertion for the wrong reason.
+     */
+    it("clears the reported message when a successful listing no longer contains it", async () => {
+      const provider = stubProvider("guerrilla", {
+        messages: { bodies: { a: CODE_BODY, b: CODE_BODY } },
+      });
+      const { a, b } = twoMessages();
+      const seen: OpenedMessageState[] = [];
+      const opened = trackerOver(
+        provider,
+        () => [a, b],
+        (next) => seen.push(next),
+      );
+
+      // The message is genuinely open before any prune happens.
+      expect(openedMessage(await opened.open(MAILBOX, "a")).id).toBe("a");
+      expect(opened.state.kind).toBe("opened");
+
+      // Control: an open message still in the listing is left alone, and no
+      // transition is published for a change that did not happen.
+      seen.length = 0;
+      opened.pruneTo(["a"]);
+      expect(opened.state.kind).toBe("opened");
+      expect(seen).toEqual([]);
+
+      // The message leaves the listing: the reported selection goes with it, and the
+      // transition is published so the session stops reporting a message that is gone.
+      opened.pruneTo([]);
+      expect(opened.state).toEqual({ kind: "none" });
+      expect(seen.map((state) => state.kind)).toEqual(["none"]);
+
+      // The body was shed atomically with the state (the pre-existing behaviour).
+      const before = provider.readCalls;
+      expect(openedMessage(await opened.open(MAILBOX, "a")).id).toBe("a");
+      expect(provider.readCalls).toBe(before + 1);
+    });
+
     it("forgets everything when reset", async () => {
       const provider = stubProvider("guerrilla", { messages: { bodies: { a: CODE_BODY } } });
       const { a } = twoMessages();

@@ -9,11 +9,21 @@
  * @module
  */
 
+import { useState } from "react";
+
+import type { Domain } from "@spectre-mail/core";
+
+import { DomainPicker } from "./DomainPicker";
+
 export interface ActionToolbarProps {
   readonly onCopy: () => void;
   readonly onRefresh: () => void;
-  readonly onChange: () => void;
+  readonly onChange: (domain?: Domain) => void;
   readonly onDelete: () => void;
+  /** True while a mailbox is being generated; Change shows progress and cannot repeat. */
+  readonly changing?: boolean;
+  /** Domains the current provider reported; empty means automatic selection only. */
+  readonly domains?: readonly Domain[];
 }
 
 function Icon({ kind }: { readonly kind: "copy" | "refresh" | "change" | "delete" }) {
@@ -79,7 +89,16 @@ function Icon({ kind }: { readonly kind: "copy" | "refresh" | "change" | "delete
   );
 }
 
-export function ActionToolbar({ onCopy, onRefresh, onChange, onDelete }: ActionToolbarProps) {
+export function ActionToolbar({
+  onCopy,
+  onRefresh,
+  onChange,
+  onDelete,
+  changing = false,
+  domains = [],
+}: ActionToolbarProps) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+
   return (
     <div className="toolbar">
       <div className="toolbar__actions" data-testid="toolbar">
@@ -104,11 +123,15 @@ export function ActionToolbar({ onCopy, onRefresh, onChange, onDelete }: ActionT
         <button
           type="button"
           className="toolbar__button"
-          onClick={onChange}
+          onClick={() => setPickerOpen(true)}
+          disabled={changing}
+          aria-busy={changing}
+          aria-haspopup="dialog"
+          aria-expanded={pickerOpen}
           data-testid="toolbar-change"
         >
           <Icon kind="change" />
-          <span>Change</span>
+          <span>{changing ? "Changing…" : "Change"}</span>
         </button>
         <button
           type="button"
@@ -125,6 +148,20 @@ export function ActionToolbar({ onCopy, onRefresh, onChange, onDelete }: ActionT
           <span>Delete</span>
         </button>
       </div>
+      {pickerOpen && (
+        <DomainPicker
+          domains={domains}
+          onAutomatic={() => {
+            setPickerOpen(false);
+            onChange();
+          }}
+          onSelect={(domain) => {
+            setPickerOpen(false);
+            onChange(domain);
+          }}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
     </div>
   );
 }

@@ -1,8 +1,9 @@
 /**
  * The dark header bar. The reference carries store badges and premium links here;
  * SpectreMail has neither, and a dead control is worse than no control, so the two
- * sides carry the two facts that are true — no account, and the one provider this
- * client reaches. The brand stays centred, as in the reference.
+ * sides carry only product facts. No provider name is advertised: SpectreMail is
+ * one product, and attribution lives where it is operationally required (the
+ * footer/docs), not as a header badge for a single provider. The brand stays centred.
  *
  * @module
  */
@@ -19,7 +20,7 @@ export function AppHeader() {
       <Wordmark />
       <div className="app-header__side app-header__side--end">
         <span className="app-header__pill">Disposable</span>
-        <span className="app-header__pill app-header__pill--provider">Guerrilla Mail</span>
+        <span className="app-header__pill">No account required</span>
       </div>
     </header>
   );

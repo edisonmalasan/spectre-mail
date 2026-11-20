@@ -88,6 +88,12 @@ export interface OpenedMessages {
    * The inbox's **verdict** for a departed message is deliberately untouched. It is one
    * word, it is already the answer, and the inbox's requirements say it survives; a body
    * is a different trade and is the thing being shed.
+   *
+   * **And if the message currently reported open is gone, the reported state is cleared
+   * in the same call.** The body and the selection are one fact about the same message:
+   * shedding one while still showing the other left a client rendering a message the
+   * inbox had just declared empty. A successful listing is the only caller, so a failed
+   * one — which learned nothing — never sheds either half.
    */
   pruneTo(messageIds: readonly string[]): void;
 
@@ -225,6 +231,26 @@ export function createOpenedMessages(options: OpenedMessagesOptions): OpenedMess
     };
   }
 
+  /**
+   * The message id a state refers to, or `undefined` when it names none.
+   *
+   * **One extraction rather than three branches at each call site.** `pruneTo` needs to
+   * ask the same question of every variant that names a message, and a hand-written
+   * chain of checks here would be a fourth spelling of the union that the compiler
+   * could let drift when a variant gains a field.
+   */
+  function openMessageId(current: OpenedMessageState): string | undefined {
+    switch (current.kind) {
+      case "opening":
+      case "openFailed":
+        return current.messageId;
+      case "opened":
+        return current.message.id;
+      case "none":
+        return undefined;
+    }
+  }
+
   async function open(
     mailbox: Mailbox | undefined,
     messageId: string,
@@ -299,6 +325,18 @@ export function createOpenedMessages(options: OpenedMessagesOptions): OpenedMess
       for (const id of [...retained.keys()]) {
         if (!keep.has(id)) retained.delete(id);
       }
+
+      // **The reported selection goes with the body, in the same call.** The first
+      // version shed the retained reading but left `state` naming the open message, so
+      // a successful listing that emptied the mailbox left a client rendering the old
+      // message beside "Your inbox is empty" — the two halves of one fact disagreed.
+      // Every variant that names a message is checked: an `opening` whose provider read
+      // is still in flight, an `opened` message, and an `openFailed` attempt all refer
+      // to an id this listing no longer contains, and none of them is true any more.
+      // `publish` also notifies, so a subscriber counting transitions learns that the
+      // selection ended rather than silently holding a stale one.
+      const openId = openMessageId(state);
+      if (openId !== undefined && !keep.has(openId)) publish({ kind: "none" });
     },
 
     open,

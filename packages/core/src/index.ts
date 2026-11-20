@@ -34,6 +34,8 @@
 export { PROVIDER_IDS, isProviderId, assertProviderId } from "./provider";
 export type { ProviderId } from "./provider";
 
+export type { Domain } from "./domain";
+
 export {
   assertGuerrillaCredentials,
   assertMailTmCredentials,

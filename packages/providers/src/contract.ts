@@ -19,7 +19,7 @@
  * @module
  */
 
-import type { Mailbox, Message, MessageSummary, ProviderId } from "@spectre-mail/core";
+import type { Domain, Mailbox, Message, MessageSummary, ProviderId } from "@spectre-mail/core";
 
 /**
  * An operation a provider may or may not offer.
@@ -76,14 +76,31 @@ export interface MailProvider {
   checkHealth(): Promise<ProviderHealth>;
 
   /**
-   * Create a new mailbox.
+   * List the domains this provider can actually create a mailbox on.
+   *
+   * The list is provider-sourced and may be empty: a provider that assigns an
+   * address itself (Guerrilla Mail) has no domain API and exposes none. An empty
+   * list is an honest answer, not a failure, and a client must be able to say
+   * "automatic" rather than offer a domain it cannot serve. Values must be
+   * discovered from the provider's API — no hardcoded production domain names
+   * belong in a client, an adapter, or a catalog.
+   */
+  listDomains(): Promise<Domain[]>;
+
+  /**
+   * Create a new mailbox, optionally on a chosen domain.
+   *
+   * The argument is optional so a provider that assigns addresses itself keeps
+   * working unchanged. A provider that accepts one uses the value's `name`; passing
+   * a domain that belongs to another provider is a caller error and must not be
+   * silently applied to this one.
    *
    * NOT instantaneous for every provider. Mail.tm advertises
    * `ratelimit-policy: 1; w=60` on account creation, so this rejects with a
    * throttled `SpectreError` carrying that header rather than retrying. See
    * design.md D6.
    */
-  createMailbox(): Promise<Mailbox>;
+  createMailbox(domain?: Domain): Promise<Mailbox>;
 
   /**
    * List a mailbox's messages.

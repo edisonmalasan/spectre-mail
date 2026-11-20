@@ -74,6 +74,7 @@ import type { OpenedMessage, OpenedMessageState } from "@spectre-mail/mailbox";
 //
 // A type-only import, so it costs no runtime dependency between two components.
 import type { CopyState } from "./Address";
+import { formatReceivedAt, receivedAtDateTime } from "./InboxRow";
 
 export interface MessageViewProps {
   /** What the session reports as open. Rendered as-is, never re-derived. */
@@ -151,8 +152,8 @@ function OpenedMessageBody({ message }: OpenedMessageBodyProps) {
       </p>
 
       <p className="message__meta mono" data-testid="message-received-at">
-        <time dateTime={new Date(message.receivedAt).toISOString()}>
-          {new Date(message.receivedAt).toISOString()}
+        <time dateTime={receivedAtDateTime(message.receivedAt)}>
+          {formatReceivedAt(message.receivedAt)}
         </time>
       </p>
 
