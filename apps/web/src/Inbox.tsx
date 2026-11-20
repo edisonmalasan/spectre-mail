@@ -94,7 +94,7 @@ export function Inbox({ inbox, onCheck, onOpenMessage }: InboxProps) {
 
   if (inbox.kind === "checkFailed") {
     return (
-      <section className="region" aria-labelledby="inbox-heading">
+      <section className="region region--inbox" aria-labelledby="inbox-heading">
         <h2 id="inbox-heading">Inbox</h2>
         <InboxCheckFailed failure={inbox.failure} rateLimit={inbox.listing.rateLimit} />
         {/* The messages already learned are still true, so they are still shown. A
@@ -128,7 +128,7 @@ export function Inbox({ inbox, onCheck, onOpenMessage }: InboxProps) {
   }
 
   return (
-    <section className="region" aria-labelledby="inbox-heading">
+    <section className="region region--inbox" aria-labelledby="inbox-heading">
       <h2 id="inbox-heading">Inbox</h2>
       <InboxRows listing={inbox.listing} onOpenMessage={onOpenMessage} />
       <p data-testid="inbox-cadence-note">
@@ -151,7 +151,7 @@ export function Inbox({ inbox, onCheck, onOpenMessage }: InboxProps) {
 /** A check nobody has answered yet, whether or not one is running. */
 function CheckingInbox() {
   return (
-    <section className="region" aria-labelledby="inbox-heading">
+    <section className="region region--inbox" aria-labelledby="inbox-heading">
       <h2 id="inbox-heading">Inbox</h2>
       <p data-testid="inbox-checking">Checking this address for mail.</p>
       <p data-testid="inbox-cadence-note">
@@ -164,7 +164,7 @@ function CheckingInbox() {
 /** A check that finished and reported nothing. */
 function EmptyInbox() {
   return (
-    <section className="region" aria-labelledby="inbox-heading">
+    <section className="region region--inbox" aria-labelledby="inbox-heading">
       <h2 id="inbox-heading">Inbox</h2>
       <p data-testid="inbox-empty">No mail has arrived at this address yet.</p>
       <p data-testid="inbox-cadence-note">
