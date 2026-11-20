@@ -217,6 +217,10 @@ const QUARANTINED_PROBES = [
   // so it is opt-in like the others: a suite run would rate-limit Mail.tm and make the
   // result depend on a third party. It still spells Chromium's two load flags below.
   "live-domain-selection.mjs",
+  // The two-mode live reception probe creates a real mailbox and waits for a message a
+  // human sends from their own mail app. It holds a persistent browser profile with a
+  // real provider session, so neither it nor that profile may be part of a suite run.
+  "live-reception.mjs",
 ] as const;
 
 /**

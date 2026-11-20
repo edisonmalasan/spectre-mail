@@ -21,7 +21,14 @@
  */
 
 import { chromium } from "@playwright/test";
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync } from "node:fs";
+import {
+  createReadStream,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+} from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -46,6 +53,85 @@ function hasPicker() {
   return readdirSync(DIST, { recursive: true })
     .filter((entry) => statSync(join(DIST, entry)).isFile())
     .some((entry) => readFileSync(join(DIST, entry), "utf8").includes("Choose a domain"));
+}
+
+const websiteCorsMode = process.argv.includes("--website-cors");
+if (websiteCorsMode) {
+  // A second subject of the same instrument: the website's origin has no host
+  // permissions, so a provider that works in the extension may still be blocked here.
+  // This phase runs BEFORE any extension context is opened, in a plain browser.
+  const WEB_DIST = fileURLToPath(new URL("../../web/dist", import.meta.url));
+  const { createServer } = await import("node:http");
+  const server = createServer((request, response) => {
+    const name = (request.url || "/").split("?")[0];
+    const file = join(WEB_DIST, name === "/" ? "index.html" : name);
+    if (!file.startsWith(WEB_DIST) || !existsSync(file) || !statSync(file).isFile()) {
+      response.writeHead(404);
+      response.end("not found");
+      return;
+    }
+    const ext = file.slice(file.lastIndexOf("."));
+    const mime =
+      { ".html": "text/html", ".js": "text/javascript", ".css": "text/css" }[ext] ||
+      "application/octet-stream";
+    response.writeHead(200, { "Content-Type": mime });
+    createReadStream(file).pipe(response);
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const port = server.address().port;
+  const browser = await chromium.launch();
+  const page = await browser.newPage();
+  const consoleErrors = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text().slice(0, 400));
+  });
+  try {
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
+    const observed = await page.evaluate(async () => {
+      const base = "https://api.mail.tm";
+      const out = { origin: location.origin, operations: {} };
+      async function call(name, path, init) {
+        try {
+          const response = await fetch(base + path, { mode: "cors", ...init });
+          out.operations[name] = {
+            ok: response.ok,
+            status: response.status,
+            accessControlAllowOrigin: response.headers.get("access-control-allow-origin"),
+            body: (await response.text()).slice(0, 180),
+          };
+        } catch (error) {
+          out.operations[name] = { failed: String(error) };
+        }
+      }
+      await call("domains", "/domains", { method: "GET" });
+      const address = `probe${Date.now()}@euploading.com`;
+      const password = `Pw${Date.now()}x`;
+      for (const [name, path] of [
+        ["accounts", "/accounts"],
+        ["token", "/token"],
+      ]) {
+        await call(name, path, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ address, password }),
+        });
+      }
+      await call("messages", "/messages", { method: "GET" });
+      return out;
+    });
+    console.log(JSON.stringify({ observed, consoleErrors }, null, 2));
+    const blocked = Object.values(observed.operations).every((op) => op.failed !== undefined);
+    console.log(
+      blocked
+        ? "Mail.tm is CORS-blocked from the website origin; it must stay disabled there."
+        : "A Mail.tm call succeeded from the website origin — reassess the website provider list.",
+    );
+    if (!blocked) process.exitCode = 1;
+  } finally {
+    await browser.close();
+    server.close();
+  }
+  process.exit(process.exitCode ?? 0);
 }
 
 const context = await chromium.launchPersistentContext(PROFILE, {
