@@ -49,6 +49,15 @@ Mobile shows single-line clipped address, stable toolbar 2×2, and "Date unavail
 - Website browser tier → **39 passed / 0 failed**.
 - Extension browser tier → **109 passed / 0 failed**.
 - `openspec validate --specs --strict` → 15 passed, 0 failed.
+- **Live domain-selection probe** (`node apps/extension/e2e/live-domain-selection.mjs`) →
+  PASSED against the real provider: chose `@euploading.com` from Mail.tm's live `domains`
+  answer, created a real account, and the created address `kg662ixzdlxc@euploading.com`
+  used that exact domain. Recorded requests were exactly
+  `GET https://api.mail.tm/domains`, `POST https://api.mail.tm/accounts`,
+  `POST https://api.mail.tm/token` — no Guerrilla request, so a Mail.tm domain did not
+  fall back to the other provider. Screenshot: `apps/extension/test-results/live-domain-selection.png`.
+  The probe is quarantined (opt-in) like the other live probes: it creates a real mailbox
+  and must not run on every CI invocation.
 - Independent code review: 1 Critical (domain dropped between picker and session) fixed;
   Important items (toast live region, catalog filtering, e2e integrity) addressed.
 
@@ -58,7 +67,12 @@ All six recorded UX defects are fixed and verified; the badge is gone; timestamp
 truthful; all automated checks and both browser tiers are green. Real, provider-sourced
 domain selection is now available in the extension popup, and the website honestly
 reports automatic-only because its sole browser-reachable provider exposes no domain
-API. The goal is not declared MET because no test receives mail at a domain chosen
-through the new picker — the domain reaches `session.open()` and a recorded provider
-confirms creation, but a live end-to-end send to that exact chosen domain was not
-performed. That verification remains the last step.
+API. The live probe now confirms Scenario D end to end against the real provider
+(domain listed, mailbox created on that exact domain, requests routed to Mail.tm).
+The goal is not declared MET because Scenario F — a controlled message actually
+arriving at the chosen-domain mailbox, read in the browser — has not been performed:
+no SMTP sender or HTTP send endpoint is configured in this environment
+(`SPECTRE_SPIKE_SMTP_*` and `SPECTRE_SPIKE_SEND_URL` are all unset), and Mail.tm's own
+API is receive-only while Guerrilla's send endpoint requires a captcha. Credentials
+for a sender are the one thing only the user can supply; that live receive test is
+the remaining step.
