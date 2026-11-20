@@ -167,15 +167,17 @@ li {
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-4) var(--space-5);
-  background-color: var(--ink-primary);
-  color: var(--surface-page);
+  /* The console is a fixed dark surface in BOTH schemes — the reference's band is not an
+     inversion of the page. Its ink is declared with it. */
+  background-color: var(--surface-console);
+  color: var(--ink-on-console);
 }
 
 .appbar__meta {
   margin: 0;
   font-size: var(--type-xs);
   letter-spacing: var(--tracking-wide);
-  color: var(--surface-page);
+  color: var(--ink-on-console);
   opacity: 0.8;
 }
 
@@ -193,18 +195,52 @@ li {
 .appbar .wordmark h1 {
   margin: 0;
   font-size: var(--type-xl);
-  color: var(--surface-page);
+  color: var(--ink-on-console);
 }
 
-/* The hero line sits under the bar, large and left: the name of the field, one scale below the
-   address itself. temp-mail.org leads with this sentence; here the address remains the datum. */
+/* The hero: a dark console band holding a centred dashed panel, like the reference's
+   section-top-qr / temp-emailbox. The band ends before the address's own section, so every
+   pinned region, heading and testid below it is untouched. */
+.hero {
+  padding: var(--space-7) var(--space-5) var(--space-8);
+  background-color: var(--surface-console);
+  color: var(--ink-on-console);
+}
+
+.hero-panel {
+  margin-inline: auto;
+  padding: var(--space-6) var(--space-5);
+  /* Wider than prose: the address is one value, and a panel that wraps it at the @ reads as
+     a broken field. The page measure is the limit, so the panel can never exceed the band. */
+  max-width: var(--measure-page);
+  border: var(--width-focus) dashed var(--line-strong);
+  border-radius: var(--radius-lg);
+}
+
 .hero__title {
-  margin: var(--space-7) 0 var(--space-5);
-  font-size: var(--type-2xl);
+  margin: 0 0 var(--space-5);
+  font-family: var(--font-mono);
+  font-size: var(--type-xl);
   font-weight: var(--weight-bold);
   line-height: var(--leading-tight);
-  letter-spacing: var(--tracking-tight);
-  color: var(--ink-primary);
+  letter-spacing: var(--tracking-wide);
+  text-align: center;
+  color: var(--ink-on-console);
+}
+
+.hero-panel__field {
+  /* The field sits directly under the hero line inside the dashed panel. Its address cluster
+     supplies the surface and edge; this wrapper only owns the position. */
+  margin-block-start: var(--space-4);
+}
+
+.hero__lede {
+  max-width: var(--measure-prose);
+  margin: var(--space-5) auto 0;
+  color: var(--ink-on-console);
+  font-size: var(--type-sm);
+  text-align: center;
+  opacity: 0.8;
 }
 
 /* The Wordmark is now only rendered inside the app bar; keep its base rule for other surfaces
@@ -305,7 +341,11 @@ li {
   gap: var(--space-3) var(--space-4);
   margin-block-end: var(--space-4);
   padding: var(--space-4) var(--space-5);
+  /* The field is a light surface on the dark console band, so its text must be the page ink,
+     not the console's light ink it would otherwise inherit. The pair ink-primary/surface-raised
+     is already declared in both schemes. */
   background-color: var(--surface-raised);
+  color: var(--ink-primary);
   border: var(--width-focus) solid var(--line-strong);
   border-radius: var(--radius-pill);
 }

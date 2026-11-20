@@ -305,29 +305,36 @@ export function App({ session, storage, mailboxes }: AppProps = {}) {
           whole purpose: a hook added to a component and never styled. */}
         <section aria-labelledby="product-heading" data-region="product">
           {/*
-           * The app bar: brand centred, with a truthful status at each side. temp-mail.org
-           * puts download badges left and account actions right; those would be controls this
-           * static page cannot act on, so the sides carry facts instead — no account, and the
-           * one provider this client reaches. The wordmark (with `#product-heading`) stays the
-           * region's accessible name; only its arrangement changes.
+           * The dark tool band: the app bar and the dashed panel with the hero line, like the
+           * reference's section-top-qr. It is a plain wrapper (no data-region), so the five
+           * regions and their pinned headings below are untouched.
            */}
-          <div className="appbar">
-            <span className="appbar__meta">No account &middot; no server</span>
-            <Wordmark />
-            <span className="appbar__meta">
-              Provider &middot; <strong>Guerrilla Mail</strong>
-            </span>
-          </div>
+          <div className="hero">
+            <div className="appbar">
+              <span className="appbar__meta">No account &middot; no server</span>
+              <Wordmark />
+              <span className="appbar__meta">
+                Provider &middot; <strong>Guerrilla Mail</strong>
+              </span>
+            </div>
 
-          {/*
-           * The hero line. temp-mail.org's "Your Temporary Email Address" is the page's
-           * headline; here the address itself is the largest datum at `--type-2xl`, so this
-           * title sits one scale below it and names what the field is. It is truthful copy
-           * about the product and is not a region name — `#address-heading` keeps that job.
-           */}
-          <h2 className="hero__title" id="hero-heading">
-            Your temporary email address
-          </h2>
+            <div className="hero-panel">
+              <h2 className="hero__title" id="hero-heading">
+                Your temporary email address
+              </h2>
+              {boot.kind !== "blocked" && state.kind === "ready" && (
+                <div className="hero-panel__field">
+                  <Address mailbox={state.mailbox} />
+                </div>
+              )}
+              {boot.kind !== "blocked" && state.kind !== "ready" && (
+                <p className="hero__lede">
+                  No account, no server in the middle. Read what arrives at your temporary address
+                  right here.
+                </p>
+              )}
+            </div>
+          </div>
 
           {boot.kind === "blocked" && <BootFailure reason={boot.reason} onRetry={retryBoot} />}
 
@@ -375,14 +382,15 @@ export function App({ session, storage, mailboxes }: AppProps = {}) {
           {boot.kind !== "blocked" && state.kind === "ready" && (
             <section className="region" aria-labelledby="ready-heading">
               <h2 id="ready-heading">Ready</h2>
-              <p data-testid="ready">Your address is below. Nothing was required to create it.</p>
-              <Address mailbox={state.mailbox} />
+              <p data-testid="ready">
+                Your address is above, ready to copy. Nothing was required to create it.
+              </p>
               {/*
-            **A failed write is announced next to the address, not in the failure region
-            or the limits list.** The address on screen is real and usable; what is in
-            doubt is whether it will be here next time, and that is a different claim
-            from anything else on the page. Hiding it in a list at the bottom would be a
-            way of saying it without saying it.
+            **A failed write is announced here, beside the address's lifetime, rather than
+            in the failure region or the limits list.** The address on screen is real and
+            usable; what is in doubt is whether it will be here next time, and that is a
+            different claim from anything else on the page. The address field itself now
+            sits in the dark hero panel above, so this sentence names the part in doubt.
           */}
               {saving.kind === "notSaved" && (
                 <p className="notice notice--danger" data-testid="save-failed">
