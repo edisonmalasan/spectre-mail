@@ -52,6 +52,7 @@ import type { MessageSummary } from "@spectre-mail/core";
 import type { InboxState, MessageVerdict } from "@spectre-mail/mailbox";
 import { verdictFor } from "@spectre-mail/mailbox";
 
+import { EmptyInboxArt } from "./EmptyInbox";
 import { InboxCheckFailed } from "./InboxCheckFailed";
 import { InboxRow } from "./InboxRow";
 
@@ -96,6 +97,7 @@ export function Inbox({ inbox, onCheck, onOpenMessage }: InboxProps) {
     return (
       <section className="region region--inbox" aria-labelledby="inbox-heading">
         <h2 id="inbox-heading">Inbox</h2>
+        <TableHead />
         <InboxCheckFailed failure={inbox.failure} rateLimit={inbox.listing.rateLimit} />
         {/* The messages already learned are still true, so they are still shown. A
             failed check is a condition of the inbox, not the loss of it. */}
@@ -153,6 +155,7 @@ function CheckingInbox() {
   return (
     <section className="region region--inbox" aria-labelledby="inbox-heading">
       <h2 id="inbox-heading">Inbox</h2>
+      <TableHead />
       <p data-testid="inbox-checking">Checking this address for mail.</p>
       <p data-testid="inbox-cadence-note">
         This page checks while it is open and stops when you switch away.
@@ -161,15 +164,31 @@ function CheckingInbox() {
   );
 }
 
-/** A check that finished and reported nothing. */
+/**
+ * The dark table header. The reference shows SENDER / SUBJECT / VIEW whether or
+ * not there are rows, so every inbox state carries it — not just the populated one.
+ */
+function TableHead() {
+  return (
+    <div className="inbox-table-head" aria-hidden="true">
+      <span>SENDER</span>
+      <span>SUBJECT</span>
+      <span>VIEW</span>
+    </div>
+  );
+}
+
+/** A check that finished and reported nothing: the reference's illustrated empty state. */
 function EmptyInbox() {
   return (
     <section className="region region--inbox" aria-labelledby="inbox-heading">
       <h2 id="inbox-heading">Inbox</h2>
-      <p data-testid="inbox-empty">No mail has arrived at this address yet.</p>
-      <p data-testid="inbox-cadence-note">
-        This page checks while it is open and stops when you switch away.
-      </p>
+      <TableHead />
+      <div className="inbox-empty" data-testid="inbox-empty">
+        <EmptyInboxArt />
+        <p className="inbox-empty__title">Your inbox is empty</p>
+        <p className="inbox-empty__hint">Waiting for incoming emails</p>
+      </div>
     </section>
   );
 }
@@ -190,10 +209,7 @@ function InboxRows({ listing, onOpenMessage }: InboxRowsProps) {
        * rows' two-column grid (fields on the left, the received time on the right) and is
        * plain text: a table caption, not a control. The rows below keep their pinned grid.
        */}
-      <div className="inbox-table-head" aria-hidden="true">
-        <span>Sender / Subject</span>
-        <span>Received</span>
-      </div>
+      <TableHead />
       <ul className="inbox-rows" data-testid="inbox-rows">
         {listing.messages.map((message) => (
           <li key={message.id}>

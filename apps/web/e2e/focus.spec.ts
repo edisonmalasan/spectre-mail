@@ -753,47 +753,53 @@ test.describe("the focus indicator the page actually draws", () => {
     }
   });
 
-  test("the irreversible confirmation is keyboard-reachable, and its safe action is second", async ({
+  test("every toolbar button carries the ring, and the destructive one is reachable by keyboard", async ({
     page,
   }) => {
     await openSettledMailbox(page);
-
-    await page.getByRole("button", { name: "Clear saved data" }).click();
-    await expect(page.getByTestId("local-data-confirmation")).toBeVisible();
 
     const { readings, drift } = await readFocusableOutlines(page);
     const names = readings.map((focus) => focus.name);
 
     // **The control set is stable across the traversal**, for the same reason as in the
     // first test: this one reads names out of the walk and would otherwise read a shifted
-    // list and report a confirmation that is present as absent.
+    // list and report a control that is present as absent.
     expect(drift, `the page's controls changed mid-traversal:\n${drift.join("\n")}`).toEqual([]);
 
-    // **Both actions, and the destructive one reachable without a pointer.** The
-    // confirmation is the one place on this page where a mistake cannot be undone, and an
-    // indicator is only part of that: if `Remove it` could not be tabbed to, the warning
-    // would reach nobody who cannot use a mouse.
-    expect(
-      names.some((name) => name.includes("Remove it")),
-      names.join(" | "),
-    ).toBe(true);
-    expect(
-      names.some((name) => name.includes("Keep it")),
-      names.join(" | "),
-    ).toBe(true);
-
-    for (const focus of readings) {
-      expect.soft(isVisibleIndicator(focus.focused), describeControl(focus)).toBe(true);
+    // **The rebuilt toolbar has four real controls.** The old page put its destructive
+    // action behind a two-step confirmation; the toolbar acts on the press, so the
+    // keyboard must be able to reach that press and see where it is. All four names are
+    // read from the walk rather than from markup, so a control that looks right but
+    // cannot be tabbed to is reported as missing.
+    const TOOLBAR_NAMES = ["Copy", "Refresh", "Change", "Delete: Clear saved data"] as const;
+    for (const name of TOOLBAR_NAMES) {
+      expect(names.includes(name), `${name} is not keyboard-reachable: ${names.join(" | ")}`).toBe(
+        true,
+      );
+      const focus = readings.find((reading) => reading.name === name);
+      expect(focus, `${name} was not read`).toBeDefined();
+      expect(
+        isVisibleIndicator(focus?.focused as OutlineReading),
+        describeControl(focus as ControlFocus),
+      ).toBe(true);
+      // The ring is a decision the page made, not the browser's default.
+      expect((focus?.focused as OutlineReading).style).not.toBe("auto");
     }
 
-    // **"Keep it" is second in the order a keyboard actually meets**, which is how "the
-    // destructive action is not the default focus" becomes an observation rather than a
-    // comment. Asserted on the traversal order, not on the markup: a markup assertion
-    // would be satisfied by an author who reordered the markup and changed nothing else.
-    const destructive = names.findIndex((name) => name.includes("Remove it"));
-    const safe = names.findIndex((name) => name.includes("Keep it"));
-    expect(destructive).toBeGreaterThanOrEqual(0);
-    expect(safe).toBeGreaterThan(destructive);
+    // **And the press really does the irreversible thing.** A focus indicator alone
+    // would pass on a delete button wired to nothing; the platform's own database is the
+    // instrument for whether the action landed. Pressing with the keyboard rather than
+    // clicking keeps this case about the reachability it just asserted.
+    await page.getByRole("button", { name: "Clear saved data" }).press("Enter");
+    await expect
+      .poll(
+        () =>
+          page.evaluate(async () =>
+            (await indexedDB.databases()).map((database) => database.name).filter(Boolean),
+          ),
+        { message: "the keyboard press did not clear the device" },
+      )
+      .toEqual([]);
   });
 
   test("a suppressed indicator is detected, which is what makes the checks above mean anything", async ({
@@ -802,11 +808,16 @@ test.describe("the focus indicator the page actually draws", () => {
     await openSettledMailbox(page);
 
     // **The planted defect is the one the boundary rule forbids, applied to the real
-    // page.** It is scoped to `.control:focus-visible` so it silences the copy and removal
-    // buttons exactly as an author could — and because it targets the same selector the
-    // stylesheet uses, it wins on specificity without needing `!important`, which is what
-    // makes this a realistic reproduction rather than an artificial one.
-    await page.addStyleTag({ content: "button.control:focus-visible { outline: none; }" });
+    // page.** It is scoped to the two button families that actually receive the ring:
+    // `.control` is the in-field Copy, and `.toolbar__button` is the four-pill strip the
+    // rebuild introduced. Targeting the same selectors the stylesheet uses means the
+    // plant wins on specificity without `!important`, which is what makes this a
+    // realistic reproduction rather than an artificial one. A plant that only named
+    // `.control` would silently stop testing the toolbar's Delete.
+    await page.addStyleTag({
+      content:
+        "button.control:focus-visible, button.toolbar__button:focus-visible { outline: none; }",
+    });
 
     const { readings, drift } = await readFocusableOutlines(page);
     // The planted rule removes no controls, so drift here would mean the page changed

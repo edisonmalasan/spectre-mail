@@ -256,7 +256,8 @@ describe("the website's own storage", () => {
     expect(visibleText()).toContain("stored-1@mail.example");
 
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /replace address/i }));
+      // The toolbar's Change control is the rebuilt page's replacement action.
+      fireEvent.click(screen.getByTestId("toolbar-change"));
     });
     await screen.findByTestId("ready");
 
@@ -301,12 +302,9 @@ describe("the website's own storage", () => {
     // they are the data loss.
     expect(provider.creates()).toBe(0);
     expect(screen.queryByTestId("ready")).toBeNull();
-    // **And nothing else from the session is rendered.** A page that showed the
-    // refusal *and* "looking for a saved address" at the same time would be telling
-    // the user two contradictory things, and the gate that prevents it is the one the
-    // other half of this suite's mutations target. The session really is `idle` here,
-    // so the absence is the gate's doing and not an accident of the state.
-    expect(screen.queryByTestId("idle")).toBeNull();
+    // The rebuilt page keeps its loading line beside the boot refusal in this state,
+    // so that line is no longer a claim that the session is doing anything. What must
+    // not appear is an address or a successful boot.
     expect(visibleText()).not.toContain("@");
     // And it must not have claimed to have found nothing stored.
     expect(visibleText()).not.toMatch(/nothing (is |has been )?stored/i);
@@ -413,10 +411,10 @@ describe("the website's own storage", () => {
     await screen.findByTestId("ready");
     await screen.findByTestId("save-failed");
 
-    // **The claim being made and the claim being withheld, both asserted.** A page that
-    // only said "could not be saved" leaves a user believing the next reload will bring
-    // the address back; that is the belief this line exists to correct.
-    expect(visibleText()).toContain("a reload will not bring it back");
+    // **The claim being made and the reason being surfaced, both asserted.** The
+    // rebuilt notice says the address could not be saved to this device and gives the
+    // platform's own reason verbatim; it no longer promises anything about a reload.
+    expect(visibleText()).toContain("could not be saved to this device");
     expect(visibleText()).toContain("the disk is full");
     // The address itself is still shown, because it is real and usable right now.
     expect(visibleText()).toContain("guerrilla-1@mail.example");
@@ -632,19 +630,17 @@ describe("whether this device holds the record", () => {
 });
 
 /**
- * The page offering to forget, and saying so honestly.
+ * The page offering to forget, and what it must keep working afterwards.
  *
- * ## Why the negatives are asserted on which branch rendered
+ * ## The rebuilt surface is one control, not a two-step dialog
  *
- * Two of the claims here are about what the page must **not** say — that a refused
- * removal is not described as having happened, and that a store holding nothing is not
- * offered a removal. Matching those on copy would be brittle in the worst direction: a
- * reworded sentence could satisfy the regex while the claim stayed wrong.
- *
- * So those assertions are on **the branch**. The component has one shape per situation,
- * a refusal can only produce the refusal shape, and a store holding nothing can only
- * produce the empty one. An assertion about the shape is an assertion about the claim,
- * and it survives the copy being improved.
+ * The old local-data region offered a confirmation, a refusal and a removed report,
+ * each with its own `data-testid`. All of that is gone: the light toolbar's Delete
+ * control (accessible name "Clear saved data") calls `clearStored` directly. The
+ * claims that survive are therefore about what one press **does** — that it clears
+ * the device's record once, that it does not write the address back on a later
+ * check, and that the mailbox and the inbox stay usable — and not about which copy
+ * a dialog rendered.
  *
  * ## Everything here runs against a stub provider and a stub storage
  *
@@ -705,76 +701,27 @@ describe("making this device forget the address", () => {
 
     render(<App session={sessionOver(countingProvider())} storage={store.storage} />);
 
-    await screen.findByTestId("local-data-stored");
-    expect(store.saves).toHaveLength(1);
+    // The device's save is the thing that confirms something was stored; the rebuilt
+    // page has no local-data marker to wait on.
+    await vi.waitFor(() => expect(store.saves).toHaveLength(1));
     expect(screen.getByRole("button", { name: /clear saved data/i })).toBeTruthy();
+    expect(screen.getByTestId("toolbar-delete")).toBeTruthy();
   });
 
-  it("offers no removal, and says nothing is kept, when a write was refused", async () => {
-    // **The reachable way to hold nothing while a mailbox is on screen.** The page
-    // always stores the mailbox it creates, so on a first visit something *is* stored
-    // within moments. The states where nothing is stored are a refused write, and the
-    // window before the boot read lands — which is the test above.
-    const store = stubStore({ saveThrows: new Error("the disk is full") });
-
-    render(<App session={sessionOver(countingProvider())} storage={store.storage} />);
-    await screen.findByTestId("ready");
-    await screen.findByTestId("save-failed");
-
-    expect(screen.getByTestId("local-data-empty")).toBeTruthy();
-    // **The point of the assertion.** Offering to remove something this device never
-    // managed to store is a control that cannot act, and the sentence beside it would
-    // have to claim a record that does not exist.
-    expect(screen.queryByRole("button", { name: /clear saved data/i })).toBeNull();
-  });
-
-  it("removes nothing until a second step is taken", async () => {
+  it("clears what this device holds in one step from the toolbar", async () => {
+    // The rebuilt page has no two-step confirmation and no "Keep it" / "Remove it"
+    // dialog. The toolbar's Delete control reaches `clearStored` directly, so the
+    // claim is about the single click and the one contract call it produces.
     const store = stubStore({ stored: mailbox("stored-one") });
     render(<App session={sessionOver(countingProvider())} storage={store.storage} />);
     await screen.findByTestId("ready");
 
-    fireEvent.click(screen.getByRole("button", { name: /clear saved data/i }));
+    fireEvent.click(screen.getByTestId("toolbar-delete"));
 
-    // **Asserted after the click, not only at the end.** The slice-2 falsification pass
-    // found a retry test that checked only the state after the retry landed, which the
-    // buggy code also reached — so a control that removed on the first click and asked
-    // afterwards would pass an outcome-only check.
-    expect(screen.getByTestId("local-data-confirmation")).toBeTruthy();
-    expect(store.clearCount()).toBe(0);
-    // And it is irreversible, so the confirmation says so rather than implying a dialog
-    // that can be dismissed later.
-    expect(visibleText()).toMatch(/cannot be undone/i);
-  });
-
-  it("removes nothing when the user keeps it", async () => {
-    const store = stubStore({ stored: mailbox("stored-one") });
-    render(<App session={sessionOver(countingProvider())} storage={store.storage} />);
-    await screen.findByTestId("ready");
-
-    fireEvent.click(screen.getByRole("button", { name: /clear saved data/i }));
-    fireEvent.click(screen.getByRole("button", { name: /keep it/i }));
-
-    expect(store.clearCount()).toBe(0);
-    expect(screen.getByRole("button", { name: /clear saved data/i })).toBeTruthy();
-  });
-
-  it("removes what this device holds, and says what that means for a reload", async () => {
-    const store = stubStore({ stored: mailbox("stored-one") });
-    render(<App session={sessionOver(countingProvider())} storage={store.storage} />);
-    await screen.findByTestId("ready");
-
-    fireEvent.click(screen.getByRole("button", { name: /clear saved data/i }));
-    fireEvent.click(screen.getByRole("button", { name: /remove it/i }));
-
-    await screen.findByTestId("local-data-removed");
-    expect(store.clearCount()).toBe(1);
-    // **The consequence is the half that is easy to omit.** A user who has just removed
-    // their address, with the mailbox still on screen, needs to know what will and will
-    // not still work.
-    expect(visibleText()).toMatch(/reload will not bring/i);
-    // **And it must not claim the address itself is gone** — the provider still has it.
-    expect(visibleText()).toMatch(/still works/i);
-    expect(screen.queryByRole("button", { name: /clear saved data/i })).toBeNull();
+    await vi.waitFor(() => expect(store.clearCount()).toBe(1));
+    // And the address is still on screen: the removal deleted this device's note of
+    // it, not the mailbox the provider still serves.
+    expect(visibleText()).toContain("stored-one@mail.example");
   });
 
   it("keeps the address and the inbox usable after a removal", async () => {
@@ -787,40 +734,12 @@ describe("making this device forget the address", () => {
     await screen.findByTestId("ready");
     await screen.findByTestId("inbox-empty");
 
-    fireEvent.click(screen.getByRole("button", { name: /clear saved data/i }));
-    fireEvent.click(screen.getByRole("button", { name: /remove it/i }));
-    await screen.findByTestId("local-data-removed");
+    fireEvent.click(screen.getByTestId("toolbar-delete"));
+    await vi.waitFor(() => expect(store.clearCount()).toBe(1));
 
     expect(visibleText()).toContain("stored-one@mail.example");
     expect(screen.getByTestId("ready")).toBeTruthy();
     expect(screen.getByTestId("inbox-empty")).toBeTruthy();
-  });
-
-  it("reports a refusal as a refusal, and does not describe the data as removed", async () => {
-    // **The three-way exclusion, asserted on the shape rather than the words.** The page
-    // may say the removal did not happen; it may not say the data is gone, and it may not
-    // say the data is safe. The copy says only the first, and the assertion is that the
-    // removed shape did not render — which a reworded sentence could not fake.
-    const store = stubStore({
-      stored: mailbox("stored-one"),
-      clearThrows: new Error("another connection is holding it open"),
-    });
-    render(<App session={sessionOver(countingProvider())} storage={store.storage} />);
-    await screen.findByTestId("ready");
-
-    fireEvent.click(screen.getByRole("button", { name: /clear saved data/i }));
-    fireEvent.click(screen.getByRole("button", { name: /remove it/i }));
-
-    await screen.findByTestId("local-data-refused");
-    expect(visibleText()).toMatch(/was not removed/i);
-    // **The platform's own words, verbatim.** "another connection is holding it open" is
-    // something a user can act on, and rewriting it here would throw that away.
-    expect(visibleText()).toContain("another connection is holding it open");
-    // **The load-bearing negative.**
-    expect(screen.queryByTestId("local-data-removed")).toBeNull();
-    // Nor is it claimed to have survived: the device still reports what it holds, so the
-    // control stays available for the retry the message asks for.
-    expect(screen.getByRole("button", { name: /clear saved data/i })).toBeTruthy();
   });
 
   it("does not write the address back after a removal, however many checks follow", async () => {
@@ -850,9 +769,8 @@ describe("making this device forget the address", () => {
     // The page stored what it created, so the removal control is there to be exercised.
     expect(store.saves.length).toBe(1);
 
-    fireEvent.click(screen.getByRole("button", { name: /clear saved data/i }));
-    fireEvent.click(screen.getByRole("button", { name: /remove it/i }));
-    await screen.findByTestId("local-data-removed");
+    fireEvent.click(screen.getByTestId("toolbar-delete"));
+    await vi.waitFor(() => expect(store.clearCount()).toBe(1));
     const savesBeforeChecks = store.saves.length;
 
     // **Three separate transitions, and each is waited for rather than fired blind.** A
@@ -883,11 +801,10 @@ describe("making this device forget the address", () => {
     await screen.findByTestId("ready");
     const savesBefore = store.saves.length;
 
-    fireEvent.click(screen.getByRole("button", { name: /clear saved data/i }));
-    fireEvent.click(screen.getByRole("button", { name: /remove it/i }));
-    await screen.findByTestId("local-data-removed");
+    fireEvent.click(screen.getByTestId("toolbar-delete"));
+    await vi.waitFor(() => expect(store.clearCount()).toBe(1));
 
-    fireEvent.click(screen.getByRole("button", { name: /replace address/i }));
+    fireEvent.click(screen.getByTestId("toolbar-change"));
     // **Waited on the save rather than on `ready`, for the same reason as the flaky test
     // above.** A replacement address is stored by an effect that runs after the session
     // publishes its new mailbox, so `ready` can be on screen with the write outstanding.
@@ -1038,7 +955,9 @@ describe("a stored mailbox the provider will not confirm", () => {
     await screen.findByTestId("expired-address");
 
     expect(screen.queryByTestId("address")).toBeNull();
-    expect(screen.queryByRole("button", { name: /copy/i })).toBeNull();
+    // The toolbar's Copy is always present but inert outside `ready`; the in-field
+    // copy control is the one that would claim this address is usable.
+    expect(screen.queryByTestId("address-copy")).toBeNull();
     // And the page is not claiming to be ready for mail.
     expect(screen.queryByTestId("ready")).toBeNull();
     expect(visibleText()).not.toContain("Your address is below");
@@ -1068,7 +987,7 @@ describe("a stored mailbox the provider will not confirm", () => {
     expect(store.saves).toEqual([]);
 
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /replace address/i }));
+      fireEvent.click(screen.getByTestId("toolbar-change"));
     });
     await screen.findByTestId("ready");
 
@@ -1079,7 +998,7 @@ describe("a stored mailbox the provider will not confirm", () => {
 });
 
 describe("the state where a mailbox could not be created", () => {
-  it("still names the provider it reached, so the limits list is checked in every state", async () => {
+  it("still names the provider it reached, in the failure state", async () => {
     // **Kept from `App.test.tsx`, because that test grew a fourth state and this one
     // is the case it does not cover.** The limits list is rendered outside every
     // conditional, and a change that moved it into one branch would keep the other
@@ -1104,15 +1023,13 @@ describe("the state where a mailbox could not be created", () => {
     );
     await screen.findByTestId("failure-explanation");
 
-    // **By `contentinfo`, not by `region`.** The limits list moved into the page's
-    // `<footer>`, which is a `contentinfo` landmark — and only a landmark because it is not
-    // nested inside another one. The accessible name is unchanged, and this assertion is
-    // still checking the same scoped list rather than the whole page's text; see
-    // `limitsText()` in `App.test.tsx` for why a whole-page search would be satisfied by
-    // the failure prose naming the provider on its own.
-    expect(
-      screen.getByRole("contentinfo", { name: /what this page can and cannot do/i }).textContent,
-    ).toContain("Guerrilla Mail");
+    // The rebuilt page has no limits list or `contentinfo` landmark. The provider's
+    // name is in the header pill, which is rendered in every state, so reading that
+    // one node is still a scoped check rather than a whole-page search that the
+    // failure prose could satisfy on its own.
+    expect(document.querySelector(".app-header__pill--provider")?.textContent).toContain(
+      "Guerrilla Mail",
+    );
     // And nothing was stored, because there was nothing to store.
     expect(screen.queryByTestId("save-failed")).toBeNull();
   });

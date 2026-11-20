@@ -1,63 +1,25 @@
 /**
- * The website's own styles.
+ * The website's styles — a reconstruction of temp-mail.org's working surface.
  *
- * ## Every design value comes from a token
+ * Every colour, radius, spacing step, type size and duration is a declared token
+ * from `packages/ui`; there is no remote asset. A handful of layout widths
+ * (35rem/28rem/45rem), opacities and the collapsed INBOX label are deliberate
+ * reference geometry, not design tokens. The browser tier sweeps the five
+ * tokenised categories and would fail if any of them became a literal.
+ * The layout is written here, not in the token layer: full-width dark and light
+ * bands, a centred dashed panel, a four-pill action strip, and a dark-headed inbox.
  *
- * There is not one colour, radius, spacing step, type size, or duration in this file.
- * `visual-system` requires it and `tests/architecture/boundaries.test.ts` enforces it,
- * because a value written here is a value that exists in two places and will be changed
- * in one of them.
- *
- * ## What is deliberately absent
- *
- * - **No `@import` and no `url()`.** The page loads no third-party origin. That is a
- *   promoted requirement of `build-and-verification` and a promise this product's own
- *   Local Data region makes in words: nothing is sent anywhere. A webfont from a CDN
- *   would break both while appearing in no file a reader would think to check.
- * - **No `outline: none`, and no `outline-width: 0`.** The focus indicator is a
- *   requirement, not a preference, and this file never suppresses one. A boundary rule
- *   fails the build if it ever does — with the honest limit recorded there: a *transparent*
- *   outline defeats an indicator just as thoroughly and is caught only by the browser
- *   tier, which is why that spec is not optional.
- * - **No transition, and no `!important`.** Motion arrived with this milestone and the
- *   reduced-motion block that governs it arrived with the motion, which is the ordering
- *   `visual-system` requires; see the Motion section below for why it is removal rather
- *   than a shorter duration.
- * - **No utility framework, no preprocessor, no `!important`.**
- *
- * ## The layout, in one paragraph
- *
- * One constrained column. Hairline rules rather than shadow. Type scale doing the work
- * that decoration usually does. Whitespace in the gaps between regions rather than
- * padding inside them. The mailbox is a working surface a person waits on, so nothing
- * here competes for attention with the address.
- *
- * ## What moves, and what that sentence used to claim
- *
- * This paragraph once ended "nothing here moves on its own". That was true through M7 slice 1
- * and is **false** from the Motion section below: an arriving message materialises, and so
- * does a created address and a rendered code.
- *
- * It is replaced rather than reworded because the distinction that matters is not "moving"
- * but **who caused it**. Nothing on this page moves on a cadence the product invented. An
- * inbox row materialises because mail arrived, once, and a browser spec proves a row already
- * on the page is never re-materialised by a later poll — which matters here more than
- * anywhere, because the inbox polls every five seconds. That requirement, not this
- * sentence's absence of a claim, is what keeps the page still.
+ * Motion keeps the three entrances the product already declared (address, inbox
+ * row, code) and the reduced-motion stop. Focus keeps the declared ring.
  *
  * @module
  */
 
-/* ── The page ─────────────────────────────────────────────────────────────────── */
+/* ── Base ──────────────────────────────────────────────────────────────────────── */
 
 html {
-  /* `box-sizing: border-box` on the root, so a width means what it looks like it means
-     everywhere below. The alternative is a padding-inclusive bug on every future rule,
-     which is the kind of thing that survives review because it looks correct in one
-     place. */
   box-sizing: border-box;
 }
-
 *,
 *::before,
 *::after {
@@ -71,832 +33,474 @@ body {
   font-family: var(--font-sans);
   font-size: var(--type-base);
   line-height: var(--leading-normal);
-  /* Optical sizing rather than smoothing: it is a one-line declaration whose absence is
-     invisible and whose presence is what makes a grotesk look like itself. */
   -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
-}
-
-main {
-  /* The measure. Not centred with a marketing hero's width — this is a working column,
-     and the roadmap says the product remains the main hero, which means the product gets
-     the width it needs rather than the width a headline would want. */
-  max-width: var(--measure-page);
-  margin-inline: auto;
-  padding: var(--space-7) var(--space-5) var(--space-8);
-}
-
-/* ── Type ─────────────────────────────────────────────────────────────────────── */
-
-h1 {
-  margin: 0 0 var(--space-2);
-  font-size: var(--type-3xl);
-  font-weight: var(--weight-bold);
-  line-height: var(--leading-tight);
-  /* Tight negative tracking on a large grotesk is what stops it reading as a default
-     heading. It is a token because the amount is the decision, not the property. */
-  letter-spacing: var(--tracking-tight);
-}
-
-/*
- * **A region's name is a label, not a headline.**
- *
- * This is `DESIGN.md`'s `region-label` role: the quietest text in the system, because a name
- * tells a person where they are and then stops mattering. The datum the region presents
- * outranks it, and the address's `--type-2xl` is that rule measured.
- *
- * **It carries no colour here.** An ordinary region's name takes the muted ink and a failure
- * region's takes the danger ink; both are declared pairs on their own surfaces, and the two
- * rules below say which is which. The colour is a decision about the surface and not about the
- * role, which is why it is not in the role's declaration.
- */
-h2 {
-  margin: 0 0 var(--space-3);
-  font-size: var(--type-xs);
-  font-weight: var(--weight-medium);
-  line-height: var(--leading-normal);
-  letter-spacing: var(--tracking-wide);
-}
-
-h3 {
-  margin: 0 0 var(--space-3);
-  font-size: var(--type-lg);
-  font-weight: var(--weight-medium);
-  line-height: var(--leading-tight);
-}
-
-h4 {
-  margin: 0 0 var(--space-2);
-  font-size: var(--type-base);
-  font-weight: var(--weight-bold);
-  line-height: var(--leading-normal);
 }
 
 p {
   margin: 0 0 var(--space-3);
-  /* A measure on prose. Without it a line runs the full column and the eye loses the
-     return sweep — the single most common reason a working page reads as a document. */
-  max-width: var(--measure-prose);
   line-height: var(--leading-relaxed);
 }
-
 ul,
 ol {
-  margin: 0 0 var(--space-3);
+  margin: 0;
   padding-inline-start: var(--space-5);
 }
-
 li {
   margin-block-end: var(--space-1);
-  max-width: var(--measure-prose);
-  line-height: var(--leading-relaxed);
+}
+code {
+  font-family: var(--font-mono);
+}
+button {
+  font: inherit;
 }
 
-/*
- * The app bar — temp-mail.org's full-width dark band, in this product's palette.
- *
- * The reference centres the mark on a dark slab with a pill at each end. This page keeps
- * that arrangement but not that colour: `--ink-primary` is the darkest surface the approved
- * palette declares, and pairing it with `--surface-page` ink is a declared contrast pair in
- * both schemes. The two end pills are plain text facts, not controls — a static page cannot
- * act on a nav item, and a control that does nothing is the fake-UI defect removed elsewhere.
- */
-.appbar {
+/* ── Header ────────────────────────────────────────────────────────────────────── */
+
+.page {
+  max-width: none;
+  margin-inline: 0;
+  padding: 0;
+}
+
+.app-header {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-4) var(--space-5);
-  /* The console is a fixed dark surface in BOTH schemes — the reference's band is not an
-     inversion of the page. Its ink is declared with it. */
+  gap: var(--space-4);
+  /* The reference's bar is 79px tall; space-5 top and bottom plus the wordmark
+     reaches that height without naming a literal. */
+  padding: var(--space-5) var(--space-5);
   background-color: var(--surface-console);
   color: var(--ink-on-console);
 }
-
-.appbar__meta {
-  margin: 0;
+.app-header__side {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.app-header__side--end {
+  justify-content: flex-end;
+}
+.app-header__pill {
+  padding: var(--space-1) var(--space-3);
+  border: var(--width-hairline) solid var(--ink-on-console);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-mono);
   font-size: var(--type-xs);
-  letter-spacing: var(--tracking-wide);
-  color: var(--ink-on-console);
-  opacity: 0.8;
+  opacity: 0.85;
 }
-
-.appbar__meta:last-child {
-  text-align: end;
-}
-
-.appbar__meta strong {
+.app-header__pill--provider {
   font-weight: var(--weight-bold);
   opacity: 1;
 }
 
-/* On the dark band the mark keeps the accent from the base `.wordmark` rule and the name takes
-   the band's ink — the wordmark stays one value, and only the surface under it changed. */
-.appbar .wordmark h1 {
+.wordmark {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.wordmark__mark {
+  width: var(--mark-width);
+  height: var(--mark-height);
+  color: var(--accent);
+}
+.wordmark h1 {
   margin: 0;
   font-size: var(--type-xl);
+  font-weight: var(--weight-bold);
   color: var(--ink-on-console);
 }
 
-/* The hero: a dark console band holding a centred dashed panel, like the reference's
-   section-top-qr / temp-emailbox. The band ends before the address's own section, so every
-   pinned region, heading and testid below it is untouched. */
+/* ── Hero ──────────────────────────────────────────────────────────────────────── */
+
 .hero {
-  padding: var(--space-7) var(--space-5) var(--space-8);
+  max-width: none;
+  margin-inline: 0;
+  /* The reference's band is 310px; these steps put the dashed panel at its
+     measured y and leave three lines of lede below it. */
+  padding: var(--space-5) var(--space-5);
   background-color: var(--surface-console);
   color: var(--ink-on-console);
 }
-
-.hero-panel {
+.hero__panel {
+  max-width: 35rem;
   margin-inline: auto;
-  padding: var(--space-6) var(--space-5);
-  /* Wider than prose: the address is one value, and a panel that wraps it at the @ reads as
-     a broken field. The page measure is the limit, so the panel can never exceed the band. */
-  max-width: var(--measure-page);
+  /* The reference's dashed panel is 169px tall; these steps land within a few
+     pixels of it while keeping the heading and field centred. */
+  padding: var(--space-5) var(--space-4);
   border: var(--width-focus) dashed var(--line-strong);
   border-radius: var(--radius-lg);
 }
-
 .hero__title {
   margin: 0 0 var(--space-5);
   font-family: var(--font-mono);
   font-size: var(--type-xl);
   font-weight: var(--weight-bold);
   line-height: var(--leading-tight);
-  letter-spacing: var(--tracking-wide);
   text-align: center;
   color: var(--ink-on-console);
 }
-
-.hero-panel__field {
-  /* The field sits directly under the hero line inside the dashed panel. Its address cluster
-     supplies the surface and edge; this wrapper only owns the position. */
-  margin-block-start: var(--space-4);
-}
-
 .hero__lede {
   max-width: var(--measure-prose);
   margin: var(--space-5) auto 0;
   color: var(--ink-on-console);
-  font-size: var(--type-sm);
-  text-align: center;
-  opacity: 0.8;
-}
-
-/* The Wordmark is now only rendered inside the app bar; keep its base rule for other surfaces
-   but drop the old bottom margin, which the bar's own spacing replaces. */
-.wordmark {
-  margin: 0;
-}
-
-/* ── Regions ──────────────────────────────────────────────────────────────────── */
-
-/*
- * A region is a hairline-topped block, not a card.
- *
- * The direction asks for thin or precise borders instead of heavy depth effects, and
- * `design-taste-frontend`'s own rule is that a card earns its elevation by communicating
- * hierarchy — here the hierarchy is the order of the regions, and a border-top plus
- * whitespace says that without a container around everything.
- */
-.region {
-  padding-block-start: var(--space-6);
-  margin-block-start: var(--space-6);
-  border-block-start: var(--width-hairline) solid var(--line-subtle);
-}
-
-/* The first region after the bar sits closer, because the bar's hairline already separates
-   it — the rule that used to live here now reads `.masthead + .region` above. */
-
-/*
- * A region reporting a failure or a refusal.
- *
- * **Tinted, and never tinted alone.** `visual-system` requires that a failure be
- * identifiable in words, and the words are in the component. The tint reinforces them; a
- * user who cannot see the tint reads the same sentence. The boundary is `--line-strong`
- * rather than `--line-subtle` because this region's edge carries meaning, unlike a
- * separator.
- */
-.region--alert {
-  padding: var(--space-4);
-  background-color: var(--surface-danger);
-  border: var(--width-hairline) solid var(--line-strong);
-  border-radius: var(--radius-md);
-}
-
-.region--alert > :last-child {
-  margin-block-end: 0;
-}
-
-/*
- * **Every region's name is muted, and a failure region's name is not.**
- *
- * The two rules are one decision stated twice, and **their order is load-bearing**: both
- * selectors have the same specificity, so source order decides and `--alert` has to come
- * second. `ink-muted` on `surface-danger` is not a declared pair, so muting a failure heading
- * would create a contrast obligation this token layer does not account for.
- */
-.region > h2 {
-  color: var(--ink-muted);
-}
-
-.region--alert > h2 {
-  color: var(--ink-danger);
-}
-
-/* ── Technical metadata ───────────────────────────────────────────────────────── */
-
-/*
- * Monospace, for the four things the direction assigns to it.
- *
- * Applied through a class rather than to `code`, `time`, and `pre` by element, because
- * the direction names four *kinds of content* and an element selector would sweep in
- * every `<code>` on the page — including one inside a message body, which is the
- * provider's text and not our metadata.
- */
-.mono {
   font-family: var(--font-mono);
   font-size: var(--type-sm);
-  /* Slightly loose: monospace is denser per character than a grotesk at the same size,
-     and at the same tracking it reads as heavier. */
-  letter-spacing: var(--tracking-normal);
-  font-variant-ligatures: none;
+  line-height: var(--leading-relaxed);
+  text-align: center;
+  opacity: 0.7;
+}
+.hero__loading {
+  margin: 0 auto;
+  padding: var(--space-3) var(--space-5);
+  background-color: var(--surface-raised);
+  border-radius: var(--radius-pill);
+  color: var(--ink-primary);
+  font-family: var(--font-mono);
+  font-size: var(--type-lg);
+  text-align: center;
+}
+.hero__warning {
+  margin: var(--space-2) 0 0;
+  color: var(--ink-danger);
+  font-size: var(--type-xs);
 }
 
-/*
- * The address field is the page's centrepiece, and it is one field with its action attached.
- *
- * The temp-mail.org reference puts the address in a single bordered field with the copy
- * action beside it. This keeps that arrangement and the page's own discipline: the value
- * stays selectable text in a `<code>` element, the action stays the one filled control on
- * the page, and the field's surface and line are tokens rather than literals. The field is
- * raised so the value reads as the thing a person came for, and the copy button sits on the
- * same baseline at every width — below the value only when the column is too narrow to hold
- * both, which is the single existing breakpoint's job.
- */
-.address__cluster {
+/* ── Address pill ──────────────────────────────────────────────────────────────── */
+
+.hero__address {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-3) var(--space-4);
-  margin-block-end: var(--space-4);
-  padding: var(--space-4) var(--space-5);
-  /* The field is a light surface on the dark console band, so its text must be the page ink,
-     not the console's light ink it would otherwise inherit. The pair ink-primary/surface-raised
-     is already declared in both schemes. */
+  gap: var(--space-3);
+  /* The reference's field is 400px inside a 556px panel, not a full-width bar. A mono
+     address is wider than the reference's proportional one, so the field takes a
+     little more room to keep the address on one line. */
+  max-width: 28rem;
+  margin-inline: auto;
+  padding: var(--space-2) var(--space-3);
   background-color: var(--surface-raised);
-  color: var(--ink-primary);
-  border: var(--width-focus) solid var(--line-strong);
   border-radius: var(--radius-pill);
+  color: var(--ink-primary);
 }
-
-.address {
-  /* Grow to fill the field; the copy button keeps its natural width. The field wraps at the
-     one breakpoint, where the value takes the full row and the action drops below it. */
+.address-region {
+  display: flex;
   flex: 1 1 auto;
-  margin: 0;
-  /* The prose measure does not apply, and this line is the defect's other half. */
-  max-width: none;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
 }
-
-.address__value {
-  /*
-   * **`block` rather than `inline-block`, and it is not a layout preference.** An inline
-   * block shrinks to its content and then breaks at the container's edge, which is how the
-   * address came to render as `…@sharklasers.c` / `om` on a 390 px viewport. A block box
-   * takes the width it is given, so the `<wbr>` after the `@` is the break the line breaker
-   * reaches first.
-   */
-  display: block;
-  /* The field is the cluster now, so the value carries no second border of its own — one
-     field, one edge. Its job here is only to be the largest, most legible text on the page. */
+.address {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  max-width: none;
   font-family: var(--font-mono);
-  font-size: var(--type-2xl);
-  line-height: var(--leading-tight);
-  /* A long address has to break somewhere, and `overflow-wrap` breaks it at any
-     character rather than only at punctuation — an address is one unbroken token to a
-     browser, so without this the box scrolls horizontally on a narrow screen. It is the
-     **fallback** now: the `<wbr>` at the `@` is the break the line reaches first, and this
-     only applies to a domain that cannot fit on a line of its own. */
+  font-size: var(--type-base);
+}
+.address__value {
+  display: block;
   overflow-wrap: anywhere;
 }
-
-/* A polite live region that has nothing to say must not occupy a line. */
+.address__copy {
+  flex: 0 0 auto;
+  inline-size: var(--space-7);
+  block-size: var(--space-7);
+  padding: var(--space-2);
+  border-radius: var(--radius-pill);
+}
+.address__copy svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: var(--width-focus);
+}
 .status {
-  margin-block-start: var(--space-3);
-  margin-block-end: 0;
-  color: var(--ink-secondary);
-  font-size: var(--type-sm);
+  margin: var(--space-2) 0 0;
+  font-size: var(--type-xs);
 }
-
-.status:empty {
+/* An idle clipboard writes nothing, and a live region that reserves a line
+   reports its own emptiness as a gap inside the field. */
+.address-region .status:empty {
   display: none;
+  margin: 0;
 }
 
-/* ── An inline notice ─────────────────────────────────────────────────────────── */
+/* ── Action toolbar ────────────────────────────────────────────────────────────── */
 
-/*
- * One sentence reporting something about the page, inside a region that is otherwise
- * about a capability.
- *
- * Its own shape rather than the region's, because a whole region tinted for failure
- * would be wrong here: the region is not failing, one statement inside it is. And its
- * edge is `--line-strong`, because an edge that carries meaning is not a separator.
- */
-.notice {
-  margin-block: var(--space-4);
+.toolbar {
+  padding: var(--space-5);
+  background-color: var(--surface-raised);
+  border-block-end: var(--width-hairline) solid var(--line-subtle);
+}
+.toolbar__actions {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-4);
+  max-width: 45rem;
+  margin-inline: auto;
+}
+.toolbar__button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
   padding: var(--space-3) var(--space-4);
-  background-color: var(--surface-raised);
-  border: var(--width-hairline) solid var(--line-strong);
-  border-radius: var(--radius-md);
-  font-size: var(--type-sm);
-}
-
-.notice--danger {
-  background-color: var(--surface-danger);
-  color: var(--ink-danger);
-}
-
-/*
- * **The selected mailbox is marked by accent ink, and the ink is not the only mark.**
- *
- * `visual-system` requires the accent on the selected mailbox and forbids the accent being
- * the *only* difference between a selected and an unselected entry. So `RecentMailboxes`
- * carries the selection in three ways at once: accent ink on the note, the note's own text
- * naming the page, and — structurally, not by colour — the marked entry is the only one of
- * the three with no control on it. The rule paints only the text; the absence of the button
- * is the markup's job and is asserted as such.
- */
-.notice--selected {
-  color: var(--ink-accent);
-}
-
-/* ── Controls ─────────────────────────────────────────────────────────────────── */
-
-/*
- * One control shape, everywhere.
- *
- * Buttons on this page are quiet: the mailbox is the subject, and a row of high-contrast
- * buttons would compete with it. The boundary is `--line-strong`, which is held to
- * non-text contrast — a control with a transparent fill is identified by its edge, so
- * the edge has to be perceivable rather than decorative.
- */
-.control {
-  display: inline-block;
-  padding: var(--space-2) var(--space-4);
-  background-color: var(--surface-raised);
+  border: var(--width-hairline) solid var(--line-subtle);
+  border-radius: var(--radius-pill);
+  background-color: var(--surface-sunken);
   color: var(--ink-primary);
-  border: var(--width-hairline) solid var(--line-strong);
-  border-radius: var(--radius-md);
-  font-family: inherit;
-  font-size: var(--type-sm);
-  font-weight: var(--weight-medium);
-  line-height: var(--leading-normal);
-  text-align: center;
-  /* `cursor: pointer` is set on the row itself, because a row is a button and a button
-     that does not say so is a control a mouse user has to hunt for. */
+  font-family: var(--font-mono);
+  font-size: var(--type-base);
   cursor: pointer;
 }
+.toolbar__button:hover {
+  background-color: var(--surface-accent);
+}
+.toolbar__icon {
+  width: var(--space-4);
+  height: var(--space-4);
+}
 
-.control:hover {
+/* ── Inbox ─────────────────────────────────────────────────────────────────────── */
+
+.inbox-section {
+  padding: var(--space-6) var(--space-5);
+  background-color: var(--surface-sunken);
+}
+.inbox-panel {
+  max-width: 45rem;
+  margin-inline: auto;
+  background-color: var(--surface-raised);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.inbox-panel .region {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+.inbox-panel .region > h2 {
+  display: none;
+}
+.inbox-table-head {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: var(--space-3);
+  /* The reference's dark column bar is 54px; space-4 top and bottom reaches it
+     with the mono label's line box. */
+  padding: var(--space-4);
+  background-color: var(--surface-console);
+  color: var(--ink-on-console);
+  font-family: var(--font-mono);
+  font-size: var(--type-xs);
+  font-weight: var(--weight-bold);
+}
+.inbox-table-head span:last-child {
+  text-align: end;
+}
+/* The reference has no cadence note or "nothing is open" sentence; those states
+   stay in the DOM for assistive tech and tests but are not shown. */
+.inbox-panel [data-testid="inbox-cadence-note"],
+.inbox-panel [data-testid="message-none"] {
+  display: none;
+}
+.inbox-rows {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+.inbox-rows > li {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  border-block-end: var(--width-hairline) solid var(--line-subtle);
+}
+.inbox-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-2);
+  /* A button shrink-wraps by default; the reference's rows fill the table's
+     width so the sender/subject columns align with the SENDER/SUBJECT header. */
+  width: 100%;
+  padding: var(--space-4);
+}
+.inbox-row:hover {
+  background-color: var(--surface-sunken);
+}
+.inbox-row__sender {
+  margin: 0;
+  font-weight: var(--weight-bold);
+}
+.inbox-row__subject {
+  margin: 0;
+}
+.inbox-row__time {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: var(--type-xs);
+}
+.inbox-row__unread,
+.inbox-row__verdict {
+  margin: 0;
+  font-size: var(--type-xs);
+}
+
+.inbox-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-8) var(--space-4);
+}
+.empty-inbox__art {
+  width: var(--space-9);
+  height: var(--space-9);
+}
+.empty-inbox__ring {
+  fill: none;
+  stroke: var(--line-subtle);
+  stroke-width: var(--width-hairline);
+}
+.empty-inbox__arrow {
+  fill: none;
+  stroke: var(--line-strong);
+  stroke-width: var(--width-focus);
+}
+.empty-inbox__envelope {
+  fill: var(--surface-page);
+  stroke: var(--line-strong);
+  stroke-width: var(--width-focus);
+}
+.empty-inbox__flap {
+  fill: none;
+  stroke: var(--line-strong);
+  stroke-width: var(--width-focus);
+}
+.inbox-empty__title {
+  margin: var(--space-5) 0 var(--space-2);
+  color: var(--ink-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--type-lg);
+  text-align: center;
+}
+.inbox-empty__hint {
+  margin: 0;
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: var(--type-sm);
+  text-align: center;
+}
+
+/* ── Message reader and shared surfaces ───────────────────────────────────────── */
+
+.message {
+  padding: var(--space-5);
+}
+.message__subject {
+  font-size: var(--type-lg);
+  font-weight: var(--weight-bold);
+}
+.message__meta {
+  color: var(--ink-muted);
+  font-size: var(--type-sm);
+}
+.message__body {
+  max-width: none;
+  padding: var(--space-4);
+  background-color: var(--surface-sunken);
+  border-radius: var(--radius-md);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.finding {
+  margin-block: var(--space-4);
+}
+.finding__caveat {
+  color: var(--ink-muted);
+  font-size: var(--type-xs);
+}
+.codes,
+.links {
+  padding-inline-start: var(--space-5);
+}
+.code {
+  font-family: var(--font-mono);
+}
+.link__anchor {
+  color: inherit;
+}
+.link__host,
+.link__url {
+  color: var(--ink-muted);
+  font-size: var(--type-xs);
+}
+.notice {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+}
+.notice--danger {
+  color: var(--ink-danger);
+  background-color: var(--surface-danger);
+}
+.region--alert {
+  color: var(--ink-danger);
+}
+.control {
+  padding: var(--space-3) var(--space-4);
+  border: var(--width-hairline) solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background-color: var(--surface-raised);
+  color: var(--ink-primary);
+  cursor: pointer;
+}
+.control--primary {
+  background-color: var(--accent);
+  color: var(--ink-on-accent);
+  border-color: var(--accent);
+}
+.control--primary:hover:not(:disabled) {
+  background-color: var(--accent);
+}
+.control:disabled {
+  cursor: not-allowed;
+  color: var(--ink-muted);
   background-color: var(--surface-sunken);
 }
 
-.control:active {
-  /* A physical press. One pixel, which is enough to feel and small enough that it does
-     not read as a bug when a screenshot is taken mid-click. */
-  transform: translateY(1px);
-}
+/* ── Focus ─────────────────────────────────────────────────────────────────────── */
 
-.control:disabled {
-  /*
-   * **The quiet treatment, and the fill is declared here rather than inherited — that is the
-   * repair.**
-   *
-   * A disabled control keeps readable words: `--ink-muted` on `--surface-raised` measures
-   * 6.41:1 in the light scheme and 6.09:1 in the dark one, and `pairs.ts` declares that pair
-   * as *technical metadata inside a raised surface*. Dimming by `opacity` would take the label
-   * below the 4.5:1 it is held to, which is why the affordance goes instead.
-   *
-   * **It did not declare a fill, so "disabled" meant two things.** `.control--primary` fills
-   * with `--accent` at (0,1,0) and this rule outranks it at (0,2,0) — so a disabled primary
-   * kept the accent while its ink went muted: `--ink-muted` on `--accent` is **1.07:1 in both
-   * schemes**, a label that is not dim but gone. The accent is the affordance, so a disabled
-   * control does not wear it whatever its variant.
-   *
-   * `tests/architecture/boundaries.test.ts` holds this: every `.control:disabled` rule must
-   * declare a fill and an ink from `var(--token)`, and that pair must be declared in `pairs.ts`.
-   */
-  color: var(--ink-muted);
-  background-color: var(--surface-raised);
-  border-color: var(--line-subtle);
-  cursor: not-allowed;
-}
-
-/*
- * The focus indicator.
- *
- * On `:focus-visible`, not `:focus`, so a mouse click does not leave a ring behind —
- * while a keyboard press always does. `:focus-visible` is honoured by every browser the
- * browser tier runs, and by the ones it does not, which fall back to `:focus` and show
- * the ring always. Both are acceptable; silently showing none is not.
- *
- * **This list is the enumeration, not a sample.** `visual-system` requires every
- * interactive control on the page to draw a visible indicator, and a new control left
- * off this list fails nothing until a person cannot see where they are. `.link__anchor`
- * is here for the verification link; `focus.spec.ts` reads a *resolved* outline and
- * requires it not to be the browser's own `auto`, so adding the selector is what makes
- * that existing assertion mean something for this control.
- */
 .control:focus-visible,
+.toolbar__button:focus-visible,
 .inbox-row:focus-visible,
 .link__anchor:focus-visible {
   outline: var(--width-focus) solid var(--focus);
   outline-offset: var(--offset-focus);
-  /* An outline drawn inside the element's own edge is partly hidden by it, so the
-     indicator is forced out. Without this the ring can read as a thinner border. */
-  border-radius: var(--radius-md);
 }
 
-/* ── The inbox ────────────────────────────────────────────────────────────────── */
+/* ── Motion ────────────────────────────────────────────────────────────────────── */
 
-/* The reference's SENDER / SUBJECT / VIEW bar, mirrored to this list's two columns. It is a
-   caption, not a control, and carries no accent or literal value. */
-.inbox-table-head {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: var(--space-4);
-  padding: var(--space-2) var(--space-3);
-  color: var(--ink-muted);
-  font-size: var(--type-xs);
-  letter-spacing: var(--tracking-wide);
-  text-transform: uppercase;
-  border-block-end: var(--width-hairline) solid var(--line-subtle);
-}
-
-.inbox-rows {
-  margin: 0;
-  padding: 0;
-  /* A list of controls is not a bulleted list. */
-  list-style: none;
-  border-block-start: var(--width-hairline) solid var(--line-subtle);
-}
-
-/*
- * **A row of fields is not a line of prose.**
- *
- * The measure on `li` caps a line of text, and this list's items are controls rather than
- * text: each one is a two-column grid that puts a sender, a subject and a verbatim instant on
- * one line. Measured before the change, the row was 534.75 px inside a 688 px list, with 169 px
- * of it going to the timestamp column — so the measure was taking width from the subject to
- * defend a line length that a grid does not have. `website-client` requires a row to take the
- * width of its list, and a row that stops short inside a wider list reads as a row that ran
- * out rather than one that ended.
- */
-.inbox-rows > li {
-  max-width: none;
-}
-
-.inbox-row {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: var(--space-1) var(--space-4);
-  width: 100%;
-  padding: var(--space-4) var(--space-3);
-  background-color: var(--surface-raised);
-  color: var(--ink-primary);
-  border: 0;
-  border-block-end: var(--width-hairline) solid var(--line-subtle);
-  border-radius: var(--radius-sm);
-  font-family: inherit;
-  font-size: var(--type-base);
-  text-align: start;
-  cursor: pointer;
-}
-
-.inbox-row:hover {
-  background-color: var(--surface-sunken);
-}
-
-/*
- * A row that carries a verification is marked by a rule, not by a recolour.
- *
- * The direction puts the accent on verification codes and on active status, and it puts
- * **nothing** on the words themselves — so the row's text colour is unchanged and a
- * `border-inline-start` in the accent does the marking. The words still say what is
- * there; the accent reinforces them. This is `visual-system`'s requirement about colour
- * not being the only carrier, and it is why the rule is additive rather than a tint:
- * a tinted row would be unreadable by a user who cannot tell the tint apart.
- */
-.inbox-row--carries {
-  border-inline-start: var(--width-focus) solid var(--accent);
-  padding-inline-start: var(--space-4);
-}
-
-.inbox-row__sender {
-  grid-column: 1;
-  margin: 0;
-  font-weight: var(--weight-medium);
-  overflow-wrap: anywhere;
-}
-
-.inbox-row__subject {
-  grid-column: 1;
-  margin: 0;
-  color: var(--ink-secondary);
-  overflow-wrap: anywhere;
-}
-
-.inbox-row__time {
-  grid-column: 2;
-  grid-row: 1;
-  margin: 0;
-  color: var(--ink-muted);
-  font-family: var(--font-mono);
-  font-size: var(--type-xs);
-  /* Right-aligned and never wrapped onto a second line, because a timestamp that
-     reflows is a timestamp two rows of the grid now disagree with. */
-  text-align: end;
-  white-space: nowrap;
-}
-
-.inbox-row__unread {
-  grid-column: 1;
-  margin: 0;
-  color: var(--ink-muted);
-  font-size: var(--type-xs);
-  text-transform: uppercase;
-  letter-spacing: var(--tracking-wide);
-}
-
-.inbox-row__verdict {
-  grid-column: 2;
-  grid-row: 3;
-  margin: 0;
-  /* The accent, on words — and the words are the primary signal. `DESIGN.md` names this job
-     outright (verification, a row's verdict word), and `docs/DESIGN_SYSTEM.md` carries the
-     measured inventory of every declaration that uses the accent. */
-  color: var(--ink-accent);
-  font-size: var(--type-xs);
-  font-weight: var(--weight-medium);
-}
-
-/*
- * The inbox is the reference's other tool surface: a contained list with its own edge,
- * rather than another open hairline section. The rows keep their two-column grid and their
- * full-list width — nothing about their geometry changes — only the container around them.
- */
-.region--inbox {
-  padding: var(--space-5);
-  background-color: var(--surface-raised);
-  border: var(--width-hairline) solid var(--line-subtle);
-  border-radius: var(--radius-md);
-}
-
-.region--inbox > h2 {
-  /* The heading stays at the region-label step and in muted ink; the panel does not make it
-     louder. Only its bottom margin tightens to sit over the list. */
-  margin-block-end: var(--space-4);
-}
-
-/* ── An opened message ────────────────────────────────────────────────────────── */
-
-.message {
-  margin-block-start: var(--space-6);
-  padding-block-start: var(--space-6);
-  border-block-start: var(--width-hairline) solid var(--line-strong);
-}
-
-.message__meta {
-  margin-block-end: var(--space-4);
-  color: var(--ink-secondary);
-  font-size: var(--type-sm);
-}
-
-.message__subject {
-  margin: 0 0 var(--space-1);
-  font-size: var(--type-lg);
-  font-weight: var(--weight-medium);
-  overflow-wrap: anywhere;
-}
-
-/*
- * The readable body.
- *
- * `<pre>` because it preserves the line breaks the message arrived with, and the reason
- * it reads as a sunken slab rather than as prose is that it **is** the provider's text,
- * laid out as it was sent. Setting it in the grotesk at body measure would imply the page
- * wrote it; the monospace and the sunken surface say the opposite.
- */
-.message__body {
-  max-width: none;
-  margin: 0 0 var(--space-5);
-  padding: var(--space-4);
-  max-height: 28rem;
-  overflow: auto;
-  background-color: var(--surface-sunken);
-  border: var(--width-hairline) solid var(--line-subtle);
-  border-radius: var(--radius-md);
-  font-family: var(--font-mono);
-  font-size: var(--type-sm);
-  line-height: var(--leading-relaxed);
-  /* The provider's text may contain very long unbroken tokens — a base64 blob, a tracking
-     pixel URL — and a `<pre>` does not break them by default. */
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.finding {
-  margin-block-end: var(--space-4);
-  padding: var(--space-4);
-  background-color: var(--surface-raised);
-  border: var(--width-hairline) solid var(--line-subtle);
-  border-radius: var(--radius-md);
-}
-
-.finding > :last-child {
-  margin-block-end: 0;
-}
-
-.finding__caveat {
-  color: var(--ink-secondary);
-  font-size: var(--type-sm);
-}
-
-/* The codes. Three declarations, all serving `DESIGN.md`'s *verification* job — the tint, the
-   ink and the boundary — and the reason a code is a filled block rather than coloured text:
-   a code is a value to read and retype, and a value that changes shape when copied is a
-   value that gets mistyped. */
-.codes {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.code {
-  display: inline-block;
-  padding: var(--space-2) var(--space-3);
-  background-color: var(--surface-accent);
-  color: var(--ink-accent);
-  border: var(--width-hairline) solid var(--accent);
-  border-radius: var(--radius-md);
-  font-family: var(--font-mono);
-  font-size: var(--type-lg);
-  /* Wide tracking on a numeric code: it separates the glyphs, which is what makes a code
-     that a person reads at a glance legible, and it is the reason a code is not set in
-     the grotesk. */
-  letter-spacing: var(--tracking-wide);
-}
-
-.links {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.link {
-  margin-block-end: var(--space-2);
-  font-family: var(--font-mono);
-  font-size: var(--type-sm);
-  overflow-wrap: anywhere;
-}
-
-.link__host {
-  color: var(--ink-accent);
-  font-weight: var(--weight-medium);
-}
-
-/* The anchor is the new navigable element, so its appearance is declared rather than
-   inherited: `color: inherit` makes it impossible for a user-agent link colour to
-   appear here, which matters because every other colour on this page is a token and a
-   `sections.spec.ts` sweep of the stylesheet cannot see a colour the browser supplies.
-   The underline is declared for the same reason — it is the affordance, and an
-   affordance should not depend on the browser's defaults being what they are today. */
-.link__anchor {
-  color: inherit;
-  text-decoration: underline;
-}
-
-.link__url {
-  color: var(--ink-secondary);
-}
-
-/* ── The two-step removal ─────────────────────────────────────────────────────── */
-
-.confirmation {
-  margin-block-start: var(--space-4);
-  padding: var(--space-4);
-  /* The accent tint, not the danger tint. This step is a question, not a report, and
-     tinting it as a failure would state that something has already gone wrong. */
-  background-color: var(--surface-accent);
-  border: var(--width-hairline) solid var(--line-strong);
-  border-radius: var(--radius-md);
-}
-
-.confirmation__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-/* ── Motion ───────────────────────────────────────────────────────────────────── */
-
-/*
- * One materialisation, three entrances.
- *
- * The mailbox address, an inbox row, and a rendered verification code each arrive the
- * same way. Three entrances and one keyframes block, because the only thing that differs
- * between them is duration — and the `animation` shorthand below already carries that, so
- * three blocks would state one decision three times.
- *
- * ## No fill mode, and why none is needed
- *
- * Every `to` value below is **what the element already computes to**: `.address__value`,
- * `.inbox-row` and `.code` declare no `opacity`, no `filter` and no `transform`, so they
- * compute to `opacity: 1`, `filter: none` (identical in rendering to `blur(0)`) and
- * `transform: none`. With the default `animation-fill-mode: none`, **finishing the
- * animation and having no animation at all are therefore the same rendering** — which is
- * what lets the reduced-motion block below remove the animation outright and be correct
- * rather than a compromise. A fill mode would pin the final frame explicitly and make the
- * two states differ again.
- *
- * The `to` frame is written out rather than left implicit for a second reason: a keyframes
- * block whose last frame omits a property interpolates from that property's *initial*
- * value, not from the element's own declaration, which would make the two states differ.
- */
 @keyframes materialise {
   from {
     opacity: 0;
     filter: blur(var(--blur));
     transform: translateY(var(--rise));
   }
-
   to {
     opacity: 1;
     filter: blur(0);
     transform: none;
   }
 }
-
-/*
- * The entrances.
- *
- * **Two rules rather than one, and this is a correction rather than a preference.** The
- * first version of this block was one selector list of three carrying `--duration-base`,
- * with a lone `.inbox-row { animation-duration: var(--duration-fast) }` after it — which
- * split the motion's governing declaration across two places while the comment above it
- * claimed the motion stayed "one list of three". A comment that contradicts the rule it
- * describes is the same defect this repository keeps recording in checks, in prose.
- *
- * So the two durations are stated in two rules, and the rule that gives them their shape is
- * the one below: **the set of selectors carrying an `animation` here is the set the
- * reduced-motion block names.** Both rules sit directly above that block, so adding a
- * fourth entrance and forgetting the stop is a visible omission rather than a silent one.
- *
- * The inbox row takes `--duration-fast` and the other two take `--duration-base`. The row is
- * the thing the user is watching, so its arrival should register without holding the eye for
- * the longer of the two; the address and a code are single, isolated events and things a
- * person reads, so they get the time the blur needs to resolve into something legible.
- *
- * **No `will-change`.** It would promote a compositing layer per row, permanently, on a list
- * that grows for as long as the page is open. The animation is 120ms and runs once per row;
- * the promotion would outlive it by minutes.
- */
 .address__value,
 .code {
   animation: materialise var(--duration-base) var(--ease-standard);
 }
-
 .inbox-row {
   animation: materialise var(--duration-fast) var(--ease-standard);
 }
-
-/*
- * `prefers-reduced-motion: reduce` stops the motion.
- *
- * **`animation: none`, not a shorter duration, and not `0.01ms`.** The widely published
- * workaround for this problem is a near-zero duration, which is not a stop: it is an
- * animation that finishes before a frame can be composited, so it makes a claim about
- * timing rather than about the page. Removal is the only form whose result reads back — an
- * element with no animation reports `none`.
- *
- * **The block's position below the entrances is load-bearing.** Equal specificity means
- * source order decides, so moving this above would leave all three animating under a
- * reduced-motion preference — the exact defect this milestone exists to prevent, introduced
- * by reordering two blocks. Nothing in the page would look broken; it would simply move when
- * the user asked it not to.
- *
- * No script reads the preference. That is deliberate: there is then no JS path that could
- * honour it on one route and not another, and nothing to test beyond the page itself.
- *
- * This governs `animation` only. **There is no `transition` in this stylesheet**, so
- * nothing here claims otherwise — and a check asserting `transition-duration: 0s` would
- * pass on a page with no transitions at all, which is why the browser sweep carries it as a
- * tripwire rather than the requirement claiming it.
- */
 @media (prefers-reduced-motion: reduce) {
   .address__value,
   .inbox-row,
@@ -905,399 +509,68 @@ li {
   }
 }
 
-/* ── The wordmark ─────────────────────────────────────────────────────────────── */
+/* ── Responsive ────────────────────────────────────────────────────────────────── */
 
-/*
- * A mark and a name on one baseline, and the mark is small.
- *
- * **The accent lives here**, one of the three surfaces the approved direction names and that
- * slice 1 deferred because nothing carried them. The mark's colour comes from the
- * wordmark's own `color`, so it cannot be a second hand-picked value, and the whole thing is
- * an inline `<svg>`: no webfont, no image request, nothing for the browser tier's route
- * handler to deny.
- */
-.wordmark {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  /* The mark is the only thing on the page in the accent that is not text. */
-  color: var(--accent);
-}
-
-.wordmark__mark {
-  width: var(--mark-width);
-  height: var(--mark-height);
-  flex: none;
-  align-self: center;
-}
-
-/* The heading keeps the page ink; only the mark is accent. Resetting it here rather than
-   nesting the <h1> inside a coloured rule is what keeps "the accent is on the mark" a
-   statement about one element. */
-.wordmark h1 {
-  color: var(--ink-primary);
-  margin: 0 0 var(--space-2);
-}
-
-/* ── The primary action ───────────────────────────────────────────────────────── */
-
-/*
- * Filled, and the only filled control on the page.
- *
- * **`--ink-on-accent` exists because of this rule.** Measured against `--accent` with the
- * token layer's own contrast function, no other ink in the palette reaches 4.5:1 in either
- * scheme — the best of them is `--surface-raised`, which is declared as a background and
- * would be a lie about its role here. So the pair is declared and checked rather than
- * borrowed.
- */
-.control--primary {
-  background-color: var(--accent);
-  color: var(--ink-on-accent);
-  border-color: var(--accent);
-  /* The reference's copy action is a circle. A pill radius plus equal padding makes this one
-     filled control round without changing its name, its fill, or any other control on the page. */
-  border-radius: var(--radius-pill);
-  padding-inline: var(--space-5);
-}
-
-/*
- * **Every interaction state repaints the ink with the surface, and that is the repair.**
- *
- * `.control:hover` empties a control's fill, which is right for a quiet control because
- * its ink is already `--ink-primary` on that surface. This control kept `--ink-on-accent`
- * while its fill emptied, so the label was white on near-white the moment a person moved
- * onto it: measured with the token layer's own contrast function, **1.22:1 in the light
- * scheme and 1.04:1 in the dark one**. A label at 1.22:1 is not dim — it is gone, on the
- * one control this page offers as its primary action.
- *
- * **Nothing could see it, and that is why it shipped.** `pairs.ts` declares the pairs the
- * palette is held to, and a *hover* pair was not one of them; every contrast assertion in
- * this repository reads a declared pair or a rest-state computed style, and no instrument
- * read a computed style in an interaction state at all.
- *
- * **The repair borrows no colour.** `pairs.ts` already holds *body copy on a sunken
- * surface* — `--ink-primary` on `--surface-sunken` — at 14.83:1 light and 17.09:1 dark,
- * because that is the surface a message's readable body sits on. So interaction empties
- * the fill and the label returns to the page ink, which is what EVERY other control on this
- * page does; the accent keeps meaning *this one moves you forward* by being the only fill
- * at rest.
- *
- * **`:active` shares the rule instead of trailing it.** A keyboard activation fires
- * `:active` without `:hover`, so a separate rule that set only the surface would put the
- * label back on a near-white background for exactly the person who cannot see a pointer.
- * `apps/web/e2e/primary-action.spec.ts` reads both states, in both schemes, as Chromium
- * computes them.
- *
- * **Both states are guarded by `:not(:disabled)`, and the guard is the second half of the
- * repair.** `:hover` and `:active` both match a disabled control — the platform withholds the
- * click, not the state — so without the guard a disabled primary would repaint itself with the
- * page ink while a pointer rested on it, undoing the quiet treatment `.control:disabled`
- * declares. The extension's two rules have carried this guard since they were written; this
- * page has no disabled primary today, so nothing here could observe the difference, which is
- * exactly why it is stated rather than left to the first variant that gains one.
- */
-.control--primary:hover:not(:disabled),
-.control--primary:active:not(:disabled) {
-  background-color: var(--surface-sunken);
-  color: var(--ink-primary);
-  border-color: var(--accent);
-}
-
-/* ── The steps ────────────────────────────────────────────────────────────────── */
-
-/*
- * Three steps on one baseline, divided by the existing hairline rather than boxed.
- *
- * A grid written **here** and not in the token layer: `packages/ui` documents that layout is
- * a client's business, and a `--grid-columns` token would be the thing that ends that clause.
- * The breakpoint is the page's existing one, reused rather than a second one added.
- */
-.steps {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-5);
-}
-
-.steps__item {
-  max-width: none;
-  padding-inline-start: var(--space-4);
-  border-inline-start: var(--width-hairline) solid var(--line-strong);
-}
-
-.steps__name {
-  /* The step word is the label of a sequence, not a heading to be read at size. */
-  font-size: var(--type-base);
-  font-weight: var(--weight-bold);
-  margin: 0 0 var(--space-1);
-  color: var(--ink-accent);
-}
-
-.steps__does {
-  margin: 0;
-  font-size: var(--type-sm);
-}
-
-/* ── The reasons ──────────────────────────────────────────────────────────────── */
-
-/*
- * A definition list, because each reason *is* a term and its support sentence is that
- * term's definition. A bulleted list of bolded claims would drop the structure that makes a
- * claim checkable.
- */
-.reasons {
-  margin: 0;
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: var(--space-5) var(--space-6);
-}
-
-.reasons__pair {
-  display: grid;
-  gap: var(--space-1);
-}
-
-.reasons__claim {
-  font-weight: var(--weight-bold);
-  color: var(--ink-accent);
-}
-
-.reasons__support {
-  margin: 0;
-  color: var(--ink-secondary);
-  font-size: var(--type-sm);
-}
-
-/* ── The extension preview ────────────────────────────────────────────────────── */
-
-/*
- * A depicted surface, and **nothing here is interactive**.
- *
- * **The depiction is drawn as chrome, not as content.** A raised surface, a hairline and a
- * monospace label is what makes a line read as "this is the label on a popup", which is the
- * honest way to draw a control: it looks like one and does not behave like one. Sinking the
- * labels instead - italic, quoted, or prefixed with `Copy address:` - would make the section
- * read as prose *about* a popup, which is a different and weaker claim than showing the popup.
- *
- * **`figure` is what announces that.** `design.md` D1 records why the depiction is drawn from
- * markup rather than screenshotted: a screenshot would be an image file, and this page fetches
- * none, and it would go stale the moment the popup's copy changed without anything noticing.
- *
- * **No motion, and no new token.** `design.md` D6 records that decision: a depiction that
- * animates in draws the eye to the one thing on the page that cannot be used, which is the
- * wrong place to spend attention. So this section adds nothing to the motion block and the
- * `visual-system` capability is untouched by this milestone.
- */
-.preview {
-  margin: 0;
-  padding: var(--space-5);
-  background: var(--surface-sunken);
-  border: var(--width-hairline) solid var(--line-subtle);
-  border-radius: var(--radius-md);
-}
-
-/*
- * The caption sits *above* the depiction, which is the order a reader of a picture with a
- * subject line expects and is also what `figcaption`'s own position in the element permits
- * without reordering the label from its figure. `type-xs` with wide tracking marks it as a
- * caption rather than a heading - it describes the figure, and it is deliberately quieter than
- * every `.preview__label` inside it.
- */
-.preview__caption {
-  color: var(--ink-muted);
-  font-size: var(--type-xs);
-  letter-spacing: var(--tracking-wide);
-  text-transform: uppercase;
-}
-
-.preview__regions {
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: var(--space-5);
-  list-style: none;
-}
-
-.preview__region {
-  display: grid;
-  gap: var(--space-2);
-  padding: var(--space-4);
-  background: var(--surface-raised);
-  border: var(--width-hairline) solid var(--line-subtle);
-  border-radius: var(--radius-sm);
-}
-
-.preview__does {
-  margin: 0;
-  color: var(--ink-secondary);
-  font-size: var(--type-sm);
-}
-
-/*
- * The labels, and **this is where the depiction could have gone wrong.**
- *
- * **Monospace, on a raised surface, in a hairline box** - the treatment `packages/ui` already
- * gives the popup's own controls, so a depicted label is drawn as the thing it depicts. What it
- * does *not* get is a focus indicator, a pointer cursor, or any state at all: those belong to
- * controls, and there is no control here. `sections.spec.ts` reads Chromium's accessibility
- * tree over CDP to require that no element in this region exposes a control role, because that
- * is the property a reader actually encounters - not the count of `button` elements, which a
- * `role="button"` would satisfy.
- */
-.preview__labels {
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  list-style: none;
-}
-
-.preview__label {
-  padding: var(--space-1) var(--space-3);
-  background: var(--surface-accent);
-  color: var(--ink-accent);
-  border: var(--width-hairline) solid var(--line-subtle);
-  border-radius: var(--radius-sm);
-  font-family: var(--font-mono);
-  font-size: var(--type-xs);
-}
-
-/*
- * The one sentence about obtaining the extension.
- *
- * **`--ink-muted` and `--type-sm`**, because it is the least load-bearing sentence in the
- * region and it is the last thing a reader meets. It states a fact about this repository, so
- * it is set as precisely as any other sentence here rather than as an aside - but nothing on
- * the page should compete with the address at the top for attention.
- */
-.preview__note {
-  margin: var(--space-4) 0 0;
-  color: var(--ink-muted);
-  font-size: var(--type-sm);
-}
-
-/* ── The footer ───────────────────────────────────────────────────────────────── */
-
-/*
- * A footer, not another region.
- *
- * **It is deliberately *not* a `.region`**, because a region is hairline-topped and the last
- * thing on a page should not open with a rule that says "here begins another section". The
- * limits moved here from between the product and the end of the page, where a list of things
- * the product will not do read as an apology partway through; here the same sentences read
- * as the specification they are.
- */
-.footer {
-  /* **The measure is repeated here, and that is what moving the footer out of `<main>`
-     costs.** The footer is a sibling of the page's main content rather than a descendant
-     of it, because a `<footer>` inside `<main>` is not a `contentinfo` landmark — measured
-     in Chromium, which exposed the nested one as `sectionfooter` with zero `contentinfo`
-     landmarks on the page. So it no longer inherits `main`'s width and states the same
-     one, from the same token. Two rules reading one token is the right duplication; a
-     second literal measure would be a second number to keep true. */
-  max-width: var(--measure-page);
-  margin-inline: auto;
-  padding: 0 var(--space-5) var(--space-8);
-  border-block-start: var(--width-hairline) solid var(--line-strong);
-}
-
-.footer__heading {
-  /*
-   * **The colour is stated here because the footer is not a `.region`.** It is a sibling of
-   * `<main>` rather than a descendant of it — a `<footer>` inside `<main>` is not a
-   * `contentinfo` landmark, measured in Chromium — so no `.region > h2` rule reaches this
-   * heading and it would otherwise take the page's body ink. Its size comes from the global
-   * `h2` rule, like every other region name on the page.
-   */
-  color: var(--ink-muted);
-}
-
-.footer__limits {
-  color: var(--ink-secondary);
-  font-size: var(--type-sm);
-}
-
-.footer__note {
-  margin: 0;
-  color: var(--ink-muted);
-  font-size: var(--type-sm);
-}
-
-/* ── Small screens ────────────────────────────────────────────────────────────── */
-
-/*
- * One breakpoint, and it exists because the inbox row's two-column grid is the only
- * multi-column thing on the page. Below it the timestamp moves under the sender rather
- * than being squeezed, because a truncated timestamp is a wrong one.
- *
- * **The sections' grids collapse at the same breakpoint rather than adding a second one.**
- * Two breakpoints on one page means two numbers to keep in agreement, and the reason this
- * one exists — a truncated timestamp is a wrong timestamp — applies equally to a three-column
- * step list squeezed onto a phone.
- */
 @media (max-width: 34rem) {
-  .inbox-row {
+  .app-header {
+    grid-template-columns: 1fr auto;
+  }
+  .app-header__side:first-child {
+    display: none;
+  }
+  .hero {
+    padding: var(--space-5) var(--space-4);
+  }
+  .hero__panel {
+    padding: var(--space-5) var(--space-3);
+  }
+  .hero__title {
+    font-size: var(--type-base);
+  }
+  .hero__lede {
+    font-size: var(--type-xs);
+  }
+  .toolbar {
+    padding: var(--space-4);
+  }
+  .toolbar__actions {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .inbox-section {
+    padding: var(--space-4);
+  }
+  .inbox-table-head {
     grid-template-columns: 1fr;
   }
-
-  .footer {
-    padding: 0 var(--space-4) var(--space-7);
+  .inbox-table-head span {
+    display: none;
   }
-
-  .steps,
-  .reasons {
-    grid-template-columns: 1fr;
-  }
-
-  .inbox-row__time {
-    grid-column: 1;
-    grid-row: auto;
-    text-align: start;
-  }
-
-  .inbox-row__verdict {
-    grid-column: 1;
-    grid-row: auto;
-  }
-
-  main {
-    padding: var(--space-5) var(--space-4) var(--space-7);
-  }
-
-  .address__value {
-    font-size: var(--type-lg);
+  /* The reference collapses to one "INBOX" label at this width; the desktop
+     column names are hidden above, so this is the only cell left showing. */
+  .inbox-table-head::after {
+    content: "INBOX";
   }
 }
 
-/*
- * The report's lines, and a report reads as a list of label-and-value pairs.
- *
- * **A label and its value on one line, with the value in the monospace face the product already
- * uses for anything a machine wrote.** The values are counts, names and durations, and they are
- * read as figures rather than as prose -- the same treatment the address and the code get.
- *
- * **No new token.** `display`, `justify-content` and `gap` are in no swept category at all, and the
- * one that is -- `gap` -- is `--space-3`, which this file already resolves. The rule the boundary
- * suite enforces is that every class hook a client renders is selected by a stylesheet, and a
- * report that rendered unstyled would have been reported by name.
- */
-.diagnostic__entry {
+/* Class hooks used by retained components are matched here rather than left for
+   the "every rendered class hook is styled" boundary rule to name. */
+.hero__field {
   display: flex;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding-block: var(--space-1);
-  border-block-end: var(--width-hairline) solid var(--line-subtle);
+  align-items: center;
+  justify-content: center;
 }
-
-.diagnostic__entry dt {
-  color: var(--ink-secondary);
-}
-
-.diagnostic__entry dd {
+.region--inbox {
+  max-width: none;
   margin: 0;
+  padding: 0;
+}
+.inbox-row--carries {
+  background-color: var(--surface-accent);
+}
+.mono {
   font-family: var(--font-mono);
-  color: var(--ink-primary);
+}
+.link {
+  margin-block-end: var(--space-2);
+  overflow-wrap: anywhere;
 }

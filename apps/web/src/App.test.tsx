@@ -125,34 +125,30 @@ function visibleText(): string {
 }
 
 /**
- * The text of the page's own list of what it can and cannot do.
+ * The provider named in the header's provider pill.
  *
  * Scoped deliberately, because a whole-page text search is satisfied by coincidence.
  * The first version of the state-coverage test asserted `visibleText()` contained
  * "Guerrilla Mail", and the falsification pass caught it immediately: making that
  * line conditional on the `ready` state left the suite **green**, because the
- * `creating` state already says "Asking Guerrilla Mail for a new address" and the
- * `failed` state names the provider in its explanation. Two of the three assertions
+ * `creating` state's prose and the `failed` state both name the provider in their
+ * own words. Two of the three assertions
  * were therefore passing on unrelated text ++ and a test that passes on unrelated
  * text is not coverage, however true the statement it appears to be checking.
  *
- * **The role changed with the element, and that is the one thing this helper records.**
- * The limits used to be a `<section aria-labelledby>`, so the element was a `region` and
- * that is what this looked up. They now live in a `<footer>`, which is a `contentinfo`
- * landmark — **and which is a landmark only when it is not nested inside another
- * landmark.** Moving the list into a real footer therefore broke two assertions, and they
- * broke for a reason worth stating: a helper that finds content by role is asserting
- * something real about the document, so relocating the content is a change to the contract
- * rather than a refactor to absorb.
- *
- * The accessible name is **unchanged** — "What this page can and cannot do" — and so is the
- * scoping: a copy change inside the list is fine, moving the line out of this list is not.
- * Only the element that carries the name changed.
+ * **The rebuilt page carries no limits list and no `contentinfo` landmark.** The
+ * provider's name lives in the header pill, which the header renders in every state,
+ * so reading that one node is both scoped and state-independent. The old limits list was
+ * found by an accessible name, and the element carrying that name moved from a `region`
+ * to a `contentinfo` landmark and was then deleted with the informational sections. A
+ * helper that finds content by its own handle is asserting something real about the
+ * document, so relocating the content is a change to the contract rather than a refactor
+ * to absorb. Copy changes inside the pill are fine; moving the name out of the header is not.
  */
-function limitsText(): string {
-  return (
-    screen.getByRole("contentinfo", { name: "What this page can and cannot do" }).textContent ?? ""
-  );
+function providerPillText(): string {
+  const pill = document.querySelector(".app-header__pill--provider");
+  if (pill === null) throw new Error("the header's provider pill is missing");
+  return pill.textContent ?? "";
 }
 
 /**
@@ -213,7 +209,7 @@ describe("the website", () => {
       // about `visibleText()` warns about.
       await screen.findByTestId("creating");
       expect(screen.getByTestId("creating")).toBeTruthy();
-      expect(visibleText()).toContain("Asking Guerrilla Mail for a new address.");
+      expect(visibleText()).toContain("Asking the provider for a new address.");
 
       // **No address**, and specifically nothing shaped like one. A placeholder, an
       // example, or an empty input would all be read as a real address by anything
@@ -250,7 +246,8 @@ describe("the website", () => {
       expect(visibleText()).toContain("guerrilla-1@mail.example");
 
       await act(async () => {
-        screen.getByRole("button", { name: /replace address/i }).click();
+        // The toolbar's Change control replaces the old in-field "Replace address" button.
+        screen.getByTestId("toolbar-change").click();
       });
 
       // The old address is gone while the new one is in flight. Keeping it on screen
@@ -362,14 +359,14 @@ describe("the website", () => {
       // the session is asked, so `creating` is not there on the first render.
       await screen.findByTestId("creating");
 
-      const creatingHeading = screen.getByRole("heading", { name: /creating your address/i });
+      // The rebuilt page has no state-specific heading: the hero title stays put and
+      // the creating state names itself in its own line. That line is the thing being
+      // compared, so the state is still told apart by words rather than by colour.
+      const creatingLine = screen.getByTestId("creating");
       const creatingText = visibleText();
 
-      // Distinct heading and distinct prose, so the state is told apart by words. A
-      // page that signalled state by colour alone would render identical text in
-      // every state and pass - and there is no colour in this client to signal with.
-      expect(creatingHeading.textContent).toBe("Creating your address");
-      expect(creatingText).toContain("Asking Guerrilla Mail for a new address.");
+      expect(creatingLine.textContent).toContain("Asking the provider for a new address.");
+      expect(creatingText).toContain("Asking the provider for a new address.");
 
       // The other two states' content is absent, so the three are mutually exclusive
       // rather than all rendered and merely reordered. These four strings are the
@@ -386,47 +383,6 @@ describe("the website", () => {
       // passed a mutation that rendered exactly that. The falsification pass is the
       // only reason this is a plain `not.toContain`.
       expect(creatingText).not.toContain("Ready");
-    });
-  });
-
-  describe("mailbox lifetime", () => {
-    it("says the lifetime is unknown and shows no time value", async () => {
-      const session = sessionOver(providerReturning({ mailbox: mailbox("guerrilla-1") }));
-
-      render(<App session={session} storage={EMPTY_STORE} />);
-      await screen.findByTestId("ready");
-
-      expect(screen.getByTestId("lifetime-unknown").textContent).toContain("Unknown");
-
-      // No `<time>` element, and no digit run that could be a countdown or a
-      // duration. Mail.tm publishes a 7-day retention and says a mailbox lasts until
-      // deleted, but neither appears in any API response, so any number here would be
-      // one this product invented.
-      expect(document.querySelector("time")).toBeNull();
-      const lifetime = screen.getByTestId("lifetime-unknown").textContent ?? "";
-      expect(lifetime).not.toMatch(/\d/);
-    });
-
-    it("renders a provider-reported expiry, attributed, when there is one", async () => {
-      // **The positive control for the absence above.** With an expiry present the
-      // page does render one, so the previous test's silence is a decision and not an
-      // omission.
-      const expiresAt = Date.parse("2026-10-09T12:00:00.000Z");
-      const session = sessionOver(
-        providerReturning({ mailbox: mailbox("guerrilla-1", expiresAt) }),
-      );
-
-      render(<App session={session} storage={EMPTY_STORE} />);
-      await screen.findByTestId("ready");
-
-      expect(screen.getByTestId("lifetime-reported").textContent).toContain(
-        "2026-10-09T12:00:00.000Z",
-      );
-      // Attributed to the provider, not presented as a SpectreMail guarantee.
-      expect(screen.getByTestId("lifetime-reported").textContent).toContain(
-        "not a SpectreMail guarantee",
-      );
-      expect(screen.queryByTestId("lifetime-unknown")).toBeNull();
     });
   });
 
@@ -730,86 +686,44 @@ describe("the website", () => {
 
       render(<App session={session} storage={EMPTY_STORE} />);
       await screen.findByTestId("ready");
-      // **One claim below only becomes true once a write is confirmed**, which is a
-      // later turn of the microtask queue than `ready` — the same ordering that made
-      // this test fail about one run in three until the wait was moved here. The page
-      // is briefly "Ready" while still holding nothing, and it says so.
-      await screen.findByTestId("local-data-stored");
 
       const text = visibleText();
 
-      // The M1 page claimed the client had no mailbox feature. It has one now, and
-      // leaving the old sentence would make the page contradict itself.
+      // The informational sections below the inbox are gone. Every claim they made
+      // that outlived its feature would now be a sentence with nothing to back it, so
+      // the negatives still do the load-bearing work: a page that simply deleted a
+      // claim passes a positive-only check.
       expect(text).not.toMatch(/no mailbox feature/i);
       expect(text).not.toMatch(/it has no mailbox/i);
-
-      // **Slice 2 retired the "no inbox" claim, and this assertion is what notices.**
-      // It was the one line that failed when the inbox arrived, which is the property
-      // the whole test is for: a page that kept saying it has no inbox while showing
-      // one is contradicting itself, and a test that only asserted the *present*
-      // claims would have passed over it.
       expect(text).not.toMatch(/no inbox/i);
-
-      // **Slice 3 retired the "cannot open a message" claim, and this is the assertion
-      // that notices.** It is the third instance of the same property, and the reason
-      // this test is written as a set of *negative* claims rather than only positive
-      // ones is that every one of them was a sentence that outlived the feature it
-      // described. Slice 1's "no mailbox feature", slice 2's "no inbox", slice 3's
-      // "cannot open a message" — a page that keeps denying a capability it has is
-      // contradicting itself, and a test asserting only what the page *does* claim
-      // passes straight over it.
       expect(text).not.toMatch(/cannot open a message/i);
       expect(text).not.toMatch(/does not open a message/i);
       expect(text).not.toMatch(/a message body is not shown/i);
-
-      // The replacement claim is the page's, and it is the one slice 3 actually
-      // delivered: the message view *can* be opened and shows text, codes, and links.
-      expect(text).toMatch(/can open a message/i);
-      expect(text).toMatch(/codes it found/i);
-
-      // Statements that are still true are kept.
-      expect(text).toMatch(/no backend/i);
-      expect(text).toMatch(/never (relays|proxies)/i);
-
-      // **And the limitation is still stated, unflattering as it is — and the fifth
-      // time this sentence has been replaced.** The page can copy a code and open a link,
-      // and it will not do either until asked, so a visitor told "it opens messages"
-      // learns that the actions are theirs to start. The old wording — *"does not copy
-      // codes or follow links"* — became false the moment this slice shipped the controls
-      // and was **reworded rather than dropped**: `website-client`'s amendment says the
-      // limit was not dropped for space, it was dropped for being untrue, and the count
-      // stays five.
-      expect(text).toMatch(/copies a code and follows a link only when you ask/i);
-      // **Asserted in both directions, because a deleted sentence passes the first.**
+      expect(text).not.toMatch(/can open a message/i);
+      expect(text).not.toMatch(/codes it found/i);
+      expect(text).not.toMatch(/copies a code and follows a link only when you ask/i);
       expect(text).not.toMatch(/does not copy codes or follow links/i);
       expect(text).not.toMatch(/verification workflow, which this page does not do yet/i);
-
-      // **Slice 2's fourth retired claim, and the assertion that noticed it.** The
-      // page used to say "A reload discards this address. SpectreMail stores nothing
-      // on your device yet." Both halves became false the moment the page persisted a
-      // mailbox, and this is the same property three times over: a sentence that
-      // outlives the behaviour it describes.
-      //
-      // **Then slice 3 retired the replacement, and this is the fourth time.** Slice 2
-      // replaced that sentence with one saying the address is kept and that *no button
-      // anywhere deletes it* — which was true, and was the only honest thing the page
-      // could say while it was true. Slice 3 built the button, so that sentence died
-      // too. This assertion failed on landing, which is what it was written to do.
-      //
-      // **The replacement is asserted in both directions, and the negatives are the
-      // load-bearing half.** A page that simply deleted the sentence would pass a
-      // positive-only check while claiming nothing about stored data at all. The claim
-      // now required is the opposite of the one being retired: the page must say the
-      // address is kept *and* must not say it cannot be deleted, because a user
-      // reading "we keep this and you cannot remove it" has been told something false
-      // by a page that now has a button.
       expect(text).not.toMatch(/reload discards/i);
       expect(text).not.toMatch(/stores nothing on your device/i);
-      expect(text).toMatch(/holding this address/i);
+      expect(text).not.toMatch(/holding this address/i);
       expect(text).not.toMatch(/no button here to delete/i);
       expect(text).not.toMatch(/cannot delete/i);
+      expect(text).not.toMatch(/no backend/i);
+      expect(text).not.toMatch(/never (relays|proxies)/i);
 
-      expect(text).toContain("Guerrilla Mail and nothing else");
+      // What the rebuilt page does say is narrower and still true: the hero states the
+      // job in the product's own words, the header states two facts, and all four
+      // toolbar actions are real controls rather than depictions.
+      expect(text).toContain("temporary, disposable email address");
+      expect(text).toContain("No account");
+      expect(text).toContain("No server");
+      expect(screen.getByTestId("toolbar-copy")).toBeTruthy();
+      expect(screen.getByTestId("toolbar-refresh")).toBeTruthy();
+      expect(screen.getByTestId("toolbar-change")).toBeTruthy();
+      // The accessible name contains the visible "Delete" (WCAG 2.5.3) and the
+      // scope phrase; Testing Library matches names exactly, so use a regex.
+      expect(screen.getByRole("button", { name: /Clear saved data/i })).toBeTruthy();
     });
 
     it("inserts no provider value as markup", async () => {
@@ -881,9 +795,9 @@ describe("the website", () => {
       expect(screen.queryByRole("combobox")).toBeNull();
       expect(screen.queryByRole("listbox")).toBeNull();
 
-      // And the page names exactly one provider, rather than offering or
-      // apologising for a choice it does not have.
-      expect(visibleText()).toContain("Guerrilla Mail and nothing else");
+      // And the page names exactly one provider in its header pill, rather than
+      // offering or apologising for a choice it does not have.
+      expect(providerPillText()).toContain("Guerrilla Mail");
       expect(visibleText()).not.toMatch(/mail\.tm/i);
       expect(providerChoiceClaims(visibleText())).toEqual([]);
     });
@@ -898,9 +812,9 @@ describe("the website", () => {
       // Each state is therefore rendered for real. Nothing is asserted about a string
       // the page never produced.
       //
-      // `limitsText()` rather than `visibleText()`: see its note. A whole-page search
-      // for "Guerrilla Mail" is satisfied by this state heading and by the failure
-      // prose, so it would pass with the line removed from the list entirely.
+      // `providerPillText()` rather than `visibleText()`: see its note. A whole-page
+      // search for "Guerrilla Mail" is satisfied by the failure prose alone, so it
+      // would pass with the header's pill removed entirely.
       const pending = new Promise<Mailbox>(() => undefined);
       const creating = sessionOver(providerReturning({ create: () => pending }));
 
@@ -909,7 +823,7 @@ describe("the website", () => {
       );
       await screen.findByTestId("creating");
       expect(creatingContainer.querySelector("select")).toBeNull();
-      expect(limitsText()).toContain("Guerrilla Mail");
+      expect(providerPillText()).toContain("Guerrilla Mail");
       expect(providerChoiceClaims(visibleText())).toEqual([]);
 
       cleanup();
@@ -929,7 +843,7 @@ describe("the website", () => {
       await screen.findByTestId("failure-explanation");
 
       expect(document.querySelector("select")).toBeNull();
-      expect(limitsText()).toContain("Guerrilla Mail");
+      expect(providerPillText()).toContain("Guerrilla Mail");
       expect(providerChoiceClaims(visibleText())).toEqual([]);
     });
 

@@ -81,29 +81,19 @@ it declares closed: **identity**, **verification**, **state**, **forward motion*
 every declaration in either client's stylesheet that names one of the four accent tokens, with
 the job that declaration serves.
 
-| File                            | Selector                                                                          | Declaration                                                   | Job                                                 |
-| ------------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------- | --------------------------------------------------- |
-| `apps/web/src/styles.css`       | `.control:focus-visible, .inbox-row:focus-visible, .link__anchor:focus-visible`   | `outline: var(--width-focus) solid var(--focus)`              | The ring — named above the list                     |
-| `apps/web/src/styles.css`       | `.notice--selected`                                                               | `color: var(--ink-accent)`                                    | State — the mailbox in use                          |
-| `apps/web/src/styles.css`       | `.inbox-row--carries`                                                             | `border-inline-start: var(--width-focus) solid var(--accent)` | Verification — a row's marking rule                 |
-| `apps/web/src/styles.css`       | `.inbox-row__verdict`                                                             | `color: var(--ink-accent)`                                    | Verification — the verdict word                     |
-| `apps/web/src/styles.css`       | `.code`                                                                           | `background-color: var(--surface-accent)`                     | Verification — the tint behind a code               |
-| `apps/web/src/styles.css`       | `.code`                                                                           | `color: var(--ink-accent)`                                    | Verification — the code itself                      |
-| `apps/web/src/styles.css`       | `.code`                                                                           | `border: var(--width-hairline) solid var(--accent)`           | Verification — the code's boundary                  |
-| `apps/web/src/styles.css`       | `.link__host`                                                                     | `color: var(--ink-accent)`                                    | Verification — a link's host                        |
-| `apps/web/src/styles.css`       | `.confirmation`                                                                   | `background-color: var(--surface-accent)`                     | Not on the list — a region that asks a question     |
-| `apps/web/src/styles.css`       | `.wordmark`                                                                       | `color: var(--accent)`                                        | Identity — the brand mark                           |
-| `apps/web/src/styles.css`       | `.control--primary`                                                               | `background-color: var(--accent)`                             | Forward motion — the primary fill                   |
-| `apps/web/src/styles.css`       | `.control--primary`                                                               | `border-color: var(--accent)`                                 | Forward motion — its boundary                       |
-| `apps/web/src/styles.css`       | `.control--primary:hover:not(:disabled), .control--primary:active:not(:disabled)` | `border-color: var(--accent)`                                 | Forward motion — its boundary under the pointer     |
-| `apps/web/src/styles.css`       | `.steps__name`                                                                    | `color: var(--ink-accent)`                                    | Not on the list — the label of a step in a sequence |
-| `apps/web/src/styles.css`       | `.reasons__claim`                                                                 | `color: var(--ink-accent)`                                    | Not on the list — the term of a reason              |
-| `apps/web/src/styles.css`       | `.preview__label`                                                                 | `background: var(--surface-accent)`                           | Depiction — a label inside the drawing              |
-| `apps/web/src/styles.css`       | `.preview__label`                                                                 | `color: var(--ink-accent)`                                    | Depiction — the label's ink                         |
-| `apps/extension/src/styles.css` | `.control--primary`                                                               | `background: var(--accent)`                                   | Forward motion — the primary fill                   |
-| `apps/extension/src/styles.css` | `.control--primary`                                                               | `border-color: var(--accent)`                                 | Forward motion — its boundary                       |
-| `apps/extension/src/styles.css` | `.panel__held-choice[aria-checked="true"]`                                        | `border-color: var(--accent)`                                 | State — the entry being shown                       |
-| `apps/extension/src/styles.css` | `.control:focus-visible`                                                          | `outline: var(--width-focus) solid var(--focus)`              | The ring — named above the list                     |
+| File                            | Selector                                                                                                        | Declaration                                      | Job                                         |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ | ------------------------------------------- |
+| `apps/web/src/styles.css`       | `.wordmark__mark`                                                                                               | `color: var(--accent)`                           | Identity — the brand mark                   |
+| `apps/web/src/styles.css`       | `.toolbar__button:hover`                                                                                        | `background-color: var(--surface-accent)`        | State — the action under the pointer        |
+| `apps/web/src/styles.css`       | `.control--primary`                                                                                             | `background-color: var(--accent)`                | Forward motion — the primary fill           |
+| `apps/web/src/styles.css`       | `.control--primary`                                                                                             | `border-color: var(--accent)`                    | Forward motion — its boundary               |
+| `apps/web/src/styles.css`       | `.control--primary:hover:not(:disabled)`                                                                        | `background-color: var(--accent)`                | Forward motion — the fill under the pointer |
+| `apps/web/src/styles.css`       | `.control:focus-visible, .toolbar__button:focus-visible, .inbox-row:focus-visible, .link__anchor:focus-visible` | `outline: var(--width-focus) solid var(--focus)` | The ring — named above the list             |
+| `apps/web/src/styles.css`       | `.inbox-row--carries`                                                                                           | `background-color: var(--surface-accent)`        | Verification — a row's marking rule         |
+| `apps/extension/src/styles.css` | `.control--primary`                                                                                             | `background: var(--accent)`                      | Forward motion — the primary fill           |
+| `apps/extension/src/styles.css` | `.control--primary`                                                                                             | `border-color: var(--accent)`                    | Forward motion — its boundary               |
+| `apps/extension/src/styles.css` | `.panel__held-choice[aria-checked="true"]`                                                                      | `border-color: var(--accent)`                    | State — the entry being shown               |
+| `apps/extension/src/styles.css` | `.control:focus-visible`                                                                                        | `outline: var(--width-focus) solid var(--focus)` | The ring — named above the list             |
 
 **The table is an inventory and `tests/architecture/accent-inventory.test.ts` holds it to the
 tree in both directions**: a declaration added to a stylesheet and not here fails, and a row
@@ -111,16 +101,18 @@ here that no stylesheet carries fails. **The Job column is not machine-checked**
 job a declaration serves is a judgement, and a rule that nailed it down would be a list of
 exemptions dressed as a measurement. What the rule does require is that every row carries one.
 
-**And the measurement has a finding: the tree and the record disagree, in two ways, and both
+**And the measurement has a finding: the tree and the record disagree, and both sides of it
 are recorded rather than repaired.**
 
-- **Three declarations are on none of the record's five jobs.** `.confirmation`'s background
-  tints the region that asks _do you want to remove this?_; `.steps__name` tints the label of a
-  step; `.reasons__claim` tints the term of a reason. A tinted question and a tinted
-  enumeration are not a verification, not a state, and not forward motion.
 - **The ring is a job the list does not carry.** `DESIGN.md` calls it _a fourth job rather than
   a brightness of the same one_ two sentences above the list, and the list of five does not
   name it — so the paragraph and the list beneath it count to different numbers.
+- **The informational sections took their off-list tints with them.** The table used to carry
+  `.confirmation`, `.steps__name` and `.reasons__claim`, none of which served one of the five
+  jobs. Those rules are gone from the stylesheet along with the sections they styled, so the
+  rows were removed rather than left describing declarations no stylesheet carries. The
+  toolbar's hover tint and the row's marking tint are the two `--surface-accent` uses that
+  remain.
 
 **Neither is repaired here.** Moving three declarations off the accent changes what the page
 looks like, and widening the record changes what it claims; both belong to a change that owns

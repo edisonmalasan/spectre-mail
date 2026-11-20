@@ -209,22 +209,23 @@ test.describe("the storage a page actually uses", () => {
   test("the user can make this browser forget the address, and the device is left holding nothing", async ({
     page,
   }) => {
-    await openFreshMailbox(page);
+    const traffic = await openFreshMailbox(page);
     const name = await soleDatabaseName(page);
 
-    // **Two steps, driven as a user drives them.** Clicking the destructive action
-    // directly would skip the very thing the confirmation exists for, and a test that
-    // skipped it would pass on an implementation with no confirmation at all.
+    // **The rebuilt page deletes in one step.** The old Local Data region asked for a
+    // confirmation; the toolbar's `Clear saved data` acts on the press. Asserting that
+    // no second step appears keeps the case honest about which page it is testing — a
+    // test that waited for "Remove it" would time out on the UI that actually ships.
     await page.getByRole("button", { name: "Clear saved data" }).click();
-    await expect(page.getByTestId("local-data-confirmation")).toBeVisible();
-    await page.getByRole("button", { name: "Remove it" }).click();
-
-    await expect(page.getByTestId("local-data-removed")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Remove it" })).toHaveCount(0);
 
     // **The assertion this whole tier exists for.** Not "the page said it worked" —
-    // the page said it worked one line earlier. This asks the platform.
-    expect(await databaseNames(page)).toEqual([]);
+    // this page no longer says anything about the removal at all. This asks the platform.
+    await expect
+      .poll(() => databaseNames(page), { message: "the database is still present" })
+      .toEqual([]);
     expect(name).not.toBe("");
+    expect(traffic.denied).toEqual([]);
   });
 
   test("a removal leaves nothing behind, including a record this build does not recognise", async ({
@@ -247,13 +248,11 @@ test.describe("the storage a page actually uses", () => {
     expect(beforeRemoval.some((record) => JSON.stringify(record) === '"not mine"')).toBe(true);
 
     await page.getByRole("button", { name: "Clear saved data" }).click();
-    await page.getByRole("button", { name: "Remove it" }).click();
-    await expect(page.getByTestId("local-data-removed")).toBeVisible();
 
     // The database itself is gone, so the planted store is not merely unreadable — it
     // is unreachable. A key-scoped removal would leave the database present and this
     // assertion would fail.
-    expect(await databaseNames(page)).toEqual([]);
+    await expect.poll(() => databaseNames(page)).toEqual([]);
 
     // **And nothing recreated it.** A removal that deleted the database and then let
     // the page's own save effect write a fresh one would satisfy the assertion above
@@ -264,24 +263,37 @@ test.describe("the storage a page actually uses", () => {
     expect(await databaseNames(page)).toEqual([]);
   });
 
-  test("the page still works after the removal, and says a reload will not bring the address back", async ({
+  test("the page still works after the removal, and a reload no longer offers the address back", async ({
     page,
   }) => {
-    await openFreshMailbox(page);
+    const traffic = await openFreshMailbox(page);
 
     await page.getByRole("button", { name: "Clear saved data" }).click();
-    await page.getByRole("button", { name: "Remove it" }).click();
-    await expect(page.getByTestId("local-data-removed")).toBeVisible();
+    await expect.poll(() => databaseNames(page)).toEqual([]);
 
     // **The mailbox is untouched.** Removal deletes this device's note of the address,
     // not the address, and a spec that only checked the storage would miss a page that
-    // tore down the mailbox along with it.
+    // tore down the mailbox along with it. The rebuilt page renders no confirmation and
+    // no consequence sentence, so this half is the observable that is still on screen.
     await expect(page.getByTestId("address")).not.toBeEmpty();
 
-    // **The consequence is stated, because the address above still works.** The two
-    // claims sit next to each other on screen and pulling either one silently would
-    // leave the user unable to tell what they did.
-    await expect(page.getByTestId("local-data-removed")).toContainText("will not bring");
-    await expect(page.getByTestId("local-data-stored")).toHaveCount(0);
+    // **The consequence, verified by behaviour rather than by a sentence.** The old
+    // Local Data region used to say "a reload will not bring it back"; that copy went
+    // with the region. What the claim means is that a returning visit asks the provider
+    // for a new address instead of adopting the removed one — and that is the one thing
+    // a recorded listing can distinguish, because adoption reaches `check_email` while
+    // a fresh visit reaches `get_email_address`.
+    const creationsBefore = traffic.served.filter((url) =>
+      url.includes("f=get_email_address"),
+    ).length;
+    await page.reload();
+    await expect(page.getByTestId("ready")).toBeVisible();
+    await expect
+      .poll(() => traffic.served.filter((url) => url.includes("f=get_email_address")).length, {
+        message: "the removed address was not offered back: no fresh creation was requested",
+      })
+      .toBe(creationsBefore + 1);
+    await expect(page.getByTestId("address")).not.toBeEmpty();
+    expect(traffic.denied).toEqual([]);
   });
 });

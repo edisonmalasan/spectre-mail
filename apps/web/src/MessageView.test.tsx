@@ -820,8 +820,10 @@ describe("the message view", () => {
 
       expect(shows("message-opened")).toBe(false);
       expect(document.querySelectorAll("[data-testid='inbox-row-open']")).toHaveLength(2);
-      // And the page says what to do next, rather than leaving an empty region.
-      expect(textOf("message-none")).toMatch(/no message is open/i);
+      // The rebuilt page unmounts the whole message region once nothing is open, so
+      // there is no "no message is open" line to read here. Its absence is the claim:
+      // no stale message view is left behind.
+      expect(shows("message-none")).toBe(false);
     });
 
     it("opens a message again after closing one", async () => {
