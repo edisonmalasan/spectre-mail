@@ -21,7 +21,7 @@
  * @vitest-environment jsdom
  */
 
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createMailbox } from "@spectre-mail/core";
@@ -66,6 +66,7 @@ function stubSession(initial: SessionState) {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
+    providers: [],
     open: vi.fn(async () =>
       publish({
         kind: "ready",
@@ -174,6 +175,41 @@ describe("the popup", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Create an address" })).toBeDefined(),
     );
+  });
+
+  it("creates on a provider-sourced domain when one is chosen", async () => {
+    const domain = {
+      id: "d1",
+      name: "example.test",
+      provider: "mailtm" as const,
+      active: true,
+      expiresAt: null,
+    };
+    const session = stubSession({ kind: "idle", opened: null } as unknown as SessionState);
+    (session.providers as unknown as {
+      id: string;
+      listDomains: () => Promise<(typeof domain)[]>;
+    }) = [{ id: "mailtm", listDomains: async () => [domain] }] as never;
+
+    render(
+      <Popup
+        session={session}
+        storage={storageReading(null)}
+        primaryProviderName="Mail.tm"
+        providerNames={PROVIDER_NAMES}
+        requestBackgroundAlarm={armingAlarm()}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Choose a domain" })).toBeDefined(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Choose a domain" }));
+    fireEvent.click(screen.getByRole("button", { name: "@example.test" }));
+
+    // The chosen Domain reaches session.open(), not just the address text: a picker
+    // that created on a different domain would be a claim the product cannot keep.
+    await waitFor(() => expect(session.open).toHaveBeenCalledWith(domain));
   });
 
   it("adopts a stored mailbox instead of offering to create one", async () => {

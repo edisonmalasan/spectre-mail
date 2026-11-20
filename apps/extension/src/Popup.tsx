@@ -56,6 +56,8 @@ import { PRODUCT_NAME } from "@spectre-mail/ui/name";
 
 import { findActiveTab, sendToTab } from "./extension-platform";
 import { fillCodeRequest, readFillCodeAnswer } from "./protocol";
+import { createDomainCatalog } from "@spectre-mail/providers";
+import type { Domain } from "@spectre-mail/core";
 import { AddressText } from "./address-text";
 import {
   diagnosticReport,
@@ -222,33 +224,54 @@ export function Popup({
    */
   const opened = "opened" in state ? state.opened : null;
 
-  const create = useCallback(async () => {
-    const next = await session.open();
-    if (holdsMailbox(next)) {
-      // **Persisted only after the provider confirms it.** `docs/PROVIDERS.md` records
-      // an unrecognised Guerrilla session answering `HTTP 200` with an empty inbox, so
-      // "nothing has arrived" and "this address is gone" are the same response — a
-      // mailbox stored before the provider confirmed it would be offered back as though
-      // it worked.
-      await storage.addMailbox(next.mailbox);
-      /**
-       * **And the schedule is asked for here, after the write, and this line is the whole of a
-       * defect a browser case found.**
-       *
-       * The background worker's alarm is reconciled wherever a mailbox is written. **This component
-       * writes one itself**, so before this line existed the device that had just created an address
-       * through the popup — the path a person takes — was left with **no alarm at all** until the next
-       * browser start, and `e2e/background-check.spec.ts` reads exactly that from the platform.
-       *
-       * **Awaited, and nothing is done with the answer.** Awaiting is what keeps a refused channel
-       * from becoming an unhandled rejection; the reply is unread because arming is a side effect that
-       * follows a write which has already succeeded, and a create control that reported a schedule
-       * failure would be reporting something the person cannot act on. `sendToBackground` resolves
-       * `undefined` rather than rejecting, so there is no error here to swallow.
-       */
-      await requestBackgroundAlarm();
-    }
-  }, [requestBackgroundAlarm, session, storage]);
+  const create = useCallback(
+    async (domain?: Domain) => {
+      const next = await session.open(domain);
+      if (holdsMailbox(next)) {
+        // **Persisted only after the provider confirms it.** `docs/PROVIDERS.md` records
+        // an unrecognised Guerrilla session answering `HTTP 200` with an empty inbox, so
+        // "nothing has arrived" and "this address is gone" are the same response — a
+        // mailbox stored before the provider confirmed it would be offered back as though
+        // it worked.
+        await storage.addMailbox(next.mailbox);
+        /**
+         * **And the schedule is asked for here, after the write, and this line is the whole of a
+         * defect a browser case found.**
+         *
+         * The background worker's alarm is reconciled wherever a mailbox is written. **This component
+         * writes one itself**, so before this line existed the device that had just created an address
+         * through the popup — the path a person takes — was left with **no alarm at all** until the next
+         * browser start, and `e2e/background-check.spec.ts` reads exactly that from the platform.
+         *
+         * **Awaited, and nothing is done with the answer.** Awaiting is what keeps a refused channel
+         * from becoming an unhandled rejection; the reply is unread because arming is a side effect that
+         * follows a write which has already succeeded, and a create control that reported a schedule
+         * failure would be reporting something the person cannot act on. `sendToBackground` resolves
+         * `undefined` rather than rejecting, so there is no error here to swallow.
+         */
+        await requestBackgroundAlarm();
+      }
+    },
+    [requestBackgroundAlarm, session, storage],
+  );
+
+  /**
+   * Domains come only from a provider's own listDomains() answer, loaded through the
+   * shared catalog. The extension's host permissions reach Mail.tm, so this list is
+   * real; an empty list (e.g. Guerrilla only) leaves automatic creation as the choice.
+   */
+  const [domains, setDomains] = useState<readonly Domain[]>([]);
+  const [showDomains, setShowDomains] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    const catalogs = (session.providers ?? []).map((provider) => createDomainCatalog(provider));
+    void Promise.all(catalogs.map((catalog) => catalog.listDomains())).then((lists) => {
+      if (!cancelled) setDomains(lists.flat());
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [session]);
 
   const copyAddress = useCallback(async () => {
     if (mailbox === null) return;
@@ -330,9 +353,44 @@ export function Popup({
       {mailbox === null ? (
         <section aria-labelledby="create-heading">
           <h2 id="create-heading">{COPY.reaching.replace("{provider}", primaryProviderName)}</h2>
-          <button type="button" className="control control--primary" onClick={() => void create()}>
+          <button
+            type="button"
+            className="control control--primary"
+            onClick={() => void create()}
+            disabled={state.kind === "creating"}
+          >
             {state.kind === "creating" ? COPY.creating : COPY.create}
           </button>
+          {domains.length > 0 && (
+            <>
+              <button
+                type="button"
+                className="control"
+                onClick={() => setShowDomains((open) => !open)}
+                aria-expanded={showDomains}
+              >
+                {COPY.chooseDomain}
+              </button>
+              {showDomains && (
+                <ul className="popup__domains">
+                  {domains.map((domain) => (
+                    <li key={`${domain.provider}:${domain.id}`}>
+                      <button
+                        type="button"
+                        className="control"
+                        onClick={() => {
+                          setShowDomains(false);
+                          void create(domain);
+                        }}
+                      >
+                        @{domain.name}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
         </section>
       ) : (
         <>

@@ -31,8 +31,12 @@ No proxy/backend was added; no invented domains.
   defense-in-depth, empty on failure, no persistence, no hardcoded domains.
 - Guerrilla: `listDomains()` returns `[]` (no API); the website's Change picker therefore
   honestly shows "Automatic — no browser-reachable provider exposes a domain list".
-- **No user-facing provider can currently select a domain** — Mail.tm is reachable only
-  from the extension, which has no picker. This is reported, not hidden.
+- **The extension popup offers real domain selection**: with its host permissions it loads
+  Mail.tm's live domains through the shared catalog and passes the chosen `Domain` to
+  `session.open(domain)` → `createMailbox(domain)`. A unit test asserts the exact domain
+  reaches `session.open`. The picker renders only when a provider actually reported domains.
+- The website remains automatic-only: Guerrilla (its sole browser-reachable provider) has
+  no domain API. This distinction is reported, not hidden.
 
 ## D. Visual verification
 
@@ -41,7 +45,7 @@ Mobile shows single-line clipped address, stable toolbar 2×2, and "Date unavail
 
 ## E. Functional verification (fresh)
 
-- `pnpm verify` → exit 0: typecheck, lint, format, **1439 tests / 79 files**, all builds.
+- `pnpm verify` → exit 0: typecheck, lint, format, **1440 tests / 79 files**, all builds.
 - Website browser tier → **39 passed / 0 failed**.
 - Extension browser tier → **109 passed / 0 failed**.
 - `openspec validate --specs --strict` → 15 passed, 0 failed.
@@ -51,10 +55,10 @@ Mobile shows single-line clipped address, stable toolbar 2×2, and "Date unavail
 ## F. Final status: **PARTIALLY MET**
 
 All six recorded UX defects are fixed and verified; the badge is gone; timestamps are
-truthful; all automated checks and both browser tiers are green. Domain discovery is
-real at the contract/provider/catalog level, but no shipped client can offer a usable
-domain choice today (Guerrilla has no domain API and is the only browser-reachable
-provider; Mail.tm works only in the extension, which has no picker). That mandatory
-user-facing requirement is unresolved, so the goal cannot be declared MET. The next
-step is an extension-side picker backed by Mail.tm's live domain list, or a documented
-decision that the website remains automatic-only.
+truthful; all automated checks and both browser tiers are green. Real, provider-sourced
+domain selection is now available in the extension popup, and the website honestly
+reports automatic-only because its sole browser-reachable provider exposes no domain
+API. The goal is not declared MET because no test receives mail at a domain chosen
+through the new picker — the domain reaches `session.open()` and a recorded provider
+confirms creation, but a live end-to-end send to that exact chosen domain was not
+performed. That verification remains the last step.
