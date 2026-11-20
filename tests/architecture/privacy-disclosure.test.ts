@@ -891,30 +891,11 @@ const FOOTER_PROVIDER_SENTENCE = LIMITS[0] ?? "";
 const FOOTER_NO_SERVER_SENTENCE =
   "No server is involved. SpectreMail operates no backend and never relays a provider request.";
 
-/**
- * The website's local-data region, `apps/web/src/LocalData.tsx`.
- *
- * **Weaker than the panel's half, and recorded as weaker.** This file keeps its copy inline and exports
- * no copy constant, so the only stable handles are the `data-testid` markers the region already declares
- * and one whole sentence. The panel's copy *is* exported and is compared as data.
- */
-const WEBSITE_REMOVAL_SURFACE = {
-  file: "apps/web/src/LocalData.tsx",
-  /** The markers the second step, the refusal and the report are addressed by. */
-  markers: ["local-data-confirmation", "local-data-refused", "local-data-removed"],
-  /**
-   * How many markers the list above declares, so **the list cannot be edited silently**.
-   *
-   * Found by the falsification pass and for the reason {@link PANEL_REMOVAL_COPY_KEY_COUNT} gives: a
-   * list nothing counts can lose a member and leave every assertion above it satisfied, which is the
-   * rot `design.md` D4 names. **This establishes that the declaration is not being quietly weakened; it
-   * does not establish that the list is complete** — see that constant for why completeness is not
-   * enumerable here at all.
-   */
-  markerCount: 3,
-  /** What the region says the removal leaves behind. */
-  saysAddressSurvives: "The address above still works until the provider discards it.",
-} as const;
+// The website's two-step local-data region (`apps/web/src/LocalData.tsx` and its
+// `local-data-confirmation` / `local-data-refused` / `local-data-removed` markers) was
+// removed with the informational sections. The website's surviving removal surface is
+// the light toolbar's single "Clear saved data" control, which calls `clearStored`
+// directly; that contract chain is checked by the case above.
 
 /**
  * Where each client's removal is issued, as **the declared chain of modules that reach the contract**.
@@ -1414,34 +1395,6 @@ test("each client reaches the removal contract from the modules the map declares
     for (const entry of callers) {
       expect(entry.count, `${client}: ${entry.path} calls it once`).toBe(1);
     }
-  }
-});
-
-test("the website's local-data region declares the second step, the refusal and the surviving address", () => {
-  const source = stripSourceComments(readRepoFile(WEBSITE_REMOVAL_SURFACE.file));
-
-  // Same shape, and same reason, as the panel list above: a marker list nothing counts loses a member
-  // silently. **The count is what makes the list non-editable, not what makes it complete.**
-  expect(
-    WEBSITE_REMOVAL_SURFACE.markers.length,
-    "the declared marker list has lost or gained a member without the count being updated with it",
-  ).toBe(WEBSITE_REMOVAL_SURFACE.markerCount);
-
-  for (const marker of WEBSITE_REMOVAL_SURFACE.markers) {
-    expect(source, `${WEBSITE_REMOVAL_SURFACE.file} declares no "${marker}"`).toContain(
-      `data-testid="${marker}"`,
-    );
-  }
-
-  expect(
-    source.includes(WEBSITE_REMOVAL_SURFACE.saysAddressSurvives),
-    "the region says the address survives its own removal",
-  ).toBe(true);
-
-  // It must not enumerate keys: it offers the whole area, and naming the keys would be a claim about
-  // which records exist that this region has no way to act on.
-  for (const key of ADAPTER_OWNED_KEYS) {
-    expect(source, `${WEBSITE_REMOVAL_SURFACE.file} names the key "${key}"`).not.toContain(key);
   }
 });
 

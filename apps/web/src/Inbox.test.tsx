@@ -300,8 +300,11 @@ describe("the inbox on the page", () => {
     it("says the mailbox is empty when the provider reported no messages", async () => {
       await renderPage(providerReturning({ listings: [[]] }));
 
-      expect(screen.getByTestId("inbox-empty").textContent).toBe(
-        "No mail has arrived at this address yet.",
+      // The rebuilt empty state is the reference's illustrated one: a title and a
+      // hint, both read from the rendered node rather than from a snapshot.
+      expect(screen.getByTestId("inbox-empty").textContent).toContain("Your inbox is empty");
+      expect(screen.getByTestId("inbox-empty").textContent).toContain(
+        "Waiting for incoming emails",
       );
       // An empty inbox is not a failure, and must not be dressed as one.
       expect(screen.queryByTestId("inbox-check-failed")).toBeNull();

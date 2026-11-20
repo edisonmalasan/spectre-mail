@@ -1,127 +1,52 @@
 /**
- * The address, and the action that copies it.
+ * The address pill and its round Copy control, in the hero panel.
  *
- * The address is rendered as a text node so it is selectable, announced by a
- * screen reader as text, and escaped by the rendering layer. There is no
- * `dangerouslySetInnerHTML` anywhere in this client, and an architecture
- * assertion enforces that - an address is provider-supplied text, and rendering
- * untrusted content as markup is how a mailbox becomes an injection vector.
- *
- * A clipboard failure is a **rendered state, not a thrown error**. The clipboard
- * API rejects for ordinary, expected reasons - no permission, an insecure
- * context, a document not focused - and an unhandled rejection there would leave
- * the user with a button that appears to have worked and an address they never
- * received. The address stays visible and selectable either way, because
- * selecting text by hand is a complete answer to the same need.
+ * The address is rendered as selectable text, never markup, with the break
+ * opportunity after the `@` so a narrow viewport cannot split the domain. Both
+ * Copy controls on the page call the same `onCopy` callback.
  *
  * @module
  */
 
-import { useState } from "react";
-
 import type { Mailbox } from "@spectre-mail/core";
 
-/** What the copy action has done so far. `idle` is the initial state. */
 export type CopyState = "idle" | "copied" | "failed";
 
 export interface AddressProps {
   readonly mailbox: Mailbox;
+  readonly onCopy: () => void;
+  readonly copyState: CopyState;
 }
 
-export function Address({ mailbox }: AddressProps) {
-  const [copy, setCopy] = useState<CopyState>("idle");
-
-  /*
-   * **The break opportunity is placed here rather than in the stylesheet, because CSS cannot
-   * say "break after the at-sign".** Measured on the built page at 390 px, the address
-   * rendered as `randomuser123456@sharklasers.c` / `om` — a domain split across two lines,
-   * which is a domain a person copies wrong. `<wbr>` is the only mechanism that adds a break
-   * opportunity without adding a character: a zero-width space would be the obvious
-   * alternative and it would travel with the value into whatever the user pastes, which
-   * `website-client` forbids. `overflow-wrap: anywhere` stays as the fallback for a domain
-   * that cannot fit on a line of its own.
-   *
-   * The split is at the **last** `@`, so a quoted local part keeps its own at-signs. An
-   * address with no `@` at all still renders whole: a provider that sent one is a provider
-   * problem, and dropping the value to protect the split would hide the thing the page is for.
-   */
+export function Address({ mailbox, onCopy, copyState }: AddressProps) {
   const at = mailbox.address.lastIndexOf("@");
   const localPart = at === -1 ? mailbox.address : mailbox.address.slice(0, at + 1);
   const domainPart = at === -1 ? "" : mailbox.address.slice(at + 1);
 
-  async function copyAddress(): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(mailbox.address);
-      setCopy("copied");
-    } catch {
-      // Swallowed deliberately, and reported as state. The alternative - letting the
-      // rejection escape - produces an unhandled rejection and a silent no-op.
-      setCopy("failed");
-    }
-  }
-
   return (
-    <section className="region" aria-labelledby="address-heading">
-      <h2 id="address-heading">Your address</h2>
-
-      {/*
-        A plain text node inside a labelled element. Selecting, copying by hand, and
-        announcing all work because this is text and not an image or an input whose
-        value would have to be read out separately.
-
-        **The border and the monospace are the design, and neither replaces the text.**
-        The address is the one value on this page the user came for, so it is set in
-        monospace at the largest size the page uses and given a panel to sit in — and it
-        is still selectable text in a `<code>` element, so `website-client`'s requirement
-        that the address be presentable as text the user can take is satisfied by the
-        markup rather than by the styling.
-      */}
-      {/*
-       * The address field and the action that completes it form one cluster, the way a
-       * tool's input and its primary button do. The `<p className="address">` remains the
-       * direct parent of `.address__value`, so the break-at-@ and fill-the-container
-       * contract reads the same element against the same box as before; only the row
-       * around them is new.
-       */}
-      <div className="address__cluster">
-        <p className="address" data-testid="address">
-          <code className="address__value">
-            {localPart}
-            <wbr />
-            {domainPart}
-          </code>
-        </p>
-
-        {/*
-         * **This is the page's primary action, and it carries the accent for that reason.**
-         * `visual-system` names the subject as "the control that completes the page's own job":
-         * the page exists to hand a person an address, and putting that address where they need
-         * it is the job. `Replace address` — further down, beside the removal control — keeps its
-         * border and its position and loses only the claim to be primary.
-         */}
-        <button
-          type="button"
-          className="control control--primary"
-          onClick={() => void copyAddress()}
-        >
-          Copy address
-        </button>
-      </div>
-
-      {/*
-        `role="status"` is a polite live region, so the confirmation is announced
-        without interrupting whatever the user is doing. The text names what
-        happened in words: the outcome never depends on colour, because none is
-        applied.
-
-        **And it occupies no line when there is nothing to say.** A live region that
-        reserves space reports its own emptiness as a gap on a page whose whole argument
-        is that it says only what it knows — so it collapses rather than sitting there
-        blank between the button and the inbox.
-      */}
+    <section className="address-region" aria-label="Your temporary email address">
+      <p className="address" data-testid="address">
+        <code className="address__value">
+          {localPart}
+          <wbr />
+          {domainPart}
+        </code>
+      </p>
+      <button
+        type="button"
+        className="control control--primary address__copy"
+        aria-label="Copy address"
+        data-testid="address-copy"
+        onClick={onCopy}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <rect x="8" y="8" width="12" height="12" rx="2" />
+          <path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" />
+        </svg>
+      </button>
       <p role="status" className="status">
-        {copy === "copied" && "The address is on your clipboard."}
-        {copy === "failed" &&
+        {copyState === "copied" && "The address is on your clipboard."}
+        {copyState === "failed" &&
           "The clipboard refused, so the address was not copied. Select the address above to copy it by hand."}
       </p>
     </section>

@@ -696,9 +696,14 @@ test("a materialisation starts when a code appears, and none starts under reduce
   expect(await animationStarts(page), "returning to the inbox materialises no row").toEqual([]);
 
   // And the negative half, on a page that has just proved it animates.
+  // **No second "Back to the inbox" click here.** `MessageView` used to render even
+  // with nothing open, so the old case could press its always-present close button a
+  // second time as a harmless no-op. The rebuilt App renders `MessageView` only while
+  // a message is open, so after the close above that button is gone; pressing it would
+  // now wait for a control that does not exist. Reopening the row is the real action
+  // under test in this half.
   await page.emulateMedia({ reducedMotion: REDUCED });
   await forgetAnimationStarts(page);
-  await page.getByRole("button", { name: "Back to the inbox" }).click();
   await page.locator(".inbox-row").first().click();
   await expect(page.getByTestId("message-code")).toBeVisible();
   // One frame, so an animation that started and finished inside the click would have been

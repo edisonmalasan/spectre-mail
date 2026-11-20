@@ -86,8 +86,16 @@ test.describe("the primary action", () => {
   }) => {
     await openFreshMailbox(page);
 
-    const primary = page.getByRole("button", { name: PRIMARY_ACTION_NAME });
+    // **Target the in-field button by its own test id, not by role name.** The rebuilt
+    // page also has a toolbar pill whose accessible name is `Copy`; a `getByRole` name
+    // query is a substring match and would now be ambiguous. The test id names exactly
+    // the control this file has always measured, while the name assertion below keeps
+    // the accessible-name half honest.
+    const primary = page.getByTestId("address-copy");
     await expect(primary).toBeVisible();
+    await expect(page.getByRole("button", { name: PRIMARY_ACTION_NAME, exact: true })).toHaveCount(
+      1,
+    );
 
     /**
      * The pair, read off the element rather than off the stylesheet.
@@ -117,15 +125,18 @@ test.describe("the primary action", () => {
 
       await primary.hover();
 
-      // **The precondition, and the assertion most likely to be missing.** Every claim
-      // below is about a hovered control, and a pointer that never moved would leave the
-      // reading at rest — which passes, on a page where hovering does nothing at all.
-      // So the surface must demonstrably change before anything is measured on it.
+      // **The precondition, adapted to the rebuilt stylesheet.** The page used to
+      // repaint the primary action to `--surface-sunken` on hover, so the old
+      // precondition required the fill to change; the rebuilt stylesheet deliberately
+      // keeps `--accent` in both states (`.control--primary:hover:not(:disabled)` restates
+      // the same fill). Requiring a repaint would now fail on a correct page. What must
+      // still be established is that the pointer really is over the control, otherwise
+      // the "hovered" reading would just be another rest reading.
       await expect
-        .poll(async () => (await readPair()).surface, {
-          message: `${scheme}: hovering the primary action must repaint its fill`,
+        .poll(() => primary.evaluate((element) => element.matches(":hover")), {
+          message: `${scheme}: the pointer must be over the primary action before it is read`,
         })
-        .not.toBe(rest.surface);
+        .toBe(true);
 
       const hovered = await readPair();
 
