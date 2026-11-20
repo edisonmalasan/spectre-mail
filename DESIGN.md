@@ -134,7 +134,7 @@ the thing inside it is a reading surface.
 - System type stacks only; the monospace is reserved for values.
 - Hairlines and tonal steps instead of shadows and soft radii.
 - Entrance-only motion, removed entirely — not shortened — under reduced motion.
-- A 46rem working column, prose measured at 62 characters.
+- A 62rem working column, prose measured at 62 characters.
 
 ## Colors
 
@@ -273,7 +273,7 @@ is emphasis the scale did not need.
 
 ## Layout
 
-One column. The page is a working column of 46rem, centred, with page padding from the
+One column. The page is a working column of 62rem, centred, with page padding from the
 space scale above and below. That measure is a decision and not a default: a marketing hero
 wants a width a headline can fill, and this page wants the width the mailbox needs.
 
@@ -317,7 +317,7 @@ hierarchy left to spend, because the border has become the loudest thing on it.
 **The One Breakpoint Rule.** 34rem, and it collapses columns rather than changing the
 design. Responsive does not mean a second system.
 
-**The Working Measure Rule.** 46rem for the column, 62 characters for prose. Neither is
+**The Working Measure Rule.** 62rem for the column, 62 characters for prose. Neither is
 negotiable per region; a region that wants to be wider is a region that wants to be a
 different product.
 
