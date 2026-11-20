@@ -304,8 +304,19 @@ export function App({ session, storage, mailboxes }: AppProps = {}) {
           the boundary rule *"uses every class hook a client renders"*, which is the rule's
           whole purpose: a hook added to a component and never styled. */}
         <section aria-labelledby="product-heading" data-region="product">
-          <Wordmark />
-          <p className="page__lead">Temporary email for the web and the browser.</p>
+          {/*
+           * The masthead is the page's tool bar: mark and name on the left, the one-line
+           * statement of what this is on the right. It is still inside the product region
+           * and still rendered by the same two values the region has always used — the
+           * wordmark (which carries `#product-heading`) and the lead sentence — so the
+           * region's accessible name and its copy are unchanged. Only their arrangement
+           * is new: temp-mail.org's dark bar becomes our quiet, hairline-topped bar in
+           * the approved palette, with no navigation a static page could not act on.
+           */}
+          <div className="masthead">
+            <Wordmark />
+            <p className="page__lead">Temporary email for the web and the browser.</p>
+          </div>
 
           {boot.kind === "blocked" && <BootFailure reason={boot.reason} onRetry={retryBoot} />}
 

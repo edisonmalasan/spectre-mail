@@ -76,24 +76,37 @@ export function Address({ mailbox }: AddressProps) {
         that the address be presentable as text the user can take is satisfied by the
         markup rather than by the styling.
       */}
-      <p className="address" data-testid="address">
-        <code className="address__value">
-          {localPart}
-          <wbr />
-          {domainPart}
-        </code>
-      </p>
-
       {/*
-        **This is the page's primary action, and it carries the accent for that reason.**
-        `visual-system` names the subject as "the control that completes the page's own job":
-        the page exists to hand a person an address, and putting that address where they need
-        it is the job. `Replace address` — further down, beside the removal control — keeps its
-        border and its position and loses only the claim to be primary.
-      */}
-      <button type="button" className="control control--primary" onClick={() => void copyAddress()}>
-        Copy address
-      </button>
+       * The address field and the action that completes it form one cluster, the way a
+       * tool's input and its primary button do. The `<p className="address">` remains the
+       * direct parent of `.address__value`, so the break-at-@ and fill-the-container
+       * contract reads the same element against the same box as before; only the row
+       * around them is new.
+       */}
+      <div className="address__cluster">
+        <p className="address" data-testid="address">
+          <code className="address__value">
+            {localPart}
+            <wbr />
+            {domainPart}
+          </code>
+        </p>
+
+        {/*
+         * **This is the page's primary action, and it carries the accent for that reason.**
+         * `visual-system` names the subject as "the control that completes the page's own job":
+         * the page exists to hand a person an address, and putting that address where they need
+         * it is the job. `Replace address` — further down, beside the removal control — keeps its
+         * border and its position and loses only the claim to be primary.
+         */}
+        <button
+          type="button"
+          className="control control--primary"
+          onClick={() => void copyAddress()}
+        >
+          Copy address
+        </button>
+      </div>
 
       {/*
         `role="status"` is a polite live region, so the confirmation is announced

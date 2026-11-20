@@ -152,12 +152,53 @@ li {
   line-height: var(--leading-relaxed);
 }
 
-/* ── The lead line under the wordmark ─────────────────────────────────────────── */
+/*
+ * The masthead: a quiet tool bar, in the palette.
+ *
+ * temp-mail.org opens with a dark bar carrying the mark and the product's name. This page
+ * keeps that arrangement — identity on the left, the one-line statement of what this is on
+ * the right — but not that colour: the approved direction is a warm off-white page with a
+ * violet accent, and a dark slab would introduce a surface the token layer does not declare.
+ * So the bar is a raised surface closed by a hairline, and the mark stays the accent's one
+ * non-text use. No navigation is added: a static page cannot act on a nav item, and a control
+ * that does nothing is the fake-UI defect this product removes twice.
+ */
+.masthead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-6);
+  margin-block-end: var(--space-7);
+  padding-block-end: var(--space-5);
+  border-block-end: var(--width-hairline) solid var(--line-subtle);
+}
 
+/* The Wordmark keeps the mark on the name's baseline; in the bar it simply loses its own
+   bottom margin, which the bar's gap replaces. */
+.masthead .wordmark {
+  margin: 0;
+}
+
+.masthead .wordmark h1 {
+  margin: 0;
+}
+
+/* The lead sits beside the mark at body size now: a caption on the bar, not a hero line
+   above the tool. Its ink and size are tokens, so it stays a declared pair in both schemes. */
 .page__lead {
-  margin: 0 0 var(--space-7);
+  margin: 0;
   color: var(--ink-secondary);
-  font-size: var(--type-lg);
+  font-size: var(--type-base);
+}
+
+/* The first state region sits directly under the bar; the bar already provides the rule
+   and the space a leading hairline used to. (The selector changed with the masthead: the
+   lead is no longer the region's previous sibling.) */
+.masthead + .region {
+  margin-block-start: 0;
+  border-block-start: 0;
+  padding-block-start: 0;
 }
 
 /* ── Regions ──────────────────────────────────────────────────────────────────── */
@@ -176,11 +217,8 @@ li {
   border-block-start: var(--width-hairline) solid var(--line-subtle);
 }
 
-/* The first region after the page lead sits closer, because the lead is its caption
-   rather than a sibling section heading. */
-.page__lead + .region {
-  margin-block-start: 0;
-}
+/* The first region after the bar sits closer, because the bar's hairline already separates
+   it — the rule that used to live here now reads `.masthead + .region` above. */
 
 /*
  * A region reporting a failure or a refusal.
@@ -237,17 +275,35 @@ li {
   font-variant-ligatures: none;
 }
 
-/* The mailbox address. The one thing on the page that is a value the user came for, so
-   it is the largest monospace on the page and the only thing that gets its own border. */
-.address {
+/*
+ * The address field is the page's centrepiece, and it is one field with its action attached.
+ *
+ * The temp-mail.org reference puts the address in a single bordered field with the copy
+ * action beside it. This keeps that arrangement and the page's own discipline: the value
+ * stays selectable text in a `<code>` element, the action stays the one filled control on
+ * the page, and the field's surface and line are tokens rather than literals. The field is
+ * raised so the value reads as the thing a person came for, and the copy button sits on the
+ * same baseline at every width — below the value only when the column is too narrow to hold
+ * both, which is the single existing breakpoint's job.
+ */
+.address__cluster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
   margin-block-end: var(--space-4);
-  /*
-   * **The prose measure does not apply, and this line is the defect's other half.**
-   * `p` caps at `--measure-prose`, which is 62 characters of the *grotesk* — about 496 px —
-   * and the address inside it was 447 px wide as a result. A measure exists to keep a line
-   * of prose readable; an address is one value on one line, and capping it made the page
-   * wrap a value it had the room to show.
-   */
+  padding: var(--space-4);
+  background-color: var(--surface-raised);
+  border: var(--width-hairline) solid var(--line-strong);
+  border-radius: var(--radius-md);
+}
+
+.address {
+  /* Grow to fill the field; the copy button keeps its natural width. The field wraps at the
+     one breakpoint, where the value takes the full row and the action drops below it. */
+  flex: 1 1 auto;
+  margin: 0;
+  /* The prose measure does not apply, and this line is the defect's other half. */
   max-width: none;
 }
 
@@ -260,10 +316,8 @@ li {
    * reaches first.
    */
   display: block;
-  padding: var(--space-3) var(--space-4);
-  background-color: var(--surface-raised);
-  border: var(--width-hairline) solid var(--line-strong);
-  border-radius: var(--radius-md);
+  /* The field is the cluster now, so the value carries no second border of its own — one
+     field, one edge. Its job here is only to be the largest, most legible text on the page. */
   font-family: var(--font-mono);
   font-size: var(--type-2xl);
   line-height: var(--leading-tight);
@@ -519,6 +573,24 @@ li {
   color: var(--ink-accent);
   font-size: var(--type-xs);
   font-weight: var(--weight-medium);
+}
+
+/*
+ * The inbox is the reference's other tool surface: a contained list with its own edge,
+ * rather than another open hairline section. The rows keep their two-column grid and their
+ * full-list width — nothing about their geometry changes — only the container around them.
+ */
+.region--inbox {
+  padding: var(--space-5);
+  background-color: var(--surface-raised);
+  border: var(--width-hairline) solid var(--line-subtle);
+  border-radius: var(--radius-md);
+}
+
+.region--inbox > h2 {
+  /* The heading stays at the region-label step and in muted ink; the panel does not make it
+     louder. Only its bottom margin tightens to sit over the list. */
+  margin-block-end: var(--space-4);
 }
 
 /* ── An opened message ────────────────────────────────────────────────────────── */
