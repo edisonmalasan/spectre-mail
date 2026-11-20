@@ -1,27 +1,27 @@
-# GOAL: SpectreMail — Production-Quality UX Reconstruction and Dynamic Multi-Domain Email System
+# GOAL G2: Unified Provider Experience, Real Email Delivery, and Production UX Verification
 
 ## Mission
 
-Fix the existing SpectreMail user experience and expand its temporary-email functionality to support multiple genuine, working, free disposable-email domains.
+Advance SpectreMail from a technically functional disposable-email application into a unified, reliable temporary-email service across its website and Chromium extension.
 
-Reference website:
-https://temp-mail.org/en/
+The previous milestone established:
 
-The attached SpectreMail screen recording is the primary evidence for the current UX defects.
+- Website provider: Guerrilla Mail.
+- Extension providers: Mail.tm with Guerrilla Mail fallback.
+- Live Mail.tm domain discovery.
+- Successful real mailbox creation on a selected domain.
+- Passing automated browser and unit tests.
+- Unverified end-to-end email reception.
 
-**This is a corrective implementation task, not a request to redesign SpectreMail from scratch.**
+The next milestone must resolve these remaining gaps without unnecessarily redesigning completed functionality.
 
-Preserve SpectreMail's identity and previously established Temp Mail-inspired UI, but make the application feel as smooth, reliable, coherent, and functional as the reference.
+**Primary objective: Enable working multi-domain mailbox creation on the website, align website and extension capabilities, and verify real email reception and reading end to end.**
 
-Do not declare the goal complete until the application has been tested through actual browser interactions and the domain integrations have been verified.
+## 1. Superpowers workflow
 
----
+Use the installed Superpowers OpenCode skills to manage this milestone.
 
-## 1. Use the Superpowers workflow
-
-Activate the installed Superpowers plugin through OpenCode's available skills interface.
-
-Use the applicable skills:
+Discover and invoke the applicable skills:
 
 - `using-superpowers`
 - `systematic-debugging`
@@ -32,505 +32,250 @@ Use the applicable skills:
 - `requesting-code-review`
 - `verification-before-completion`
 
-Discover the installed skill identifiers rather than assuming every command is available.
+Inspect the current repository before making changes.
 
-The project already has a clear design direction. Brainstorm implementation alternatives and trade-offs, not unrelated visual designs.
+Review:
 
-Inspect existing repository architecture, specifications, OpenSpec changes, API integrations, components, and tests before implementation.
+- `docs/GOAL.md`
+- `docs/superpowers/specs/2026-11-20-provider-domain-research.md`
+- `docs/superpowers/specs/2026-11-20-production-ux-final-report.md`
+- `apps/web/src/provider-config.ts`
+- `apps/extension/src/provider-config.ts`
+- `packages/providers/src`
+- `apps/extension/e2e/live-domain-selection.mjs`
 
-Update conflicting specifications where necessary, preserving functional and architectural constraints that are still valid.
+Identify reusable implementations and avoid duplicating provider logic.
 
-Create a concrete plan, then execute and verify it.
+Create a structured implementation plan and execute it.
 
-Do not stop at analysis or planning.
+## 2. Implement multi-domain support on the website
 
----
+The website currently uses:
 
-## 2. Diagnose the UX problems in the recording
+`WEBSITE_PROVIDER_IDS = ["guerrilla"]`
 
-Analyze the attached video carefully.
+The extension supports Mail.tm and Guerrilla Mail.
 
-The following issues must be investigated and corrected.
+Investigate whether Mail.tm can be integrated directly into the website using its documented public API.
 
-### Problem A — Poor email address presentation
+**Important:** A provider working inside a Chromium extension does not automatically mean it works inside a normal browser page. Verify browser CORS behavior explicitly.
 
-The email address currently wraps onto multiple lines when its length exceeds the available space.
+### Requirements
 
-The Copy confirmation also appears inside the address area, causing visible layout disruption.
+1. Test Mail.tm domain discovery from the actual website origin.
+2. Test account creation and token authentication.
+3. Test mailbox listing and message retrieval.
+4. Verify CORS behavior using the real browser, not just Node.js.
+5. Confirm relevant API restrictions and architectural compatibility.
+6. Reuse the shared provider adapter wherever possible.
 
-**Required behavior:**
+If these operations are supported, enable Mail.tm for the website.
 
-- Keep the address readable without breaking the surrounding layout.
-- Use a responsive, carefully constrained address container.
-- Prefer a single-line address with appropriate truncation or scrolling when required.
-- Provide a way to access the complete address.
-- Never let clipboard feedback resize the email field.
-- Keep the address and Copy control visually stable.
+If they are blocked by genuine browser restrictions, document the evidence rather than adding an unauthorized proxy or unsafe workaround.
 
-### Problem B — Intrusive copy feedback
+Do not introduce a backend without an explicit architecture decision.
 
-Copying an email address currently causes unnecessary text to appear inside the address component.
+## 3. Implement unified domain selection
 
-Replace this behavior with discreet feedback.
+The website should offer the same general domain-selection capabilities as the extension.
 
-Requirements:
+Preserve the reference-inspired SpectreMail UI.
 
-- Copy immediately on click.
-- Show a small toast, tooltip, or temporary icon-state change.
-- Use concise feedback such as "Copied".
-- Automatically dismiss nonessential feedback.
-- Never change the dimensions of the address field.
-- Support keyboard activation and accessible announcements.
-- Handle clipboard failures gracefully.
+The intended user experience:
 
-### Problem C — Poor mailbox transition behavior
+1. Open SpectreMail.
+2. Automatically receive a working temporary email address.
+3. Click Change to generate another address.
+4. Optionally choose an available domain.
+5. Generate a mailbox on that domain.
+6. Start receiving email without additional setup.
 
-When Change is used, the UI transitions through awkward loading states.
+### Domain requirements
 
-The inbox can disappear temporarily and content shifts unexpectedly.
+- Discover domains dynamically.
+- Do not hardcode domain lists.
+- Show only currently usable domains.
+- Maintain provider-domain ownership.
+- Avoid duplicate domain entries.
+- Refresh stale domain information appropriately.
+- Handle domain disappearance and provider failures.
+- Never display a generated address that has not been successfully provisioned.
+- Do not switch providers silently when the user explicitly selected a domain.
 
-Implement a predictable mailbox-switching flow.
+Keep the provider implementation details out of the main interface.
 
-Requirements:
+Do not prominently display Guerrilla Mail or Mail.tm in the application header, except where required for attribution or operational clarity.
 
-1. Indicate when a new address is being generated.
-2. Prevent duplicate concurrent generation requests.
-3. Keep the page structure stable.
-4. Replace the active address only after the new mailbox has been successfully created.
-5. Clear messages and message selection belonging to the previous mailbox atomically.
-6. Never display a previous mailbox's messages as if they belong to the new one.
-7. Preserve the old mailbox if creation fails.
-8. Provide appropriate retry feedback.
+## 4. Complete the missing end-to-end reception test
 
-Use request cancellation or generation identifiers to ensure that stale responses cannot overwrite newer mailbox state.
+The previous milestone remains partially verified because no controlled external email was received and opened through the browser.
 
-### Problem D — Broken message reading experience
+Resolve this without unnecessarily requiring the user to disclose SMTP credentials.
 
-The recording shows message content expanding below the inbox without a properly structured reading experience.
+### Preferred verification methods
 
-It also appears that previously opened message content can remain visible after the inbox becomes empty.
+**Method A — Local SMTP test configuration**
 
-Correct this behavior.
+If approved test SMTP credentials or a sending endpoint are already configured, use the existing test infrastructure.
 
-Provide a clean message-reader state with:
+Load credentials from local environment variables.
 
-- Sender
+Never print, commit, or expose credentials.
+
+**Method B — Manually sent test email**
+
+If no sending service is configured:
+
+1. Create a fresh mailbox using a selected active domain.
+2. Present the generated address to the user.
+3. Allow the user to send a test email from their own email application.
+4. Continue verification when the email arrives.
+5. Open the received message.
+6. Verify all parsed fields and message content.
+
+Do not request the user's personal email password, SMTP password, or API token in chat.
+
+### Test message
+
+Subject:
+
+`SpectreMail E2E Verification`
+
+Body:
+
+`SpectreMail delivery verification. Test code: 482731. Test link: https://example.com/verify`
+
+Verify that SpectreMail correctly displays:
+
+- Sender address
 - Subject
-- Date received
+- Received timestamp
 - Message body
-- Verification codes, if found
-- Relevant links, if found
-- Attachments, if supported
-- A clear Back to inbox action
+- Extracted verification code `482731`
+- Extracted verification URL
 
-Message details must be displayed within a properly designed reading panel or reference-consistent view.
+Verify that the actual message was retrieved from the mailbox's provider and was not inserted through a mock fixture.
 
-Do not append an uncontrolled block of raw message text below the table.
+If no external sender is available, preserve the test as pending. Do not misrepresent mocked delivery as successful live reception.
 
-When changing addresses, deleting a mailbox, or returning to the empty state, clear obsolete message selections.
+## 5. Improve mailbox state transitions
 
-### Problem E — Incorrect timestamps
+Audit the actual website and extension using interactive browser testing.
 
-The video shows a message timestamp resembling:
+Focus on:
 
-`1970-01-01T00:00:00.000Z`
+### Address generation
 
-Investigate whether this originates from missing dates, incorrect units, parsing errors, or legitimate provider data.
+- No duplicate generation requests.
+- No unnecessary layout shifts.
+- No unexpected provider switching.
+- No stale addresses.
+- Clear loading and failure states.
 
-Use correctly normalized timestamps and human-readable display.
+### Inbox refresh
 
-Never silently convert a missing or invalid timestamp into the Unix epoch.
+- Keep existing messages visible during refresh.
+- Do not reset the entire view unnecessarily.
+- Prevent overlapping network responses from corrupting state.
+- Display meaningful feedback when requests fail.
 
-If a timestamp is unavailable, display an appropriate fallback rather than fabricated information.
+### Message opening
 
-### Problem F — Excessive empty space and weak visual hierarchy
+- Proper message reader.
+- Correct sender, subject, and date.
+- Safe email body rendering.
+- Correct verification-code extraction.
+- Working Back to inbox navigation.
 
-The current desktop layout leaves large unused regions and makes the primary email interface feel unnecessarily small.
+### Mailbox replacement
 
-Re-evaluate:
+- Remove obsolete message selections.
+- Prevent old requests from repopulating a new mailbox.
+- Preserve the previous valid mailbox if replacement fails.
 
-- Main content width
-- Hero dimensions
-- Inbox dimensions
-- Relative spacing
-- Control sizing
-- Typography
-- Vertical rhythm
-- Responsive breakpoints
+Use explicit mailbox state transitions rather than disconnected loading flags where appropriate.
 
-Match the structural proportions of Temp Mail rather than preserving the current narrow layout.
+## 6. Make the website and extension consistent
 
-Preserve the dark SpectreMail identity and purple accent, while retaining the reference's intended separation between the hero, toolbar, and inbox.
+The website and extension must follow the same underlying rules for provider selection, mailbox creation, message retrieval, and error handling.
 
-Do not introduce new feature cards, explanation panels, statistics, or promotional sections.
+Reuse shared logic rather than writing two unrelated implementations.
 
----
+Where possible, share:
 
-## 3. Remove unnecessary provider branding
+- Provider interfaces.
+- Domain discovery.
+- Mailbox session models.
+- Message normalization.
+- Date parsing.
+- OTP extraction.
+- Link extraction.
+- Retry and timeout policies.
+- Error classification.
 
-The current header prominently displays:
+The two interfaces may differ visually because the extension has limited space.
 
-**Guerrilla Mail**
+However, equivalent actions should produce predictable, consistent results.
 
-Remove this prominent provider-name badge from the primary SpectreMail interface.
+Do not force unsupported provider behavior into a shared abstraction.
 
-SpectreMail should present itself as a unified temporary-email application rather than an advertisement for one provider.
+## 7. Preserve UX fidelity
 
-The main header should prioritize:
+Do not use this milestone as an excuse to redesign the application.
 
-**SpectreMail**
+Maintain the existing Temp Mail-inspired component hierarchy:
 
-Provider-specific details should be hidden from the normal interaction flow unless they are operationally necessary or required for attribution.
+- Header
+- Temporary address panel
+- Four-button action toolbar
+- Inbox table
+- Message reader
 
-Do not remove legally required attribution.
+Keep SpectreMail's own branding.
 
-Do not falsely claim that SpectreMail operates its own independent mail servers.
+Do not add documentation sections, session statistics, promotional cards, provider dashboards, or unnecessary explanatory copy to the homepage.
 
-Once alternative providers are fully working, remove Guerrilla Mail as the default provider if practical.
+Domain selection should remain a lightweight part of the existing Change interaction.
 
-Do not delete a functioning provider integration before its replacement is verified.
+Keep loading feedback compact and prevent major page movement during routine operations.
 
-Do not conceal real incoming messages to create the appearance of a different provider.
+## 8. Real browser test scenarios
 
----
+Verify the following with Playwright, Chrome, or the available OpenCode browser tools.
 
-## 4. Investigate Temp Mail's actual domain system
+### Scenario A — Website domain creation
 
-This is a mandatory research and implementation workstream.
+Select a live available domain and create a mailbox.
 
-The reference website is:
+Verify that the address is genuinely associated with the selected domain.
 
-https://temp-mail.org/en/
+### Scenario B — Extension domain creation
 
-Temp Mail operates a rotating pool of disposable email domains.
+Repeat the existing live extension domain-selection test to ensure no regressions.
 
-However, possessing a domain name does not grant access to the corresponding mail server or mailbox.
+### Scenario C — Actual email reception
 
-**Do not confuse domain discovery with actual mailbox integration.**
+Receive and read a real external test email.
 
-Your task is to investigate whether SpectreMail can legitimately use the free domains exposed by Temp Mail itself.
+Verify sender, subject, body, timestamp, code, and link.
 
-Research:
+### Scenario D — Mailbox switching
 
-1. The currently available Temp Mail domain-management features.
-2. The official Temp Mail API and RapidAPI offering.
-3. Whether the free domain list is accessible to external applications.
-4. The permissions and authentication required.
-5. API availability, costs, rate limits, and usage policies.
-6. How mailbox creation, inbox retrieval, and message opening work.
-7. Whether active domains can be enumerated through an authorized interface.
-8. How Temp Mail rotates, removes, or retires domains.
+Open an email, change addresses, and verify that stale messages cannot reappear.
 
-Official starting references:
+### Scenario E — Provider errors
 
-- https://temp-mail.org/en/api
-- https://temp-mail.org/en/faq
-- https://temp-mail.org/terms-of-service
-- https://rapidapi.com/Privatix/api/temp-mail
+Simulate unavailable domains, network failures, expired sessions, and rate limits.
 
-Do not confuse `temp-mail.org` with similarly named independent services such as `temp-mail.io`.
+Verify graceful recovery.
 
-Do not use old scraped lists as if they were the current active domain inventory.
+### Scenario F — Browser reload
 
-Do not reverse-engineer private authenticated endpoints, evade access controls, or bypass rate limits and provider restrictions.
+Reload the website and extension.
 
-If the official API can legally provide the domain pool and mailbox access, prioritize that integration.
+Verify that supported mailbox sessions restore correctly.
 
-If it cannot, explicitly record the limitation and proceed with documented alternative providers.
-
-Never falsely claim that an alternative provider's domains belong to Temp Mail.
-
----
-
-## 5. Implement real multi-domain support
-
-SpectreMail must no longer be tied to one hardcoded provider domain.
-
-Implement a dynamic domain catalog populated by integrations that can actually create and access mailboxes.
-
-Investigate these documented services:
-
-### Provider 1 — Mail.tm
-
-Documentation:
-https://docs.mail.tm/
-
-Research and implement supported functionality for:
-
-- Fetching available domains.
-- Creating addresses.
-- Authenticating mailbox sessions.
-- Listing messages.
-- Reading messages.
-- Managing mailbox lifecycle.
-
-Respect attribution, rate limits, and the prohibition on unauthorized API proxying or resale.
-
-### Provider 2 — Mail.gw
-
-Documentation:
-https://docs.mail.gw/
-
-Investigate its compatibility with Mail.tm-style APIs and its distinct domain pool.
-
-Implement it only if the intended SpectreMail distribution model complies with its terms.
-
-### Provider 3 — DropMail
-
-Documentation:
-https://dropmail.me/api/
-
-Research its GraphQL implementation, domain list, rotating-domain handling, mailbox sessions, and token requirements.
-
-Use current authentication practices.
-
-For a user-facing browser app, investigate the documented OAuth with PKCE rather than embedding one shared application-wide token.
-
-### Provider 4 — Official Temp Mail
-
-Evaluate its authorized API separately.
-
-Integrate only if usable access and appropriate permissions are established.
-
-### Domain catalog requirements
-
-For every integrated provider:
-
-- Fetch available domains from the provider's supported API.
-- Include all currently active, usable domains returned by that API, handling pagination where applicable.
-- Deduplicate domains.
-- Track which provider owns each domain.
-- Track domain availability and expiration where provided.
-- Refresh cached domain listings appropriately.
-- Exclude domains that are inactive, unsupported, or retired.
-- Prevent selecting a domain when a mailbox cannot actually be created on it.
-- Handle provider downtime and rate limiting.
-- Never manufacture addresses by combining random usernames with arbitrary domain strings.
-
-Each mailbox must retain the provider identity, session information, authentication context, and domain necessary to retrieve its own messages correctly.
-
-Domains do not become interchangeable merely because their strings are present in the catalog.
-
----
-
-## 6. Design a clean domain-selection experience
-
-Preserve the Temp Mail-inspired interface at rest.
-
-Do not add a giant provider-management dashboard to the landing page.
-
-Domain selection should be part of the existing mailbox-change workflow.
-
-When the user selects **Change**, provide a lightweight way to:
-
-- Generate a new random working address.
-- Select from currently supported domains.
-- Generate an address using the selected domain.
-- Return to automatic domain selection.
-
-If necessary, use a small popover or dialog.
-
-Do not clutter the hero with provider names, technical API information, domain-count statistics, or extra cards.
-
-The address itself should remain the primary focus.
-
-Show a concise error when a domain becomes unavailable and allow the user to try another one.
-
-Do not promise that a domain is unblocked by external services merely because it is fresh.
-
----
-
-## 7. Provider selection, rotation, and fallback
-
-Implement a provider-independent internal interface.
-
-It should support capabilities equivalent to:
-
-- `listDomains()`
-- `createMailbox()`
-- `getMailbox()`
-- `listMessages()`
-- `getMessage()`
-- `deleteMailbox()` where supported
-- `getCapabilities()`
-
-Adapt the interfaces to the repository's existing language and architecture.
-
-Avoid forcing features that an API does not support.
-
-The application's domain-selection logic should:
-
-1. Discover usable providers.
-2. Load their current supported domains.
-3. Choose an eligible domain.
-4. Create a real mailbox.
-5. Persist the required mailbox session.
-6. Retrieve messages from the exact provider that created it.
-
-If creation fails, retry appropriately using another supported domain or provider.
-
-Do not silently switch providers for an already-created mailbox.
-
-Do not lose access to a valid mailbox because one unrelated provider failed.
-
-Do not introduce unlimited retry loops or aggressive polling.
-
-Use timeouts, bounded retries, backoff, and request coalescing.
-
-For rotating domains, respect provider-reported expiration dates and stop using expired domains for new mailboxes.
-
----
-
-## 8. Build a predictable mailbox state machine
-
-The app must distinguish these states:
-
-**Initializing → Generating → Ready → Checking → Reading**
-
-Also support error, changing, and deleted/cleared states.
-
-Avoid a collection of loosely related booleans that can produce contradictory UI states.
-
-Requirements:
-
-- Initialization shows a stable loading placeholder.
-- Generation cannot be accidentally duplicated.
-- Refresh does not unnecessarily blank the existing inbox.
-- Reading a message does not destroy or unexpectedly move the inbox.
-- Changing a mailbox clears old-message state correctly.
-- Deleting/resetting a mailbox follows the actual provider's capabilities.
-- Switching domains does not mix sessions.
-- Browser reload restores valid state where supported.
-- Invalid or expired sessions are recovered gracefully.
-- Old asynchronous responses cannot corrupt the active mailbox.
-
-Apply the same state-management principles to the browser extension wherever the underlying code is shared.
-
----
-
-## 9. Improve the four main controls
-
-Keep the existing toolbar:
-
-**Copy | Refresh | Change | Delete**
-
-Each action needs clear behavior.
-
-### Copy
-
-Immediately copies the current address and shows unobtrusive feedback.
-
-### Refresh
-
-Checks the currently active inbox without destroying its existing layout.
-
-A brief loading indicator can appear inside the Refresh button.
-
-### Change
-
-Generates a new address or allows choosing a supported domain.
-
-Provide clear behavior for the old mailbox's session and messages.
-
-### Delete
-
-Use an appropriately clear destructive-action flow.
-
-If provider-side deletion is supported, perform it.
-
-If only local removal is supported, do not falsely imply the remote mailbox has been destroyed.
-
-When deletion finishes, return to a valid, well-defined application state.
-
-All actions must handle failure, duplicate clicks, keyboard interaction, and asynchronous transitions.
-
----
-
-## 10. Secure message rendering
-
-Treat received email content as untrusted.
-
-Requirements:
-
-- Sanitize HTML emails.
-- Prevent script execution from message content.
-- Block dangerous URLs and unsafe rendering behaviors.
-- Never automatically open verification links.
-- Display extracted OTP codes without silently submitting them anywhere.
-- Do not load untrusted remote resources automatically without appropriate protections.
-- Do not leak provider session tokens or API keys into public logs.
-- Do not embed privileged shared provider keys in browser-distributed code.
-- Keep mailbox state appropriately isolated between sessions.
-
-Preserve SpectreMail's existing useful code and link extraction.
-
-Improve its presentation without introducing unrelated visible sections.
-
----
-
-## 11. Preserve architectural constraints
-
-Inspect the existing repository's browser-only and no-backend requirements.
-
-Prefer supported client-side integrations where technically feasible and permitted.
-
-Before adding a proxy server or backend:
-
-1. Determine whether it is genuinely necessary.
-2. Determine whether the provider permits that architecture.
-3. Assess CORS, authentication, credentials, quotas, and security.
-4. Check existing project specifications.
-5. Record the architectural trade-off.
-
-Do not silently add a backend just to force support for a provider.
-
-If a provider cannot safely work within the project constraints, report it as unsupported rather than implementing a fragile workaround.
-
-A smaller set of genuinely functioning providers is preferable to a long list of unusable domains.
-
----
-
-## 12. Mandatory browser testing
-
-Use the installed browser tools, Chrome inspection, OpenCode Browse extension, or Playwright where available.
-
-Inspect the actual application while performing realistic user flows.
-
-Test these sequences:
-
-**Scenario A — Copy**
-
-Generate address → Copy → Confirm clipboard value → Ensure layout does not shift.
-
-**Scenario B — Refresh**
-
-Generate address → Refresh repeatedly → Ensure inbox remains stable and no duplicate requests corrupt state.
-
-**Scenario C — Change**
-
-Generate address → Change → Verify new mailbox → Ensure old messages are not retained in the new inbox.
-
-**Scenario D — Domain selection**
-
-Open Change → Select an available domain → Generate mailbox → Confirm the exact domain is used.
-
-**Scenario E — Multiple providers**
-
-Create mailboxes using at least two supported providers → Verify each mailbox's requests are routed to its own provider.
-
-**Scenario F — Receive and read**
-
-Send a controlled test email to a newly created mailbox → Confirm receipt → Open it → Verify sender, subject, body, and timestamp → Return to inbox.
-
-**Scenario G — Stale message regression**
-
-Open a message → Change mailbox → Confirm the previous message reader disappears and cannot reappear because of a delayed request.
-
-**Scenario H — Provider failure**
-
-Simulate timeouts, domain retirement, HTTP errors, and rate limiting → Verify truthful feedback and bounded recovery.
-
-**Scenario I — Responsive behavior**
+### Scenario G — Responsive UX
 
 Test at:
 
@@ -538,105 +283,90 @@ Test at:
 - 956 × 885
 - 390 × 844
 
-Check overflow, wrapping, clickable targets, message readability, and layout stability.
+Check layout stability, address readability, action controls, and message-reader behavior.
 
-Repeat important interactions using both mouse and keyboard.
+## 9. Security and architecture
 
----
+Preserve the project's existing privacy and architecture requirements.
 
-## 13. Verification and completion criteria
+- Do not commit secrets.
+- Do not expose privileged provider tokens.
+- Sanitize untrusted email HTML.
+- Prevent untrusted scripts from executing.
+- Do not automatically follow links inside received emails.
+- Do not introduce unsafe CORS workarounds.
+- Respect provider rate limits and terms.
+- Keep mailbox sessions isolated.
+- Use provider-supported operations only.
+- Do not claim to delete remote mailboxes when only local session removal is possible.
 
-The goal is not complete just because tests pass.
+Document unavoidable differences between website and extension capabilities.
 
-All of the following must be demonstrated:
+## 10. Acceptance criteria
 
-- Email address layout remains stable.
-- Copy feedback no longer changes layout dimensions.
-- Refresh is smooth and does not destroy existing inbox content.
-- Change switches mailboxes without stale state.
-- Message reading works within a coherent interface.
-- Message details disappear when the active mailbox changes.
-- Invalid dates do not render as January 1, 1970.
-- The Guerrilla Mail badge is no longer prominent.
-- The interface remains close to the established Temp Mail reference.
-- Domain listings are obtained dynamically from supported providers.
-- Every selectable domain can be used to create a real address.
-- Incoming messages are retrieved from the correct provider.
-- Provider failures are handled predictably.
-- No unsafe or unauthorized provider integration has been added.
-- Mobile and desktop interactions have been visually tested.
-- Existing extension functionality has not regressed.
-- All relevant automated checks pass.
+This milestone is complete only when:
 
-Do not claim full Temp Mail domain coverage unless the authorized official source actually provides it and every supported active domain has been accounted for.
+1. Website Mail.tm compatibility has been tested in an actual browser.
+2. Mail.tm has been enabled on the website if genuinely supported under current constraints.
+3. The website domain-selection UX is functional for all enabled multi-domain providers.
+4. Extension domain selection continues working.
+5. A real mailbox can be created using an available domain.
+6. A real incoming email has been retrieved and opened, or the missing external sender is explicitly recorded as a blocking dependency.
+7. Message timestamps and extracted content are correct.
+8. Mailbox replacement does not leak stale message state.
+9. Browser reload and failure recovery work as intended.
+10. Relevant tests, builds, linting, type checks, and repository boundary checks pass.
+11. Visual browser inspection confirms the interface remains consistent with the reference.
+12. No existing functionality has regressed.
 
-Do not substitute mocked responses for required live integration verification.
+An unavailable external sender cannot be treated as successful end-to-end delivery verification.
 
----
+## 11. Final deliverables
 
-## 14. Required final report
+Provide:
 
-Provide these deliverables.
+**A. Provider compatibility report**
 
-### A. UX defects and fixes
+Explain which providers function on the website and extension, with tested evidence.
 
-Describe each verified issue from the recording, its root cause, and the implemented correction.
+**B. Domain catalog report**
 
-### B. Domain research
+Report the live domains returned by supported APIs during verification, including retrieval time.
 
-Provide a table containing:
+**C. Functional implementation summary**
 
-- Provider
-- Official API
-- Authentication requirement
-- Free access status
-- Domain discovery support
-- Domain count verified at inspection time
-- Inbox access support
-- Browser-only compatibility
-- Usage restrictions
-- Implementation status
+List changes made to provider adapters, domain selection, mailbox sessions, and message reading.
 
-Distinguish authoritative provider data from third-party historical domain lists.
+**D. Live delivery evidence**
 
-### C. Implemented domain coverage
+Report whether a genuine incoming email was received, opened, and parsed correctly.
 
-Report the actual domains discovered from each connected provider.
+**E. Screenshots**
 
-Store the dynamic catalog through the application rather than freezing it into a manually maintained source list.
+Show desktop, mobile, domain selection, populated inbox, and message reader.
 
-Explain any unavailable or unsupported providers.
+**F. Validation results**
 
-### D. Visual verification
+Report actual commands executed and their outputs.
 
-Include screenshots demonstrating the corrected UX.
+**G. Remaining limitations**
 
-### E. Functional verification
+Clearly identify unsupported providers, architectural restrictions, and incomplete verification.
 
-Show browser interaction results and automated test outputs.
+**H. GitHub delivery**
 
-### F. Final status
+If the repository's existing workflow permits it, implement on a feature branch, open a PR, complete required CI checks, and merge after verification.
 
-Use one of these outcomes:
-
-- **GOAL MET** — UX and feasible verified provider integrations satisfy the requirements.
-- **PARTIALLY MET** — specific visual or functional requirements remain unresolved.
-- **BLOCKED** — implementation cannot continue because of a documented external restriction.
-
-For mandatory requirements, do not redefine success to exclude an unresolved issue. Report it explicitly.
+Do not bypass failing checks or merge unresolved mandatory defects.
 
 ## Final directive
 
-SpectreMail should feel like one cohesive temporary-email product.
+Prioritize functional completeness and user experience rather than increasing the number of providers for appearance's sake.
 
-The user should be able to open the website, instantly obtain a working address, copy it, refresh the inbox, read messages, change addresses, and choose from the genuinely available domains without dealing with provider-specific technical details.
+One functioning domain that can receive and display real emails is more valuable than twenty unusable domains.
 
-The primary interface should remain visually faithful to Temp Mail.
+The desired outcome is a unified SpectreMail experience where a user can create an address, choose an available domain, receive email, read messages, and switch mailboxes confidently across both the website and extension.
 
-The backend integration should be modular, reliable, and truthful.
+Use Superpowers to plan, implement, test, review, and verify.
 
-**Do not invent domains. Do not fake mailbox functionality. Do not preserve broken interactions just because they technically work.**
-
-Use Superpowers to investigate, plan, implement, review, and verify the work.
-
-Do not report success without actual browser evidence.
+**Do not declare GOAL MET without evidence of the required end-to-end behavior.**
