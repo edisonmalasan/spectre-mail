@@ -195,6 +195,12 @@ export const PAIRS: readonly ContrastPair[] = [
     threshold: BODY_TEXT,
     what: "The label on a filled accent control — the page's primary action. **This is the only pair in which `--accent` is the background**, and it is why `--ink-on-accent` exists: measured against `--accent` with this package's own contrast function, no other ink in the palette reaches the body threshold in either scheme.",
   },
+  {
+    ink: "ink-on-console",
+    surface: "surface-console",
+    threshold: BODY_TEXT,
+    what: "Copy on the dark tool band. The console is dark in both schemes, so its ink is declared separately rather than borrowed from an ink that flips with the scheme.",
+  },
 
   // ── Failure ─────────────────────────────────────────────────────────────────────
   {
@@ -327,6 +333,10 @@ export const DECORATIVE: readonly { readonly token: ColourName; readonly why: st
  * list cannot accumulate entries describing colours the page never uses.
  */
 export const SURFACE_ONLY: readonly { readonly token: ColourName; readonly why: string }[] = [
+  {
+    token: "surface-console",
+    why: "The dark tool band. Always a background, never an ink — its ink is the separately declared `--ink-on-console`.",
+  },
   {
     token: "surface-page",
     why: "The page background. Every text ink in the palette is held to its threshold against it, so it is the most-checked surface and the one never used as an ink.",

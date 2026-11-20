@@ -43,6 +43,7 @@ export const COLOUR_NAMES = [
   "surface-page",
   "surface-raised",
   "surface-sunken",
+  "surface-console",
   "surface-accent",
   "surface-danger",
   "ink-primary",
@@ -51,6 +52,7 @@ export const COLOUR_NAMES = [
   "ink-accent",
   "ink-danger",
   "ink-on-accent",
+  "ink-on-console",
   "line-subtle",
   "line-strong",
   "accent",
@@ -85,6 +87,9 @@ export const SCHEMES: Readonly<Record<Scheme, ColourSet>> = {
     "surface-page": "#f4f4f2",
     "surface-raised": "#ffffff",
     "surface-sunken": "#e9e9e6",
+    /* The console is dark in BOTH schemes: the reference's tool band is a fixed dark
+       surface, not an inversion of the page. Declared in each scheme on purpose. */
+    "surface-console": "#21232a",
     "surface-accent": "#efecfb",
     "surface-danger": "#fbeeee",
     "ink-primary": "#16161a",
@@ -104,6 +109,7 @@ export const SCHEMES: Readonly<Record<Scheme, ColourSet>> = {
     // `--blur` in `MOTION` rather than borrowing `--space-1`: so a later change
     // to the page background cannot silently repaint a button's label.
     "ink-on-accent": "#ffffff",
+    "ink-on-console": "#f4f4f2",
     "line-subtle": "#dcdcd8",
     "line-strong": "#6f6f78",
     accent: "#5a3fd0",
@@ -113,6 +119,8 @@ export const SCHEMES: Readonly<Record<Scheme, ColourSet>> = {
     "surface-page": "#0e0e11",
     "surface-raised": "#17171b",
     "surface-sunken": "#08080a",
+    /* See the light scheme's note: the console stays dark in both schemes. */
+    "surface-console": "#21232a",
     "surface-accent": "#1e1a2e",
     "surface-danger": "#2a1618",
     "ink-primary": "#ecedf0",
@@ -123,6 +131,7 @@ export const SCHEMES: Readonly<Record<Scheme, ColourSet>> = {
     // See the light scheme's note. 7.02:1 against `--accent`, declared rather
     // than borrowed for the reason given there.
     "ink-on-accent": "#0e0e11",
+    "ink-on-console": "#f4f4f2",
     "line-subtle": "#2b2b32",
     "line-strong": "#7a7a87",
     accent: "#a48cf5",
