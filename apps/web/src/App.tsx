@@ -21,6 +21,8 @@ import { createMailboxSession } from "@spectre-mail/mailbox";
 import type { MailboxSession, OpenedMessageState } from "@spectre-mail/mailbox";
 
 import { ActionToolbar } from "./ActionToolbar";
+import { ArticlesSection, ExplainerSection, ReferenceSection } from "./PageSections";
+import { PublicFooter } from "./PublicFooter";
 import { Address } from "./Address";
 import type { CopyState } from "./Address";
 import { AppHeader } from "./AppHeader";
@@ -143,102 +145,124 @@ export function App({ session, storage }: AppProps = {}) {
     state.kind === "idle" || state.kind === "creating" || state.kind === "adopting"
       ? state.kind
       : undefined;
+  const hiddenListClass = "inbox-panel__list--hidden";
+  // Failure states carry no opened field, so read it through the same narrowing the
+  // render below uses rather than assuming a shape the union does not guarantee.
+  const readerIsOpen = "opened" in state && state.opened.kind !== "none";
 
   return (
-    <main className="page">
-      <AppHeader />
+    <>
+      <main className="page">
+        <AppHeader />
 
-      <section className="hero" aria-labelledby="hero-heading">
-        <div className="hero__panel">
-          <h2 className="hero__title" id="hero-heading">
-            Your Temporary Email Address
-          </h2>
-          <div className="hero__field">
-            {boot.kind !== "blocked" && state.kind === "ready" ? (
-              <div className="hero__address" data-testid="ready">
-                <Address mailbox={state.mailbox} onCopy={copy} copyState={copyState} />
-                {saving.kind === "notSaved" && (
-                  <p className="notice notice--danger" data-testid="save-failed">
-                    This address could not be saved to this device. {saving.reason}
-                  </p>
+        <section className="hero" aria-labelledby="hero-heading">
+          <div className="hero__panel">
+            <h2 className="hero__title" id="hero-heading">
+              Your Temporary Email Address
+            </h2>
+            <div className="hero__field">
+              {boot.kind !== "blocked" && state.kind === "ready" ? (
+                <div className="hero__address" data-testid="ready">
+                  <Address mailbox={state.mailbox} onCopy={copy} copyState={copyState} />
+                  {saving.kind === "notSaved" && (
+                    <p className="notice notice--danger" data-testid="save-failed">
+                      This address could not be saved to this device. {saving.reason}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p className="hero__loading" data-testid={loadingTestId}>
+                  {loadingText}
+                </p>
+              )}
+            </div>
+          </div>
+          <p className="hero__lede">
+            Forget about spam, advertising mailings, hacking and attacking robots. Keep your real
+            mailbox clean and secure. SpectreMail gives you a temporary, disposable email address.
+          </p>
+
+          {boot.kind === "blocked" && <BootFailure reason={boot.reason} onRetry={retryBoot} />}
+          {boot.kind !== "blocked" && state.kind === "expired" && (
+            <StoredAddressGone
+              mailbox={state.mailbox}
+              onRetry={startFresh}
+              onReplace={startFresh}
+            />
+          )}
+          {boot.kind !== "blocked" && state.kind === "restoreFailed" && (
+            <StoredAddressUnchecked
+              mailbox={state.mailbox}
+              failure={state.failure}
+              onRetry={retry}
+              onStartFresh={startFresh}
+            />
+          )}
+          {boot.kind !== "blocked" && state.kind === "failed" && (
+            <MailboxFailure failure={state.failure} onRetry={retry} />
+          )}
+        </section>
+
+        <ActionToolbar
+          onCopy={copy}
+          onRefresh={checkInbox}
+          onChange={(domain) => replace(domain)}
+          onDelete={clearStored}
+          changing={changing ?? false}
+          domains={domains}
+        />
+
+        <section className="inbox-section" aria-label="Inbox">
+          <div className="inbox-panel">
+            {boot.kind !== "blocked" && state.kind === "ready" && (
+              <>
+                {/*
+                 * Keep the inbox mounted while the reader is open: hiding it with an
+                 * attribute preserves row identity across Back, so returning does not
+                 * re-run every row's materialisation entrance. The reader is shown above
+                 * it and the hidden inbox exposes no operable element.
+                 */}
+                <div className={readerIsOpen ? hiddenListClass : undefined}>
+                  <Inbox inbox={state.inbox} onCheck={checkInbox} onOpenMessage={openMessage} />
+                </div>
+                {state.opened.kind !== "none" && (
+                  <MessageView
+                    opened={state.opened}
+                    onClose={closeMessage}
+                    onRetry={() => {
+                      const id = openedMessageId(state.opened);
+                      if (id !== null) openMessage(id);
+                    }}
+                  />
                 )}
-              </div>
-            ) : (
-              <p className="hero__loading" data-testid={loadingTestId}>
-                {loadingText}
-              </p>
+              </>
             )}
           </div>
-        </div>
-        <p className="hero__lede">
-          Forget about spam, advertising mailings, hacking and attacking robots. Keep your real
-          mailbox clean and secure. SpectreMail gives you a temporary, disposable email address.
-        </p>
+        </section>
 
-        {boot.kind === "blocked" && <BootFailure reason={boot.reason} onRetry={retryBoot} />}
-        {boot.kind !== "blocked" && state.kind === "expired" && (
-          <StoredAddressGone mailbox={state.mailbox} onRetry={startFresh} onReplace={startFresh} />
-        )}
-        {boot.kind !== "blocked" && state.kind === "restoreFailed" && (
-          <StoredAddressUnchecked
-            mailbox={state.mailbox}
-            failure={state.failure}
-            onRetry={retry}
-            onStartFresh={startFresh}
-          />
-        )}
-        {boot.kind !== "blocked" && state.kind === "failed" && (
-          <MailboxFailure failure={state.failure} onRetry={retry} />
-        )}
-      </section>
-
-      <ActionToolbar
-        onCopy={copy}
-        onRefresh={checkInbox}
-        onChange={(domain) => replace(domain)}
-        onDelete={clearStored}
-        changing={changing ?? false}
-        domains={domains}
-      />
-
-      <section className="inbox-section" aria-label="Inbox">
-        <div className="inbox-panel">
-          {boot.kind !== "blocked" &&
-            state.kind === "ready" &&
-            /*
-             * The reader takes the panel's place while a message is open; it is
-             * never appended below the list, and it unmounts with the selection
-             * (including when a poll empties the inbox).
-             */
-            (state.opened.kind !== "none" ? (
-              <MessageView
-                opened={state.opened}
-                onClose={closeMessage}
-                onRetry={() => {
-                  const id = openedMessageId(state.opened);
-                  if (id !== null) openMessage(id);
-                }}
-              />
-            ) : (
-              <Inbox inbox={state.inbox} onCheck={checkInbox} onOpenMessage={openMessage} />
-            ))}
-        </div>
-      </section>
-
-      {/*
-       * One fixed live region for clipboard outcomes. It is outside every field,
-       * so announcing a copy cannot resize the address or the toolbar. It clears
-       * itself after a short delay and is announced by assistive technology.
-       */}
-      {/* The live region is always in the DOM so assistive tech registers it before
+        {/*
+         * One fixed live region for clipboard outcomes. It is outside every field,
+         * so announcing a copy cannot resize the address or the toolbar. It clears
+         * itself after a short delay and is announced by assistive technology.
+         */}
+        {/* The live region is always in the DOM so assistive tech registers it before
           its text changes; mutating the text is what gets announced. */}
-      <p className="toast" role="status" data-testid="copy-feedback">
-        {copyState === "copied"
-          ? "Copied"
-          : copyState === "failed"
-            ? "Clipboard refused — select the address to copy it"
-            : ""}
-      </p>
-    </main>
+        <p className="toast" role="status" data-testid="copy-feedback">
+          {copyState === "copied"
+            ? "Copied"
+            : copyState === "failed"
+              ? "Clipboard refused — select the address to copy it"
+              : ""}
+        </p>
+      </main>
+
+      {/* M16's below-fold information regions, in the declared PAGE_ORDER after the product.
+          They are outside <main> only for the footer landmark; the three info sections are
+          inside it and are read by data-region. */}
+      <ExplainerSection />
+      <ArticlesSection />
+      <ReferenceSection address={state.kind === "ready" ? state.mailbox.address : null} />
+      <PublicFooter />
+    </>
   );
 }

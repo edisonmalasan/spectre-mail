@@ -833,7 +833,10 @@ describe("the message view", () => {
       // restores the inbox; it is never left behind.
       expect(shows("inbox-rows")).toBe(true);
       await openFirstRow();
-      expect(shows("inbox-rows")).toBe(false);
+      // The inbox stays mounted but hidden so its rows keep their DOM identity across
+      // Back; a display:none swap would re-run their entrance. Assert the hidden state
+      // rather than DOM absence, so a visible inbox behind the reader still fails.
+      expect(document.querySelector(".inbox-panel__list--hidden")).not.toBeNull();
       expect(document.querySelector(".message")).not.toBeNull();
 
       await act(async () => {
