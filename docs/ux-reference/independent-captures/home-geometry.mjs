@@ -1,3 +1,4 @@
+/* global document, getComputedStyle, innerWidth, innerHeight */
 /**
  * Focused re-measurement of the home product band at 1440x900 using the exact
  * selectors the M16 inventory used. Complements capture.mjs (whose `product.field`

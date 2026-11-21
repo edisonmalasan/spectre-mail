@@ -1,3 +1,4 @@
+/* global document, getComputedStyle */
 /**
  * Independent animation measurement on the BUILT SpectreMail page at 1440x900.
  * Reads document.getAnimations() immediately after activating the toolbar Copy

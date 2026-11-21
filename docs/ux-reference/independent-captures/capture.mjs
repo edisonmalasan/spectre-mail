@@ -1,3 +1,4 @@
+/* global getComputedStyle */
 /**
  * Independent UI/UX comparison harness (research task).
  *
