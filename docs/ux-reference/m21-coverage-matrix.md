@@ -3,22 +3,22 @@
 Date: 2026-11-21. Baseline: M16 captures dated 2026-11-21 in `docs/ux-reference/captures/`.
 Tree audited: `main` at `47fca1d` (M16-M20 merged). Status vocabulary: **PASS / FAIL / NOT VERIFIED / BLOCKED / APPROVED DEVIATION**. The denominator is the **full M16 free-web inventory**, not a selected subset.
 
-**Read this before the rows:** 9 of the 10 route rows are **role-preserving APPROVED DEVIATIONS**, not delivered routes. A reasonable visitor does not find `/en/faq`, `/privacy-policy`, `/terms-of-service`, `/en/contact` or `/blog` in SpectreMail; their informational roles live in original on-page copy and `docs/PRIVACY.md`. The page is ~2,567px here against the reference's ~4,281px. This is a fidelity-within-scope reconstruction, **not route parity**, and the verdict below reflects that rather than hiding it behind per-row labels.
+**Read this before the rows:** a visitor can now reach all 10 reference routes in SpectreMail (post-M21 implementation). Prose is original rather than Temp Mail's protected text, so the page is ~2,567px against the reference's ~4,281px: this is route parity with role-preserving copy, not byte-for-byte wording parity.
 
 ## A. Public routes (10/10 rows)
 
-| M16 route                                 | Status             | Evidence                                                                                                                                                      |
-| ----------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/en/` home — hero, dashed panel, toolbar | APPROVED DEVIATION | `reference-desktop.png` vs `baseline-desktop.png`; product boundary geometry within ~8px, address field 448 vs 400px (mono needs width), no QR (out of scope) |
-| `/en/change`                              | APPROVED DEVIATION | `route-status.md`; reference domain form is Premium-only, SpectreMail offers domain choice inside Change                                                      |
-| `/en/faq`                                 | APPROVED DEVIATION | `route-status.md`; informational role in on-page explainer, no standalone route                                                                               |
-| `/en/api`                                 | APPROVED DEVIATION | developer API outside no-backend scope, not linked as a working route                                                                                         |
-| `/en/10minutemail`                        | APPROVED DEVIATION | same disposable-address role in one product surface                                                                                                           |
-| `/en/email-generator`                     | APPROVED DEVIATION | same as above                                                                                                                                                 |
-| `/privacy-policy`                         | APPROVED DEVIATION | `docs/PRIVACY.md` is authoritative; footer names Privacy as information                                                                                       |
-| `/terms-of-service`                       | APPROVED DEVIATION | no SpectreMail terms route; truthful limits, no licence claim                                                                                                 |
-| `/en/contact`                             | APPROVED DEVIATION | no send endpoint; footer names Contact as information                                                                                                         |
-| `/blog`                                   | APPROVED DEVIATION | protected editorial prose; original article-style section preserves role                                                                                      |
+| M16 route                                 | Status                          | Evidence                                                                                                                                                      |
+| ----------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/en/` home — hero, dashed panel, toolbar | PASS with documented deviations | `reference-desktop.png` vs `baseline-desktop.png`; product boundary geometry within ~8px, address field 448 vs 400px (mono needs width), no QR (out of scope) |
+| `/en/change`                              | IMPLEMENTED                     | real route plus the working Change toolbar's domain choice; `public-routes.spec.ts`                                                                           |
+| `/en/faq`                                 | IMPLEMENTED                     | original Q&A article, own accessible heading, footer link, HTTP 200                                                                                           |
+| `/en/api`                                 | IMPLEMENTED                     | truthful no-public-API / no-proxy article                                                                                                                     |
+| `/en/10minutemail`                        | IMPLEMENTED                     | short-lived-address article, no invented countdown                                                                                                            |
+| `/en/email-generator`                     | IMPLEMENTED                     | automatic generation and copy article                                                                                                                         |
+| `/privacy-policy`                         | IMPLEMENTED                     | original summary; `docs/PRIVACY.md` remains the full record                                                                                                   |
+| `/terms-of-service`                       | IMPLEMENTED                     | truthful as-is / provider-conditions article                                                                                                                  |
+| `/en/contact`                             | IMPLEMENTED                     | states plainly that no send endpoint exists                                                                                                                   |
+| `/blog`                                   | IMPLEMENTED                     | original reading-list article                                                                                                                                 |
 
 ## B. Working product flows
 
@@ -89,8 +89,9 @@ following mandatory rows remain and none is silently counted as a pass:
 4. **PASS for the one observable effect — M18 frame gate**: controlled-replay samples match at
    all five offsets (`m21-motion-frames.md`). The screencasts still carry the fallback limitation;
    no unobserved effect is claimed.
-5. **Role-preserving deviations, not route parity**: 9 of 10 reference routes are represented by
-   original on-page copy and `docs/PRIVACY.md`, not delivered as routes.
+5. **Route parity is implemented with original copy**: all 10 reference routes are served and
+   browser-tested (`public-routes.spec.ts`); wording is original rather than Temp Mail's protected
+   prose, so this is route parity, not byte-for-byte text parity.
 
 Rows 1 and 2 remain: they need an external sender and a human reviewer respectively. Rows 3 and 4
 were independently actionable and are now closed with evidence rather than left as notes.

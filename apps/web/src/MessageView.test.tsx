@@ -726,7 +726,9 @@ describe("the message view", () => {
       expect(textOf("message-link-host")).toBe("verify.example");
       expect(textOf("message-link-url")).toContain("https://verify.example/");
 
-      const anchors = [...document.querySelectorAll("a")];
+      // Scope to the opened message: the shared footer now carries eight real route links,
+      // which are legitimate anchors and would otherwise be counted as message bodies.
+      const anchors = [...document.querySelectorAll(".message a")];
       const anchor = anchors[0]!;
       expect(anchor.getAttribute("href")).toBe("https://verify.example/confirm?t=abc123");
       expect(anchor.textContent).toContain("verify.example");
