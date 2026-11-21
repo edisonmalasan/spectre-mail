@@ -3,7 +3,8 @@
  *
  *   node apps/extension/e2e/live-reception.mjs --prepare
  *     Creates a real mailbox on a live Mail.tm domain in the built extension, writes the
- *     address and a pending receipt to the gitignored test-results directory, and prints
+ *     address and a pending receipt to a dedicated gitignored directory OUTSIDE Playwright's
+ *     output tree, and prints
  *     the address plus the exact test message for a human to send from their own mail app.
  *
  *   node apps/extension/e2e/live-reception.mjs --verify
@@ -32,7 +33,12 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const DIST = fileURLToPath(new URL("../dist", import.meta.url));
-const RESULTS = fileURLToPath(new URL("../test-results", import.meta.url));
+/*
+ * Playwright owns `apps/extension/test-results/` and wipes it at the start of a tier run.
+ * A mailbox prepared there would silently disappear the next time anybody ran the suite, so
+ * this instrument uses its own gitignored directory. The pending receipt must outlive a test run.
+ */
+const RESULTS = fileURLToPath(new URL("./.live-reception", import.meta.url));
 const PROFILE = join(RESULTS, "live-reception-profile");
 const STATE = join(RESULTS, "live-reception.json");
 

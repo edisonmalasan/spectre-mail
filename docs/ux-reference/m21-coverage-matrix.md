@@ -76,8 +76,12 @@ insufficient. They are recorded here rather than silently counted as passing.
 following mandatory rows remain and none is silently counted as a pass:
 
 1. **BLOCKED — live reception**: a real incoming email has not been received and opened, because
-   no external sender is configured. Send the specified test message to the prepared real mailbox
-   and re-run `node apps/extension/e2e/live-reception.mjs --verify`.
+   no external sender is configured. A fresh real mailbox is prepared at
+   `yba0aw1769iq@euploading.com`; send the specified test message to it and re-run
+   `node apps/extension/e2e/live-reception.mjs --verify`. The harness now keeps its state and
+   browser profile in a dedicated gitignored `e2e/.live-reception/` directory rather than
+   Playwright's `test-results/`: measured, a full 109-case extension-tier run no longer wipes the
+   prepared mailbox, and `--verify` still reports `restoredAddressMatches: true` afterwards.
 2. **NOT VERIFIED — human acceptance**: no test in this repository reads a rendered pixel's
    colour or position; a person must accept the finished experience.
 3. **PASS — extension tier determinism**: the two precondition defects were fixed and five
