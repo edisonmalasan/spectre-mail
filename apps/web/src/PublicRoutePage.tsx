@@ -12,8 +12,19 @@ import { AppHeader } from "./AppHeader";
 import { PublicFooter } from "./PublicFooter";
 import { PUBLIC_ROUTES, type PublicRoute } from "./public-routes";
 
+/**
+ * Resolve a URL path to a public article.
+ *
+ * The bare `path` is canonical; `aliases` are the reference's own spellings (an `/en/` prefix,
+ * a trailing slash) that would otherwise fall through to the home product while still answering
+ * HTTP 200. Both forms resolve to the **same** `PublicRoute`, so the original SpectreMail copy has
+ * exactly one home and the two spellings cannot drift into different articles.
+ */
 export function routeFor(path: string): PublicRoute | null {
-  return PUBLIC_ROUTES.find((route) => route.path === path) ?? null;
+  return (
+    PUBLIC_ROUTES.find((route) => route.path === path || route.aliases?.includes(path) === true) ??
+    null
+  );
 }
 
 export function PublicRoutePage({ route }: { readonly route: PublicRoute }) {

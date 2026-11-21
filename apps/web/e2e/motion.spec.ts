@@ -82,6 +82,10 @@ const ENTRANCE_CLASSES = ["address__value", "inbox-row", "code"] as const;
 const ENTRANCE_SELECTORS: readonly string[] = [
   ...ENTRANCE_CLASSES.map((name) => `.${name}`),
   ".toast",
+  // The Copy button's feedback animation is declared on a state class so it plays on a press
+  // rather than on page load. It carries an `animation`, so the stylesheet audits below must
+  // count it as one of the declared animations and require the reduced-motion block to stop it.
+  ".address__copy--copied",
 ];
 
 /** The duration tokens the token layer declares, read off the page by these names. */
@@ -656,7 +660,7 @@ test("no element carries an animation under reduced motion, and the same sweep f
     // The toast fade is a measured, declared animation too; it is not a materialisation,
     // but it must still be one of the two keyframe names this build declares.
     expect(
-      [KEYFRAMES, "spectre-tooltip-fade"],
+      [KEYFRAMES, "spectre-tooltip-fade", "spectre-copy-feedback"],
       `${entry.tagName}.${entry.classes.join(".")} runs a declared entrance`,
     ).toContain(entry.animationName);
   }
@@ -892,4 +896,75 @@ test("reduced motion removes the tooltip fade as well as the three entrances", a
     .getByTestId("copy-feedback")
     .evaluate((element) => getComputedStyle(element).animationName);
   expect(name, "reduced motion must remove the tooltip animation").toBe("none");
+});
+
+/**
+ * The reference's Copy control shows **two** animations after a press: the tooltip fade (already
+ * asserted above, and left untouched here) and a second, eased feedback on the button itself.
+ * The button's animation is read from its **computed** properties rather than `getAnimations()`:
+ * the feedback is a 150 ms one-shot, so by the time a cross-process read reaches it the running
+ * animation may have finished, while the computed declaration holds for as long as the feedback
+ * state is shown. Computed properties are the instrument the task allows when `getAnimations()`
+ * is impractical, and they are the same browser-resolved values the entrance assertions use.
+ */
+test("the Copy control carries the reference's 150ms eased fill-backwards feedback", async ({
+  page,
+}) => {
+  await openFreshMailbox(page);
+  const button = page.getByTestId("address-copy");
+  const readButton = () =>
+    button.evaluate((element) => {
+      const style = getComputedStyle(element);
+      const duration = style.animationDuration;
+      return {
+        name: style.animationName,
+        durationSeconds: Number.parseFloat(duration) * (duration.trim().endsWith("ms") ? 0.001 : 1),
+        easing: style.animationTimingFunction,
+        fill: style.animationFillMode,
+      };
+    });
+
+  // The feedback plays on a press, not on page load: before the copy the button carries no
+  // animation, so a stylesheet that merely declared one unconditionally cannot pass this half.
+  expect((await readButton()).name, "the feedback must not run on page load").toBe("none");
+
+  await button.click();
+  await expect(page.getByTestId("copy-feedback")).toBeVisible();
+  const feedback = await readButton();
+  expect(feedback.name, "the button carries its own feedback animation").toBe(
+    "spectre-copy-feedback",
+  );
+  expect(feedback.durationSeconds, "the feedback lasts 150ms").toBeCloseTo(0.15, 3);
+  expect(feedback.fill, "the feedback fills backwards").toBe("backwards");
+
+  // The easing is the **declared** eased token rather than a literal keyword. It is read through
+  // the same probe the entrance assertions use, so the two compare the browser's normalisation.
+  const declared = await declaredMotion(page);
+  expect(feedback.easing, "the feedback uses the declared easing token").toBe(
+    declared.timingFunction,
+  );
+
+  // And the tooltip fade is a different, exact animation and is untouched by this change.
+  const toast = await page.getByTestId("copy-feedback").evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      name: style.animationName,
+      easing: style.animationTimingFunction,
+      fill: style.animationFillMode,
+    };
+  });
+  expect(toast.name, "the tooltip fade is still the measured one").toBe("spectre-tooltip-fade");
+  expect(toast.easing, "the tooltip fade is still linear").toBe("linear");
+  expect(toast.fill, "the tooltip fade still fills backwards").toBe("backwards");
+});
+
+test("reduced motion removes the Copy control feedback as well", async ({ page }) => {
+  await openFreshMailbox(page);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.getByTestId("address-copy").click();
+  await expect(page.getByTestId("copy-feedback")).toBeVisible();
+  const name = await page
+    .getByTestId("address-copy")
+    .evaluate((element) => getComputedStyle(element).animationName);
+  expect(name, "reduced motion must remove the button feedback").toBe("none");
 });

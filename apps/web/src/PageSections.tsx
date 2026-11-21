@@ -30,20 +30,52 @@ export function ExplainerSection() {
   );
 }
 
-/** A short, curated set of links to the public routes this product actually implements. */
+/**
+ * A short, curated set of links to the public routes this product actually implements.
+ *
+ * Every entry is a real anchor to a route `routeFor()` resolves and the built site serves. The
+ * old comment here said the routes would arrive in a future task; that stopped being true when the
+ * nine informational articles shipped, so the entries are now links rather than inert text. A link
+ * to a route the build does not have would be a control that does nothing, which the repository
+ * forbids — the browser tier resolves each href before this claim is allowed to stand.
+ */
 export function ArticlesSection() {
   return (
     <section className="info-section" data-region="articles" aria-labelledby="articles-heading">
       <h2 id="articles-heading">Read more about temporary email</h2>
-      {/*
-       * Plain text, not links: a link to a route this build does not have is a control
-       * that does nothing, which the repository forbids. Real routes arrive in task 4;
-       * until then these name the informational roles without pretending to navigate.
-       */}
       <ul className="info-section__links">
-        <li>Common questions about disposable addresses</li>
-        <li>Choosing a service to try with a temporary address</li>
-        <li>Why a short-lived address still has a place online</li>
+        {/* The existing `.link__anchor` hook keeps these in the declared palette and gives
+            them the same keyboard focus ring as every other link on the page. */}
+        <li>
+          <a className="link__anchor" href="/faq">
+            Common questions about disposable addresses
+          </a>
+        </li>
+        <li>
+          <a className="link__anchor" href="/10minutemail">
+            Why a short-lived address still has a place online
+          </a>
+        </li>
+        <li>
+          <a className="link__anchor" href="/email-generator">
+            Getting an address without filling in a form
+          </a>
+        </li>
+        <li>
+          <a className="link__anchor" href="/change">
+            How this product replaces an address
+          </a>
+        </li>
+        <li>
+          <a className="link__anchor" href="/privacy-policy">
+            What this device keeps and what goes to a provider
+          </a>
+        </li>
+        <li>
+          <a className="link__anchor" href="/blog">
+            Short notes about temporary email
+          </a>
+        </li>
       </ul>
     </section>
   );

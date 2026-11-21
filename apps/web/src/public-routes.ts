@@ -11,7 +11,17 @@
  */
 
 export interface PublicRoute {
+  /** The canonical, bare SpectreMail path. Always the one links and the footer use. */
   readonly path: string;
+  /**
+   * Reference URL spellings that resolve to this same article.
+   *
+   * The dated Temp Mail reference prefixes most routes with `/en/` and writes the blog with a
+   * trailing slash. Those spellings used to fall through `routeFor()` and render the home product
+   * while returning HTTP 200 — a silent wrong page. They are aliases, never canonical: the bare
+   * path above is what the site renders in links, and the original SpectreMail copy is shared.
+   */
+  readonly aliases?: readonly string[];
   readonly title: string;
   readonly intro: string;
   readonly sections: readonly {
@@ -23,6 +33,7 @@ export interface PublicRoute {
 export const PUBLIC_ROUTES: readonly PublicRoute[] = [
   {
     path: "/faq",
+    aliases: ["/en/faq"],
     title: "Common questions",
     intro: "Short answers about temporary addresses and what this page does with them.",
     sections: [
@@ -54,6 +65,7 @@ export const PUBLIC_ROUTES: readonly PublicRoute[] = [
   },
   {
     path: "/api",
+    aliases: ["/en/api"],
     title: "Developer access",
     intro: "What this product does and does not expose to other applications.",
     sections: [
@@ -73,6 +85,7 @@ export const PUBLIC_ROUTES: readonly PublicRoute[] = [
   },
   {
     path: "/10minutemail",
+    aliases: ["/en/10minutemail"],
     title: "Ten-minute mail",
     intro: "A short-lived address for a task you will finish in one sitting.",
     sections: [
@@ -92,6 +105,7 @@ export const PUBLIC_ROUTES: readonly PublicRoute[] = [
   },
   {
     path: "/email-generator",
+    aliases: ["/en/email-generator"],
     title: "Email generator",
     intro: "Get a usable address without filling in a form.",
     sections: [
@@ -149,6 +163,7 @@ export const PUBLIC_ROUTES: readonly PublicRoute[] = [
   },
   {
     path: "/contact",
+    aliases: ["/en/contact"],
     title: "Contact",
     intro: "There is no contact form on this build; here is what that means.",
     sections: [
@@ -162,6 +177,7 @@ export const PUBLIC_ROUTES: readonly PublicRoute[] = [
   },
   {
     path: "/blog",
+    aliases: ["/blog/"],
     title: "Reading list",
     intro: "Short notes about disposable addresses, written for this product.",
     sections: [
@@ -187,6 +203,7 @@ export const PUBLIC_ROUTES: readonly PublicRoute[] = [
   },
   {
     path: "/change",
+    aliases: ["/en/change"],
     title: "Change address",
     intro: "How this product replaces the address it holds.",
     sections: [
