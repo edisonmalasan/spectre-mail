@@ -1,0 +1,174 @@
+{
+  "createdAt": "2026-11-22",
+  "purpose": "Independent live DOM/style/animation extraction from the Temp Mail reference using the T3 Code browse extension in the owner's real Chrome",
+  "method": "tools.browse.navigate({url:'https://temp-mail.org/en/', group:'ux-independent-research', allowedOrigins:['temp-mail.org','*.temp-mail.org']}) then tools.browse.eval(...) on tab 1030131649; tools.browse.click({selector:'#click-to-copy'}) then a second eval for animations",
+  "caution": "This is the LIVE site on 2026-11-22 at viewport 1920x901 (the owner's Chrome), NOT the dated 2026-11-21 1440x900 capture. It confirms the reference structures are still present; absolute x positions and scrollHeight differ because the viewport differs. No rendered-pixel colour/position judgement is made.",
+  "page": {
+    "url": "https://temp-mail.org/en/",
+    "title": "Temp Mail - Disposable Temporary Email",
+    "viewport": { "w": 1920, "h": 901, "dpr": 1 },
+    "scrollHeight": 4461,
+    "scrollWidth": 1905,
+    "fonts": "loaded"
+  },
+  "bodyComputed": {
+    "fontFamily": "Roboto, sans-serif",
+    "fontSize": "16px",
+    "color": "rgb(33, 37, 41)",
+    "backgroundColor": "rgb(255, 255, 255)"
+  },
+  "measuredElements": {
+    "header.main-header": {
+      "tag": "HEADER",
+      "cls": "main-header",
+      "rect": { "x": 0, "y": 0, "w": 1905, "h": 79 },
+      "bg": "rgb(33, 35, 42)",
+      "padding": "20px 0px"
+    },
+    "darkBand.section-top-qr": {
+      "tag": "DIV",
+      "cls": "section-top-qr",
+      "rect": { "x": 0, "y": 79, "w": 1905, "h": 328 },
+      "bg": "rgb(33, 35, 42)"
+    },
+    "dashedPanel.temp-emailbox": {
+      "tag": "DIV",
+      "cls": "temp-emailbox",
+      "rect": { "x": 683, "y": 99, "w": 540, "h": 169 },
+      "borderTop": "2px dashed rgb(56, 59, 68)",
+      "borderRadius": "10px",
+      "padding": "30px 0px"
+    },
+    "titleH2": {
+      "tag": "H2",
+      "text": "Your Temporary Email Address",
+      "rect": { "x": 685, "y": 131, "w": 536, "h": 20 },
+      "font": "\"Roboto Mono\", monospace 20px 700",
+      "color": "rgb(255, 255, 255)"
+    },
+    "addressInput#mail": {
+      "tag": "INPUT",
+      "cls": "emailbox-input opentip",
+      "id": "mail",
+      "rect": { "x": 726, "y": 180, "w": 340, "h": 52 },
+      "font": "Roboto, sans-serif 20px 400",
+      "color": "rgb(255, 255, 255)"
+    },
+    "inputWrapper.input-warp": {
+      "cls": "input-warp",
+      "rect": { "x": 722, "y": 176, "w": 400, "h": 60 },
+      "bg": "rgba(255, 255, 255, 0.04)",
+      "borderRadius": "30px",
+      "padding": "4px"
+    },
+    "inFieldCopy": {
+      "cls": "btn-rds icon-btn bg-theme click-to-copy copyIconGreenBtn",
+      "rect": { "x": 1132, "y": 180, "w": 52, "h": 52 },
+      "bg": "rgb(0, 196, 151)",
+      "borderRadius": "50%"
+    },
+    "qrButton": {
+      "cls": "btn-rds icon-btn btn-l-gary popover-qr",
+      "text": "QR code",
+      "note": "present in DOM on the live site; its effect was NOT activated in this extraction"
+    },
+    "toolbarCopy": {
+      "id": "click-to-copy",
+      "cls": "no-ajaxy tm-btn btn-gray click-to-copy",
+      "rect": { "x": 599, "y": 432, "w": 160, "h": 52 },
+      "bg": "rgb(246, 247, 249)",
+      "color": "rgb(34, 36, 43)",
+      "font": "Roboto Mono 16px 500",
+      "borderRadius": "25px"
+    },
+    "toolbarRefresh": {
+      "tag": "A",
+      "href": "javascript:;",
+      "cls": "click-to-refresh",
+      "rect": { "x": 781, "y": 432, "w": 160, "h": 52 }
+    },
+    "toolbarChange": {
+      "tag": "A",
+      "href": "/en/change",
+      "cls": "click-to-change",
+      "rect": { "x": 964, "y": 432, "w": 160, "h": 52 }
+    },
+    "toolbarDelete": {
+      "id": "click-to-delete",
+      "cls": "click-to-delete",
+      "rect": { "x": 1146, "y": 432, "w": 160, "h": 52 }
+    },
+    "footer.page-footer": { "tag": "FOOTER", "cls": "page-footer" },
+    "footerNav.footer-nav": { "tag": "NAV", "cls": "footer-nav" }
+  },
+  "headings": [
+    { "tag": "H2", "text": "Your Temporary Email Address", "font": "Roboto Mono 20px 700" },
+    { "tag": "H1", "text": "What is Disposable Temporary E-mail?", "font": "Roboto Mono 28px 700" },
+    { "tag": "H3", "text": "Popular Articles", "font": "Roboto Mono 28px 700" },
+    {
+      "tag": "H2",
+      "text": "The Tech behind Disposable Email Addresses",
+      "font": "Roboto Mono 20px 700"
+    },
+    {
+      "tag": "H2",
+      "text": "So, What Is A Disposable Email Address?",
+      "font": "Roboto Mono 20px 700"
+    },
+    {
+      "tag": "H2",
+      "text": "Why would you need a fake email address?",
+      "font": "Roboto Mono 20px 700"
+    },
+    { "tag": "H2", "text": "How to Choose a Disposable Email?", "font": "Roboto Mono 20px 700" },
+    { "tag": "H2", "text": "How to Use Disposable Email Address?", "font": "Roboto Mono 20px 700" },
+    { "tag": "H2", "text": "To Conclude:", "font": "Roboto Mono 20px 700" }
+  ],
+  "animationsBeforeClick": [
+    {
+      "name": "rotation",
+      "durationMs": 2000,
+      "easing": "linear",
+      "iterations": "Infinity",
+      "keyframes": "rotate(0deg) -> rotate(359deg)",
+      "count": 4,
+      "target": "advertising spinners/iframes (out of product scope)"
+    }
+  ],
+  "animationsAfterCopyClick": [
+    {
+      "name": "tooltip fade",
+      "durationMs": 150,
+      "easing": "linear",
+      "fill": "backwards",
+      "iterations": 1,
+      "keyframes": "opacity 0 -> 0.9",
+      "targetClass": "tooltip fade bs-tooltip-bottom show",
+      "text": "Copied!",
+      "rect": { "w": 140, "h": 42 }
+    },
+    {
+      "name": "button feedback",
+      "durationMs": 150,
+      "easing": "ease-in-out",
+      "fill": "backwards",
+      "iterations": 1,
+      "targetClass": "no-ajaxy tm-btn btn-gray click-to-copy"
+    },
+    {
+      "name": "rotation",
+      "durationMs": 2000,
+      "easing": "linear",
+      "iterations": "Infinity",
+      "keyframes": "rotate(0deg) -> rotate(359deg)",
+      "count": 4,
+      "target": "advertising spinners/iframes (out of product scope)"
+    }
+  ],
+  "limitations": [
+    "Live site may have changed since the dated 2026-11-21 capture; absolute geometry above is from a 1920x901 viewport.",
+    "No rendered pixel colour or position was judged by a human or by a pixel reader; all values are computed CSS and getBoundingClientRect().",
+    "The QR control's effect was not activated, so its dialog/animation remains NOT INSPECTED.",
+    "Only the home route was extracted live; the other nine reference routes are compared against the dated M16 inventory measurements, not a live re-extraction."
+  ]
+}
