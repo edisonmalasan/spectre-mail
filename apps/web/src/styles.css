@@ -308,6 +308,10 @@ button {
   font-size: var(--type-sm);
   text-align: center;
   border: var(--width-hairline) solid var(--line-strong);
+  /* The reference's tooltip settles at opacity 0.9, not 1. With fill:backwards the
+     animation stops applying at its end, so the resting declaration must carry that
+     value or the final frame would be 1 — an error the frame-level comparison caught. */
+  opacity: 0.9;
   /* M18: the reference's Copy tooltip fades opacity 0 -> 0.9 over 150ms linear,
      fill backwards. Declared tokens, not a literal timing in this file. */
   animation: spectre-tooltip-fade var(--duration-feedback) var(--ease-linear) backwards;
