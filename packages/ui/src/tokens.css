@@ -86,6 +86,8 @@
   --mark-height: 1rem;
   --duration-fast: 120ms;
   --duration-base: 200ms;
+  --duration-feedback: 150ms;
+  --ease-linear: linear;
   --ease-standard: cubic-bezier(0.16, 1, 0.3, 1);
 }
 

@@ -93,3 +93,26 @@ not exercised; no duration, easing or keyframe is asserted for any of them.
   not a claim about other engines or a contract for a reproduction.
 - **This file contains reference observations only.** No SpectreMail motion was measured here, and no
   parity verdict is claimed. Motion reconstruction and comparison belong to later milestones (M18/M20).
+
+## M18 addendum — Copy tooltip fade (measured 2026-11-21)
+
+The M16 pass sampled animations before activating a control, so it saw only four continuous
+`rotation` animations on ad/spinner SVGs. M18 activated the toolbar **Copy** control and read
+`document.getAnimations()` immediately afterwards. The reference showed:
+
+| Property       | Measured value                                                                                          |
+| -------------- | ------------------------------------------------------------------------------------------------------- |
+| Element        | `tooltip fade bs-tooltip-bottom show` (a Bootstrap-style tooltip), two elements                         |
+| Animation name | unnamed keyframes (Web Animations API reported no `animationName`), so the keyframe identity is UNKNOWN |
+| Duration       | **150 ms**                                                                                              |
+| Easing         | **linear**                                                                                              |
+| Iterations     | 1 (one-shot)                                                                                            |
+| Fill           | **backwards**                                                                                           |
+| Keyframes      | opacity `0` at offset 0 → opacity `0.9` at offset 1                                                     |
+
+This is the only product-adjacent motion the reference actually demonstrated. It is a feedback
+fade, not a layout transition: the tooltip is absolutely positioned and does not resize the
+address field. `prefers-reduced-motion` behaviour was not observable in this session (UNKNOWN).
+No other control was measured to animate; refresh/change/delete/message-open remain NOT INSPECTED
+for motion, not "instant". The four `rotation` animations (2000 ms linear infinite) are on
+advertisement SVG paths and are recorded as OBSERVED / OUT-OF-SCOPE for the product UI.
