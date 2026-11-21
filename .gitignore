@@ -31,6 +31,7 @@ apps/web/test-results/
 apps/web/playwright-report/
 apps/web/.playwright/
 apps/extension/test-results/
+apps/extension/e2e/.live-reception/
 apps/extension/playwright-report/
 apps/extension/.playwright/
 
