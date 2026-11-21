@@ -74,8 +74,15 @@ import { INBOX_POLL_CEILING_MS } from "../../../packages/mailbox/src/cadence";
 /** The entrances, named as the requirement names them — by their class hook. */
 const ENTRANCE_CLASSES = ["address__value", "inbox-row", "code"] as const;
 
-/** The same three, as the selectors the stylesheet and the page queries use. */
-const ENTRANCE_SELECTORS: readonly string[] = ENTRANCE_CLASSES.map((name) => `.${name}`);
+/**
+ * The three product entrances plus the Copy tooltip fade M18 measured on the reference.
+ * The reduced-motion block must stop all four; a feedback animation that ignores the
+ * preference would move when a person asked it not to.
+ */
+const ENTRANCE_SELECTORS: readonly string[] = [
+  ...ENTRANCE_CLASSES.map((name) => `.${name}`),
+  ".toast",
+];
 
 /** The duration tokens the token layer declares, read off the page by these names. */
 const DURATION_TOKENS = ["--duration-fast", "--duration-base"] as const;
@@ -646,10 +653,12 @@ test("no element carries an animation under reduced motion, and the same sweep f
     ).toContain(entrance);
   }
   for (const entry of withoutPreference) {
+    // The toast fade is a measured, declared animation too; it is not a materialisation,
+    // but it must still be one of the two keyframe names this build declares.
     expect(
-      entry.animationName,
-      `${entry.tagName}.${entry.classes.join(".")} runs the materialisation`,
-    ).toBe(KEYFRAMES);
+      [KEYFRAMES, "spectre-tooltip-fade"],
+      `${entry.tagName}.${entry.classes.join(".")} runs a declared entrance`,
+    ).toContain(entry.animationName);
   }
 
   // Now the preference, over both states and the same function.
@@ -835,4 +844,52 @@ test("a row already on the page is not re-materialised by a later poll", async (
   ).toBe("kept");
   expect(await animationStarts(page), "a second identical listing starts nothing").toEqual([]);
   expect(traffic.denied, "the page reached no origin the handler has no recording of").toEqual([]);
+});
+
+test("the Copy tooltip fades with the timing measured from the reference", async ({ page }) => {
+  await openFreshMailbox(page);
+  // The reference showed a 150ms linear opacity 0 -> 0.9 one-shot fade on its Copy
+  // tooltip. Read the declared token directly: declaredMotion() feeds the "every
+  // declared duration is used by an entrance" assertion, which is about entrances.
+  const feedbackMs = await page.evaluate(() =>
+    getComputedStyle(document.documentElement).getPropertyValue("--duration-feedback").trim(),
+  );
+  // Vite minifies 150ms to .15s in the built stylesheet; compare the value, not its spelling.
+  const feedbackSeconds = Number.parseFloat(feedbackMs) * (feedbackMs.endsWith("ms") ? 0.001 : 1);
+  expect(feedbackSeconds, "the feedback duration is 150ms").toBeCloseTo(0.15, 3);
+
+  await page.getByTestId("address-copy").click();
+  const toast = page.getByTestId("copy-feedback");
+  await expect(toast).toBeVisible();
+  const reading = await toast.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      name: style.animationName,
+      duration: Number.parseFloat(style.animationDuration),
+      easing: style.animationTimingFunction,
+      fill: style.animationFillMode,
+    };
+  });
+  expect(reading.name, "the toast names the measured keyframes").toBe("spectre-tooltip-fade");
+  expect(reading.duration, "the toast fades for 150ms").toBeCloseTo(0.15, 3);
+  expect(reading.easing, "the toast uses the measured linear easing").toBe("linear");
+  expect(reading.fill, "the toast uses the measured fill").toBe("backwards");
+
+  // The feedback must not shift the field: read the box before and after a second press.
+  const before = await page.locator(".hero__address").boundingBox();
+  await page.getByTestId("toolbar-copy").click();
+  const after = await page.locator(".hero__address").boundingBox();
+  expect(after?.width, "a repeated Copy resized the address field").toBe(before?.width);
+  expect(after?.height, "a repeated Copy resized the address field").toBe(before?.height);
+});
+
+test("reduced motion removes the tooltip fade as well as the three entrances", async ({ page }) => {
+  await openFreshMailbox(page);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.getByTestId("address-copy").click();
+  await expect(page.getByTestId("copy-feedback")).toBeVisible();
+  const name = await page
+    .getByTestId("copy-feedback")
+    .evaluate((element) => getComputedStyle(element).animationName);
+  expect(name, "reduced motion must remove the tooltip animation").toBe("none");
 });

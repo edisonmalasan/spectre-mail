@@ -260,6 +260,14 @@ export const MOTION = {
   "mark-height": "1rem",
   "duration-fast": "120ms",
   "duration-base": "200ms",
+  /*
+   * Measured 2026-11-21 from the reference's Copy tooltip (`tooltip fade
+   * bs-tooltip-bottom show`): 150ms, linear, opacity 0 -> 0.9, fill backwards.
+   * Declared rather than written in a client stylesheet so the client cannot
+   * invent a timing the reference did not show.
+   */
+  "duration-feedback": "150ms",
+  "ease-linear": "linear",
   "ease-standard": "cubic-bezier(0.16, 1, 0.3, 1)",
 } as const;
 

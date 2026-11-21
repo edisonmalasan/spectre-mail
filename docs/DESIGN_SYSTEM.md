@@ -314,15 +314,17 @@ client has unmounted is gone before any transition can run, so the roadmap's
 _"materialize/disappear"_ delivers only the first half. And there is **no `transition`**,
 so the reduced-motion block governs animation alone and nothing here claims otherwise.
 
-| Token             | Value                           |
-| ----------------- | ------------------------------- |
-| `--rise`          | `4px`                           |
-| `--blur`          | `6px`                           |
-| `--mark-width`    | `1.25rem`                       |
-| `--mark-height`   | `1rem`                          |
-| `--duration-fast` | `120ms`                         |
-| `--duration-base` | `200ms`                         |
-| `--ease-standard` | `cubic-bezier(0.16, 1, 0.3, 1)` |
+| Token                 | Value                           |
+| --------------------- | ------------------------------- |
+| `--rise`              | `4px`                           |
+| `--blur`              | `6px`                           |
+| `--mark-width`        | `1.25rem`                       |
+| `--mark-height`       | `1rem`                          |
+| `--duration-fast`     | `120ms`                         |
+| `--duration-base`     | `200ms`                         |
+| `--duration-feedback` | `150ms`                         |
+| `--ease-linear`       | `linear`                        |
+| `--ease-standard`     | `cubic-bezier(0.16, 1, 0.3, 1)` |
 
 <!-- END GENERATED: tokens -->
 

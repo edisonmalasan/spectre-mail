@@ -308,6 +308,17 @@ button {
   font-size: var(--type-sm);
   text-align: center;
   border: var(--width-hairline) solid var(--line-strong);
+  /* M18: the reference's Copy tooltip fades opacity 0 -> 0.9 over 150ms linear,
+     fill backwards. Declared tokens, not a literal timing in this file. */
+  animation: spectre-tooltip-fade var(--duration-feedback) var(--ease-linear) backwards;
+}
+@keyframes spectre-tooltip-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 0.9;
+  }
 }
 .toast:empty {
   display: none;
@@ -602,7 +613,8 @@ button {
 @media (prefers-reduced-motion: reduce) {
   .address__value,
   .inbox-row,
-  .code {
+  .code,
+  .toast {
     animation: none;
   }
 }
