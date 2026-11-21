@@ -26,6 +26,7 @@ import "@spectre-mail/ui/tokens.css";
 import "./styles.css";
 
 import { App } from "./App";
+import { PublicRoutePage, routeFor } from "./PublicRoutePage";
 
 const container = document.getElementById("root");
 
@@ -33,8 +34,10 @@ if (!container) {
   throw new Error("Missing #root element. index.html and main.tsx are out of sync.");
 }
 
-createRoot(container).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+// The public informational routes share this entry point: a history fallback serves index.html
+// for each path, and the page it renders is chosen here rather than by adding a router dependency.
+// Tests render <App /> directly, so the working product's tree is unchanged on "/".
+const publicRoute = routeFor(window.location.pathname);
+const root = publicRoute === null ? <App /> : <PublicRoutePage route={publicRoute} />;
+
+createRoot(container).render(<StrictMode>{root}</StrictMode>);

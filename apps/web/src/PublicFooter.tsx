@@ -12,11 +12,16 @@ export function PublicFooter() {
     <footer className="page-footer" data-region="footer" aria-labelledby="footer-heading">
       <h2 id="footer-heading">What this page can and cannot do</h2>
       <nav className="page-footer__nav" aria-label="About SpectreMail">
-        <span>About temporary addresses</span>
-        <span>Common questions</span>
-        <span>Privacy</span>
-        <span>Terms</span>
-        <span>Contact</span>
+        {/* Each of these is a route this build actually renders. Premium, app-store and
+            external destinations stay out: a link that leads nowhere is a dead control. */}
+        <a href="/faq">Common questions</a>
+        <a href="/email-generator">Email generator</a>
+        <a href="/10minutemail">Ten-minute mail</a>
+        <a href="/privacy-policy">Privacy</a>
+        <a href="/terms-of-service">Terms</a>
+        <a href="/contact">Contact</a>
+        <a href="/blog">Reading list</a>
+        <a href="/api">Developer access</a>
       </nav>
       <p>
         SpectreMail reaches the providers this build supports and operates no mail server of its

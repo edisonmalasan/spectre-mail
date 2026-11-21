@@ -767,3 +767,42 @@ button {
 .page-footer__note {
   opacity: 0.8;
 }
+.page-footer__nav a {
+  color: var(--ink-on-console);
+  text-underline-offset: var(--space-1);
+}
+.page-footer__nav a:focus-visible {
+  outline: var(--width-focus) solid var(--focus);
+  outline-offset: var(--offset-focus);
+}
+
+/* ── Public informational routes ──────────────────────────────────────────────
+   Original copy in the same shell as the product; no marketing cards or dead controls. */
+.public-route {
+  max-width: var(--measure-page);
+  margin-inline: auto;
+  padding: var(--space-8) var(--space-5);
+}
+.public-route h1 {
+  margin: 0 0 var(--space-4);
+  font-size: var(--type-2xl);
+  line-height: var(--leading-tight);
+  color: var(--ink-primary);
+}
+.public-route__intro {
+  max-width: var(--measure-prose);
+  margin: 0 0 var(--space-7);
+  font-size: var(--type-lg);
+  color: var(--ink-secondary);
+}
+.public-route__section {
+  margin-block-end: var(--space-6);
+}
+.public-route__section h2 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--type-lg);
+  color: var(--ink-primary);
+}
+.public-route__section p {
+  color: var(--ink-secondary);
+}
