@@ -1,0 +1,170 @@
+{
+  "viewport": {
+    "w": 1440,
+    "h": 900
+  },
+  "scrollHeight": 2567,
+  "scrollWidth": 1440,
+  "header": {
+    "rect": {
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 81
+    },
+    "font": "system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif 16px 400",
+    "color": "rgb(244, 244, 242)",
+    "bg": "rgb(33, 35, 42)",
+    "borderRadius": "0px",
+    "padding": "24px",
+    "borderTop": "0px none rgb(244, 244, 242)"
+  },
+  "hero": {
+    "rect": {
+      "x": 0,
+      "y": 81,
+      "w": 1440,
+      "h": 307
+    },
+    "font": "system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif 16px 400",
+    "color": "rgb(244, 244, 242)",
+    "bg": "rgb(33, 35, 42)",
+    "borderRadius": "0px",
+    "padding": "24px",
+    "borderTop": "0px none rgb(244, 244, 242)"
+  },
+  "panel": {
+    "rect": {
+      "x": 440,
+      "y": 105,
+      "w": 560,
+      "h": 165
+    },
+    "font": "system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif 16px 400",
+    "color": "rgb(244, 244, 242)",
+    "bg": "rgba(0, 0, 0, 0)",
+    "borderRadius": "6px",
+    "padding": "24px 16px",
+    "borderTop": "2px dashed rgb(111, 111, 120)"
+  },
+  "title": {
+    "rect": {
+      "x": 458,
+      "y": 131,
+      "w": 524,
+      "h": 25
+    },
+    "font": "ui-monospace, \"Cascadia Mono\", \"Segoe UI Mono\", Menlo, Consolas, monospace 22px 600",
+    "color": "rgb(244, 244, 242)",
+    "bg": "rgba(0, 0, 0, 0)",
+    "borderRadius": "0px",
+    "padding": "0px",
+    "borderTop": "0px none rgb(244, 244, 242)"
+  },
+  "pill": {
+    "rect": {
+      "x": 496,
+      "y": 180,
+      "w": 448,
+      "h": 64
+    },
+    "font": "system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif 16px 400",
+    "color": "rgb(22, 22, 26)",
+    "bg": "rgb(255, 255, 255)",
+    "borderRadius": "999px",
+    "padding": "8px 12px",
+    "borderTop": "0px none rgb(22, 22, 26)"
+  },
+  "addressValue": {
+    "rect": {
+      "x": 508,
+      "y": 197,
+      "w": 364,
+      "h": 30
+    },
+    "font": "ui-monospace, \"Cascadia Mono\", \"Segoe UI Mono\", Menlo, Consolas, monospace 18px 400",
+    "color": "rgb(22, 22, 26)",
+    "bg": "rgba(0, 0, 0, 0)",
+    "borderRadius": "0px",
+    "padding": "0px",
+    "borderTop": "0px none rgb(22, 22, 26)"
+  },
+  "copy": {
+    "rect": {
+      "x": 884,
+      "y": 188,
+      "w": 48,
+      "h": 48
+    },
+    "font": "system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif 16px 400",
+    "color": "rgb(255, 255, 255)",
+    "bg": "rgb(90, 63, 208)",
+    "borderRadius": "4px",
+    "padding": "12px 16px",
+    "borderTop": "1px solid rgb(90, 63, 208)"
+  },
+  "toolbar": {
+    "rect": {
+      "x": 360,
+      "y": 412,
+      "w": 720,
+      "h": 50
+    },
+    "font": "system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif 16px 400",
+    "color": "rgb(22, 22, 26)",
+    "bg": "rgba(0, 0, 0, 0)",
+    "borderRadius": "0px",
+    "padding": "0px",
+    "borderTop": "0px none rgb(22, 22, 26)"
+  },
+  "toolbarButtons": [
+    {
+      "text": "Copy",
+      "w": 168,
+      "h": 50
+    },
+    {
+      "text": "Refresh",
+      "w": 168,
+      "h": 50
+    },
+    {
+      "text": "Change",
+      "w": 168,
+      "h": 50
+    },
+    {
+      "text": "Delete",
+      "w": 168,
+      "h": 50
+    }
+  ],
+  "inboxPanel": {
+    "rect": {
+      "x": 360,
+      "y": 519,
+      "w": 720,
+      "h": 141
+    },
+    "font": "system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif 16px 400",
+    "color": "rgb(22, 22, 26)",
+    "bg": "rgb(255, 255, 255)",
+    "borderRadius": "4px",
+    "padding": "0px",
+    "borderTop": "0px none rgb(22, 22, 26)"
+  },
+  "footer": {
+    "rect": {
+      "x": 0,
+      "y": 2252,
+      "w": 1440,
+      "h": 315
+    },
+    "font": "system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif 16px 400",
+    "color": "rgb(244, 244, 242)",
+    "bg": "rgb(33, 35, 42)",
+    "borderRadius": "0px",
+    "padding": "48px 24px",
+    "borderTop": "0px none rgb(244, 244, 242)"
+  }
+}
