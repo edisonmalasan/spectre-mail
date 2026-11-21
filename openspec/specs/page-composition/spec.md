@@ -1,4 +1,4 @@
-# page-composition Specification
+# page-composition Specification Specification
 
 ## Purpose
 
@@ -20,11 +20,13 @@ right.
 
 ### Requirement: The page is five regions in a stated order
 
-A client SHALL divide its page into **exactly five** regions, each with its own heading, and
-SHALL render them in one stated order. The working product SHALL be one of those regions rather
-than a hero placed above them, because the roadmap's own line is that the product itself remains
-the main hero. No region SHALL be added that has no heading of its own, and no sixth region
-SHALL be added.
+A client SHALL divide its page into a declared, ordered inventory of regions, each with its
+own heading, derived from the M16 reference evidence and published as one statement order. The
+working product SHALL be the first region, because the product itself remains the main hero. The
+inventory SHALL include the measured below-fold information sections and the footer after the
+product, and no region SHALL be added without either a reference row or an explicitly approved
+product decision. The count and order SHALL be declared once and read by a browser check, so a
+requirement and the DOM cannot disagree.
 
 **Note, recorded during proposal (2026-10-06).** _"Five regions in a stated order"_ and _"the
 product is one of them"_ are both load-bearing, and the second is the one a landing-page
@@ -54,7 +56,7 @@ from its approved direction rather than from a vacancy.
 
 - **WHEN** a client renders the product page
 - **THEN** it SHALL render its regions in the stated order
-- **AND** it SHALL render exactly five of them
+- **AND** it SHALL render every region in the declared inventory
 - **AND** every region SHALL be reachable by its own accessible name
 
 #### Scenario: A region's heading is read
@@ -195,10 +197,12 @@ in the same change that needed it.
 
 ### Requirement: The section set is not invented by this slice
 
-The sections a client renders SHALL be the ones its approved direction names, and a section
-whose subject does not exist SHALL be absent rather than represented. A client SHALL NOT add a
-section to fill space, and SHALL NOT render a preview, sample, or illustration of something the
-product has not built.
+The sections a client renders SHALL be the ones its approved direction names, including the
+public free-web sections and routes inventoried by M16. Subject matter whose source is protected
+SHALL be expressed in original SpectreMail copy that preserves the informational role and
+layout, not copied verbatim. A section whose subject does not exist SHALL be absent rather than
+represented, and a client SHALL NOT add a section to fill space or render a preview of something
+the product has not built.
 
 A section whose subject **is** built SHALL render it, and a section depicting another surface of
 this product SHALL depict **only what that surface does**: it SHALL name no capability the

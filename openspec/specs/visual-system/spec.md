@@ -1,4 +1,4 @@
-# visual-system Specification
+# visual-system Specification Specification
 
 ## Purpose
 
@@ -163,12 +163,15 @@ theatre, because the browser supplies colour strings and the test supplies the r
 
 ### Requirement: Motion is three materialisations, timed by the token layer
 
-A client SHALL animate exactly the moments the roadmap's Motion block names — the mailbox
-address, a message arriving in the inbox, and a rendered verification code — and no other.
-Each SHALL be a single entrance that resolves to the element's resting appearance, and
-every duration, easing function, blur distance, and rise distance it uses SHALL be a value
-the token layer declares. No shipped stylesheet SHALL name a duration, an easing function,
-or a motion distance literally.
+A client SHALL reproduce only motion that a reference capture actually observed. The product
+entrances already measured — the mailbox address, a message arriving in the inbox, and a
+rendered verification code — SHALL remain single entrances resolving to the element's resting
+appearance. A continuous animation that the reference showed only on advertising or spinner
+elements is recorded as observed but SHALL NOT be introduced into product UI without its own
+justification. Every duration, easing function, blur distance, and rise distance a product
+entrance uses SHALL be a value the token layer declares, and no shipped stylesheet SHALL name a
+duration, an easing function, or a motion distance literally. Where a reference effect was not
+observable, its specification SHALL say UNKNOWN rather than invent a timing.
 
 **Note, recorded during proposal (2026-10-06).** *"Resolves to the element's resting
 appearance"* is load-bearing and is the reason the entrances need no fill mode. If the
