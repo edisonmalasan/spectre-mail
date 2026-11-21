@@ -55,12 +55,16 @@ const TOOLBAR_ACTIONS = [
   ["toolbar-delete", "Delete: Clear saved data"],
 ] as const;
 
-/** Informational headings from the page this rebuild replaced, forbidden now. */
+/**
+ * Headings from the M7 sections that the G2/M17 reconstruction removed. The footer's
+ * "What this page can and cannot do" is NOT here: M17 requires the footer landmark and
+ * its accessible name, and the website-client spec pins that name. What stays forbidden is
+ * the three removed marketing sections, which M16 measured as absent from the reference.
+ */
 const REMOVED_HEADINGS = [
   "What happens, in order",
   "Why SpectreMail",
   "The extension, in this browser",
-  "What this page can and cannot do",
 ] as const;
 
 /** A page with a mailbox and its provider traffic. */

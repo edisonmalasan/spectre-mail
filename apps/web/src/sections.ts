@@ -303,7 +303,13 @@ export const LIMITS: readonly string[] = [
  * nothing checks. It lives here now, next to `PageRegion` and the browser tier's DOM comparison,
  * so the three cannot disagree.
  */
-export const PAGE_ORDER = ["product", "steps", "reasons", "extension", "footer"] as const;
+/*
+ * M17: the five-region M7 inventory is superseded by the M16 reference-derived full page.
+ * The working product stays first; the measured below-fold information regions and the
+ * footer follow in the order captured on 2026-11-21. This list is the single source the
+ * browser tier reads, so the requirement and the DOM cannot disagree.
+ */
+export const PAGE_ORDER = ["product", "explainer", "articles", "reference", "footer"] as const;
 
 /** One region of the page, as the order names it. */
 export type PageRegion = (typeof PAGE_ORDER)[number];
@@ -325,9 +331,9 @@ export type PageRegion = (typeof PAGE_ORDER)[number];
  */
 export const REGION_HOOKS: Readonly<Record<PageRegion, string>> = {
   product: "product",
-  steps: "steps",
-  reasons: "reasons",
-  extension: "extension",
+  explainer: "explainer",
+  articles: "articles",
+  reference: "reference",
   footer: "footer",
 };
 

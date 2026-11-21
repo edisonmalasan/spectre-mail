@@ -15,6 +15,16 @@
  * @module
  */
 
+/* The inbox stays mounted behind the message reader. display:none would restart every
+   row's entrance when it became visible again, so hide it with visibility and take it
+   out of flow instead. Its DOM identity and animation state survive the round trip. */
+.inbox-panel__list--hidden {
+  visibility: hidden;
+  position: absolute;
+  inset-inline: 0;
+  pointer-events: none;
+}
+
 /* ── Base ──────────────────────────────────────────────────────────────────────── */
 
 html {
@@ -661,4 +671,77 @@ button {
 .link {
   margin-block-end: var(--space-2);
   overflow-wrap: anywhere;
+}
+
+/* ── M17 public information regions ────────────────────────────────────────────
+   Original SpectreMail copy occupying the measured reference's read-on positions.
+   Widths and spacing use the declared token scale; no new token is introduced. */
+.info-section {
+  max-width: var(--measure-page);
+  margin-inline: auto;
+  padding: var(--space-8) var(--space-5);
+}
+.info-section h1 {
+  margin: 0 0 var(--space-5);
+  font-size: var(--type-2xl);
+  line-height: var(--leading-tight);
+  color: var(--ink-primary);
+}
+.info-section h2 {
+  margin: 0 0 var(--space-5);
+  font-size: var(--type-xl);
+  line-height: var(--leading-tight);
+  color: var(--ink-primary);
+}
+.info-section h3 {
+  margin: var(--space-6) 0 var(--space-2);
+  font-size: var(--type-lg);
+  color: var(--ink-primary);
+}
+.info-section p {
+  max-width: var(--measure-prose);
+  margin: 0 0 var(--space-4);
+  color: var(--ink-secondary);
+  line-height: var(--leading-relaxed);
+}
+.info-section__links {
+  max-width: var(--measure-prose);
+  margin: 0;
+  padding-inline-start: var(--space-5);
+  color: var(--ink-secondary);
+}
+.info-section__links li {
+  margin-block-end: var(--space-2);
+}
+.page-footer {
+  padding: var(--space-7) var(--space-5);
+  background-color: var(--surface-console);
+  color: var(--ink-on-console);
+}
+.page-footer h2,
+.page-footer p {
+  max-width: var(--measure-page);
+  margin-inline: auto;
+  color: var(--ink-on-console);
+}
+.page-footer h2 {
+  margin-block-end: var(--space-4);
+  font-size: var(--type-lg);
+}
+.page-footer p {
+  margin-block-end: var(--space-3);
+  font-size: var(--type-sm);
+  line-height: var(--leading-relaxed);
+}
+.page-footer__nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  max-width: var(--measure-page);
+  margin: 0 auto var(--space-5);
+  color: var(--ink-on-console);
+  font-size: var(--type-sm);
+}
+.page-footer__note {
+  opacity: 0.8;
 }

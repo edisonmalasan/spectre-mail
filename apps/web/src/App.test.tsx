@@ -703,8 +703,9 @@ describe("the website", () => {
       expect(text).not.toMatch(/holding this address/i);
       expect(text).not.toMatch(/no button here to delete/i);
       expect(text).not.toMatch(/cannot delete/i);
-      expect(text).not.toMatch(/no backend/i);
-      expect(text).not.toMatch(/never (relays|proxies)/i);
+      // M17: the footer now states the true architectural fact that no backend is involved;
+      // this was a negative only while the page had no footer. It is a required claim now.
+      expect(text).toMatch(/no backend/i);
 
       // What the rebuilt page does say is narrower and still true: the hero states the
       // job in the product's own words, the header states two facts, and all four
