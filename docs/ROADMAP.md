@@ -51,6 +51,9 @@ popup shares the same component and is forbidden by a promoted clause from stati
 
 ## Project Status
 
+> **Phase II roadmap update (planned 2026-11-21):** The owner has approved a new Temp Mail reference-parity programme in §34, **M16–M21**. M16 is the next planned investigation milestone; none of M16–M21 is completed by this roadmap edit. The historical M0–M15 status below remains a dated record, and `docs/GOAL.md` G2 is an agent task rather than a roadmap milestone.
+>
+
 > This block is the root orchestrator's progress ledger. It is **not** the behavioral
 > source of truth — `openspec/specs/` and the active OpenSpec change artifacts are.
 > Reconcile this block against Git and OpenSpec before trusting it in a later session.
@@ -4413,6 +4416,21 @@ should run the website.
 | M14 | Cross-Browser Expansion | **Skipped by decision (2026-10-28)** — Chromium-only product; Firefox unmeasured, Edge unmeasured |
 | M15 | Post-Beta Evaluation | **Decided (2026-10-28): Outcome A** — remains provider-powered; 2 of 10 inputs measured, 6 absent with the users |
 
+### Phase II — Complete Temp Mail UI/UX Reference Parity (Planned; M16–M21)
+
+The Phase II milestones extend the original programme without changing the historical M0–M15 results. See §34 for full scope, deliverables, and evidence-backed exit gates.
+
+| Milestone | Name | Primary outcome |
+|---|---|---|
+| **M16** | Complete Temp Mail reference investigation | All publicly accessible free routes, states, visual measurements, motion and interactions inventoried with evidence |
+| **M17** | Design contract migration and complete visual reconstruction | OpenSpec conflicts resolved; complete-page and route layout recreated and compared |
+| **M18** | Motion and microinteraction parity | Captured transitions, timing, loading feedback and control behavior reconstructed and compared |
+| **M19** | Full user journeys, public pages and live mailbox integrity | Real browser journeys verified without breaking provider, security and extension behavior |
+| **M20** | Responsive, accessibility and visual-regression verification | Multi-viewport screenshot/video baselines, keyboard/motion/accessibility and regression gates |
+| **M21** | Independent full-site parity audit and handoff | Evidence-linked review across the full reference inventory and final release-readiness verdict |
+
+**Next action:** begin M16, then complete the approved OpenSpec/design-contract migration before M17 implementation. These rows describe **planned work**, not a claim of completed reference cloning.
+
 ---
 
 # 6. M0 — Provider Compatibility Spike
@@ -6659,6 +6677,97 @@ this product** and deleting them would make the definition agree with the scope 
 extension — **and both are product decisions rather than implementation work**, which is why they are
 recorded here rather than scheduled anywhere. **A roadmap that ticked them without a deployment
 would not have shipped one.**
+
+---
+
+# 34. Phase II — Temp Mail Reference Reconstruction (NEW; planned 2026-11-21)
+
+## Why a second phase is necessary
+
+The owner-selected target is now **the complete publicly inspectable free Temp Mail web experience**, rather than merely a Temp Mail-inspired first viewport. This is a new product-direction decision after M0–M15, **not** a retroactive rewrite of their results.
+
+M7's `Spectral Swiss Utility`, `DESIGN.md`'s instrument-panel restrictions, entrance-only motion, and M7's five home-page sections conflict with the new reference-cloning goal. Existing browser tests mainly establish DOM behavior and computed style, not full rendered-pixel or motion parity. These are **approved-spec conflicts requiring explicit migration**, not requirements an agent may ignore. Preserve M7's original archived evidence and history. The separate `docs/GOAL.md` G2 assignment is an agent goal, not a roadmap milestone.
+
+**Scope:** "full clone" means high-fidelity layout, motion, and behavior across **every publicly accessible, no-account, free Temp Mail web route and user flow discovered in M16**, including below-the-fold content, navigation and responsive states. Do not silently narrow it to the hero. Premium, authenticated, mobile-app, advertising, and access-restricted features must be inventoried and marked as outside current free-web scope or awaiting an explicit decision, never faked. Preserve SpectreMail branding, current working provider architecture, local-first privacy, security, and extension behavior. Use independently authored code, original or appropriately licensed icons/illustrations and original explanatory copy—not Temp Mail trademarks, proprietary graphics, source code, or verbatim long articles. Knowing the name of a domain does **not** grant permission or working access to its mailboxes.
+
+### Required change-control sequence
+
+1. M16 collects and timestamps **reference evidence before implementation choices**: actual pages, states, actions and observed animation.
+2. Propose an OpenSpec change reconciling `visual-system`, `website-client`, `build-and-verification`, and every other affected capability. Mark each existing requirement **keep / replace / add / defer**; do not mutate archived OpenSpec changes or call a conflicting spec "already satisfied".
+3. Update `PRODUCT.md`, `DESIGN.md`, source tokens in `packages/ui` and generated `docs/DESIGN_SYSTEM.md` **using its existing generation pipeline** where needed. Resolve conflicts about motion, page composition, cards, illustrations and font treatment; preserve accessible focus and reduced motion.
+4. Implement the work in reviewable slices through the established proposal → implementation → verification → spec sync → archive process. Use M16–M21 identifiers, not independently invented G-numbers.
+5. M21 audits **all inventory rows** instead of a selected subset. An unsupported or unverified item is not silently removed from the denominator.
+
+## M16 — Complete Temp Mail reference investigation
+
+**Artifacts:** `docs/ux-reference/reference-inventory.md`, `docs/ux-reference/interaction-matrix.md`, `docs/ux-reference/motion-spec.md`, capture metadata and reproducible reference-capture scripts or instructions.
+
+- Inspect `https://temp-mail.org/en/` using a real browser (OpenCode Browse/Chrome/Playwright/CDP where available). Map the full home page down to its footer and every linked, public, no-account, free route. At minimum examine the home page, address-change page, QR experience, Copy, Refresh, Change, Delete, empty inbox, inbox with mail, message reader, FAQ/help/navigation, error/loading/retry states and any discovered popovers, menus and dialogs. Do not invent states a browser did not show.
+- For each route and component record its URL, semantic role, viewport/scroll position, before/after state, activation method (pointer/keyboard), network dependency, reference capture and intended SpectreMail mapping. Record all inaccessible/premium states as **not inspected** rather than assuming their behavior.
+- Extract computed typography, background/ink colors, border styles, corner radii, shadows, spacing, container widths, sticky/scroll behavior and bounding boxes via `getBoundingClientRect()` where permitted. Distinguish **measured / inferred / unknown** values. Inspect the actual responsive breakpoints rather than guessing.
+- Capture **full-page screenshots plus interaction videos** at 1440×900, 956×885, 768×1024, 390×844 and 360×800. Record capture date, browser/zoom, fonts-loaded status, viewport and the handling of dynamic address/message values. Test light/dark only if the reference offers the corresponding state.
+- Inspect animations with frames/DevTools/Web Animations API when accessible: initial generation, Copy feedback, refresh spinner, mailbox replacement, message appearance, row interactions, reader navigation, toasts, menus and mobile behavior. For each record trigger, initial and final state, actual duration, easing, keyframes/transform/opacity and repeat-click behavior. **If the reference is instant, record that rather than adding an invented fade.**
+- Audit SpectreMail in the same way, including present website layout and extension functionality. Maintain a prioritized **difference register** with screenshots/recordings: missing sections, wrong geometry, motion, responsive behavior, text density, iconography, wrong page flows and stale/error states.
+- Do not use private/unapproved APIs, circumvent site controls, bypass rate limits or treat scraped pages as access to an email provider's domain or mailbox service.
+
+**M16 exit gate:** Evidence-backed inventory and difference register covering every discovered public free route and reachable state, with a reference artifact or explicit inspection limitation per row. No claims of implementation completion.
+
+## M17 — Design contract migration and complete visual reconstruction
+
+- Write and approve the OpenSpec/design-system migration that supersedes incompatible M7 design requirements, including page composition, hero styling, toolbar, inbox, copy/QR controls, page content, navigation and modal behavior. Keep the old M7 ledger untouched as history.
+- Reconstruct **the entire public free page and route structure**, including header/nav, hero and address pill, QR/copy actions, Copy/Refresh/Change/Delete strip, inbox table, empty illustration, populated rows, message reader, full-page sections, public support/info routes and footer. Use original written content where Temp Mail's prose is protected but preserve informational roles and layout.
+- Do not insert arbitrary explanatory cards, usage analytics, provider badges or marketing panels absent from the reference. Preserve SpectreMail identity and honest provider capabilities.
+- Adapt layout and website-only styles in `apps/web`; keep shared design tokens single-source and re-run generated token/docs checks. A remote asset dependency must not be introduced to mimic typography or icons.
+- Compare reference and SpectreMail screenshots at matched viewport, scale and content state; build overlays and a ranked mismatch log. **Target approximately 4 CSS pixels** for major measured boundaries when feasible, excluding documented brand/legal differences. Pixel-diff score alone never overrides visual inspection.
+
+**M17 exit gate:** Approved spec changes, complete-page screenshots for every required viewport, and no unresolved major untracked structural mismatch.
+
+## M18 — Motion and microinteraction parity
+
+- Reproduce only **observed** animation and transition behavior: initial loading, mailbox address changes, QR/modal state, Copy confirmation, Refresh feedback, incoming-message updates, hover/press/focus, message opening/closing, errors/toasts and responsive navigation, as applicable.
+- Record paired real-browser videos of identical actions. Compare start/end positions, opacity, easing and intermediate frames; target within about **10% of measured animation duration** where a deterministic timing is observable. Distinguish network delay from UI animation duration.
+- Prevent layout shifts during Copy feedback, Refresh and mailbox replacement. Never show stale messages from a prior mailbox; guard asynchronous requests and duplicate inputs. Keep existing messages during a non-destructive refresh.
+- Respect `prefers-reduced-motion`, semantic feedback and keyboard interactions. Do not introduce spring, glow, bounce or constant animation when unsupported by evidence.
+- Save a motion matrix listing reference capture, local capture, extracted measurement and PASS/FAIL/UNKNOWN for every observable effect.
+
+**M18 exit gate:** Frame/video comparison and behavior review for each observable motion state; no unresolved high-severity motion discrepancy labeled complete.
+
+## M19 — Full user journeys, public pages and live mailbox integrity
+
+- Verify automatic address generation, full address Copy, QR content, Refresh, Change, Delete, domain-selection where SpectreMail offers it, empty/populated inbox, message reader, Back, public navigation and full-page scrolling against the M16 interaction matrix.
+- Test normal flow, high-frequency repeated actions, offline/network errors, rate limits, provider expiration, reload/persistence, stale response races, long addresses, missing dates, invalid message bodies and read/unread state where supported.
+- Use genuine provider-backed accounts. A selected domain must actually provision a mailbox through its matching provider; do not fake domain diversity or perform unauthorized mailbox access. A local delete must be described as forgetting the address, not remote deletion, unless provider deletion is confirmed.
+- Verify one controlled real received email and parsed sender/subject/body/date/OTP/link when a permitted external sender is available. Mocked deliveries count only as deterministic automated test coverage, not live-delivery proof.
+- Preserve client-only/no-proxy policy, sanitization, safe links, no automatic OTP submission, no secret disclosure and the working Chromium extension. Website UI reference parity does **not** imply that the distinct extension should be forced to use the desktop website layout.
+- Include below-the-fold/linked routes found by M16 rather than quietly deleting them from scope because they are not in the first screenshot.
+
+**M19 exit gate:** Every in-scope user flow has browser tests and evidence. Live provider assertions are supported by genuine tests or explicitly marked blocked by external dependencies.
+
+## M20 — Responsive, accessibility and visual-regression verification
+
+- Add reproducible screenshot/video comparison tests (or documented manual repeatable capture procedures when tooling cannot run). Keep versioned baselines, source reference date, zoom, fonts and dynamic masks. Masks may exclude dynamic address values/timestamps but **not mismatched layout**.
+- Exercise all five M16 viewports, full page and key states, keyboard/focus and screen-reader semantics, touch targets, zoom, long email addresses, mobile menus, scroll/persistence, contrast, reduced motion and slow network.
+- Retain existing `pnpm verify`, architecture boundaries, website browser and extension browser validation. Re-run against the changed tree, do not cite stale passes from older commits.
+- Require an independent browser review of actual pixels, motion consistency and interaction quality. Calculated diff metrics support but do not replace human judgment.
+- Record every screenshot baseline exclusion or intentional deviation with owner, reason and review date.
+
+**M20 exit gate:** Current CI green, no critical accessibility/mobile regressions, reviewable reference-versus-local artifacts, and independently reviewed visual/motion exceptions.
+
+## M21 — Independent full-site parity audit and handoff
+
+- Review every M16 route/state/action and every M17–M20 exception against the same dated reference baseline; refresh evidence when the public site materially changes, without silently shifting acceptance targets.
+- Publish a coverage matrix using **PASS / FAIL / NOT VERIFIED / BLOCKED / APPROVED DEVIATION** with evidence per row. The denominator is the full audited free-web inventory, not selected primary controls.
+- Independently review code, motion, pixel layout, page navigation, backend truthfulness, extension regressions, accessibility and security. Complete the OpenSpec verify/sync/archive workflow before any final completion label.
+- Do not assume an internally built archive means the website is deployed, the extension is listed, or a live external message was received. Preserve unresolved product/credentials decisions explicitly.
+- **GOAL MET** only if all mandatory scope and evidence gates pass and a human reviewer has accepted the finished experience. Otherwise report **PARTIALLY MET** or **BLOCKED** with concrete remaining rows. A constantly changing external website cannot truthfully be promised as byte-for-byte identical forever.
+
+**M21 exit gate:** An independently reviewed, evidence-linked full-site parity and release-readiness report exists.
+
+### Phase II priority and non-goals
+
+**M16 investigation → approved OpenSpec migration → M17 layout → M18 motion → M19 working journeys → M20 regressions → M21 audit.** Work through evidence and small verified increments; if a later user-flow defect reveals an earlier incorrect premise, revisit that milestone instead of masking it with another animation.
+
+This phase does **not** authorize copying Temp Mail proprietary source/assets, bypassing login or paywalls, sending/spam automation, trial-abuse tools, domain-block evasion, unauthorized private APIs, or silently introducing a backend. Any requested functionality outside those boundaries needs its own reviewed product decision and spec change.
 
 ---
 
