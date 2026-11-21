@@ -155,7 +155,7 @@ export function App({ session, storage }: AppProps = {}) {
       <main className="page">
         <AppHeader />
 
-        <section className="hero" aria-labelledby="hero-heading">
+        <section className="hero" data-region="product" aria-labelledby="hero-heading">
           <div className="hero__panel">
             <h2 className="hero__title" id="hero-heading">
               Your Temporary Email Address
