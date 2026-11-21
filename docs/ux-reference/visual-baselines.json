@@ -1,0 +1,128 @@
+{
+  "createdAt": "2026-11-21T07:00:56.946Z",
+  "referenceDate": "2026-11-21",
+  "purpose": "M20 matched-viewport full-page visual baselines for SpectreMail vs dated Temp Mail captures",
+  "maskPolicy": "Only dynamic address values and timestamps are masked; layout is never masked.",
+  "entries": [
+    {
+      "view": "desktop",
+      "requested": {
+        "width": 1440,
+        "height": 900
+      },
+      "image": "docs/ux-reference/captures/baseline-desktop.png",
+      "reference": "docs/ux-reference/captures/reference-desktop.png",
+      "referenceDate": "2026-11-21",
+      "zoom": "100%",
+      "deviceScaleFactor": 1,
+      "fonts": "loaded",
+      "scrollHeight": 2567,
+      "overflowX": false,
+      "masks": ["dynamic address value", "dynamic message timestamp"],
+      "layoutMasked": false,
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "scrollWidth": 1440,
+      "address": "[MASKED]",
+      "timestamp": null
+    },
+    {
+      "view": "split",
+      "requested": {
+        "width": 956,
+        "height": 885
+      },
+      "image": "docs/ux-reference/captures/baseline-split.png",
+      "reference": "docs/ux-reference/captures/reference-split.png",
+      "referenceDate": "2026-11-21",
+      "zoom": "100%",
+      "deviceScaleFactor": 1,
+      "fonts": "loaded",
+      "scrollHeight": 2567,
+      "overflowX": false,
+      "masks": ["dynamic address value", "dynamic message timestamp"],
+      "layoutMasked": false,
+      "viewport": {
+        "width": 956,
+        "height": 885
+      },
+      "scrollWidth": 956,
+      "address": "[MASKED]",
+      "timestamp": null
+    },
+    {
+      "view": "tablet",
+      "requested": {
+        "width": 768,
+        "height": 1024
+      },
+      "image": "docs/ux-reference/captures/baseline-tablet.png",
+      "reference": "docs/ux-reference/captures/reference-tablet.png",
+      "referenceDate": "2026-11-21",
+      "zoom": "100%",
+      "deviceScaleFactor": 1,
+      "fonts": "loaded",
+      "scrollHeight": 2590,
+      "overflowX": false,
+      "masks": ["dynamic address value", "dynamic message timestamp"],
+      "layoutMasked": false,
+      "viewport": {
+        "width": 768,
+        "height": 1024
+      },
+      "scrollWidth": 768,
+      "address": "[MASKED]",
+      "timestamp": null
+    },
+    {
+      "view": "mobile",
+      "requested": {
+        "width": 390,
+        "height": 844
+      },
+      "image": "docs/ux-reference/captures/baseline-mobile.png",
+      "reference": "docs/ux-reference/captures/reference-mobile.png",
+      "referenceDate": "2026-11-21",
+      "zoom": "100%",
+      "deviceScaleFactor": 1,
+      "fonts": "loaded",
+      "scrollHeight": 3267,
+      "overflowX": false,
+      "masks": ["dynamic address value", "dynamic message timestamp"],
+      "layoutMasked": false,
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "scrollWidth": 390,
+      "address": "[MASKED]",
+      "timestamp": null
+    },
+    {
+      "view": "mobile360",
+      "requested": {
+        "width": 360,
+        "height": 800
+      },
+      "image": "docs/ux-reference/captures/baseline-mobile360.png",
+      "reference": "docs/ux-reference/captures/reference-mobile360.png",
+      "referenceDate": "2026-11-21",
+      "zoom": "100%",
+      "deviceScaleFactor": 1,
+      "fonts": "loaded",
+      "scrollHeight": 3347,
+      "overflowX": false,
+      "masks": ["dynamic address value", "dynamic message timestamp"],
+      "layoutMasked": false,
+      "viewport": {
+        "width": 360,
+        "height": 800
+      },
+      "scrollWidth": 360,
+      "address": "[MASKED]",
+      "timestamp": null
+    }
+  ]
+}

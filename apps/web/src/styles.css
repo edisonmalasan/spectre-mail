@@ -628,6 +628,12 @@ button {
   .app-header__side:first-child {
     display: none;
   }
+  /* At 360px even the right-hand second pill overflows the viewport. It is the
+     least important of the four facts, so it is the one dropped; the brand and the
+     Disposable fact remain. */
+  .app-header__side--end .app-header__pill:last-child {
+    display: none;
+  }
   .hero {
     padding: var(--space-5) var(--space-4);
   }
