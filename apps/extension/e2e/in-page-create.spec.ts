@@ -287,7 +287,11 @@ test.describe("creating a mailbox from inside a page", () => {
     // submits an address this device cannot serve. So all three, and they must be the *same*
     // address: the Mail.tm adapter generates the local part, so nothing here can be written as a
     // fixed string.
-    await expect(page.locator("#react-input")).toHaveValue(/^[^@\s]+@[^@\s]+$/);
+    // A live Mail.tm creation (domain fetch, account, token) can exceed Playwright's 5s default
+    // when the whole tier is running. Use the product's own ceiling rather than a chosen number.
+    await expect(page.locator("#react-input")).toHaveValue(/^[^@\s]+@[^@\s]+$/, {
+      timeout: IN_PAGE_CREATE_CEILING_MS + 15_000,
+    });
     const inserted = await page.locator("#react-input").inputValue();
     expect(await reactState(page, "react-input")).toBe(inserted);
 
@@ -413,7 +417,12 @@ test.describe("creating a mailbox from inside a page", () => {
     // **Still exactly one request, after the press and before the gate is released.** Both halves
     // of that ordering matter: reading before the press would pass on a guard that arrives late,
     // and reading after the release would let a second request be created and then counted as one.
-    expect(creationsRequested()).toBe(1);
+    // **Poll rather than read once.** The waiting label is set in the content script before the
+    // worker's request reaches the recorder, so under full-tier load a single read can see 0 even
+    // though the request is in flight. The gate is still held, so the answer cannot create a
+    // second request while we wait; a genuinely duplicated press would make the count 2 and fail
+    // the exact-1 poll. This keeps both halves of the ordering the comment above describes.
+    await expect.poll(() => creationsRequested()).toBe(1);
 
     // **And the control is still pending** — a guard that counted the request but let the control
     // look available would leave the person pressing a button that appears to do nothing.
