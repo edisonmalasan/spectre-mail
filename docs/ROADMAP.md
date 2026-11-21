@@ -51,7 +51,7 @@ popup shares the same component and is forbidden by a promoted clause from stati
 
 ## Project Status
 
-> **Phase II roadmap update (planned 2026-11-21):** The owner has approved a new Temp Mail reference-parity programme in §34, **M16–M21**. M16 is the next planned investigation milestone; none of M16–M21 is completed by this roadmap edit. The historical M0–M15 status below remains a dated record, and `docs/GOAL.md` G2 is an agent task rather than a roadmap milestone.
+> **Phase II roadmap update (2026-11-21):** The owner approved the Temp Mail reference-parity programme in §34, **M16-M21**. **M16 is COMPLETE IN SCOPE** on `docs/m16-reference-investigation`: the full public free route set, five viewports, measured geometry, the below-fold article/footer structure and the difference register are evidenced in `docs/ux-reference/`; populated-inbox/message-reader/QR/Copy-feedback reference states remain **NOT INSPECTED** and are recorded as such, so the exit gate is met only for what a browser actually showed. M17 is the cursor. No implementation or design migration is claimed by M16. The historical M0-M15 status below remains a dated record, and `docs/GOAL.md` G2 is an agent task rather than a roadmap milestone.
 >
 
 > This block is the root orchestrator's progress ledger. It is **not** the behavioral
