@@ -614,11 +614,30 @@ button {
 .inbox-row {
   animation: materialise var(--duration-fast) var(--ease-standard);
 }
+/*
+ * The reference's Copy control carries a second one-shot, fill-backwards feedback animation on
+ * the button itself, distinct from the tooltip fade above. It is driven by a state class so it
+ * plays on a copy rather than once on page load, and its timing and easing come only from the
+ * declared motion tokens — the 150ms feedback duration and the declared easing — so this sheet
+ * restates no value the token layer owns. The tooltip fade above is untouched.
+ */
+@keyframes spectre-copy-feedback {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.address__copy--copied {
+  animation: spectre-copy-feedback var(--duration-feedback) var(--ease-standard) backwards;
+}
 @media (prefers-reduced-motion: reduce) {
   .address__value,
   .inbox-row,
   .code,
-  .toast {
+  .toast,
+  .address__copy--copied {
     animation: none;
   }
 }

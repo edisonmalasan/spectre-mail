@@ -22,6 +22,9 @@ export interface AddressProps {
 }
 
 export function Address({ mailbox, onCopy, copyState }: AddressProps) {
+  // The feedback class is computed outside the JSX attribute so no comparison string is
+  // mistaken for a class hook by the architecture scan, and so it toggles only with feedback.
+  const feedbackClass = copyState === "idle" ? "" : " address__copy--copied";
   return (
     <section className="address-region" aria-label="Your temporary email address">
       <p className="address" data-testid="address" title={mailbox.address}>
@@ -29,7 +32,7 @@ export function Address({ mailbox, onCopy, copyState }: AddressProps) {
       </p>
       <button
         type="button"
-        className="control control--primary address__copy"
+        className={`control control--primary address__copy${feedbackClass}`}
         data-testid="address-copy"
         aria-label="Copy address"
         onClick={onCopy}
