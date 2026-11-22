@@ -38,8 +38,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { NormalizedErrorCode } from "@spectre-mail/core";
 import type { Mailbox, SpectreError } from "@spectre-mail/core";
-import { createMailboxSession } from "@spectre-mail/mailbox";
-import type { MailboxScheduler } from "@spectre-mail/mailbox";
+import { createMailboxSession, openedOf } from "@spectre-mail/mailbox";
+import type {
+  MailboxScheduler,
+  MailboxSession,
+  OpenedMessage,
+  SessionState,
+} from "@spectre-mail/mailbox";
 import { createProviderManager } from "@spectre-mail/providers";
 import type { MailProvider } from "@spectre-mail/providers";
 import type { SpectreStorage } from "@spectre-mail/storage";
@@ -125,6 +130,85 @@ function inertScheduler(): MailboxScheduler {
 
 function sessionOver(provider: MailProvider) {
   return createMailboxSession(createProviderManager([provider]), inertScheduler());
+}
+
+/**
+ * A session whose create answers are gated by the test, so an older answer can
+ * arrive last *carrying a reader selection of its own*. The real session resets
+ * its opened tracker on every create, so two overlapping creates cannot produce
+ * that shape; the guard's second half is only observable when the stale answer
+ * really does hold a selection the newer one cleared.
+ */
+function scriptedSession() {
+  let current: SessionState = { kind: "idle", opened: { kind: "none" } };
+  const listeners = new Set<(state: SessionState) => void>();
+  const replaceAnswers: Promise<SessionState>[] = [];
+  const openAnswers: Promise<SessionState>[] = [];
+
+  const session: MailboxSession = {
+    providers: [],
+    current: () => current,
+    providerFor: () => {
+      throw new Error("a scripted session has no provider to route to");
+    },
+    subscribe(listener) {
+      listeners.add(listener);
+      listener(current);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    open: () => openAnswers.shift() ?? Promise.resolve(current),
+    restore: () => Promise.resolve(current),
+    restoreSummaries: () => Promise.resolve(current),
+    replace: () => replaceAnswers.shift() ?? Promise.resolve(current),
+    health: () => Promise.resolve({ provider: "guerrilla", status: "ok" }),
+    checkInbox: () => Promise.resolve({ kind: "notStarted" }),
+    reportInboxVisible: () => undefined,
+    openMessage: () => Promise.resolve({ kind: "none" }),
+    closeMessage: () => undefined,
+    destroy: () => undefined,
+  };
+
+  return {
+    session,
+    replaceAnswers,
+    openAnswers,
+    publish(next: SessionState) {
+      current = next;
+      for (const listener of [...listeners]) listener(next);
+    },
+  };
+}
+
+/** A mailbox whose reader holds a message of its own. */
+function readyWithReader(id: string, messageId: string): SessionState {
+  const message: OpenedMessage = {
+    id: messageId,
+    mailboxId: id,
+    from: `sender-${messageId}@mail.example`,
+    subject: "A verification code",
+    receivedAt: Date.parse("2026-10-05T12:00:00.000Z"),
+    readable: "Your code is 123456.",
+    codes: [],
+    links: [],
+  };
+  return {
+    kind: "ready",
+    mailbox: mailbox(id),
+    inbox: { kind: "notStarted" },
+    opened: { kind: "opened", message },
+  };
+}
+
+/** A confirmed mailbox with nothing open. */
+function readyWithoutReader(id: string): SessionState {
+  return {
+    kind: "ready",
+    mailbox: mailbox(id),
+    inbox: { kind: "notStarted" },
+    opened: { kind: "none" },
+  };
 }
 
 /** Every character of visible text on the page. */
@@ -1197,5 +1281,61 @@ describe("replacing the address under rapid input", () => {
     });
     await waitFor(() => expect(result.current.changing ?? false).toBe(false));
     expect(readyMailboxId(result)).toBe("second");
+  });
+});
+
+/**
+ * The second half of the generation guard: a stale answer must not resurrect a
+ * reader selection the newer request cleared.
+ *
+ * The existing "older create response" case uses the real session, whose opened
+ * tracker is reset by each create, so the stale answer carries no selection to
+ * restore. That case proves the mailbox half; this one proves the reader half
+ * with a scripted session whose late answer genuinely holds an open message.
+ */
+describe("a stale answer and a cleared reader", () => {
+  it("discards a late answer that would restore the previous mailbox's reader", async () => {
+    const scripted = scriptedSession();
+    const { result } = renderHook(() => useMailboxSession(scripted.session, stubStore().storage));
+
+    // The page starts with a mailbox whose message is open.
+    act(() => scripted.publish(readyWithReader("first", "m-first")));
+    await waitFor(() => expect(result.current.state.kind).toBe("ready"));
+    expect(openedOf(result.current.state).kind).toBe("opened");
+
+    // An older Change is started but answered last, and its answer carries the
+    // old open message with it.
+    let releaseOld!: (state: SessionState) => void;
+    const oldAnswer = new Promise<SessionState>((resolve) => {
+      releaseOld = resolve;
+    });
+    scripted.replaceAnswers.push(oldAnswer);
+    act(() => {
+      result.current.replace();
+    });
+
+    // A newer fresh request answers promptly with a mailbox that has nothing open.
+    scripted.openAnswers.push(Promise.resolve(readyWithoutReader("newest")));
+    act(() => {
+      result.current.startFresh();
+    });
+    await waitFor(() => {
+      const state = result.current.state;
+      return state.kind === "ready" && state.mailbox.id === "newest";
+    });
+    expect(openedOf(result.current.state).kind).toBe("none");
+
+    // The older answer lands last. Both its mailbox and its reader are stale.
+    const stale = readyWithReader("stale", "m-stale");
+    await act(async () => {
+      releaseOld(stale);
+      scripted.publish(stale);
+      await oldAnswer;
+      await Promise.resolve();
+    });
+
+    const final = result.current.state;
+    expect(final.kind === "ready" ? final.mailbox.id : null).toBe("newest");
+    expect(openedOf(final).kind).toBe("none");
   });
 });

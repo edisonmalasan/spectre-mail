@@ -627,6 +627,27 @@ function firstConfigured(manager: ProviderManager): MailProvider {
  * rather than an exceptional one, and the thrown value is carried alongside it.
  */
 function normalize(cause: unknown, providers: readonly MailProvider[]): SessionFailure {
+  // A bounded fallback failure is typed now: the manager preserves the deciding
+  // provider's normalized code for a direct caller, and carries each provider's
+  // own code in `providerFailures`. The session still reports the *aggregate* as
+  // `UNKNOWN_PROVIDER_ERROR`, because a failure shared by several providers is
+  // not attributable to one of their codes — attributing it would claim more
+  // than the evidence supports. The per-provider entries name who was tried and
+  // stay unattributed for the same reason. This is the manager's typed value
+  // being consumed honestly, not the old untyped `Error` whose code lived only
+  // in prose.
+  if (isComposedCreationFailure(cause)) {
+    return {
+      code: NormalizedErrorCode.UNKNOWN_PROVIDER_ERROR,
+      description: cause.description,
+      providerFailures: cause.providerFailures.map((attempt) => ({
+        provider: attempt.provider,
+        code: NormalizedErrorCode.UNKNOWN_PROVIDER_ERROR,
+        description: attempt.description,
+      })),
+    };
+  }
+
   if (isSpectreFailure(cause)) {
     return {
       code: cause.code,
@@ -680,4 +701,27 @@ function normalize(cause: unknown, providers: readonly MailProvider[]): SessionF
  */
 function isSpectreFailure(value: unknown): value is SpectreError & { readonly rateLimit?: string } {
   return isSpectreError(value);
+}
+
+/**
+ * Whether a typed failure is a manager's bounded-fallback composition.
+ *
+ * **Read through `isSpectreError`, not a plain-field check.** The manager's
+ * composition satisfies the core predicate (normalized `code`, known `provider`,
+ * a description), so accepting it here means the value is genuinely typed
+ * rather than an `Error` whose only structured content is a sentence. The
+ * `providerFailures` array is the discriminator: a single provider's own
+ * failure has no such list and takes the branch below it.
+ */
+function isComposedCreationFailure(value: unknown): value is SpectreError & {
+  readonly providerFailures: readonly {
+    readonly provider: string;
+    readonly code: NormalizedErrorCode;
+    readonly description: string;
+  }[];
+} {
+  return (
+    isSpectreError(value) &&
+    Array.isArray((value as { providerFailures?: unknown }).providerFailures)
+  );
 }

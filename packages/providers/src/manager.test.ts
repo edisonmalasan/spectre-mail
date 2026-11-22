@@ -8,8 +8,12 @@
  * @module
  */
 
-import { NormalizedErrorCode } from "@spectre-mail/core";
-import type { Mailbox, ProviderId, SpectreError } from "@spectre-mail/core";
+import {
+  isSpectreError,
+  NormalizedErrorCode,
+  UNREPORTED_DOMAIN_PROVENANCE,
+} from "@spectre-mail/core";
+import type { Domain, Mailbox, ProviderId, SpectreError } from "@spectre-mail/core";
 import { describe, expect, it } from "vitest";
 
 import type { MailProvider } from "./contract";
@@ -236,6 +240,130 @@ describe("createProviderManager", () => {
       "guerrilla",
     ]);
   });
+
+  it("attempts each configured provider at most once when all decline", async () => {
+    let primaryAttempts = 0;
+    let fallbackAttempts = 0;
+    const manager = createProviderManager([
+      scriptedProvider("mailtm", {
+        create: () => {
+          primaryAttempts += 1;
+          return Promise.reject(throttled());
+        },
+      }),
+      scriptedProvider("guerrilla", {
+        create: () => {
+          fallbackAttempts += 1;
+          return Promise.reject(unreachable());
+        },
+      }),
+    ]);
+
+    const error = await capture(() => manager.createMailbox());
+
+    // Two providers, two attempts in total: a bounded fallback is one attempt
+    // per provider, never a second visit to one that already declined. An
+    // inner retry loop would push either counter past one.
+    expect(primaryAttempts).toBe(1);
+    expect(fallbackAttempts).toBe(1);
+
+    // The visible failure still names both, and is typed rather than a prose-only
+    // `Error` a client would have to parse.
+    expect(isSpectreError(error)).toBe(true);
+    expect(messageOf(error)).toContain("mailtm");
+    expect(messageOf(error)).toContain("guerrilla");
+  });
+
+  it("surfaces the throttle verbatim when the fallback also declines", async () => {
+    const throttledWithHeader: SpectreError = {
+      code: NormalizedErrorCode.RATE_LIMITED,
+      provider: "mailtm",
+      description: "Account creation is rate limited; try again soon.",
+      rateLimit: "1; w=60",
+    };
+    const manager = createProviderManager([
+      scriptedProvider("mailtm", { create: () => Promise.reject(throttledWithHeader) }),
+      scriptedProvider("guerrilla", { create: () => Promise.reject(unreachable()) }),
+    ]);
+
+    const error = await capture(() => manager.createMailbox());
+
+    // The throttle's own words and its own advertised header survive in the
+    // composed report. Nothing is paraphrased and nothing is dropped merely
+    // because the fallback also failed.
+    expect(messageOf(error)).toContain("Account creation is rate limited; try again soon.");
+    expect(messageOf(error)).toContain("1; w=60");
+  });
+
+  it("preserves the normalized code of the deciding provider's failure", async () => {
+    const manager = createProviderManager([
+      scriptedProvider("mailtm", { create: () => Promise.reject(throttled()) }),
+      scriptedProvider("guerrilla", { create: () => Promise.reject(unreachable()) }),
+    ]);
+
+    const error = await capture(() => manager.createMailbox());
+
+    // This is the counterfactual case. Restoring the old `new Error(...)` composition
+    // fails all three assertions: it is untyped, has no normalized code, and carries
+    // no per-provider failures — only prose.
+    expect(isSpectreError(error)).toBe(true);
+    expect((error as { code?: unknown }).code).toBe(NormalizedErrorCode.PROVIDER_UNAVAILABLE);
+    const failures = (error as { providerFailures?: readonly { provider: string; code: string }[] })
+      .providerFailures;
+    expect(failures?.map((each) => [each.provider, each.code])).toEqual([
+      ["mailtm", NormalizedErrorCode.RATE_LIMITED],
+      ["guerrilla", NormalizedErrorCode.PROVIDER_UNAVAILABLE],
+    ]);
+  });
+
+  it("refuses a domain whose provider is not configured", async () => {
+    let attempts = 0;
+    const provider = scriptedProvider("guerrilla", {
+      create: () => {
+        attempts += 1;
+        return Promise.resolve(mailboxOf("made", "guerrilla"));
+      },
+    });
+
+    const error = await capture(() =>
+      createProviderManager([provider]).createMailbox(chosenDomain("mailtm")),
+    );
+
+    // The client cannot serve this domain, so it asked nobody. Substituting the
+    // only configured provider would construct an address on a service that does
+    // not own the name.
+    expect(attempts).toBe(0);
+    expect(isSpectreError(error)).toBe(true);
+    expect((error as { code?: unknown }).code).toBe(NormalizedErrorCode.UNSUPPORTED_OPERATION);
+    expect(messageOf(error)).toContain("mailtm");
+  });
+
+  it("never offers one provider's domain to a fallback provider", async () => {
+    let ownerAttempts = 0;
+    let otherAttempts = 0;
+    const manager = createProviderManager([
+      scriptedProvider("mailtm", {
+        create: () => {
+          ownerAttempts += 1;
+          return Promise.reject(throttled());
+        },
+      }),
+      scriptedProvider("guerrilla", {
+        create: () => {
+          otherAttempts += 1;
+          return Promise.resolve(mailboxOf("tempting", "guerrilla"));
+        },
+      }),
+    ]);
+
+    const error = await capture(() => manager.createMailbox(chosenDomain("mailtm")));
+
+    // The owner declined; that does not transfer the domain to the next provider.
+    expect(ownerAttempts).toBe(1);
+    expect(otherAttempts).toBe(0);
+    expect(isSpectreError(error)).toBe(true);
+    expect(messageOf(error)).toContain("mailtm");
+  });
 });
 
 function throttled(provider: ProviderId = "mailtm"): SpectreError {
@@ -252,6 +380,33 @@ function unreachable(): SpectreError {
     code: NormalizedErrorCode.PROVIDER_UNAVAILABLE,
     provider: "guerrilla",
     description: "The provider could not be reached.",
+  };
+}
+
+/** A chosen domain owned by `provider`, with no provenance nobody reported. */
+function chosenDomain(provider: ProviderId): Domain {
+  return {
+    id: `domains/${provider}.example`,
+    name: `${provider}.example`,
+    provider,
+    active: true,
+    expiresAt: null,
+    provenance: UNREPORTED_DOMAIN_PROVENANCE,
+  };
+}
+
+/** A mailbox an adapter never created — only a fallback would offer it. */
+function mailboxOf(id: string, provider: ProviderId): Mailbox {
+  return {
+    id,
+    provider,
+    address: `${id}@mail.example`,
+    createdAt: 0,
+    credentials:
+      provider === "mailtm"
+        ? { provider: "mailtm", accountId: `/accounts/${id}`, accessToken: "t" }
+        : { provider: "guerrilla", sessionId: `session-${id}` },
+    status: "active",
   };
 }
 
