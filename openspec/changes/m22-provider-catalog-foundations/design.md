@@ -68,12 +68,17 @@ second spelling of provider knowledge in a component and is not inferred from a
 domain's spelling. This keeps the existing boundary rule that stops a client
 restating a shared value.
 
-**D3 — Aggregation preserves origin; the duplicate policy stays an orchestrator
-decision.** Catalog aggregation keeps every entry bound to its supplying provider
-and exposes the catalog's fetch time. The requirement is deliberately written to
-hold under either reading of GOAL §6 line 89 (keep both spellings with distinct
-provider ids, or drop duplicates while retaining the owner). The chosen policy is
-an **Open Question** below, not guessed here.
+**D3 — Deduplicate by `(provider id, domain name)`, not by name alone (orchestrator
+decision, 2026-11-22).** Catalog aggregation keeps every entry bound to its
+supplying provider, exposes the catalog's fetch time, and treats two identically
+spelled domains from different providers as two distinct options. The key is the
+pair `(provider id, domain name)`, never the name by itself. The reasoning is
+twofold: GOAL §6 line 89 says identically spelled domains from different
+providers must not be treated as interchangeable, and the existing catalog already
+binds every `Domain` to its owning provider (`catalog.ts` filters
+`entry.provider !== provider.id`), so collapsing by name alone would discard
+identity that layer already enforces. The spec requirement holds under this
+policy; no provider is added and no domain list is inferred from a rendered page.
 
 **D4 — Three claims, one direction.** Catalog availability, provider-confirmed
 provisioning and real external delivery are distinct states. Provisioning waits
@@ -130,9 +135,10 @@ green run is not repeatability evidence.
 - **Required `Domain` fields break every construction site.** → The compiler
   enforces the update; fixtures get explicit absent values for providers that
   report nothing. No fabricated values are used to make a test pass.
-- **The duplicate policy is undecided.** → The spec holds under either policy;
-  the orchestrator resolves D3 before apply, and the picked row shape is asserted
-  in `catalog.test.ts`.
+- **Identically spelled domains from two providers produce two picker rows.** →
+  This is the decided D3 policy (`(provider id, domain name)`), not a defect; the
+  row shape is asserted in `catalog.test.ts` and each row keeps its owning
+  provider identity so the two are never interchangeable.
 - **Bounded fallback is hard to observe with one configured provider.** → The
   website has one provider; the behaviour is tested at the provider layer with
   two stub providers and is never claimed live for the extension, whose providers
@@ -171,12 +177,14 @@ derived from provider-reported values or explicit absences at read time.
 
 ## Open Questions
 
-1. **D3 — cross-provider duplicate policy (orchestrator decision).** GOAL §6
-   line 89 is ambiguous: keep both identically spelled entries with distinct
-   provider identities, or drop duplicates while retaining the owning provider.
-   Both produce different picker rows. The spec requires provider identity
-   preservation under either answer; the orchestrator must choose before apply
-   and record the choice here. It is not guessed in this proposal.
+1. **D3 — cross-provider duplicate policy — DECIDED by the orchestrator on
+   2026-11-22 (no longer open).** Deduplicate by `(provider id, domain name)`,
+   never by name alone: identically spelled domains from different providers stay
+   separate options, because GOAL §6 line 89 forbids treating them as
+   interchangeable and the existing catalog already binds each `Domain` to its
+   owning provider (`catalog.ts` filters `entry.provider !== provider.id`). The
+   decision and reasoning are recorded under Decisions (D3) above. Questions 2
+   and 3 below remain open.
 2. **Runtime marker for providers without an interface signal.** Whether a
    provider that reports no `availableVia`-style field should carry an explicit
    "unreported" runtime value or inherit its client's configured provider list is
