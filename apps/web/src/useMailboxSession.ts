@@ -307,6 +307,23 @@ export function useMailboxSession(
    */
   const persist = useRef(true);
 
+  /**
+   * Whether this page load has already answered a definitive `expired` on its own.
+   *
+   * **One automatic recovery per page load, not one per `expired` publication.** The
+   * session can publish `expired` more than once, the save effect publishes new state
+   * objects on every inbox transition, and React StrictMode mounts effects twice in
+   * development with the same ref. Without this guard those would issue two creates
+   * against a rate-limited provider and throw one away — the same defect the `opened`
+   * guard prevents for the boot. Keying on *the page having recovered at all* (rather
+   * than on the presence of an `expired` state) also stops a replacement that itself
+   * reported gone from looping: a second create is never a recovery this page owes.
+   *
+   * Deliberate runs do not consult it: `startFresh`, `retry` and `replace` are different
+   * callbacks for different decisions, and none is suppressed by a fired recovery.
+   */
+  const autoRecovered = useRef(false);
+
   const run = useCallback((operation: () => Promise<SessionState>, keepCurrent = false) => {
     // **Every run takes a token before it starts another.** The token is the answer to
     // "is this still the newest thing the user asked for" when the promise settles; a
@@ -378,11 +395,10 @@ export function useMailboxSession(
    * claim as saying it does not. Overwriting the record on the strength of one failed
    * request would destroy the only copy of an address that may be perfectly alive.
    *
-   * **And `expired` offers the same control, for a different reason.** There the
-   * provider *did* say the mailbox is gone, so nothing is lost by moving on — the
-   * record is already worthless — but the user is not asked to decide that. Both
-   * states reach it; the reasoning behind each is different and neither belongs on the
-   * page.
+   * **`expired` does not offer this control.** There the provider did say the mailbox
+   * is gone, so the page acts on that verdict itself — through `getNewAddress`, which
+   * persists — and shows no choice. Only `restoreFailed`, where the provider could not
+   * answer, reaches `startFresh`.
    */
   const startFresh = useCallback(() => {
     persist.current = false;
@@ -579,6 +595,20 @@ export function useMailboxSession(
       }),
     [session],
   );
+
+  // The provider has said the stored address is definitively gone, so the page acts on
+  // that verdict with no user activation: create and persist the replacement through
+  // the same handler the old button called. The save effect then overwrites the stale
+  // single record and adds the replacement to the recent-mailbox collection in the
+  // storage layer's one transaction — nothing is cleared or deleted. `restoreFailed`
+  // is a different state (a provider that could not be asked has not said the address
+  // is dead) and is deliberately not consulted here; it keeps its two controls.
+  useEffect(() => {
+    if (state.kind !== "expired") return;
+    if (autoRecovered.current) return;
+    autoRecovered.current = true;
+    getNewAddress();
+  }, [state, getNewAddress]);
 
   const mailboxId = state.kind === "ready" ? state.mailbox.id : null;
 

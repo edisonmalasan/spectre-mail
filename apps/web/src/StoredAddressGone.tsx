@@ -23,14 +23,15 @@
  * could get this wrong, and a page given an inbox could render "no messages" for an
  * address that cannot receive any.
  *
- * ## Why two controls
+ * ## Why there are no controls
  *
- * **A new address** is the useful one: the stored one is worthless, so there is nothing
- * to protect. **A saved record that still works** is offered too, but as the
- * *secondary* action, because the user chose this page precisely to get back to that
- * address — and a provider that reported a session as dead once may report it live on
- * the next request. The check is cheap and the outcome, if it works, is the thing the
- * user came for.
+ * **This is a notice, not a choice.** A definitive `expired` answer is the provider's
+ * own verdict that the address cannot receive mail, so asking a person to pick between
+ * a new address and re-checking the dead one adds a step that cannot change the
+ * answer. The page acts on the verdict itself: it creates and persists a replacement
+ * without activation, and this component only says, truthfully, which address was
+ * reported gone. A static notice cannot offer a second interpretation of a definitive
+ * answer.
  *
  * @module
  */
@@ -40,13 +41,9 @@ import type { Mailbox } from "@spectre-mail/core";
 export interface StoredAddressGoneProps {
   /** The mailbox the provider no longer recognises. */
   readonly mailbox: Mailbox;
-  /** Ask the provider about it again, without discarding it. */
-  readonly onRetry: () => void;
-  /** Create a new address, replacing the stored record. */
-  readonly onReplace: () => void;
 }
 
-export function StoredAddressGone({ mailbox, onRetry, onReplace }: StoredAddressGoneProps) {
+export function StoredAddressGone({ mailbox }: StoredAddressGoneProps) {
   return (
     <section className="region region--alert" aria-labelledby="expired-heading">
       <h2 id="expired-heading">Your saved address is gone</h2>
@@ -59,13 +56,6 @@ export function StoredAddressGone({ mailbox, onRetry, onReplace }: StoredAddress
       <p data-testid="expired-address">
         The address that has gone is <code>{mailbox.address}</code>.
       </p>
-
-      <button type="button" className="control" onClick={onReplace}>
-        Get a new address
-      </button>
-      <button type="button" className="control" onClick={onRetry}>
-        Check the saved address again
-      </button>
     </section>
   );
 }
