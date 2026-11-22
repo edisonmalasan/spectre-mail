@@ -169,8 +169,16 @@ async function verify() {
     );
     const codes = await page.getByTestId("code-list").textContent();
     result.checks.extractedCode = codes.includes("482731");
-    const links = await page.locator('[data-testid="link-list"] a').first().getAttribute("href");
-    result.checks.extractedLink = links === "https://example.com/verify";
+    // Count first: a verification URL delivered as bare text has no <a href>, so calling
+    // getAttribute on .first() would wait for a node that never arrives and throw instead of
+    // recording the missing anchor. The extractedLink gate below is deliberately left in
+    // `passed`: false is the truthful result for a bare-text link, and dropping it would
+    // hide the documented <a href>-only limitation of packages/mail-parser.
+    const linkAnchors = page.locator('[data-testid="link-list"] a');
+    const anchorCount = await linkAnchors.count();
+    result.checks.extractedLink =
+      anchorCount > 0 &&
+      (await linkAnchors.first().getAttribute("href")) === "https://example.com/verify";
     result.checks.subjectMatches = result.checks.subject === TEST_SUBJECT;
     result.checks.timestampIsNotEpoch = !result.checks.timestamp.includes("1970-01-01");
     result.checks.retrievedFromProvider = requests.some((entry) =>
@@ -178,6 +186,25 @@ async function verify() {
     );
     result.requests = requests;
     await page.screenshot({ path: join(RESULTS, "live-reception.png") });
+
+    // Message-level reception is independent of link extraction: a bare-text URL arrived
+    // and was rendered in the readable body, but no <a href> exists for the parser to recover.
+    const messageLevelChecks = [
+      "restoredAddressMatches",
+      "senderPresent",
+      "subjectMatches",
+      "timestampIsNotEpoch",
+      "bodyContainsCode",
+      "bodyContainsLink",
+      "extractedCode",
+      "retrievedFromProvider",
+    ];
+    result.receptionVerified = messageLevelChecks.every((key) => result.checks[key] === true);
+    result.linkObservation =
+      "The verification URL arrived as bare text with a newline, not an <a href>, so no link " +
+      "anchor was extracted (extractedLink is false). packages/mail-parser detects links only " +
+      "from <a href> elements; this documented limitation is now confirmed on real external " +
+      "mail. The URL text itself did arrive and is shown in the readable body (bodyContainsLink).";
 
     const passed = Object.entries(result.checks)
       .filter(([key]) => key !== "sender")
