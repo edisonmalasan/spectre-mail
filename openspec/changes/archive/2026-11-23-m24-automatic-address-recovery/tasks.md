@@ -95,11 +95,11 @@
 
 ## 8. Spec sync and archive (orchestrator-owned handoff)
 
-- [ ] 8.1 Promote the single `MODIFIED` block on its own branch and PR, re-count
+- [x] 8.1 Promote the single `MODIFIED` block on its own branch and PR, re-count
       requirements, scenarios and capabilities by heading (expected **209 / 697 /
       17**, unchanged), and verify the promoted block is byte-identical to the
       delta block with all pre-existing scenarios and notes intact.
-- [ ] 8.2 Archive with `--skip-specs` after sync is merged, verify archived files
+- [x] 8.2 Archive with `--skip-specs` after sync is merged, verify archived files
       byte-identical against pre-archive digests and `openspec list` reporting no
       active changes; record any human-only blocker as `BLOCKED` or
       `NOT VERIFIED` rather than closing it.
