@@ -1,165 +1,131 @@
-# GOAL — SpectreMail Receive-Only Provider & Domain Expansion
+# GOAL: SpectreMail M25 — Authorized Free Provider Expansion & DropMail Pilot
 
-**Status:** New proposed execution goal, not a claim of completion.  
-**Executor:** Existing T3 Code Orchestrator thread on `main`.  
-**Mission:** Offer the largest sustainable selection of **legitimate, genuinely working, free disposable-email domains** while preserving SpectreMail's receive-only functionality, privacy, Temp Mail-inspired UI/UX, and client-only architecture.
+**Status:** Proposed next milestone. This document is an execution brief, **not** evidence that M25 has started or that another provider is already supported.
 
-## 1. Product goal and boundaries
+**Repository:** `edisonmalasan/spectre-mail`  
+**Executor:** The existing T3 Code main-thread orchestrator, using native delegated threads and isolated worktrees.  
+**Product objective:** Expand SpectreMail's **receive-only** mailbox coverage with legitimate, working, freely available domains while preserving the current client-only architecture and Temp Mail-inspired UX.
 
-SpectreMail is **receive-only**. Users need to create a working mailbox, optionally pick an available domain, copy an address, refresh an inbox and read arriving messages; they do not need to send mail from SpectreMail. Do not build SMTP sending, reply, forwarding, signup automation, domain-block evasion or unrelated dashboard features.
+## 1. Start from the verified repository, not the old prompt
 
-**Distinguish providers and domains.** A provider may serve many domains. Only show domains discovered through a **provider-supported source** for which SpectreMail can provision and read an actual mailbox. Do not build arbitrary `name@domain` strings, scrape stale domain lists, or claim that other providers' domains are owned by `temp-mail.org`. The official Temp-Mail.org domain pool must be accessed only through a permitted API, if available.
+Inspect the current `main` tree, `AGENTS.md`, `PRODUCT.md`, `DESIGN.md`, `docs/ROADMAP.md`, `docs/GOAL.md`, `docs/GOAL-REPORT.md`, `docs/ORCHESTRATION.md`, `docs/PROVIDERS.md`, `docs/provider-research/*`, approved OpenSpec capabilities, active changes, current provider adapters, client configurations and recent PRs.
 
-Do not equate successful mailbox creation with proven incoming-mail delivery: a **live external sender** is needed to verify reception. A missing test sender should block that one evidence claim, not all other independently actionable tasks.
+Do **not** repeat the completed M16–M24 programmes. Reconfirm their status from code and Git.
 
-## 2. Start with the actual repository state
+Last observed baseline (2026-11-23, verify again before acting):
 
-Before acting, inspect `AGENTS.md`, `PRODUCT.md`, `DESIGN.md`, `docs/ROADMAP.md`, `docs/ORCHESTRATION.md`, `docs/PROVIDERS.md`, OpenSpec specifications/active changes, the current provider adapters and tests, both client configs, and the M21 audit records. Reconcile reports against Git rather than trusting remembered status.
+- `main`: `0418d60401f2facfdb5099a237c88f81ce2c8704`.
+- Website: Guerrilla Mail only; extension: Mail.tm + Guerrilla Mail.
+- M22: shared provenance/catalog, bounded fallback and selection foundations, already archived.
+- M23 and M24: expired-mailbox and automatic address recovery, already archived.
+- Prior expansion research: **19 candidates**, **zero newly approved/integrated providers**; read the dated `docs/GOAL-REPORT.md` and individual research reports for exact decisions.
+- An actual incoming test message was received and read through Mail.tm on 2026-11-22. Do not reopen "no external sender" as a blanket blocker. The documented bare-text URL extraction limitation is a separate possible defect, not proof that reception failed.
 
-The previously reported provider roles were website = Guerrilla Mail and extension = Mail.tm plus Guerrilla Mail. **Recheck the actual current code**; these might have changed. The repo previously measured Mail.tm's API CORS restriction for ordinary web origins: working in the extension **does not** imply working on a website. Test separately using real browser contexts, not Node.js alone.
+**Deliver a new M25 plan, not a rewritten historical roadmap.** Amend the current status/overview through the repository's normal reviewed PRs only after verifying that M25 is not already assigned.
 
-Do not restart M16–M21. Create the next properly numbered milestone after checking the actual roadmap. Preserve historical milestone records; use OpenSpec to approve any new capability requirements before implementing them.
+## 2. Correct the target: domains are not providers
 
-## 3. Broad, official-source provider investigation
+Temp Mail (`temp-mail.org`) owns/operates a rotating disposable-domain pool. No verified evidence proves it is a bundle of unrelated free providers or that all of its domains are available to external clients. Its own API and its terms must be assessed separately; never rebrand independent providers' domains as Temp Mail domains.
 
-Research every credible, documented free receive-only temporary-mail API that is reasonably discoverable, starting with the following **candidates, not promised integrations**:
+For SpectreMail, maximize the number of **currently eligible, provisionable, readable, free** domains, sourced from supported APIs. Keep these counts distinct: candidate providers; permitted integrations; live available domains; successfully created mailboxes; domains with genuinely received test mail.
 
-| Candidate      | Official starting point                             | Questions to resolve                                             |
-| -------------- | --------------------------------------------------- | ---------------------------------------------------------------- |
-| Guerrilla Mail | https://www.guerrillamail.com/GuerrillaMailAPI.html | Existing adapter, address assignment, rate guidance              |
-| Mail.tm        | https://docs.mail.tm/                               | Dynamic domains, third-party use restrictions, CORS              |
-| Mail.gw        | https://docs.mail.gw/                               | Dynamic domains, separate usage terms, CORS                      |
-| DropMail       | https://dropmail.me/api/                            | GraphQL, domain rotation, token/OAuth, session expiry            |
-| TempMail.lol   | https://tempmail.lol/api                            | Anonymous free tier, quotas, free/premium pools                  |
-| Tmailor        | https://tmailor.com/temp-mail-api/                  | Free API tier, registration/key, limits, third-party use         |
-| Maildrop       | https://docs.maildrop.cc/                           | Public inbox model, privacy for verification messages            |
-| Temp-Mail.org  | https://temp-mail.org/en/api/                       | Official API/RapidAPI permissions, free-tier limits, domain list |
+Do not hardcode guessed domains, abuse third-party endpoints, invent successful reception, bypass disposable-domain restrictions or introduce sending, forwarding, or SMTP hosting.
 
-Discover additional suitable providers if evidence supports them. **Do not conflate** `temp-mail.org`, `temp-mail.io`, and similarly named businesses. Read actual provider documentation, terms, pricing and access rules as of the investigation date. A public or free API does **not** automatically authorize repackaging it as a competing temporary-email product.
+## 3. Primary target: DropMail OAuth / API feasibility
 
-Each researcher must produce a dated, cited decision row with:
+The existing `docs/provider-research/dropmail.md` records a technically promising candidate:
 
-- Provider, API version, documentation and terms URLs, verification date.
-- Free API eligibility, signup/key/card requirements, quotas, pricing and attribution obligations.
-- Permitted versus prohibited third-party/competitive use; unresolved permission is **REVIEW REQUIRED**, not PASS.
-- Whether it offers live domain discovery, pagination, free-vs-premium flags, active/retired status and expiration.
-- Mailbox create/auth/restore, list/read, delete (if supported), polling and message formats.
-- Privacy characteristics, especially publicly addressable inboxes, token secrecy and content retention.
-- Website-origin CORS and extension host-permission behavior, **measured independently**.
-- Throttling, error/recovery behavior, service liveness and live-delivery evidence where available.
-- Decision per client: **SUPPORTED / PROVISIONAL / REJECTED / BLOCKED / NEEDS AUTHORIZATION**, with reasoning.
+- Dynamic GraphQL domain listing (19 domains on 2026-11-22: 15 permanent, 4 rotating; verify again).
+- Provider-reported domain expiry and health.
+- Working extension-origin access with MV3 host permission; normal website requests blocked by CORS.
+- Free `af_…` tokens; no shared token may be embedded in the distributed extension.
+- Documented **OAuth 2.1 authorization-code flow with PKCE for third-party apps**.
+- Permission/terms for a competing free product unresolved by the previous report.
 
-Report domain counts with fetch timestamps. Distinguish **provider count**, **free active domain count**, **provisioned domains**, and **domains with verified real incoming mail**. Do not claim a complete current inventory if the provider does not expose it.
+**First resolve authorization.** Re-read the CURRENT official API/usage documentation, OAuth guidance, terms/privacy and any new policies. Classify:
 
-## 4. Integration decision gate
+- `CLEARLY PERMITTED` — documented provider terms/official written authorization cover this exact use and distribution.
+- `PERMISSION REQUIRED` — material terms or business-use ambiguity remains; prepare a specific provider inquiry and request the owner's help sending it if no authorized contact integration exists.
+- `PROHIBITED` — terms explicitly disallow the planned integration.
+- `TECHNICALLY BLOCKED` — required operations cannot run within the selected client under approved architecture.
 
-Prioritize candidates that: (1) explicitly permit the intended integration; (2) offer usable free operations; (3) support **real** mailbox creation and message reading; (4) operate safely in at least one of SpectreMail's existing runtimes without a prohibited proxy; (5) have an acceptable privacy model; and (6) can be maintained and tested. Suggested _investigation_ order: Mail.gw, DropMail, TempMail.lol, Tmailor, official Temp-Mail.org, Maildrop, and newly discovered candidates. This is not advance approval.
+A documentation page explicitly inviting third-party browser extensions is significant evidence; analyze it carefully rather than reflexively marking all unspecified competitor wording forbidden. **Do not substitute inference for a required legal permission or override current OpenSpec policy.** If permission remains ambiguous, seek written clarification instead of shipping the provider.
 
-**Reject unsupported approaches rather than faking support.** A free tier requiring a user-owned API key needs an approved credential-delivery design; no shared secret in shipped browser code. A provider blocked by website CORS may still be evaluated for extension-only use. A backend/proxy remains outside existing architecture unless the owner explicitly approves a formal architectural change. Do not sidestep provider access controls, scraping restrictions, CAPTCHA, quotas, or terms. Providers that prohibit competing services should be excluded unless authorized.
+### DropMail preintegration spike (isolated and bounded)
 
-Do not exhaust provider quotas by provisioning accounts for every catalog item continuously. When full live-delivery verification is impossible, maintain a clearly bounded sample and a separate **delivery unverified** status.
+Run a safe, quarantined **technical** proof using a user-controlled free test token if permissible under the API's published rules. Do not ship or enable the adapter as a supported provider until the authorization decision is resolved.
 
-## 5. Native T3 Code multi-agent orchestration
+Check Chrome's `identity.getRedirectURL` / `identity.launchWebAuthFlow` with DropMail's documented OAuth dynamic registration, redirect allowlist, PKCE verifier/challenge, token exchange, revocation/expiry and browser-session restoration. **Do not assume** a `chrome-extension://` callback is accepted; Chrome's generated `https://<extension-id>.chromiumapp.org/*` callback must be tested with the actual provider. Test in a real unpacked Chromium extension, not Node alone.
 
-Keep the **existing main-thread Orchestrator on a clean `main` checkout**. It owns planning, dependency mapping, blocker decisions, code review, integration, and honest progress reporting. It does **not** directly modify application code on `main`.
+Use per-user tokens through OAuth. Never place a single shared secret/token in shipped code, URLs, logs, committed files or browser-visible global state. Store tokens with the repository's approved storage contract and protect them from content scripts and page origins. Request only narrowly necessary host/identity permissions through an approved OpenSpec/permissions review.
 
-Use `docs/ORCHESTRATION.md` and the actual available T3 Code tools:
+Validate the exact GraphQL requests, schema, health status, free/rotating domains, creation, session expiry, restore key, polling/list/read behavior and error mapping. Limit calls, avoid quotas/captcha bypass, and keep test recordings redacted.
 
-1. Discover native capabilities through `orchestrator_capabilities` before delegation.
-2. Use `delegate_task` with `isolation: "worktree"` for implementation work and asynchronous child reporting. Do not simulate workers or assume that manually created worktrees are T3-bound threads.
-3. Run about **2–4 independent workers** when useful: divide research by provider; assign implementation/testing/review only after candidates pass the decision gate.
-4. Give workers specific source files, nonoverlapping ownership, acceptance checks, evidence requirements and branch/worktree scope. Serialize tasks that modify shared interfaces or OpenSpec deltas.
-5. Workers return exact changes, tests, findings, commit SHA, PR and blockers. The Orchestrator checks results, obtains independent review, checks actual CI and merges verified changes using the repository's required **merge-commit PR workflow**.
-6. Follow Superpowers and the existing **OpenSpec Explore → Propose → Apply → Verify → Sync → Archive** lifecycle. Resume an active change rather than creating a duplicate. Do not edit historical archives.
-7. Clean up worktrees only after T3 confirms task completion and no unmerged work is at risk. Maintain the orchestrator's clean `main` throughout.
-8. After integration, update the next action, refresh the blocker ledger and delegate the next independent task. **One failed provider, finished PR, or blocked live sender must not stop unrelated viable work.**
+**Website:** Keep DropMail `BLOCKED` unless a repeatable real-page CORS test changes the documented result; do not add a proxy/backend merely to make it work.
 
-`AGENTS.md` and approved OpenSpec capabilities are authoritative over this goal where implementation constraints conflict. Any necessary specification migration must be explicit and approved. Updates to otherwise protected `docs/PROVIDERS.md` are authorized **only as a scoped, evidence-backed provider-research or integration task**, not for speculative cleanup.
+## 4. Secondary targets — short, evidence-based re-evaluation
 
-## 6. Reusable provider adapters and true domain catalog
+Do not launch another undirected 19-provider sweep. Use the 2026-11-22 reports as a baseline, then check for materially changed evidence:
 
-Use the existing shared `MailProvider` abstraction and package boundaries. Extend them carefully through an approved specification if needed; never create a second inconsistent provider framework.
+1. **Mail.gw:** official docs indicate a free, keyless API and discuss legal integrations, but the API was unreachable in prior probes. Recheck real liveness and assess free third-party client use; avoid claiming its CORS status was measured when the host did not respond.
+2. **Guerrilla Mail and Mail.tm:** preserve working integrations; evaluate published terms, attribution and authorization obligations already flagged by `docs/GOAL-REPORT.md`. Implement required Mail.tm attribution where it can be done without misleading provider claims and with approved UI changes.
+3. **Official Temp-Mail.org API:** investigate its permitted API/price/domain access, but do not assume its free website domains are available to an external service. No key, subscription or fee may be committed without owner approval.
+4. **Other previously rejected candidates:** reopen only when dated evidence changes the relevant gate. Reject public-inbox privacy risks, API resale/service prohibitions, paid-only commercial integration, inaccessible APIs or keys that would need to be exposed.
 
-**Adapter behavior:** discover domains when supported; create a provider-confirmed mailbox; authenticate/restore its session; list/read normalized messages; report truthful expiration, throttling, unsupported operations and errors; support provider deletion only if proven. Preserve previous provider sessions and local data through upgrades.
+Keep a dated per-client decision matrix with official URLs, precise terms language, runtime evidence, API costs, free-domain count, privacy implications, and written-permission status. If outreach is required, prepare concise messages stating SpectreMail is a **free, receive-only, client-side, multi-provider** website/extension and asking explicitly about public integration, user-token model, attribution and API limits. The orchestrator should handle all non-human follow-up; do not claim outreach was sent without a send action.
 
-**Domain catalog rules:**
+## 5. Implementation only after gates pass
 
-- Fetch free **active and creatable** domains via documented APIs, following pagination/cursors; refresh with a measured/justified cache policy.
-- Store provenance: provider identity, domain, discovery time, supported runtime, lifecycle/status and applicable provider capability flags.
-- Deduplicate catalog options without treating identically spelled domains from different providers as interchangeable.
-- Exclude premium, private, retired, inaccessible or account-creation-ineligible entries.
-- Select only from providers compatible with the current client and its authorized access.
-- Route every mailbox/message request to the exact provider/session that created it; prevent stale asynchronous responses from crossing mailbox boundaries.
-- Use bounded retries, timeouts, appropriate backoff/rate limiting and fallback; no indefinite retries or aggressive polling.
-- Do not promise deletion, custom local parts, infinite lifetimes, attachments, or working domain choice unless the selected provider genuinely supports those capabilities.
+For every approved provider, follow the full OpenSpec lifecycle **Explore → Propose → Apply → Verify → Sync → Archive**. The worker should extend the existing shared `MailProvider` / domain catalog, not invent a parallel provider system.
 
-**Truthful states:** `available in provider catalog` is weaker than `mailbox successfully provisioned`, which is weaker than `real external mail received`. Report each separately. Never display a generated address as ready before the provider's confirmed provisioning semantics have been satisfied.
+Required behavior:
 
-## 7. Minimal domain-selection UX
+- Dynamic, provider-sourced, eligible-domain discovery and proper provider/domain provenance.
+- Automatic and manual selection only among usable compatible domains.
+- Correct provider-owned mailbox creation, authentication, safe credential/session persistence and restoration.
+- Correct normalized listing/reading, timestamps, OTP extraction, text/HTML handling and secure link behavior.
+- No cross-provider mailbox mixing, no duplicate generation, no stale responses, no silent substitution for manually chosen domains.
+- Bounded retry/fallback, throttling and expiration handling; honor rotating-domain expiry and provider health.
+- Preserve the prior mailbox on failure; truthful deletion and local-forget semantics.
+- No change to the primary four-action Temp Mail-inspired UI except minimal, accessible provider/domain selection. If DropMail OAuth adds user friction, make it explicit and opt-in; do not launch an authentication popup automatically on first page load.
+- Keep website and extension support **separate**: an extension-compatible provider is not automatically website-compatible.
 
-Preserve the existing Temp Mail-inspired layout, responsive design, motion and message reader. Do not restart completed M16–M21 work just to integrate providers.
+A provider must not appear as production-supported until licensing/terms, creation, read, target-browser, security and other agreed release gates pass. Real external-message receipt is separately labeled and never silently equated with account creation.
 
-Keep the four main actions: **Copy, Refresh, Change, Delete**. Within **Change**, offer an uncomplicated **Automatic** mode and optional manual domain selector if more than one usable choice exists. Automatic can choose a healthy compatible provider/domain based on actual availability, quotas and reliability; the user should not need to understand provider internals.
+## 6. T3 Code orchestration and concurrency
 
-- If a manually chosen domain fails, show a concise error and allow retry or another selection; **never silently substitute** a different domain.
-- If automatic creation fails, use bounded fallback among approved compatible providers; preserve the previous working mailbox on failure.
-- Keep the inbox stable during Refresh, remove obsolete messages/reader selection after a successful Change, and guard against rapid double-clicks and out-of-order responses.
-- Make loading, clipboard feedback and switching visually stable; preserve keyboard accessibility, touch targets, reduced motion and existing approved animations.
-- Keep provider attribution only where required; don't add large configuration cards, exposed API diagnostics or irrelevant domain counters to the hero.
-- Do not claim domains will defeat a website's disposable-email blocking.
+The existing main thread is the **orchestrator**, not a coding worker. It keeps the current `main` checkout clean and maintains the work queue, dependencies, review and integration.
 
-## 8. Verification gates — no fake green checks
+Discover native T3 Code capabilities (`orchestrator_capabilities`) and delegate via `delegate_task` with `isolation: "worktree"` (or the genuinely available equivalent). Use approximately 2–4 workers on **nonoverlapping work**:
 
-For **each** proposed integration and supported runtime, require:
+- Worker A — current official DropMail policy/authorization and outreach draft.
+- Worker B — safe isolated DropMail OAuth + MV3 redirect feasibility probe.
+- Worker C — Mail.gw reachability/terms plus existing Mail.tm attribution/permissions review.
+- Worker D — independent architecture, security and testing review when artifacts exist.
 
-1. **Contract tests:** domain filtering/pagination, account creation/authentication, restore, list/read/normalization, malformed responses, missing timestamps, expiration, 429/5xx, cancellation and stale-response isolation.
-2. **Minimal live API probe:** actual documented list/create/auth/read calls within provider limits; redact secrets and avoid unneeded mailbox creation. Test deletion only where the provider supports it.
-3. **Browser proof:** website CORS measured from a real page; extension lifecycle from an actual unpacked Chromium extension, including any required minimal host permissions. Browser-only failures cannot be covered up by Node results.
-4. **Actual incoming mail (separate, stronger claim):** an authorized external sender emails a newly created mailbox; verify sender, subject, timestamp, body, OTP and verification link as actually received. If no sender or user-owned credential is available, mark **LIVE DELIVERY NOT VERIFIED** and continue other tasks. Never turn recorded fixtures into purported live evidence.
-5. **Regression and security:** `pnpm verify`, architecture boundaries, OpenSpec validation, website + extension browser suites, message HTML sanitization, token isolation, privacy and provider terms; check that the new domain picker does not degrade approved layout and motion.
-6. **Operational behavior:** no stale cross-provider messages, no invalid Unix-epoch dates, correct handling of retired domains, rate limits, network failure, reload/session restore, mobile/keyboard interactions and provider fallback.
+Workers must provide exact evidence, files touched, commit SHA, PR and blockers. Do not simulate native delegation, edit app code directly on `main`, let workers modify shared OpenSpec requirements concurrently, or merge without reviewed CI. Integrate through the repository's existing merge-commit PR workflow; clean up worktrees only when safe.
 
-A provider/domain cannot be advertised as fully **delivery verified** without actual external mail arriving. But lack of a sender does not prevent verifying provision/read compatibility and integrating other legitimate domains with truthful status.
+Resolve routine technical blockers autonomously. Escalate to the owner only when a provider response, user-owned credentials, a significant policy/architecture change, or final subjective acceptance is genuinely needed. Continue other independent work while one provider is pending.
 
-## 9. Prior M21 blockers and blocker autonomy
+## 7. Acceptance gates and final report
 
-Track the existing **human visual approval** and **live external message reception** independently of this expansion goal.
+Record a **separate PASS / FAIL / BLOCKED / NOT VERIFIED** for each provider and target runtime:
 
-- The Orchestrator may delegate automated screenshot/video comparisons, fix objectively documented UI defects, and ask the user for **final subjective acceptance** only after delivering reviewable evidence.
-- The Orchestrator may research legitimate SMTP/send services and reuse an already authorized sender configuration. If none exists, prepare a **fresh** mailbox and a precise manual test-email instruction; request only a message from the user's own mail app, **not their email password**.
-- The Orchestrator decides normal technical blockers, can reject unsuitable providers with evidence, and can proceed to the next viable provider. Only a genuine secret, account permission, paid plan, architectural policy change or final human judgment requires escalation.
-- Never mark a `BLOCKED`, `PENDING`, `NOT VERIFIED` or `REJECTED` provider/acceptance row as passed merely to close the goal.
+1. Official usage permission/terms, free-tier suitability and attribution — no ambiguous claim marked passed.
+2. Valid live domain inventory and provider-specific provisioning path, with timestamp and honest eligibility counts.
+3. Browser tests: real Chromium extension and real ordinary website CORS, as applicable.
+4. Secure per-user OAuth/token flow where needed; no packaged privileged shared secrets.
+5. Contract tests for create/auth/restore/list/read, pagination/health/expiry, 429/5xx, malformed content, concurrency and fallback.
+6. Actual incoming email from an authorized external sender for the integration's delivery claim, or `LIVE DELIVERY NOT VERIFIED` if not performed.
+7. Current `pnpm verify`, OpenSpec validation, architecture constraints, website/extension browser tests, and UI screenshot/regression review with **actual command outputs**. Record timeouts/flakes separately; do not invent a pass.
+8. PR/CI history, implementation trace, security/attribution changes, human-dependent permission decisions, and remaining risks.
 
-## 10. Execution plan and milestone hygiene
+**M25 outcome is one of:**
 
-Complete these workstreams in order, overlapping independent research only when safe:
+- **GOAL MET:** authorization and technical feasibility resolved, at least one newly permitted provider is production-integrated with all mandatory gates, and the selected catalog works reliably. Report live-delivery status separately.
+- **PARTIALLY MET:** provider research/OAuth proof and/or preparatory work succeeded but no new permitted provider can yet be enabled, or mandatory tests are unresolved.
+- **BLOCKED:** all remaining tasks truly require external authorization or human inputs; provide ready-to-send provider inquiries and the exact resume conditions.
 
-**Phase A — Baseline:** inventory current provider adapters, browser capabilities, OpenSpec state, roadmap cursor, and remaining M21 audit rows.
+Do not change the definition of success to call a research-only milestone full provider expansion. If approval cannot be obtained, document the obstacle and propose the next legitimate alternative without bypassing the existing no-backend/no-proxy and privacy policies.
 
-**Phase B — Parallel research:** assign individual provider groups to research workers; assemble the dated official-source matrix and independent compatibility probes.
-
-**Phase C — Selection:** review provider terms/security and choose approved, realistic integrations. Record rejected and blocked candidates. Propose the next real M-number milestone only after checking the roadmap; do not rewrite completed M0–M21 history.
-
-**Phase D — Shared foundations:** implement necessary provider contract/catalog adjustments and specification deltas in small reviewed slices before dependent provider work.
-
-**Phase E — Integration:** add the highest-confidence permitted providers, one or more per independently reviewable PR as file ownership permits. Recheck all existing adapters and stored mailbox compatibility.
-
-**Phase F — Product UX:** add lightweight available-domain selection and automatic rotation/fallback without compromising the Temp Mail reference.
-
-**Phase G — Verification/handoff:** run actual real API and browser checks, CI, security, terms, visual regression, and independent review. Sync/archive completed approved OpenSpec changes; update roadmap ledger with measured evidence.
-
-Do not promise indefinite off-platform background work. Within T3 Code's available orchestration runtime, **continue automatically to the next ready task** after each worker result or verified merge. Stop only when no independent work remains or a true human dependency requires input.
-
-## 11. Required final report and acceptance verdict
-
-Deliver one auditable report containing:
-
-- **Provider matrix:** every researched candidate with official sources, terms, free limits, website/extension support and verified/rejected/blocked decisions.
-- **Domain inventory:** dated live API counts by provider, active/free/eligible breakdown, pagination completeness and which domains could actually provision a mailbox. Never imply these counts are permanent.
-- **Implementation trace:** adapter and catalog changes, runtime wiring, local persistence, PR links/SHAs, OpenSpec changes and roadmap progress.
-- **Verification evidence:** contract tests, live provider calls, actual browser tests, security/CI checks, screenshots and any genuinely received test message.
-- **Blocker ledger:** exact unresolved human input, inaccessible provider, ambiguous terms, lack of external sender and deferred human UI acceptance.
-
-Use **GOAL MET** only if all providers _advertised as supported_ meet their compatible creation/list/read/browser/security/terms gates; domain catalog and UI function accurately; required non-live tests are green; and mandatory visual/functionality review has evidence. Never falsely claim every domain received an external email if only a sample was tested. Use **PARTIALLY MET** for remaining mandatory unverified items, or **BLOCKED** when all remaining tasks require genuine external authority.
-
-**Final directive:** Build **sustainable provider diversity**, not a fake count of email domains. Keep `main` clean, delegate to real T3 Code worktrees, independently review and merge verified work, resolve normal blockers yourself, respect provider terms and privacy, and keep progress moving without waiting for a new prompt after every PR.
+**Final directive:** Complete the *next real step toward more usable free domains*, not another list of names. Reuse M22 foundations, investigate DropMail's per-user OAuth pathway, obtain or establish proper provider-use permission, ship only real authorized integrations, and continue orchestrating independently actionable work without repeatedly asking for the next prompt.

@@ -36,3 +36,8 @@ openspec/
 AGENTS.md
 docs/ROADMAP.md
 docs/PROVIDERS.md
+
+# Owner-authored long-form execution brief. Its exact byte layout is preserved
+# by a SHA-256 byte-identity check against the owner's source; reformatting it
+# would churn the document without improving the product, as with the three above.
+docs/GOAL.md
