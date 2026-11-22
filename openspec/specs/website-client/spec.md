@@ -218,6 +218,24 @@ that costs a user a verification code.
 - **AND** it SHALL attribute it to the provider rather than present it as
   SpectreMail's guarantee
 
+**Amendment, recorded during proposal (2026-11-22), by `m23-expired-mailbox-recovery`.**
+The requirement and its two scenarios above are carried forward byte-for-byte.
+One scenario is added. It exists because persisting a replacement is a change in
+what the device stores, and it must not be mistaken for a statement about how
+long mailboxes last. Measured on the UI reference temp-mail.org on 2026-11-22,
+its FAQ says an address is valid *"until you delete it or until the service
+changes the domain list"*, its live API returns no `expires` field, and its token
+JWT has `iat` but no `exp`: there is no fixed lifetime to copy. No countdown,
+timer, interval, or invented duration is introduced by this change.
+
+#### Scenario: A replaced record is not a lifetime
+
+- **WHEN** the website persists a replacement for a stored mailbox its provider
+      reported gone
+- **THEN** the persistence SHALL follow that provider's signal alone
+- **AND** it SHALL NOT be derived from a creation time, a documented lifetime, a
+      countdown, or an interval
+- **AND** no fixed mailbox lifetime SHALL be introduced by the change
 ### Requirement: A failure is visible and retryable
 
 When the website cannot obtain an address it SHALL say so in the user's terms,
@@ -795,6 +813,52 @@ about stored data that is not true.
 
 - **WHEN** the page presents a restored mailbox
 - **THEN** it SHALL NOT also present a different address as the user's
+
+**Amendment, recorded during proposal (2026-11-22), by `m23-expired-mailbox-recovery`,
+revised after orchestrator review the same day.** Everything above this paragraph
+is the promoted requirement carried forward byte-for-byte, including all seven
+scenarios and both earlier amendment notes. Two scenarios are added below, one
+for each control on the gone screen. The general claim in the first paragraph
+that the page "SHALL persist the mailbox it holds so a later visit can offer it
+again" was false on the expired-replacement path: `apps/web/src/App.tsx:186–191`
+wired both controls of `StoredAddressGone` to `startFresh`, and
+`apps/web/src/useMailboxSession.ts:379–382` made that path create a new mailbox
+without persisting it, so a later visit read the same dead record. **No record is
+cleared or deleted by this change.** Persisting the replacement overwrites the
+single record and preserves the recent-mailbox collection in one transaction
+(`packages/storage/src/indexeddb-mailboxes.ts:399–438`); the first draft's
+automatic `clearAll` was rejected because it deleted the whole area, including
+data the user never asked to remove. A user who takes no action will therefore
+see the truthful gone state again on a later visit, which is correct because the
+provider did say that address is dead. The scenario *The stored address could
+not be checked* is deliberately left unchanged: a provider that could not be
+asked is not a provider that said the mailbox was gone, so nothing is discarded
+there and the existing clause stays true.
+
+#### Scenario: The user asks for a new address after the saved one was found gone
+
+- **WHEN** the user activates the control that offers a new address on the gone
+      screen
+- **THEN** a new mailbox SHALL be created
+- **AND** it SHALL be persisted as the mailbox this device returns to
+- **AND** a later visit SHALL offer the replacement rather than the dead address
+- **AND** no mailbox held in this device's recent-mailbox collection SHALL be
+      removed by the recovery
+
+#### Scenario: The user asks to check the saved address again after it was found gone
+
+- **WHEN** the user activates the control that offers to check the saved address
+      again
+- **THEN** the existing re-boot and restore path SHALL ask the provider that owns
+      that same stored mailbox about it again
+- **AND** no new mailbox SHALL be created and the stored record SHALL NOT be
+      discarded
+- **AND** if that provider confirms it, the same mailbox SHALL be presented as
+      the user's own
+- **AND** if that provider again reports it gone, the page SHALL remain on the
+      gone screen
+- **AND** if that provider cannot be asked, the page SHALL report that it could
+      not tell, with the inconclusive state's existing meaning and copy unchanged
 
 ### Requirement: The user can make this device forget the address
 
