@@ -24,16 +24,16 @@ Do not restart M16–M21. Create the next properly numbered milestone after chec
 
 Research every credible, documented free receive-only temporary-mail API that is reasonably discoverable, starting with the following **candidates, not promised integrations**:
 
-| Candidate | Official starting point | Questions to resolve |
-|---|---|---|
-| Guerrilla Mail | https://www.guerrillamail.com/GuerrillaMailAPI.html | Existing adapter, address assignment, rate guidance |
-| Mail.tm | https://docs.mail.tm/ | Dynamic domains, third-party use restrictions, CORS |
-| Mail.gw | https://docs.mail.gw/ | Dynamic domains, separate usage terms, CORS |
-| DropMail | https://dropmail.me/api/ | GraphQL, domain rotation, token/OAuth, session expiry |
-| TempMail.lol | https://tempmail.lol/api | Anonymous free tier, quotas, free/premium pools |
-| Tmailor | https://tmailor.com/temp-mail-api/ | Free API tier, registration/key, limits, third-party use |
-| Maildrop | https://docs.maildrop.cc/ | Public inbox model, privacy for verification messages |
-| Temp-Mail.org | https://temp-mail.org/en/api/ | Official API/RapidAPI permissions, free-tier limits, domain list |
+| Candidate      | Official starting point                             | Questions to resolve                                             |
+| -------------- | --------------------------------------------------- | ---------------------------------------------------------------- |
+| Guerrilla Mail | https://www.guerrillamail.com/GuerrillaMailAPI.html | Existing adapter, address assignment, rate guidance              |
+| Mail.tm        | https://docs.mail.tm/                               | Dynamic domains, third-party use restrictions, CORS              |
+| Mail.gw        | https://docs.mail.gw/                               | Dynamic domains, separate usage terms, CORS                      |
+| DropMail       | https://dropmail.me/api/                            | GraphQL, domain rotation, token/OAuth, session expiry            |
+| TempMail.lol   | https://tempmail.lol/api                            | Anonymous free tier, quotas, free/premium pools                  |
+| Tmailor        | https://tmailor.com/temp-mail-api/                  | Free API tier, registration/key, limits, third-party use         |
+| Maildrop       | https://docs.maildrop.cc/                           | Public inbox model, privacy for verification messages            |
+| Temp-Mail.org  | https://temp-mail.org/en/api/                       | Official API/RapidAPI permissions, free-tier limits, domain list |
 
 Discover additional suitable providers if evidence supports them. **Do not conflate** `temp-mail.org`, `temp-mail.io`, and similarly named businesses. Read actual provider documentation, terms, pricing and access rules as of the investigation date. A public or free API does **not** automatically authorize repackaging it as a competing temporary-email product.
 
@@ -53,7 +53,7 @@ Report domain counts with fetch timestamps. Distinguish **provider count**, **fr
 
 ## 4. Integration decision gate
 
-Prioritize candidates that: (1) explicitly permit the intended integration; (2) offer usable free operations; (3) support **real** mailbox creation and message reading; (4) operate safely in at least one of SpectreMail's existing runtimes without a prohibited proxy; (5) have an acceptable privacy model; and (6) can be maintained and tested. Suggested *investigation* order: Mail.gw, DropMail, TempMail.lol, Tmailor, official Temp-Mail.org, Maildrop, and newly discovered candidates. This is not advance approval.
+Prioritize candidates that: (1) explicitly permit the intended integration; (2) offer usable free operations; (3) support **real** mailbox creation and message reading; (4) operate safely in at least one of SpectreMail's existing runtimes without a prohibited proxy; (5) have an acceptable privacy model; and (6) can be maintained and tested. Suggested _investigation_ order: Mail.gw, DropMail, TempMail.lol, Tmailor, official Temp-Mail.org, Maildrop, and newly discovered candidates. This is not advance approval.
 
 **Reject unsupported approaches rather than faking support.** A free tier requiring a user-owned API key needs an approved credential-delivery design; no shared secret in shipped browser code. A provider blocked by website CORS may still be evaluated for extension-only use. A backend/proxy remains outside existing architecture unless the owner explicitly approves a formal architectural change. Do not sidestep provider access controls, scraping restrictions, CAPTCHA, quotas, or terms. Providers that prohibit competing services should be excluded unless authorized.
 
@@ -160,6 +160,6 @@ Deliver one auditable report containing:
 - **Verification evidence:** contract tests, live provider calls, actual browser tests, security/CI checks, screenshots and any genuinely received test message.
 - **Blocker ledger:** exact unresolved human input, inaccessible provider, ambiguous terms, lack of external sender and deferred human UI acceptance.
 
-Use **GOAL MET** only if all providers *advertised as supported* meet their compatible creation/list/read/browser/security/terms gates; domain catalog and UI function accurately; required non-live tests are green; and mandatory visual/functionality review has evidence. Never falsely claim every domain received an external email if only a sample was tested. Use **PARTIALLY MET** for remaining mandatory unverified items, or **BLOCKED** when all remaining tasks require genuine external authority.
+Use **GOAL MET** only if all providers _advertised as supported_ meet their compatible creation/list/read/browser/security/terms gates; domain catalog and UI function accurately; required non-live tests are green; and mandatory visual/functionality review has evidence. Never falsely claim every domain received an external email if only a sample was tested. Use **PARTIALLY MET** for remaining mandatory unverified items, or **BLOCKED** when all remaining tasks require genuine external authority.
 
 **Final directive:** Build **sustainable provider diversity**, not a fake count of email domains. Keep `main` clean, delegate to real T3 Code worktrees, independently review and merge verified work, resolve normal blockers yourself, respect provider terms and privacy, and keep progress moving without waiting for a new prompt after every PR.
