@@ -177,13 +177,46 @@ so `live-reception.json` remains `status: pending` in both checkouts.
 
 ## Verdict
 
-**HUMAN SENDER REQUIRED.** No authorized, credential-free send path exists for
-this prepared mailbox: the receiving provider exposes no send endpoint, the
-other provider's send is CAPTCHA-gated and bypass is a non-goal, public send
-APIs require credentials or an anti-abuse bypass, and no local authenticated
-mail client is present. The M21 row therefore stays **BLOCKED — live reception**
-and the harness state stays **PENDING**. Nothing here is reported as a live
-delivery pass.
+**LIVE RECEPTION VERIFIED AT THE MESSAGE LEVEL (measured 2026-11-22).** A real
+external sender acted on the harness's instructed message: Edison Malasan
+`<edisonmalasan14@gmail.com>` sent the exact test message to the prepared
+Mail.tm mailbox `yba0aw1769iq@euploading.com`, and the built extension popup in
+the main checkout (extension id `mbhllobodbapbbmlakpadkamlcgjhdko`) rendered:
+
+- sender **Edison Malasan** (`senderPresent: true`);
+- subject **SpectreMail E2E Verification** (`subjectMatches: true`);
+- timestamp **2026-11-22T07:40:11.000Z**, not the epoch
+  (`timestampIsNotEpoch: true`);
+- a readable body containing the code **482731** and the URL
+  **https://example.com/verify** (`bodyContainsCode`, `bodyContainsLink: true`),
+  with the code extracted (`extractedCode: true`);
+- real provider reads `GET https://api.mail.tm/messages`,
+  `GET https://api.mail.tm/messages/6b029c6977420c4cdbfc9e62` and
+  `GET https://api.mail.tm/messages` (`retrievedFromProvider: true`).
+
+**Bare-text-link limitation, now confirmed on real mail.** The verification URL
+arrived with a newline as bare text, not inside an `<a href>`, so no anchor was
+extracted (`linkAnchors: 0`, `extractedLink: false`). `packages/mail-parser`
+recovers links only from `<a href>` elements; this is the documented
+limitation, not a product regression. The URL text itself did arrive and is
+shown in the readable body. The harness previously crashed on the missing
+anchor — an unconditional `.first().getAttribute('href')` waited 30 s for a node
+that never existed and wrote no result — and was repaired to count anchors
+first, so `extractedLink: false` is now recorded truthfully instead of as a
+crash. Message-level reception is VERIFIED; final visual acceptance remains
+**NOT VERIFIED**.
+
+**Path-derived-profile caveat retained.** Unpacked Chromium extension IDs here
+are path-derived and the manifest has no `key`: the prepared LevelDB profile
+lives in the main checkout under `mbhllobodbapbbmlakpadkamlcgjhdko`, while a
+worktree loads a different ID. This measurement was therefore taken from the
+main checkout; a copied profile in a worktree still needs its LevelDB data
+relocated to the loaded ID, as recorded above. Nothing was fabricated and no
+fixture was inserted.
+
+The M21/M22 live-reception row is therefore **VERIFIED at the message level**
+rather than BLOCKED. No conclusion is drawn about provider authorization, which
+remains outstanding, and no rendered pixel was judged.
 
 ## What a human must send
 
@@ -200,24 +233,39 @@ extension-ID caveat above):
 node apps/extension/e2e/live-reception.mjs --verify
 ```
 
-Expected on success: `status: PASSED` with `restoredAddressMatches`,
-`subjectMatches`, `timestampIsNotEpoch`, `bodyContainsCode`,
-`bodyContainsLink`, `extractedCode`, `extractedLink` and `retrievedFromProvider`
-all `true` — including extraction of code `482731` and link
-`https://example.com/verify`. If the mailbox has expired since it was prepared
-on 2026-11-21, run `--prepare` first and send to the newly printed address.
+This exact message was sent on 2026-11-22 and received. **Measured outcome:**
+`extractedLink` is expected **false** for this bare-text link — the URL arrived
+with no `<a href>` — while all message-level checks pass
+(`restoredAddressMatches`, `senderPresent`, `subjectMatches`,
+`timestampIsNotEpoch`, `bodyContainsCode`, `bodyContainsLink`, `extractedCode`,
+`retrievedFromProvider`) and `receptionVerified` is `true`. Code `482731` is
+extracted and the URL text `https://example.com/verify` is in the readable body,
+but no anchor is produced. Because `extractedLink` remains in the `passed` gate,
+the harness records `status: FAILED` with `receptionVerified: true`; the gate is
+deliberately unchanged. A later message that wraps the URL in an `<a href>`
+would instead yield `extractedLink: true` and `status: PASSED`. If the mailbox
+has expired since it was prepared on 2026-11-21, run `--prepare` first and send
+to the newly printed address.
 
 ## What this does not establish
 
-- **No live reception was observed.** No message was sent, so the parser's live
-  code/link extraction is still only unit-tested; the `--verify` success branch
-  was not exercised here.
-- **No provider changed shape.** The receive-only finding is from the provider's
-  own published documentation and machine-readable API contract, fetched today.
+- **Live reception WAS observed at message level on 2026-11-22.** A real
+  external message arrived and the built popup rendered the sender, subject,
+  non-epoch timestamp, readable body, extracted code `482731` and real provider
+  GETs; `receptionVerified` is `true`. What remains unestablished: **no
+  rendered-pixel judgement** — no test here reads a rendered pixel, so final
+  visual acceptance is still NOT VERIFIED; **the bare-text link is not
+  clickable** — the URL arrived with no `<a href>`, so `extractedLink` is
+  `false`; **only a single prepared mailbox on a single provider was sampled** —
+  nothing here says every catalog domain received mail; **no provider changed
+  shape** — the receive-only finding is from the provider's own published
+  documentation and machine-readable API contract, fetched on 2026-11-22.
 - **The public-API survey is not exhaustive.** It covers the providers relevant
   to this product and representative send APIs. The negative conclusion rests
   on the structural point that a credential-free arbitrary-recipient send API
   is an open relay, plus the explicit non-goals against bypassing the controls
   that prevent that.
-- **No product code, OpenSpec file, `docs/PROVIDERS.md`, `AGENTS.md` or
-  `docs/ROADMAP.md` was edited.** The only deliverable is this report.
+- **No product code, OpenSpec file, `docs/PROVIDERS.md`, `AGENTS.md` or archived
+  file was edited.** The deliverables are the harness fix
+  (`apps/extension/e2e/live-reception.mjs`) plus the documentation updates in
+  `docs/GOAL-REPORT.md`, `docs/ROADMAP.md` and this report.
