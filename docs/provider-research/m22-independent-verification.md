@@ -140,12 +140,19 @@ protected document was edited. The `pnpm verify` red is reported, not explained 
 
 - **Files changed:** exactly one — `docs/provider-research/m22-independent-verification.md`.
 - **Branch:** `review/m22-independence`, pushed with upstream tracking before editing.
-- **Commit SHA:** recorded in §7 after commit.
-- **PR URL:** recorded in §7 after opening.
+- **Commit SHA:** content commit `405392bc0350106c1ec32ca7c0bd8a48dbc530de`; final HEAD is the
+  follow-up commit that filled this section (recorded in §7).
+- **PR URL:** https://github.com/edisonmalasan/spectre-mail/pull/251
 - **Do not merge:** this PR is a report for the orchestrator to read.
 
 ---
 
 ## 7. Late-arriving evidence
 
-(To be completed when `pnpm verify` run 2 returns and after commit and PR creation.)
+- `pnpm verify` run 2 (C11) returned while this report was being written and reproduced run 1
+  exactly: exit `1`, `Test Files 81 passed (81)`, `Tests 1480 passed (1480)`, `Errors 1 error`
+  `[vitest-worker]: Timeout calling "onTaskUpdate"`, no test failure, 108.32 s. That is a 2/2 red
+  rate for the same named, pre-existing worker-timeout error and is recorded in C11 and task 6.1.
+- The report's content commit is `405392bc0350106c1ec32ca7c0bd8a48dbc530de`. This section was
+  added in a follow-up commit on the same branch; the two commits are the only commits on
+  `review/m22-independence`, and no other file was touched by either.
