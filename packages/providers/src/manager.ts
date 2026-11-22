@@ -11,12 +11,62 @@
  * way to learn which provider was *asked* — only which one *answered*. See
  * design.md D8.
  *
+ * Fallback is bounded to one attempt per configured provider and confined to
+ * creation. When every provider declines, the composition is a typed
+ * {@link CreationFailure} carrying the deciding failure's normalized code rather
+ * than an `Error` whose only detail is prose: a caller must be able to tell
+ * "wait" from "service down" without parsing a sentence.
+ *
  * @module
  */
 
-import type { Domain, Mailbox } from "@spectre-mail/core";
+import { isSpectreError, NormalizedErrorCode } from "@spectre-mail/core";
+import type { Domain, Mailbox, ProviderId } from "@spectre-mail/core";
 
 import type { MailProvider } from "./contract";
+
+/** One configured provider's contribution to a bounded creation failure. */
+export interface ProviderAttemptFailure {
+  readonly provider: ProviderId;
+  readonly code: NormalizedErrorCode;
+  /** The provider's own words, verbatim, including any rate-limit statement. */
+  readonly description: string;
+}
+
+/**
+ * The typed failure thrown when every configured provider declined creation.
+ *
+ * **A composition is still a failure with a normalized code.** The previous version
+ * threw a plain `Error` whose message held each provider's failure as prose, so the
+ * `code` a client branches on survived in neither the value nor a field — only inside
+ * a sentence. A caller that wanted to tell "wait" from "service down" had to parse
+ * that sentence, which is the one recovery this architecture forbids. The deciding
+ * failure's code is now carried on the object itself; every provider's own code is
+ * carried in {@link providerFailures}, and the prose stays for a person to read.
+ *
+ * **It is still an `Error`.** Existing callers already catch an `Error` from a
+ * manager with several providers and read its `message`; making the typed
+ * composition an `Error` with added fields keeps that contract, rather than
+ * silently changing the shape a client has always received. The fields are what
+ * is new — `code`, `provider`, `providerFailures`, and `description` alongside the
+ * inherited `message` — not the fact that it can be caught as an `Error`.
+ */
+export interface CreationFailure extends Error {
+  /** The normalized code of the failure that decided the outcome (the last attempt). */
+  readonly code: NormalizedErrorCode;
+  /** The provider whose refusal decided the outcome. */
+  readonly provider: ProviderId;
+  /** Every attempt, named, in the order they were tried. */
+  readonly description: string;
+  /** Each provider's own normalized code and description, in attempt order. */
+  readonly providerFailures: readonly ProviderAttemptFailure[];
+  /**
+   * The deciding failure, carried so even the `NETWORK_ERROR` variant satisfies
+   * `isSpectreError` (which requires a `cause` on that code). An absent cause
+   * would silently downgrade the composition back to prose at the session layer.
+   */
+  readonly cause: unknown;
+}
 
 export interface ProviderManager {
   /** The providers this manager may create a mailbox with, in preference order. */
@@ -67,20 +117,52 @@ export function createProviderManager(providers: readonly MailProvider[]): Provi
     available: providers,
 
     async createMailbox(domain?: Domain): Promise<Mailbox> {
-      const failures: string[] = [];
+      const attempts: ProviderAttemptFailure[] = [];
       let lastCause: unknown;
+      let lastProvider: MailProvider | undefined;
 
       for (const provider of providers) {
         // A chosen domain belongs to one provider. Offering it to another would
         // construct an address on a service that does not own the name; skip those
-        // rather than let a fallback silently switch providers.
+        // rather than let a fallback silently switch providers. This is also what
+        // binds a catalog answer to the provider that supplied it: a domain from
+        // provider A is never handed to provider B, even as a "fallback".
         if (domain !== undefined && domain.provider !== provider.id) continue;
+        lastProvider = provider;
         try {
+          // Each configured provider is asked at most once. There is no inner
+          // loop, no backoff and no queued retry: a throttle is answered to the
+          // caller and the next provider is a different provider, not a second
+          // attempt at the same one.
           return await provider.createMailbox(domain);
         } catch (cause) {
           lastCause = cause;
-          failures.push(`${provider.id}: ${describe(cause)}`);
+          attempts.push({
+            provider: provider.id,
+            code: isSpectreError(cause) ? cause.code : NormalizedErrorCode.UNKNOWN_PROVIDER_ERROR,
+            description: describe(cause),
+          });
         }
+      }
+
+      // **No configured provider owns a chosen domain: refuse, never substitute.**
+      // Reaching here means every provider was skipped by the domain check, so no
+      // provider was asked. Throwing `lastCause` here would throw `undefined`, which
+      // is neither an answer nor a failure a client can branch on. This is the
+      // manager half of "a domain from one provider is offered to another": the
+      // request is refused and no provider is treated as the owner.
+      if (lastProvider === undefined) {
+        const owner = domain?.provider ?? providers[0]?.id;
+        const description =
+          domain === undefined
+            ? "No configured provider could be asked to create a mailbox."
+            : `The domain "${domain.name}" belongs to "${domain.provider}", which this client is not configured for. It was not offered to another provider.`;
+        throw {
+          code: NormalizedErrorCode.UNSUPPORTED_OPERATION,
+          provider: owner ?? "guerrilla",
+          description,
+          operation: "createMailbox",
+        };
       }
 
       // **With one configured provider, the failure is rethrown as it was.**
@@ -99,17 +181,29 @@ export function createProviderManager(providers: readonly MailProvider[]): Provi
       // down, or told to try again later. A caller handed only the wrapper would
       // have to recover it by parsing that prose, which is the one recovery this
       // architecture forbids outright.
-      //
-      // With more than one provider the composed error stays, because there the
-      // composed report genuinely is the answer: it names each provider that
-      // failed, which no single provider's error can.
       if (providers.length === 1) {
         throw lastCause;
       }
 
-      throw new Error(
-        `No configured provider could create a mailbox.\n${failures.map((f) => `  - ${f}`).join("\n")}`,
-      );
+      // **Several providers declined. The composition is typed, not prose-only.**
+      // Every provider's own normalized code travels in `providerFailures`, and the
+      // failure that decided the outcome — the last attempt, after which no provider
+      // remains — supplies the aggregate `code` and `provider`. A caller can branch
+      // on that code without reconstructing it from a sentence, while the composed
+      // description still names every provider for a person to read.
+      const deciding = attempts[attempts.length - 1];
+      const description = `No configured provider could create a mailbox.\n${attempts
+        .map((attempt) => `  - ${attempt.provider}: ${attempt.description}`)
+        .join("\n")}`;
+      throw Object.assign(new Error(description), {
+        code: deciding?.code ?? NormalizedErrorCode.UNKNOWN_PROVIDER_ERROR,
+        provider: lastProvider.id,
+        description,
+        providerFailures: attempts,
+        // The deciding failure, so a `NETWORK_ERROR` composition still satisfies
+        // `isSpectreError` and is not degraded to `String(cause)` downstream.
+        cause: lastCause,
+      }) as CreationFailure;
     },
 
     providerFor(mailbox: Mailbox): MailProvider {
@@ -127,9 +221,12 @@ export function createProviderManager(providers: readonly MailProvider[]): Provi
 }
 
 function describe(cause: unknown): string {
-  if (typeof cause === "object" && cause !== null && "code" in cause && "provider" in cause) {
-    const record = cause as { code?: unknown; description?: unknown };
-    return `${String(record.code)}${typeof record.description === "string" ? ` - ${record.description}` : ""}`;
+  if (isSpectreError(cause)) {
+    const limit =
+      cause.code === NormalizedErrorCode.RATE_LIMITED && cause.rateLimit !== undefined
+        ? ` (rate limit: ${cause.rateLimit})`
+        : "";
+    return `${cause.code}${cause.description.length > 0 ? ` - ${cause.description}` : ""}${limit}`;
   }
   return cause instanceof Error ? cause.message : String(cause);
 }

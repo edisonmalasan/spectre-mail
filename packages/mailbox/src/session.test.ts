@@ -33,6 +33,7 @@ import {
   makeMailbox,
   makeSummary,
   manualScheduler,
+  NEUTRAL_BODY,
   recordingTransport,
   stubProvider,
   throttled,
@@ -1569,6 +1570,38 @@ describe("createMailboxSession", () => {
       // Served from the reading the failed check did not discard, with no request.
       expect(opened.kind).toBe("opened");
       expect(provider.readCalls).toBe(before);
+    });
+  });
+
+  describe("exact provider and session routing", () => {
+    it("reads a message through the provider that created the mailbox, never the fallback", async () => {
+      const mailbox = makeMailbox("owner-mailbox", "mailtm");
+      const summary = makeSummary("m-route", mailbox.id);
+      const primary = stubProvider("mailtm", {
+        mailbox,
+        messages: { summaries: [summary], bodies: { "m-route": NEUTRAL_BODY } },
+      });
+      const fallback = stubProvider("guerrilla");
+      const session = createMailboxSession(
+        createProviderManager([primary, fallback]),
+        manualScheduler(),
+      );
+
+      await session.open();
+      // A summaries listing reads no bodies, so this read genuinely has to fetch
+      // rather than be served a retained reading from the inbox's verdict pass.
+      await session.restoreSummaries(mailbox);
+
+      const before = primary.readCalls;
+      const opened = await session.openMessage("m-route");
+
+      expect(opened.kind).toBe("opened");
+      expect(primary.readCalls).toBe(before + 1);
+      // No fallback is consulted for an existing mailbox. It did not create this
+      // mailbox, so its credentials do not authenticate this session.
+      expect(fallback.readCalls).toBe(0);
+      expect(fallback.listCalls).toBe(0);
+      expect(fallback.createCalls).toBe(0);
     });
   });
 });
