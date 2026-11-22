@@ -172,6 +172,14 @@ export interface MailboxSessionBinding {
   readonly retryBoot: () => void;
   /** Create a mailbox for now, leaving whatever is stored untouched. */
   readonly startFresh: () => void;
+  /**
+   * Create a mailbox **and persist it** after the provider said the stored one is gone.
+   *
+   * **The one difference from `startFresh` is persistence.** The provider has already
+   * said this address is dead, so there is nothing to protect by leaving the stored
+   * record alone; the replacement is the address this device should return to.
+   */
+  readonly getNewAddress: () => void;
   /** Open a mailbox, or try again after a failure. Always user-initiated. */
   readonly retry: () => void;
   /** Discard the current mailbox and create another. */
@@ -378,6 +386,27 @@ export function useMailboxSession(
    */
   const startFresh = useCallback(() => {
     persist.current = false;
+    run(() => session.open());
+  }, [run, session]);
+
+  /**
+   * Create and persist a replacement after the provider reported the stored mailbox gone.
+   *
+   * **Differs from `startFresh` in exactly one line: persistence stays on.** The save
+   * effect then writes the replacement over the dead single record and adds it to the
+   * recent-mailbox collection in the storage layer's one transaction — so a later visit
+   * returns to this address without deleting anything the user did not ask to remove.
+   *
+   * **Deliberately not the toolbar's `replace` callback.** That one keeps the previous
+   * state on screen while it creates (`keepCurrent = true`, so a Change leaves the current
+   * address truthful) and shares the Change coalescing guard. Measured with a held-open
+   * create: reusing it left the gone screen up for the whole wait, while this path shows
+   * the create in progress. The task asks for a dedicated handler that creates through
+   * `session.open()`, and D4 asks for one whose sole difference from `startFresh` is that
+   * it persists.
+   */
+  const getNewAddress = useCallback(() => {
+    persist.current = true;
     run(() => session.open());
   }, [run, session]);
 
@@ -644,6 +673,7 @@ export function useMailboxSession(
     clearStored,
     retryBoot,
     startFresh,
+    getNewAddress,
     retry,
     replace,
     checkInbox,
