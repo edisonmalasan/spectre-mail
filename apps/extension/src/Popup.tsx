@@ -262,6 +262,18 @@ export function Popup({
    */
   const opened = "opened" in state ? state.opened : null;
 
+  /**
+   * Domains come only from a provider's own listDomains() answer, loaded through the
+   * shared catalog. The extension's host permissions reach Mail.tm, so this list is
+   * real; an empty list (e.g. Guerrilla only) leaves automatic creation as the choice.
+   *
+   * **Declared before the callbacks that read them.** `change` closes over `setShowDomains`
+   * to dismiss the domain list; a declaration below that callback is a use-before-declaration
+   * that the compiler tolerates and `react-hooks/immutability` reports.
+   */
+  const [domains, setDomains] = useState<readonly Domain[]>([]);
+  const [showDomains, setShowDomains] = useState(false);
+
   const create = useCallback(
     (domain?: Domain) => {
       // **Every run takes a token, and only the newest answer may write.** The session
@@ -354,13 +366,6 @@ export function Popup({
     [requestBackgroundAlarm, session, storage],
   );
 
-  /**
-   * Domains come only from a provider's own listDomains() answer, loaded through the
-   * shared catalog. The extension's host permissions reach Mail.tm, so this list is
-   * real; an empty list (e.g. Guerrilla only) leaves automatic creation as the choice.
-   */
-  const [domains, setDomains] = useState<readonly Domain[]>([]);
-  const [showDomains, setShowDomains] = useState(false);
   useEffect(() => {
     let cancelled = false;
     const catalogs = (session.providers ?? []).map((provider) => createDomainCatalog(provider));
