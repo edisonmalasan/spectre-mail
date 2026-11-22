@@ -71,7 +71,6 @@ export function App({ session, storage }: AppProps = {}) {
     clearStored,
     retryBoot,
     startFresh,
-    getNewAddress,
     retry,
     replace,
     checkInbox,
@@ -185,11 +184,7 @@ export function App({ session, storage }: AppProps = {}) {
 
           {boot.kind === "blocked" && <BootFailure reason={boot.reason} onRetry={retryBoot} />}
           {boot.kind !== "blocked" && state.kind === "expired" && (
-            <StoredAddressGone
-              mailbox={state.mailbox}
-              onRetry={retryBoot}
-              onReplace={getNewAddress}
-            />
+            <StoredAddressGone mailbox={state.mailbox} />
           )}
           {boot.kind !== "blocked" && state.kind === "restoreFailed" && (
             <StoredAddressUnchecked

@@ -43,6 +43,7 @@ import type {
   MailboxScheduler,
   MailboxSession,
   OpenedMessage,
+  SessionFailure,
   SessionState,
 } from "@spectre-mail/mailbox";
 import { createProviderManager } from "@spectre-mail/providers";
@@ -51,6 +52,8 @@ import type { SpectreStorage } from "@spectre-mail/storage";
 
 import { App } from "./App";
 import { applyJsdomSuiteBudget } from "./jsdom-suite-budget";
+import { StoredAddressGone } from "./StoredAddressGone";
+import { StoredAddressUnchecked } from "./StoredAddressUnchecked";
 import { createWebsiteStorage, useWebsiteStorage } from "./storage";
 import type { WebsiteStorage } from "./storage";
 import { EMPTY_STORE, stubStore } from "./storage-stub";
@@ -1003,52 +1006,26 @@ describe("a stored mailbox the provider will not confirm", () => {
     expect(store.saves).toEqual([]);
   });
 
-  it("says the address is gone when the provider said it was", async () => {
+  it("says the address is gone when the provider said it was", () => {
     // **The positive control for every absence above.** Without this, a page whose
     // `expired` copy also avoided the word "gone" would pass all three.
-    render(
-      <App
-        session={sessionOver(
-          refusing({
-            code: NormalizedErrorCode.MAILBOX_EXPIRED,
-            provider: "guerrilla",
-            description: "The provider does not recognise this session.",
-            cause: new Error("no such session"),
-          }),
-        )}
-        storage={stubStore({ stored: mailbox("stored-1") }).storage}
-      />,
-    );
-
-    await screen.findByTestId("expired-address");
+    //
+    // M24 replaces this transient screen with an automatic create, so the copy is
+    // asserted at the component that owns it rather than raced against the create that
+    // now follows the verdict. The App-flow integration is covered in the block below.
+    render(<StoredAddressGone mailbox={mailbox("stored-1")} />);
     expect(visibleText()).toContain("stored-1@mail.example");
-    // **By accessible name, after the state has settled** — a synchronous query after
-    // `render` sees the boot and nothing else. And the region is still the expired one
-    // once the page has caught up, which is the claim that matters.
     expect(screen.getByRole("region", { name: /saved address is gone/i })).toBeTruthy();
     expect(screen.queryByTestId("restore-failed-address")).toBeNull();
   });
 
-  it("does not offer a gone address as one to receive mail at", async () => {
+  it("does not offer a gone address as one to receive mail at", () => {
     // **The claim `expired` must not make, and it is a structural one.** The `Address`
     // component renders the address, a copy control, and the words "Your address" — all
     // of which tell a reader the address is usable. So the assertion is about that
     // component being absent rather than about prose, because prose can be reworded
     // without the page becoming truthful.
-    render(
-      <App
-        session={sessionOver(
-          refusing({
-            code: NormalizedErrorCode.MAILBOX_EXPIRED,
-            provider: "guerrilla",
-            description: "The provider does not recognise this session.",
-            cause: new Error("no such session"),
-          }),
-        )}
-        storage={stubStore({ stored: mailbox("stored-1") }).storage}
-      />,
-    );
-    await screen.findByTestId("expired-address");
+    render(<StoredAddressGone mailbox={mailbox("stored-1")} />);
 
     expect(screen.queryByTestId("address")).toBeNull();
     // The toolbar's Copy is always present but inert outside `ready`; the in-field
@@ -1341,22 +1318,22 @@ describe("a stale answer and a cleared reader", () => {
 });
 
 /**
- * The two controls on the gone screen, and what each one asks of the provider.
+ * A definitive provider verdict, and what the page does with it on its own.
  *
- * **The defect this block was written for:** `App.tsx` wired both controls to
- * `startFresh`, which creates a mailbox *without* persisting it. So "Get a new address"
- * left the dead record on the device and the next visit showed the gone screen again,
- * while "Check the saved address again" created a different mailbox instead of asking
- * about the one the user came back for.
+ * **The behaviour M24 changed:** the gone screen used to offer two buttons — *Get a new
+ * address* and *Check the saved address again* — and a person had to choose. A
+ * definitive `expired` answer is the provider's own verdict that the address cannot
+ * receive mail, so the page now acts on it: one automatic create through `getNewAddress`
+ * (which persists), no activation, no choice, no deletion. Every claim below is about
+ * counts, the device's record and the notice's copy — a page that showed the right words
+ * while creating twice, clearing the collection or inventing a lifetime would otherwise
+ * pass every rendering assertion in this file.
  *
- * **The storage here models a write into the next read.** The shared `stubStore` records
- * saves but deliberately does not feed them back into reads, because one shared instance
- * would leak between tests. A later visit cannot be asserted against a stub that forgets
- * every write, so the persistence case builds its own write-through store.
- *
- * Every claim is about counts and the device's record — a page that showed the right
- * words while creating a second mailbox or clearing the collection would pass every
- * rendering assertion in this file.
+ * **The gone screen is transient now.** The auto-effect flips `expired` to `creating`
+ * inside React's `act`, so the notice is not reliably observable through the whole App.
+ * Claims about its copy and its absence of controls are asserted at the component that
+ * owns them; claims about the automatic action are asserted through the App and waited
+ * on the stored record rather than on the address appearing on screen.
  */
 describe("recovering from a stored address the provider said is gone", () => {
   type ListingMode = "expired" | "live" | "unreachable";
@@ -1374,12 +1351,21 @@ describe("recovering from a stored address the provider said is gone", () => {
     cause: new Error("network down"),
   });
 
-  /** A store whose writes become the next read, so a later boot can return to a save. */
-  function writeThroughStore(initial: Mailbox | null) {
+  /**
+   * A store whose writes become the next read, so a later boot can return to a save.
+   *
+   * **It also models the recent-mailbox collection.** `saveMailbox` is the storage
+   * layer's one transaction: it overwrites the single record and *adds* to the
+   * collection, removing nothing. `clearAll` empties both — so a recovery that cleared
+   * anything loses the dead address and the other held mailboxes, which is exactly what
+   * the collection-survival assertion below reports.
+   */
+  function writeThroughStore(initial: Mailbox | null, alsoHeld: readonly Mailbox[] = []) {
     let current = initial;
     let loads = 0;
     let clears = 0;
     const saves: Mailbox[] = [];
+    let collection: Mailbox[] = initial === null ? [...alsoHeld] : [initial, ...alsoHeld];
     const storage: SpectreStorage = {
       async loadMailbox() {
         loads += 1;
@@ -1388,19 +1374,29 @@ describe("recovering from a stored address the provider said is gone", () => {
       async saveMailbox(next: Mailbox) {
         saves.push(next);
         current = next;
+        if (!collection.some((member) => member.id === next.id)) {
+          collection = [...collection, next];
+        }
       },
       async clearAll() {
         clears += 1;
         current = null;
+        collection = [];
       },
     };
     const wrapped: WebsiteStorage = { kind: "ready", storage };
-    return { storage: wrapped, saves, loads: () => loads, clears: () => clears };
+    return {
+      storage: wrapped,
+      saves,
+      loads: () => loads,
+      clears: () => clears,
+      held: () => [...collection],
+    };
   }
 
   /**
    * A provider whose listing answer is chosen by a mode the test can change, so a first
-   * boot can be told the mailbox is gone and a re-check can answer it live without a
+   * boot can be told the mailbox is gone and a later boot can answer it live without a
    * second fixture. The create answer is the replacement the recovery should persist.
    */
   function modeProvider(
@@ -1419,6 +1415,54 @@ describe("recovering from a stored address the provider said is gone", () => {
     });
   }
 
+  /**
+   * A session already in `expired`, with an `open()` that never resolves. Used for the
+   * StrictMode guard: the unlocked answer would change the state away from `expired`
+   * before the double-invoked effect could fire a second create, hiding the very defect
+   * the once-ref exists to prevent.
+   */
+  function expiredOnlySession(dead: Mailbox) {
+    const expired: SessionState = { kind: "expired", mailbox: dead, opened: { kind: "none" } };
+    let current: SessionState = expired;
+    let opens = 0;
+    const listeners = new Set<(state: SessionState) => void>();
+    const session: MailboxSession = {
+      providers: [],
+      current: () => current,
+      providerFor: () => {
+        throw new Error("a scripted session has no provider to route to");
+      },
+      subscribe(listener) {
+        listeners.add(listener);
+        listener(current);
+        return () => {
+          listeners.delete(listener);
+        };
+      },
+      open: () => {
+        opens += 1;
+        return new Promise<SessionState>(() => undefined);
+      },
+      restore: () => Promise.resolve(current),
+      restoreSummaries: () => Promise.resolve(current),
+      replace: () => Promise.resolve(current),
+      health: () => Promise.resolve({ provider: "guerrilla", status: "ok" }),
+      checkInbox: () => Promise.resolve({ kind: "notStarted" }),
+      reportInboxVisible: () => undefined,
+      openMessage: () => Promise.resolve({ kind: "none" }),
+      closeMessage: () => undefined,
+      destroy: () => undefined,
+    };
+    return {
+      session,
+      opens: () => opens,
+      publish: (next: SessionState) => {
+        current = next;
+        for (const listener of [...listeners]) listener(next);
+      },
+    };
+  }
+
   /** No figure about time may appear on any of these screens. */
   function expectNoTimingText(): void {
     const text = visibleText();
@@ -1429,7 +1473,26 @@ describe("recovering from a stored address the provider said is gone", () => {
     expect(text).not.toMatch(/remaining\s+(time|lifetime|minutes?)/i);
   }
 
-  it("persists a replacement so a later visit returns to it, without clearing anything", async () => {
+  it("creates a replacement automatically on arrival at expired, with no activation", async () => {
+    const dead = mailbox("dead-auto");
+    const replacement = mailbox("replacement-auto");
+    const store = writeThroughStore(dead);
+    const mode: { value: ListingMode } = { value: "expired" };
+    const provider = modeProvider(replacement, mode);
+
+    render(<App session={sessionOver(provider)} storage={store.storage} />);
+
+    // No button is pressed anywhere in this test, yet the provider is asked exactly
+    // once and the write lands. Wait on the store, not on the on-screen address.
+    await vi.waitFor(() => expect(store.saves).toHaveLength(1));
+    expect(provider.creates()).toBe(1);
+    expect(store.saves[0]?.address).toBe("replacement-auto@mail.example");
+    expect(store.clears()).toBe(0);
+    await screen.findByTestId("ready");
+    expect(visibleText()).toContain("replacement-auto@mail.example");
+  });
+
+  it("overwrites the single record so a later visit returns to the replacement", async () => {
     const dead = mailbox("dead-1");
     const replacement = mailbox("replacement-1");
     const store = writeThroughStore(dead);
@@ -1438,23 +1501,9 @@ describe("recovering from a stored address the provider said is gone", () => {
     const first = render(
       <App session={sessionOver(modeProvider(replacement, mode))} storage={store.storage} />,
     );
-    await screen.findByTestId("expired-address");
-    expect(visibleText()).toContain("dead-1@mail.example");
-    expect(store.saves).toEqual([]);
-    expect(store.clears()).toBe(0);
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /get a new address/i }));
-    });
-    await screen.findByTestId("ready");
-    // **Waited on the store, not on the address.** `ready` is published by the session
-    // before the save promise settles, so a wait on the screen can precede the write.
     await vi.waitFor(() => expect(store.saves).toHaveLength(1));
     expect(store.saves[0]?.address).toBe("replacement-1@mail.example");
-    // The collection lives in the storage layer's one `saveMailbox` transaction; no
-    // clearance is part of this path, so nothing the user held is deleted here.
     expect(store.clears()).toBe(0);
-    expectNoTimingText();
 
     // A later visit, over the same device and a fresh session: the replacement is
     // restored, not created again.
@@ -1468,119 +1517,28 @@ describe("recovering from a stored address the provider said is gone", () => {
     expect(store.clears()).toBe(0);
   });
 
-  it("re-asks the same stored mailbox on a re-check the provider confirms", async () => {
-    const dead = mailbox("dead-live");
-    // `stubStore` records but does not write into reads; no save is expected here, so
-    // that omission is what makes `saves` an honest record of "nothing was written".
-    const store = stubStore({ stored: dead });
-    const mode: { value: ListingMode } = { value: "expired" };
-    const provider = modeProvider(mailbox("unused-replacement"), mode);
-
-    render(<App session={sessionOver(provider)} storage={store.storage} />);
-    await screen.findByTestId("expired-address");
-    expect(provider.creates()).toBe(0);
-    const loadsBefore = store.loadCount();
-
-    mode.value = "live";
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /check the saved address again/i }));
-    });
-    await screen.findByTestId("ready");
-
-    expect(visibleText()).toContain("dead-live@mail.example");
-    expect(provider.creates()).toBe(0);
-    expect(store.loadCount()).toBe(loadsBefore + 1);
-    // Restoring the mailbox this load was handed is not a new write.
-    expect(store.saves).toEqual([]);
-    expect(store.clearCount()).toBe(0);
-  });
-
-  it("stays on the gone screen when a re-check is again refused, keeping the record", async () => {
-    const dead = mailbox("dead-again");
-    const store = stubStore({ stored: dead });
-    const mode: { value: ListingMode } = { value: "expired" };
-    const provider = modeProvider(mailbox("unused-replacement"), mode);
-
-    render(<App session={sessionOver(provider)} storage={store.storage} />);
-    await screen.findByTestId("expired-address");
-    const loadsBefore = store.loadCount();
-    const listsBefore = provider.lists();
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /check the saved address again/i }));
-    });
-    // The gone screen was already up before the press, so it cannot be the wait. The
-    // second boot read and the listing it asks for are the observable of the re-check.
-    await vi.waitFor(() => {
-      expect(store.loadCount()).toBe(loadsBefore + 1);
-      expect(provider.lists()).toBeGreaterThan(listsBefore);
-    });
-    await screen.findByTestId("expired-address");
-
-    expect(visibleText()).toContain("dead-again@mail.example");
-    expect(provider.creates()).toBe(0);
-    expect(store.saves).toEqual([]);
-    expect(store.clearCount()).toBe(0);
-    expectNoTimingText();
-  });
-
-  it("reports an inconclusive re-check with its existing copy, discarding nothing", async () => {
-    const dead = mailbox("dead-unchecked");
-    const store = stubStore({ stored: dead });
-    const mode: { value: ListingMode } = { value: "expired" };
-    const provider = modeProvider(mailbox("unused-replacement"), mode);
-
-    render(<App session={sessionOver(provider)} storage={store.storage} />);
-    await screen.findByTestId("expired-address");
-    const loadsBefore = store.loadCount();
-
-    mode.value = "unreachable";
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /check the saved address again/i }));
-    });
-    await screen.findByTestId("restore-failed-address");
-
-    expect(visibleText()).toContain("dead-unchecked@mail.example");
-    expect(visibleText()).toContain("what is saved on this device has not been changed");
-    expect(visibleText()).not.toMatch(/\bgone\b/i);
-    expect(store.loadCount()).toBe(loadsBefore + 1);
-    expect(provider.creates()).toBe(0);
-    expect(store.saves).toEqual([]);
-    expect(store.clearCount()).toBe(0);
-    expectNoTimingText();
-  });
-
-  it("renders no countdown, expiry time or remaining lifetime on either recovery path", async () => {
-    // The dead record even carries a timestamp. There is no provider signal behind it,
-    // and a page that turned it into a figure would fail every assertion below.
-    const dead: Mailbox = {
-      ...mailbox("dead-timed"),
-      expiresAt: Date.parse("2026-11-23T12:00:00.000Z"),
-    };
-    const store = stubStore({ stored: dead });
+  it("keeps the dead address and every other mailbox in the recent-mailbox collection", async () => {
+    const dead = mailbox("dead-collection");
+    const other = mailbox("other-collection");
+    const replacement = mailbox("replacement-collection");
+    const store = writeThroughStore(dead, [other]);
     const mode: { value: ListingMode } = { value: "expired" };
 
-    render(
-      <App
-        session={sessionOver(modeProvider(mailbox("replacement-timed"), mode))}
-        storage={store.storage}
-      />,
-    );
-    await screen.findByTestId("expired-address");
-    expectNoTimingText();
+    render(<App session={sessionOver(modeProvider(replacement, mode))} storage={store.storage} />);
+    await vi.waitFor(() => expect(store.saves).toHaveLength(1));
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /check the saved address again/i }));
-    });
-    await screen.findByTestId("expired-address");
-    expectNoTimingText();
-    expect(store.clearCount()).toBe(0);
+    // The save overwrites the single current record and adds the replacement, but the
+    // dead address and every other held mailbox survive: nothing is cleared or removed.
+    const held = store.held().map((member) => member.address);
+    expect(held).toContain("dead-collection@mail.example");
+    expect(held).toContain("other-collection@mail.example");
+    expect(held).toContain("replacement-collection@mail.example");
+    expect(store.clears()).toBe(0);
   });
 
-  it("leaves the gone screen and shows the create in progress while the replacement is asked for", async () => {
-    // The measured reason this path has its own handler rather than the toolbar's
-    // `replace`: that one keeps the previous state on screen while it creates. With a
-    // held-open create, reusing it would leave the user staring at the gone screen.
+  it("shows the create in progress while the replacement is asked for", async () => {
+    // With a held-open create the page stays in `creating` rather than flashing the
+    // gone notice or claiming a ready mailbox it does not have yet.
     let release!: (mailbox: Mailbox) => void;
     const gate = new Promise<Mailbox>((resolve) => {
       release = resolve;
@@ -1592,18 +1550,123 @@ describe("recovering from a stored address the provider said is gone", () => {
     });
 
     render(<App session={sessionOver(provider)} storage={store.storage} />);
-    await screen.findByTestId("expired-address");
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /get a new address/i }));
-    });
-    expect(screen.queryByTestId("expired-address")).toBeNull();
+    await screen.findByTestId("creating");
     expect(visibleText()).toContain("Asking the provider for a new address.");
+    expect(screen.queryByTestId("expired-address")).toBeNull();
+    expect(provider.creates()).toBe(1);
 
     await act(async () => {
       release(mailbox("slow-replacement"));
       await gate;
     });
     await screen.findByTestId("ready");
+  });
+
+  it("renders no countdown, expiry time or remaining lifetime on either recovery path", async () => {
+    // The dead record even carries a timestamp. There is no provider signal behind it,
+    // and a page that turned it into a figure would fail every assertion below.
+    const dead: Mailbox = {
+      ...mailbox("dead-timed"),
+      expiresAt: Date.parse("2026-11-23T12:00:00.000Z"),
+    };
+    const store = stubStore({ stored: dead });
+    const mode: { value: ListingMode } = { value: "expired" };
+    let release!: (mailbox: Mailbox) => void;
+    const gate = new Promise<Mailbox>((resolve) => {
+      release = resolve;
+    });
+
+    // The gone path: the notice with the timestamped mailbox carries no figure.
+    render(<StoredAddressGone mailbox={dead} />);
+    expectNoTimingText();
+    cleanup();
+
+    // The create path: hold the create open so `creating` is observable, then assert
+    // neither that state nor the ready state claims a lifetime.
+    render(
+      <App
+        session={sessionOver(
+          modeProvider(mailbox("replacement-timed"), mode, { createMailbox: () => gate }),
+        )}
+        storage={store.storage}
+      />,
+    );
+    await screen.findByTestId("creating");
+    expectNoTimingText();
+    await act(async () => {
+      release(mailbox("replacement-timed"));
+      await gate;
+    });
+    await vi.waitFor(() => expect(store.saves).toHaveLength(1));
+    expectNoTimingText();
+    expect(store.clearCount()).toBe(0);
+  });
+
+  it("keeps the gone notice truthful: it names the dead address and its copy is unchanged", () => {
+    const dead = mailbox("dead-truthful");
+    render(<StoredAddressGone mailbox={dead} />);
+
+    expect(screen.getByTestId("expired-address").textContent).toContain(
+      "dead-truthful@mail.example",
+    );
+    expect(screen.getByTestId("expired-explanation").textContent).toContain(
+      "nothing on this device was deleted",
+    );
+    expect(visibleText()).toContain("Your saved address is gone");
+    expectNoTimingText();
+  });
+
+  it("renders no control on the gone screen, while the unchecked screen keeps both", () => {
+    const { container: gone } = render(<StoredAddressGone mailbox={mailbox("dead-controls")} />);
+    expect(gone.querySelectorAll("button").length).toBe(0);
+    expect(gone.querySelectorAll("[role]").length).toBe(0);
+    expect(visibleText()).not.toContain("Get a new address");
+    expect(visibleText()).not.toContain("Check the saved address again");
+    cleanup();
+
+    // The `restoreFailed` path is explicitly out of scope: its two controls and copy
+    // stay byte-identical, and are asserted here in both presence and wording.
+    const failure: SessionFailure = {
+      code: NormalizedErrorCode.NETWORK_ERROR,
+      description: "The request never reached the provider.",
+      providerFailures: [
+        {
+          provider: "guerrilla",
+          code: NormalizedErrorCode.NETWORK_ERROR,
+          description: "The request never reached the provider.",
+        },
+      ],
+    };
+    render(
+      <StoredAddressUnchecked
+        mailbox={mailbox("unchecked-controls")}
+        failure={failure}
+        onRetry={() => undefined}
+        onStartFresh={() => undefined}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Check again" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Use a new address for now" })).toBeTruthy();
+    expect(visibleText()).toContain("what is saved on this device has not been changed");
+    expect(visibleText()).not.toMatch(/\bgone\b/i);
+  });
+
+  it("creates exactly once under StrictMode", async () => {
+    // D1: React StrictMode invokes effects twice on mount. Without the once-ref a
+    // second invocation would issue a second create against a rate-limited provider.
+    const dead = mailbox("dead-strict");
+    const { session, opens } = expiredOnlySession(dead);
+    const store = stubStore({ stored: dead });
+
+    renderHook(() => useMailboxSession(session, store.storage), { wrapper: StrictMode });
+
+    await waitFor(() => expect(opens()).toBe(1));
+    // Give any accidental second effect a turn before declaring the count final.
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(opens()).toBe(1);
+    expect(store.clearCount()).toBe(0);
   });
 });
