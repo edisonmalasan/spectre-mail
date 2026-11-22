@@ -10,25 +10,25 @@ All authorization-free work in the goal was completed and verified. Two human de
 
 Nineteen candidates were researched from official sources on 2026-11-22. The full dated rows — API version, documentation/terms/pricing URLs, free eligibility, quotas, permitted use, domain discovery, create/auth/restore/list/read/delete, privacy, measured browser CORS, extension evidence, throttling and liveness — are in `docs/provider-research/`. Decisions are for **(website / extension)**.
 
-| Provider | Decision | Decisive measured fact |
-| --- | --- | --- |
-| Guerrilla Mail | NEEDS AUTHORIZATION / NEEDS AUTHORIZATION | Working adapter, `ACAO: *`, live anonymous create/list/read measured; terms silent on competitive third-party use. |
-| Mail.tm | BLOCKED / NEEDS AUTHORIZATION | Browser CORS denied from a real page; Hydra spec receive-only, one active domain; newly published attribution clause unmet; "no proxy services" ambiguous. |
-| Mail.gw | BLOCKED / BLOCKED | Host unreachable on two network paths and from a real Chrome; `REVIEW REQUIRED` on terms; no CORS or API operation measurable. |
-| DropMail | BLOCKED / NEEDS AUTHORIZATION | `GET /domains` returns 19 live domains and 10-minute sliding sessions, but no ACAO header; token/OAuth delivery design and Terms of Service absent. |
-| TempMail.lol | BLOCKED / NEEDS AUTHORIZATION | Anonymous API probed once (201/200/200/ deletion), but ACAO locked to own origin; terms prohibit creating your own temporary-email service. |
-| Tmailor | BLOCKED / NEEDS AUTHORIZATION | Preflight has no ACAO; account + key + one-IP allowlist; terms restrict use to services you own. |
-| Maildrop | REJECTED / REJECTED | GraphQL CORS open and operational, but privacy policy states every inbox is public with no expectation of privacy. |
-| Temp-Mail.org (official) | REJECTED / REJECTED (free), NEEDS AUTHORIZATION (premium) | RapidAPI key required (401/403 measured); free inboxes publicly viewable; terms conflict on third-party access. Not conflated with TempMail.io. |
-| GrabMail | NEEDS AUTHORIZATION / NEEDS AUTHORIZATION | Keyless, CORS `*` measured, 3 free public domains; terms silent on competitive use; inboxes public. |
-| Best-TempMail | REJECTED / NEEDS AUTHORIZATION | 5 live domains but browser CORS blocked; commercial use is a paid-plan feature. |
-| PlainlyKit | REJECTED / REJECTED | 6 live domains but CORS blocked and explicit server-to-server-only rule. |
-| TempMail.io | REJECTED / REJECTED | Key-gated; ToS restricts data access to Temp Mail's own products. |
-| Mailsac | REJECTED / REJECTED | Key required; ToS forbids third-party account creation and non-personal business use. |
-| Mailinator | REJECTED / REJECTED | Token requires signup; personal-use-only licence, automation prohibited. |
-| 1secmail | REJECTED here / REJECTED here | Certificate/transport failure from this machine; not a global liveness claim. |
-| TempMailGrab | REJECTED / REJECTED | Key-gated, no domain-list endpoint. |
-| Three further plausible candidates | REJECTED | `mail7.io` parked, `tempr.email` and `mailnesia.com` 404 at official API paths. |
+| Provider                           | Decision                                                  | Decisive measured fact                                                                                                                                     |
+| ---------------------------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guerrilla Mail                     | NEEDS AUTHORIZATION / NEEDS AUTHORIZATION                 | Working adapter, `ACAO: *`, live anonymous create/list/read measured; terms silent on competitive third-party use.                                         |
+| Mail.tm                            | BLOCKED / NEEDS AUTHORIZATION                             | Browser CORS denied from a real page; Hydra spec receive-only, one active domain; newly published attribution clause unmet; "no proxy services" ambiguous. |
+| Mail.gw                            | BLOCKED / BLOCKED                                         | Host unreachable on two network paths and from a real Chrome; `REVIEW REQUIRED` on terms; no CORS or API operation measurable.                             |
+| DropMail                           | BLOCKED / NEEDS AUTHORIZATION                             | `GET /domains` returns 19 live domains and 10-minute sliding sessions, but no ACAO header; token/OAuth delivery design and Terms of Service absent.        |
+| TempMail.lol                       | BLOCKED / NEEDS AUTHORIZATION                             | Anonymous API probed once (201/200/200/ deletion), but ACAO locked to own origin; terms prohibit creating your own temporary-email service.                |
+| Tmailor                            | BLOCKED / NEEDS AUTHORIZATION                             | Preflight has no ACAO; account + key + one-IP allowlist; terms restrict use to services you own.                                                           |
+| Maildrop                           | REJECTED / REJECTED                                       | GraphQL CORS open and operational, but privacy policy states every inbox is public with no expectation of privacy.                                         |
+| Temp-Mail.org (official)           | REJECTED / REJECTED (free), NEEDS AUTHORIZATION (premium) | RapidAPI key required (401/403 measured); free inboxes publicly viewable; terms conflict on third-party access. Not conflated with TempMail.io.            |
+| GrabMail                           | NEEDS AUTHORIZATION / NEEDS AUTHORIZATION                 | Keyless, CORS `*` measured, 3 free public domains; terms silent on competitive use; inboxes public.                                                        |
+| Best-TempMail                      | REJECTED / NEEDS AUTHORIZATION                            | 5 live domains but browser CORS blocked; commercial use is a paid-plan feature.                                                                            |
+| PlainlyKit                         | REJECTED / REJECTED                                       | 6 live domains but CORS blocked and explicit server-to-server-only rule.                                                                                   |
+| TempMail.io                        | REJECTED / REJECTED                                       | Key-gated; ToS restricts data access to Temp Mail's own products.                                                                                          |
+| Mailsac                            | REJECTED / REJECTED                                       | Key required; ToS forbids third-party account creation and non-personal business use.                                                                      |
+| Mailinator                         | REJECTED / REJECTED                                       | Token requires signup; personal-use-only licence, automation prohibited.                                                                                   |
+| 1secmail                           | REJECTED here / REJECTED here                             | Certificate/transport failure from this machine; not a global liveness claim.                                                                              |
+| TempMailGrab                       | REJECTED / REJECTED                                       | Key-gated, no domain-list endpoint.                                                                                                                        |
+| Three further plausible candidates | REJECTED                                                  | `mail7.io` parked, `tempr.email` and `mailnesia.com` 404 at official API paths.                                                                            |
 
 **GOAL §4 gate result: no candidate passes.** The uniform first-gate failure is the absence of explicit authorization for a free, competing, multi-provider client. That is `REVIEW REQUIRED` / `NEEDS AUTHORIZATION`, never a PASS, and it is a written-authorization dependency rather than a technical one.
 
@@ -43,21 +43,21 @@ Counts are dated snapshots, not permanent inventories. See `docs/provider-resear
 
 ## C. Implementation trace
 
-| Stage | PR | Evidence |
-| --- | --- | --- |
-| Goal document | #236 | `docs/GOAL.md` merged, Prettier-corrected in a follow-up commit. |
-| Parallel provider research (7 worktree threads) | #237–#240, #242, #243 | Seven dated reports under `docs/provider-research/`. |
-| Phase C selection | #244 | `docs/provider-research/selection-report.md`. |
-| Phase D OpenSpec proposal | #245 | `openspec/changes/...` (now archived); 4/4 artifacts, strict validation exit 0, cross-provider dedup decision recorded. |
-| Roadmap status ledger | #246 | Project Status updated; stale `docs/GOAL.md` sentence corrected. |
-| Apply slice A (shared provenance/catalog) | #248 | Domain provenance, tri-state capabilities, catalog fetch time/aggregation/truncation; 6/6 falsification arms caught. |
-| Apply slice B (bounded fallback/routing) | #250 | One attempt per provider, verbatim throttle, typed failure, stale-answer guard; 6/6 falsification arms caught. |
-| Apply slice C (client UX/truth) | #249 | Popup Change control, coalescing, failure preservation, three truth claims; lint error found by CI and repaired in the same PR. |
-| Website selection check | #247 | Task 5.5 verified: no website code or spec change needed. |
-| Independent verification | #251 | 17 tasks VERIFIED, no GAP; 5.4/6.1/6.2/6.3 reported NOT VERIFIED. |
-| Apply task ledger | #252 | Tasks 1.1–6.4 ticked with the verification record. |
-| Spec sync | #253 | Promoted 9 requirement blocks byte-identically; 204/670/16 → **209/694/17**; strict validation 17/17. One rotted `docs/SECURITY.md` citation repaired in the document. |
-| Archive | #254 | `openspec/changes/archive/2026-11-22-m22-provider-catalog-foundations/`; 8/8 pre-archive digests identical, 7 renames R100 and `tasks.md` at 96% with the two mandated ticks, 17 specs byte-identical, no active changes. |
+| Stage                                           | PR                    | Evidence                                                                                                                                                                                                                  |
+| ----------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Goal document                                   | #236                  | `docs/GOAL.md` merged, Prettier-corrected in a follow-up commit.                                                                                                                                                          |
+| Parallel provider research (7 worktree threads) | #237–#240, #242, #243 | Seven dated reports under `docs/provider-research/`.                                                                                                                                                                      |
+| Phase C selection                               | #244                  | `docs/provider-research/selection-report.md`.                                                                                                                                                                             |
+| Phase D OpenSpec proposal                       | #245                  | `openspec/changes/...` (now archived); 4/4 artifacts, strict validation exit 0, cross-provider dedup decision recorded.                                                                                                   |
+| Roadmap status ledger                           | #246                  | Project Status updated; stale `docs/GOAL.md` sentence corrected.                                                                                                                                                          |
+| Apply slice A (shared provenance/catalog)       | #248                  | Domain provenance, tri-state capabilities, catalog fetch time/aggregation/truncation; 6/6 falsification arms caught.                                                                                                      |
+| Apply slice B (bounded fallback/routing)        | #250                  | One attempt per provider, verbatim throttle, typed failure, stale-answer guard; 6/6 falsification arms caught.                                                                                                            |
+| Apply slice C (client UX/truth)                 | #249                  | Popup Change control, coalescing, failure preservation, three truth claims; lint error found by CI and repaired in the same PR.                                                                                           |
+| Website selection check                         | #247                  | Task 5.5 verified: no website code or spec change needed.                                                                                                                                                                 |
+| Independent verification                        | #251                  | 17 tasks VERIFIED, no GAP; 5.4/6.1/6.2/6.3 reported NOT VERIFIED.                                                                                                                                                         |
+| Apply task ledger                               | #252                  | Tasks 1.1–6.4 ticked with the verification record.                                                                                                                                                                        |
+| Spec sync                                       | #253                  | Promoted 9 requirement blocks byte-identically; 204/670/16 → **209/694/17**; strict validation 17/17. One rotted `docs/SECURITY.md` citation repaired in the document.                                                    |
+| Archive                                         | #254                  | `openspec/changes/archive/2026-11-22-m22-provider-catalog-foundations/`; 8/8 pre-archive digests identical, 7 renames R100 and `tasks.md` at 96% with the two mandated ticks, 17 specs byte-identical, no active changes. |
 
 Current milestone: M22 **APPLIED, SYNCED and ARCHIVED**. No M0–M21 history was rewritten. Architecture boundary count remains 56 and no new provider id, SMTP, proxy, shared secret or premium tier was introduced.
 
@@ -71,15 +71,15 @@ Current milestone: M22 **APPLIED, SYNCED and ARCHIVED**. No M0–M21 history was
 
 ## E. Blocker ledger
 
-| Blocker | State | What would resolve it |
-| --- | --- | --- |
-| Real external delivery | **BLOCKED** | A person sends one test message from their own mail app to a freshly prepared mailbox; no password or credential is requested. |
-| Final visual/functional acceptance | **NOT VERIFIED** | A person opens the built site and extension and accepts the rendered result; no test here reads a rendered pixel. |
-| New provider integration authorization | **NEEDS AUTHORIZATION** | Written permission from each provider for competitive third-party use; Mail.tm additionally needs its attribution clause satisfied or clarified. |
-| `pnpm verify` gate | RED, attributed to a pre-existing flake | All 1480 tests pass; the non-zero exit is the recorded `onTaskUpdate` worker timeout, not a named test failure. |
-| One extension tier red | NOT REPRODUCIBLE | 1-of-109 observed once; ~24 subsequent executions passed with no code change. Recorded, neither fixed nor rounded. |
-| Free/premium flags | NOT VERIFIED | No measured free-tier response carried one; the provenance field is populated only when a provider reports it. |
-| M22 open questions 2–3 | Open in archived `design.md` | Runtime marker source for unreporting providers; whether to expose popup Change before provider authorization is answered. |
+| Blocker                                | State                                   | What would resolve it                                                                                                                            |
+| -------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Real external delivery                 | **BLOCKED**                             | A person sends one test message from their own mail app to a freshly prepared mailbox; no password or credential is requested.                   |
+| Final visual/functional acceptance     | **NOT VERIFIED**                        | A person opens the built site and extension and accepts the rendered result; no test here reads a rendered pixel.                                |
+| New provider integration authorization | **NEEDS AUTHORIZATION**                 | Written permission from each provider for competitive third-party use; Mail.tm additionally needs its attribution clause satisfied or clarified. |
+| `pnpm verify` gate                     | RED, attributed to a pre-existing flake | All 1480 tests pass; the non-zero exit is the recorded `onTaskUpdate` worker timeout, not a named test failure.                                  |
+| One extension tier red                 | NOT REPRODUCIBLE                        | 1-of-109 observed once; ~24 subsequent executions passed with no code change. Recorded, neither fixed nor rounded.                               |
+| Free/premium flags                     | NOT VERIFIED                            | No measured free-tier response carried one; the provenance field is populated only when a provider reports it.                                   |
+| M22 open questions 2–3                 | Open in archived `design.md`            | Runtime marker source for unreporting providers; whether to expose popup Change before provider authorization is answered.                       |
 
 ## Final answer
 
