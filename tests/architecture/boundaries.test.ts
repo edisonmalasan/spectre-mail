@@ -221,6 +221,12 @@ const QUARANTINED_PROBES = [
   // human sends from their own mail app. It holds a persistent browser profile with a
   // real provider session, so neither it nor that profile may be part of a suite run.
   "live-reception.mjs",
+  // M25's OAuth/PKCE feasibility probe. It loads a throwaway Chromium extension that
+  // declares `identity` — a permission the product must not ship — and makes two bounded
+  // live provider calls (a public metadata GET and a dynamic-registration POST). It is
+  // quarantined for the reason the probes above name, and because it loads in Chromium it
+  // spells both load flags below, so the flag-agreement check applies to it like the others.
+  "dropmail-oauth.mjs",
 ] as const;
 
 /**
