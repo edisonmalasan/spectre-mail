@@ -769,7 +769,10 @@ should return to the replacement.
 - **WHEN** the provider reports that the stored mailbox no longer exists
 - **THEN** the page SHALL say the address is gone
 - **AND** it SHALL NOT show that address as one the user can receive mail at
-- **AND** it SHALL offer a way to get a new address
+- **AND** the page SHALL obtain a replacement automatically, without requiring an
+      activation
+- **AND** it SHALL persist the replacement as the address this device returns to
+- **AND** it SHALL NOT offer a control to re-check the dead address
 
 #### Scenario: The stored address could not be checked
 
@@ -814,51 +817,46 @@ about stored data that is not true.
 - **WHEN** the page presents a restored mailbox
 - **THEN** it SHALL NOT also present a different address as the user's
 
-**Amendment, recorded during proposal (2026-11-22), by `m23-expired-mailbox-recovery`,
-revised after orchestrator review the same day.** Everything above this paragraph
-is the promoted requirement carried forward byte-for-byte, including all seven
-scenarios and both earlier amendment notes. Two scenarios are added below, one
-for each control on the gone screen. The general claim in the first paragraph
-that the page "SHALL persist the mailbox it holds so a later visit can offer it
-again" was false on the expired-replacement path: `apps/web/src/App.tsx:186–191`
-wired both controls of `StoredAddressGone` to `startFresh`, and
-`apps/web/src/useMailboxSession.ts:379–382` made that path create a new mailbox
-without persisting it, so a later visit read the same dead record. **No record is
-cleared or deleted by this change.** Persisting the replacement overwrites the
-single record and preserves the recent-mailbox collection in one transaction
-(`packages/storage/src/indexeddb-mailboxes.ts:399–438`); the first draft's
-automatic `clearAll` was rejected because it deleted the whole area, including
-data the user never asked to remove. A user who takes no action will therefore
-see the truthful gone state again on a later visit, which is correct because the
-provider did say that address is dead. The scenario *The stored address could
-not be checked* is deliberately left unchanged: a provider that could not be
-asked is not a provider that said the mailbox was gone, so nothing is discarded
-there and the existing clause stays true.
+**Amendment, recorded during proposal (2026-11-23), by
+`m24-automatic-address-recovery`.** Everything above this paragraph is the
+promoted requirement carried forward byte-for-byte, including all seven earlier
+scenarios and both `2026-10-05` amendment notes. **The user decided to remove
+the choice.** When the provider has definitively said the stored address is gone,
+the "Your saved address is gone" screen no longer asks the person to pick between
+a new address and re-checking the dead one; the page acts on the provider's answer
+instead. The two-button gone screen is replaced by automatic persistence through
+the existing `getNewAddress` handler, which creates through `session.open()` with
+persistence enabled, so the save effect writes the replacement over the stale
+single record and adds it to the recent-mailbox collection in the storage layer's
+one transaction. **Nothing is cleared and nothing is deleted.** No `clearAll` runs
+and no mailbox is removed: the dead address stays in the recent-mailbox collection
+as the record of what the provider reported gone, and every other record this
+device holds survives untouched. The scenario *The stored address could not be
+checked* — the `restoreFailed` path — and all earlier scenarios and notes are
+carried forward byte-for-byte and are explicitly out of scope: a provider that
+could not answer is not a provider that said the address is gone, so no automatic
+replacement happens there and that screen keeps its two controls. **Both headings
+below are retained verbatim only because OpenSpec's whole-block replacement rule
+forbids dropping or renaming scenarios in a `MODIFIED` block.** Their bodies now
+state the opposite of the old user-choice behaviour: no activation is required and
+neither control is rendered. No countdown, timer, interval, expiry field, or
+lifetime derived from a creation time is introduced; expiry continues to follow
+the provider's own signal alone.
 
 #### Scenario: The user asks for a new address after the saved one was found gone
 
-- **WHEN** the user activates the control that offers a new address on the gone
-      screen
-- **THEN** a new mailbox SHALL be created
+- **WHEN** the provider reports the stored mailbox gone
+- **THEN** a new mailbox SHALL be created without user activation
 - **AND** it SHALL be persisted as the mailbox this device returns to
 - **AND** a later visit SHALL offer the replacement rather than the dead address
-- **AND** no mailbox held in this device's recent-mailbox collection SHALL be
-      removed by the recovery
+- **AND** no mailbox held in the recent-mailbox collection SHALL be removed
 
 #### Scenario: The user asks to check the saved address again after it was found gone
 
-- **WHEN** the user activates the control that offers to check the saved address
-      again
-- **THEN** the existing re-boot and restore path SHALL ask the provider that owns
-      that same stored mailbox about it again
-- **AND** no new mailbox SHALL be created and the stored record SHALL NOT be
-      discarded
-- **AND** if that provider confirms it, the same mailbox SHALL be presented as
-      the user's own
-- **AND** if that provider again reports it gone, the page SHALL remain on the
-      gone screen
-- **AND** if that provider cannot be asked, the page SHALL report that it could
-      not tell, with the inconclusive state's existing meaning and copy unchanged
+- **WHEN** the provider reports the stored mailbox gone
+- **THEN** the page SHALL NOT render the "Get a new address" control
+- **AND** it SHALL NOT render the "Check the saved address again" control
+- **AND** the replacement SHALL start automatically, without user activation
 
 ### Requirement: The user can make this device forget the address
 
