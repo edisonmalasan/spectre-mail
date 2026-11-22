@@ -247,6 +247,14 @@ would instead yield `extractedLink: true` and `status: PASSED`. If the mailbox
 has expired since it was prepared on 2026-11-21, run `--prepare` first and send
 to the newly printed address.
 
+**Authoritative confirmation (PR #256, run from `main`):** the repaired
+harness completed and wrote `.live-reception/live-reception.json` with
+`receptionVerified: true`, all eight message-level checks `true`,
+`extractedLink: false` and `status: "FAILED"` (exit `1`) because the `passed`
+gate is deliberately unchanged; it also wrote `live-reception.png`. The earlier
+30 s crash and the earlier ad-hoc diagnostic are superseded by this recorded
+instrument run.
+
 ## What this does not establish
 
 - **Live reception WAS observed at message level on 2026-11-22.** A real
