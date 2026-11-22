@@ -242,6 +242,6 @@ The current code roles match `docs/PROVIDERS.md` §6: `WEBSITE_PROVIDER_IDS = ["
 - `pnpm --dir apps/web exec playwright --version` → `Version 1.63.0`.
 - `grep` over `apps/`, `packages/providers/src/`, and the config files for roles, attribution links, `checkHealth`, rate-limit strings.
 
-**Commit SHA and PR URL:** filled after commit (see final line below).
+**Commit SHA and PR URL:** report commit `4e858d2` (follow-up metadata commit follows); PR https://github.com/edisonmalasan/spectre-mail/pull/241 .
 
 **One-line not-verified summary:** technical compatibility of both existing adapters is measured and largely matches the docs, but **no third-party/competitive authorization is established**, Mail.tm's new attribution clause is unmet, and **no live delivery was observed today**.
