@@ -20,6 +20,13 @@ import { describe, expect, it } from "vitest";
 
 import { assertGuerrillaCredentials, assertMailTmCredentials } from "./credentials";
 import type { GuerrillaCredentials, MailTmCredentials } from "./credentials";
+import {
+  UNREPORTED_DOMAIN_PROVENANCE,
+  type Domain,
+  type DomainCapability,
+  type DomainLifecycle,
+  type DomainRuntime,
+} from "./domain";
 import type { AssertProviderAgreement } from "./invariants";
 import { createMailbox } from "./mailbox";
 import type { Mailbox } from "./mailbox";
@@ -106,6 +113,59 @@ const messageWithoutDate: Message = {
   verificationLinks: [],
 };
 
+/* -- domain provenance: every construction site must answer the provenance question -- */
+
+const reportedDomain: Domain = {
+  id: "domains/alpha",
+  name: "alpha.example",
+  provider: "mailtm",
+  active: true,
+  expiresAt: null,
+  provenance: {
+    discoveredAt: 1_760_000_000_000,
+    runtime: "extension",
+    lifecycle: "active",
+    capabilities: ["listDomains", "createOnChosenDomain", "restore"],
+  },
+};
+
+const unreportedDomain: Domain = {
+  id: "domains/beta",
+  name: "beta.example",
+  provider: "guerrilla",
+  active: true,
+  expiresAt: null,
+  provenance: UNREPORTED_DOMAIN_PROVENANCE,
+};
+
+// A domain that omits provenance cannot be constructed. The compiler enforces the
+// call-site update this change requires, rather than a document asking for it.
+// @ts-expect-error provenance is a required member of Domain
+const missingProvenance: Domain = {
+  id: "domains/gamma",
+  name: "gamma.example",
+  provider: "mailtm",
+  active: true,
+  expiresAt: null,
+};
+
+const reportedRuntime: DomainRuntime = "extension";
+const reportedLifecycle: DomainLifecycle = "private";
+const reportedCapability: DomainCapability = "restore";
+
+type AssertExactUnion<A, B> =
+  Exclude<A, B> extends never ? (Exclude<B, A> extends never ? true : never) : never;
+
+type _RuntimeIsTheDeclaredUnion = AssertExactUnion<DomainRuntime, "website" | "extension">;
+type _LifecycleIsTheDeclaredUnion = AssertExactUnion<
+  DomainLifecycle,
+  "active" | "inactive" | "private" | "expired"
+>;
+type _CapabilityIsTheDeclaredUnion = AssertExactUnion<
+  DomainCapability,
+  "listDomains" | "createOnChosenDomain" | "restore"
+>;
+
 describe("compile-time invariants", () => {
   it("holds together at runtime", () => {
     // The type assertions above are verified by `pnpm typecheck`. This test exists
@@ -122,7 +182,13 @@ describe("compile-time invariants", () => {
       message.text,
       constructed.id,
       messageWithoutDate.receivedAt,
-    ]).toHaveLength(10);
+      reportedDomain.provenance.discoveredAt,
+      unreportedDomain.provenance.runtime,
+      missingProvenance.id,
+      reportedRuntime,
+      reportedLifecycle,
+      reportedCapability,
+    ]).toHaveLength(16);
   });
 
   it("keeps an empty subject representable on a full message", () => {
@@ -130,3 +196,10 @@ describe("compile-time invariants", () => {
     expect(message.verificationCodes[0]?.value).toBe("123456");
   });
 });
+
+/**
+ * Present only so the compile-time aliases above are read as used. `noUnusedLocals`
+ * would otherwise reject them, which would make it tempting to delete them.
+ */
+export type DOMAIN_PROVENANCE_INVARIANTS =
+  _RuntimeIsTheDeclaredUnion | _LifecycleIsTheDeclaredUnion | _CapabilityIsTheDeclaredUnion;

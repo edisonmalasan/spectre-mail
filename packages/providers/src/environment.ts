@@ -24,6 +24,13 @@ export interface ProviderEnvironment {
   readonly transport: import("./transport").Transport;
   /** Epoch milliseconds. */
   readonly now: () => number;
+  /**
+   * A bound on the number of domain pages a listing may follow. Optional: the
+   * adapter supplies its own declared bound when the environment has none. A
+   * test may lower it to drive a provider that advertises more pages than we
+   * are willing to fetch, so truncation is observable rather than asserted.
+   */
+  readonly maxDomainPages?: number;
 }
 
 /**

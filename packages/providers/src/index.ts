@@ -47,10 +47,23 @@
  * @module
  */
 
-export type { MailProvider, ProviderHealth, ProviderOperation } from "./contract";
+export type {
+  CapabilityAnswer,
+  DomainListing,
+  MailProvider,
+  ProviderHealth,
+  ProviderOperation,
+} from "./contract";
 
-export { createDomainCatalog, DOMAIN_CATALOG_TTL_MS } from "./catalog";
-export type { DomainCatalog } from "./catalog";
+export { aggregateCatalogs, createDomainCatalog, DOMAIN_CATALOG_TTL_MS } from "./catalog";
+export type {
+  AggregateOptions,
+  AggregatedDomains,
+  DomainCatalog,
+  DomainCatalogSnapshot,
+} from "./catalog";
+
+export { MAX_DOMAIN_PAGES } from "./mailtm";
 
 export type { Transport, TransportMethod, TransportRequest, TransportResponse } from "./transport";
 export { createFetchTransport, readHeader } from "./transport";

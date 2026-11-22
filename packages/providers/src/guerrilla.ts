@@ -26,7 +26,7 @@
 import { NormalizedErrorCode, createMailbox, createMessageSummary } from "@spectre-mail/core";
 import type { Domain, Mailbox, Message, MessageSummary, SpectreError } from "@spectre-mail/core";
 
-import type { MailProvider, ProviderHealth, ProviderOperation } from "./contract";
+import type { CapabilityAnswer, MailProvider, ProviderHealth, ProviderOperation } from "./contract";
 import { readHeader } from "./transport";
 import type { ProviderEnvironment } from "./environment";
 import type { TransportRequest, TransportResponse } from "./transport";
@@ -34,11 +34,22 @@ import type { TransportRequest, TransportResponse } from "./transport";
 const BASE_URL = "https://api.guerrillamail.com/ajax.php";
 
 /**
- * Operations observed to work against this provider.
+ * The provider's declared answer for each operation.
  *
- * Empty, and deliberately so. See `supports`.
+ * Deletion was never observed in the measured surface, so it is `unobserved`,
+ * not `absent`: an unmeasured capability must not become a claim that the
+ * provider cannot do it. A domain API genuinely does not exist here — the
+ * address is assigned server-side and the "domain list" on the provider's site
+ * is a rendered widget, not an API — so the two domain operations are `absent`.
+ * Restoring a session was not measured at this adapter and stays `unobserved`.
  */
-const SUPPORTED_OPERATIONS: ReadonlySet<ProviderOperation> = new Set<ProviderOperation>();
+const CAPABILITY_ANSWERS: Readonly<Record<ProviderOperation, CapabilityAnswer>> = {
+  deleteMessage: "unobserved",
+  destroyMailbox: "unobserved",
+  listDomains: "absent",
+  createOnChosenDomain: "absent",
+  restoreSession: "unobserved",
+};
 
 /* -- wire shapes, private to this adapter ----------------------------------- */
 
@@ -281,16 +292,12 @@ export function createGuerrillaAdapter(environment: ProviderEnvironment): MailPr
     id: "guerrilla",
     displayName: "Guerrilla Mail",
 
-    supports(operation: ProviderOperation): boolean {
-      // Nothing observed. Neither deletion operation appears in the measured surface.
-      //
-      // "Not observed" is not "does not exist". This returns `false` because
-      // SpectreMail will not call an operation it has never seen succeed, not
-      // because the provider has been proven unable to serve it — the honest
-      // position is that deletion is **unverified**, and `docs/PROVIDERS.md` §3 is
-      // where that uncertainty lives. If a future probe observes either operation
-      // working, adding it here is a one-line change.
-      return SUPPORTED_OPERATIONS.has(operation);
+    supports(operation: ProviderOperation) {
+      // One declared table, read by operation. "Not observed" is not "does not
+      // exist": SpectreMail will not call an operation it has never seen succeed,
+      // but it must not tell a person the provider is incapable of it either.
+      // docs/PROVIDERS.md §3 is where that uncertainty lives.
+      return CAPABILITY_ANSWERS[operation];
     },
 
     async checkHealth(): Promise<ProviderHealth> {

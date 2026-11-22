@@ -29,7 +29,7 @@ function scriptedProvider(
     id,
     displayName: id,
     listCalls,
-    supports: () => false,
+    supports: () => "unobserved",
     checkHealth: async () => ({ provider: id, status: "ok" as const }),
     listDomains: async () => [],
     createMailbox: async (): Promise<Mailbox> => {

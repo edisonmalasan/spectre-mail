@@ -9,7 +9,7 @@
  * @module
  */
 
-import { NormalizedErrorCode } from "@spectre-mail/core";
+import { NormalizedErrorCode, UNREPORTED_DOMAIN_PROVENANCE } from "@spectre-mail/core";
 import type { Domain, Mailbox } from "@spectre-mail/core";
 import { describe, expect, it } from "vitest";
 
@@ -134,6 +134,30 @@ describe("Mail.tm adapter", () => {
     ]);
   });
 
+  it("carries provider-reported provenance and invents none that was not reported", async () => {
+    // SYNTHETIC fixture: a domain-level `createdAt` the measured fixture omits.
+    const environment = stubEnvironment([fixtures.mailtmDomainsWithDiscoveryTime]);
+    const domains = await createMailTmAdapter(environment).listDomains();
+
+    expect(domains).toHaveLength(1);
+    expect(domains[0]?.provenance.discoveredAt).toBe(Date.parse("2026-01-15T12:00:00Z"));
+    expect(domains[0]?.provenance.lifecycle).toBe("active");
+    expect(domains[0]?.provenance.capabilities).toEqual(["listDomains", "createOnChosenDomain"]);
+    // Mail.tm sent no interface signal, so no runtime is inferred from the name.
+    expect(domains[0]?.provenance.runtime).toBeNull();
+    // No measured Mail.tm response carries a free/premium distinction.
+    expect(Object.hasOwn(domains[0]?.provenance ?? {}, "tier")).toBe(false);
+  });
+
+  it("keeps an unreported discovery time null, never the clock's now", async () => {
+    // Counterfactual for the case above: the measured fixture has no `createdAt`.
+    const environment = stubEnvironment([fixtures.mailtmDomains]);
+    const domains = await createMailTmAdapter(environment).listDomains();
+
+    expect(domains).toHaveLength(1);
+    expect(domains[0]?.provenance.discoveredAt).toBeNull();
+  });
+
   it("stops paging at a bounded maximum rather than following a loop forever", async () => {
     const looping: RecordedStep = {
       response: {
@@ -163,6 +187,7 @@ describe("Mail.tm adapter", () => {
       provider: "mailtm",
       active: true,
       expiresAt: null,
+      provenance: UNREPORTED_DOMAIN_PROVENANCE,
     };
 
     const mailbox = await createMailTmAdapter(environment).createMailbox(chosen);
@@ -349,10 +374,14 @@ describe("Mail.tm adapter", () => {
     ).toBe("00000000-0000-0000-0000-000000000000");
   });
 
-  it("reports mailbox deletion as supported, because it was observed", async () => {
+  it("reports capabilities from the typed surface, not a boolean", async () => {
     const adapter = createMailTmAdapter(stubEnvironment([]));
 
-    expect(adapter.supports("destroyMailbox")).toBe(true);
+    expect(adapter.supports("destroyMailbox")).toBe("observed");
+    expect(adapter.supports("deleteMessage")).toBe("unobserved");
+    expect(adapter.supports("listDomains")).toBe("observed");
+    expect(adapter.supports("createOnChosenDomain")).toBe("observed");
+    expect(adapter.supports("restoreSession")).toBe("unobserved");
   });
 
   it("reports a transport failure as a network error, not a provider error", async () => {
