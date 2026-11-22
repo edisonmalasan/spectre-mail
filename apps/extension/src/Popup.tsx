@@ -42,7 +42,7 @@
  * @module
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { Mailbox } from "@spectre-mail/core";
 import { holdsMailbox } from "@spectre-mail/mailbox";
@@ -160,6 +160,27 @@ export function Popup({
   const [copy, setCopy] = useState<CopyState>("idle");
   const [health, setHealth] = useState<ProviderHealth | null>(null);
   const [fill, setFill] = useState<FillReport>({ kind: "idle" });
+  const [changing, setChanging] = useState(false);
+  const [changeFailure, setChangeFailure] = useState(false);
+
+  /**
+   * The request generation, incremented once per mailbox operation.
+   *
+   * **`subscribe` publishes without request identity**, so an answer from an older run can
+   * arrive after a newer one has already delivered its mailbox. The promise handler compares
+   * its token against this ref and drops a stale answer; only the newest run is allowed to
+   * write state, persistence or the opened-message selection.
+   */
+  const generation = useRef(0);
+  /**
+   * How many replacement runs are outstanding. While one is, the `creating`, `ready` and
+   * `failed` transitions published by the session are left to the generation-guarded promise
+   * handler, which is what keeps the previous mailbox and its opened message on screen until
+   * the provider actually confirms the replacement.
+   */
+  const changeInFlight = useRef(0);
+  /** The one coalescing guard: repeated presses of Change issue at most one request. */
+  const changePending = useRef(false);
 
   /**
    * The in-page answers this session has seen, counted.
@@ -187,7 +208,24 @@ export function Popup({
     blocked: false,
   });
 
-  useEffect(() => session.subscribe(setState), [session]);
+  useEffect(
+    () =>
+      session.subscribe((next) => {
+        // A replacement publishes `creating` before the provider answers and its outcome
+        // before its promise settles. Neither publish carries a generation, so while a
+        // replacement is in flight they are left to the guarded handler below — applying
+        // them here is exactly how a stale answer would replace a newer mailbox or clear a
+        // reader selection the previous mailbox still owns.
+        if (
+          changeInFlight.current > 0 &&
+          (next.kind === "creating" || next.kind === "ready" || next.kind === "failed")
+        ) {
+          return;
+        }
+        setState(next);
+      }),
+    [session],
+  );
 
   useEffect(() => {
     if (boot.done) return;
@@ -224,44 +262,110 @@ export function Popup({
    */
   const opened = "opened" in state ? state.opened : null;
 
+  /**
+   * Domains come only from a provider's own listDomains() answer, loaded through the
+   * shared catalog. The extension's host permissions reach Mail.tm, so this list is
+   * real; an empty list (e.g. Guerrilla only) leaves automatic creation as the choice.
+   *
+   * **Declared before the callbacks that read them.** `change` closes over `setShowDomains`
+   * to dismiss the domain list; a declaration below that callback is a use-before-declaration
+   * that the compiler tolerates and `react-hooks/immutability` reports.
+   */
+  const [domains, setDomains] = useState<readonly Domain[]>([]);
+  const [showDomains, setShowDomains] = useState(false);
+
   const create = useCallback(
-    async (domain?: Domain) => {
-      const next = await session.open(domain);
-      if (holdsMailbox(next)) {
+    (domain?: Domain) => {
+      // **Every run takes a token, and only the newest answer may write.** The session
+      // publishes its outcome before this promise settles, so a handler that applied every
+      // answer would let a slow create overwrite a mailbox a later run already delivered.
+      const token = ++generation.current;
+      void session.open(domain).then((next) => {
+        if (token !== generation.current) return;
+        setState(next);
+        if (!holdsMailbox(next)) return;
         // **Persisted only after the provider confirms it.** `docs/PROVIDERS.md` records
         // an unrecognised Guerrilla session answering `HTTP 200` with an empty inbox, so
         // "nothing has arrived" and "this address is gone" are the same response — a
         // mailbox stored before the provider confirmed it would be offered back as though
         // it worked.
-        await storage.addMailbox(next.mailbox);
-        /**
-         * **And the schedule is asked for here, after the write, and this line is the whole of a
-         * defect a browser case found.**
-         *
-         * The background worker's alarm is reconciled wherever a mailbox is written. **This component
-         * writes one itself**, so before this line existed the device that had just created an address
-         * through the popup — the path a person takes — was left with **no alarm at all** until the next
-         * browser start, and `e2e/background-check.spec.ts` reads exactly that from the platform.
-         *
-         * **Awaited, and nothing is done with the answer.** Awaiting is what keeps a refused channel
-         * from becoming an unhandled rejection; the reply is unread because arming is a side effect that
-         * follows a write which has already succeeded, and a create control that reported a schedule
-         * failure would be reporting something the person cannot act on. `sendToBackground` resolves
-         * `undefined` rather than rejecting, so there is no error here to swallow.
-         */
-        await requestBackgroundAlarm();
-      }
+        void (async () => {
+          await storage.addMailbox(next.mailbox);
+          /**
+           * **And the schedule is asked for here, after the write, and this line is the whole of a
+           * defect a browser case found.**
+           *
+           * The background worker's alarm is reconciled wherever a mailbox is written. **This component
+           * writes one itself**, so before this line existed the device that had just created an address
+           * through the popup — the path a person takes — was left with **no alarm at all** until the next
+           * browser start, and `e2e/background-check.spec.ts` reads exactly that from the platform.
+           *
+           * **Awaited, and nothing is done with the answer.** Awaiting is what keeps a refused channel
+           * from becoming an unhandled rejection; the reply is unread because arming is a side effect that
+           * follows a write which has already succeeded, and a create control that reported a schedule
+           * failure would be reporting something the person cannot act on. `sendToBackground` resolves
+           * `undefined` rather than rejecting, so there is no error here to swallow.
+           */
+          await requestBackgroundAlarm();
+        })();
+      });
     },
     [requestBackgroundAlarm, session, storage],
   );
 
   /**
-   * Domains come only from a provider's own listDomains() answer, loaded through the
-   * shared catalog. The extension's host permissions reach Mail.tm, so this list is
-   * real; an empty list (e.g. Guerrilla only) leaves automatic creation as the choice.
+   * Change the address, with the website's guard pattern at the popup's own layer.
+   *
+   * **Three properties, and each has a case in `Popup.test.tsx`:**
+   * - repeated presses coalesce through `changePending`, so a rate-limited provider is
+   *   asked once for two presses in the same window;
+   * - a generation token drops a late answer from an older run;
+   * - the previous state stays on screen until the provider confirms a `ready` mailbox.
+   *   `changeInFlight` suppresses the session's unnumbered publishes, and only a confirmed
+   *   answer calls `setState` — which is also what clears the previous opened message.
    */
-  const [domains, setDomains] = useState<readonly Domain[]>([]);
-  const [showDomains, setShowDomains] = useState(false);
+  const change = useCallback(
+    (domain?: Domain) => {
+      if (changePending.current) return;
+      changePending.current = true;
+      changeInFlight.current += 1;
+      const token = ++generation.current;
+      setChanging(true);
+      setShowDomains(false);
+
+      void session.replace(domain).then(
+        (next) => {
+          changeInFlight.current -= 1;
+          changePending.current = false;
+          setChanging(false);
+          if (token !== generation.current) return;
+
+          // **Only a confirmed mailbox is applied.** Anything else is a refusal to replace,
+          // not a new address: the previous mailbox and its opened message stay untouched.
+          const confirmed = next.kind === "ready" ? next.mailbox : null;
+          if (confirmed === null) {
+            setChangeFailure(true);
+            return;
+          }
+          setChangeFailure(false);
+          setState(next);
+          void (async () => {
+            await storage.addMailbox(confirmed);
+            await requestBackgroundAlarm();
+          })();
+        },
+        () => {
+          changeInFlight.current -= 1;
+          changePending.current = false;
+          setChanging(false);
+          if (token !== generation.current) return;
+          setChangeFailure(true);
+        },
+      );
+    },
+    [requestBackgroundAlarm, session, storage],
+  );
+
   useEffect(() => {
     let cancelled = false;
     const catalogs = (session.providers ?? []).map((provider) => createDomainCatalog(provider));
@@ -372,22 +476,11 @@ export function Popup({
                 {COPY.chooseDomain}
               </button>
               {showDomains && (
-                <ul className="popup__domains">
-                  {domains.map((domain) => (
-                    <li key={`${domain.provider}:${domain.id}`}>
-                      <button
-                        type="button"
-                        className="control"
-                        onClick={() => {
-                          setShowDomains(false);
-                          void create(domain);
-                        }}
-                      >
-                        @{domain.name}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+                <DomainChoices
+                  domains={domains}
+                  label={COPY.chooseDomain}
+                  onChoose={(domain) => void create(domain)}
+                />
               )}
             </>
           )}
@@ -413,11 +506,43 @@ export function Popup({
             <p className="popup__address">
               <AddressText address={mailbox.address} />
             </p>
-            <button type="button" className="control" onClick={() => void copyAddress()}>
-              {COPY.copy}
-            </button>
+            <div className="popup__actions">
+              <button type="button" className="control" onClick={() => void copyAddress()}>
+                {COPY.copy}
+              </button>
+              {/**
+               * **A domain choice, not a provider selector.** This client still offers no
+               * control over which provider it contacts; pressing this opens the usable-domain
+               * list with Automatic first, and a manual row is offered only when there is more
+               * than one usable domain. It stays in the tab order beside Copy and its label is
+               * a `POPUP_COPY` entry, never a JSX literal.
+               */}
+              <button
+                type="button"
+                className="control"
+                onClick={() => setShowDomains((open) => !open)}
+                aria-expanded={showDomains}
+              >
+                {changing ? COPY.changing : COPY.change}
+              </button>
+            </div>
             {copy === "copied" && <p role="status">{COPY.copied}</p>}
             {copy === "failed" && <p role="status">{COPY.copyFailed}</p>}
+            {changeFailure && <p role="alert">{COPY.changeFailed}</p>}
+            {/**
+             * **The third claim, reported in words rather than implied by a successful
+             * create.** A provisioned address is not evidence that mail arrived: no external
+             * sender has been observed here, so this line stays exactly the fixed unverified
+             * sentence whatever a recorded fixture or a create answered.
+             */}
+            <p className="popup__truth">{COPY.deliveryUnverified}</p>
+            {showDomains && (
+              <DomainChoices
+                domains={domains}
+                label={COPY.change}
+                onChoose={(domain) => change(domain)}
+              />
+            )}
           </section>
 
           <section aria-labelledby="status-heading">
@@ -495,6 +620,44 @@ export function Popup({
         entries={diagnosticReport(diagnostic, inPageAnswers, EXTENSION_DIAGNOSTIC_LABELS).entries}
       />
     </main>
+  );
+}
+
+/**
+ * The usable-domain list, shared by first creation and by Change.
+ *
+ * **Automatic is first, and manual rows exist only when more than one usable domain was
+ * reported** — the requirement's exact shape. One usable domain leaves nothing to choose
+ * between, and a list that offered it as a choice would make a single option look like a
+ * decision. Every string comes from `POPUP_COPY`, including the `@` prefix, so a rename in
+ * copy is a rename on both surfaces that render this component.
+ */
+function DomainChoices({
+  domains,
+  label,
+  onChoose,
+}: {
+  readonly domains: readonly Domain[];
+  readonly label: string;
+  readonly onChoose: (domain?: Domain) => void;
+}) {
+  return (
+    <div className="popup__domains" role="group" aria-label={label}>
+      <button type="button" className="control" onClick={() => onChoose()}>
+        {COPY.automatic}
+      </button>
+      {domains.length > 1 &&
+        domains.map((domain) => (
+          <button
+            key={`${domain.provider}:${domain.id}`}
+            type="button"
+            className="control"
+            onClick={() => onChoose(domain)}
+          >
+            {COPY.domainOption.replace("{domain}", domain.name)}
+          </button>
+        ))}
+    </div>
   );
 }
 

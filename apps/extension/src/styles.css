@@ -405,8 +405,35 @@ body {
   background: var(--surface-sunken);
 }
 
+/*
+ * Copy and Change sit in one row: the second control is a domain choice, not a second
+ * provider selector, and giving it the same `.control` treatment beside the first is what
+ * says so. `flex-wrap` keeps both reachable at the popup's fixed width rather than shrinking
+ * either below its declared touch target. No new token — the gap is one this file resolves.
+ */
+.popup__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/*
+ * The one claim this product cannot verify, reported in the address region rather than
+ * implied by a successful create. It uses `.message__from`'s existing pair — `--type-xs`
+ * on `--ink-muted` — so it introduces no token and no contrast pair; monospace is the
+ * layer's voice for technical metadata, and a truth claim about delivery is one.
+ */
+.popup__truth {
+  font-family: var(--font-mono);
+  font-size: var(--type-xs);
+  color: var(--ink-muted);
+}
+
 /* A provider-sourced domain list, shown only when a reachable provider reported one. */
 .popup__domains {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
   list-style: none;
   margin: var(--space-2) 0 0;
   padding: 0;
