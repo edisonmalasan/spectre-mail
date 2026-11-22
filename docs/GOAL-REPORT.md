@@ -4,7 +4,7 @@ Date: 2026-11-22. Source objective: `docs/GOAL.md` (merged as PR #236). This is 
 
 ## Verdict: **PARTIALLY MET**
 
-All authorization-free work in the goal was completed and verified. Two human dependencies remain (a real external test message and final visual acceptance), and **no candidate provider passed the integration gate**, so no new provider was integrated and none is advertised as supported. `pnpm verify` reports all tests passing but exits non-zero on the repository's documented load-driven worker-timeout; that is recorded rather than called green.
+All authorization-free work in the goal was completed and verified. One real external message was received and verified at message level on 2026-11-22; the remaining human gates are final visual/functional acceptance and written provider authorization. **No candidate provider passed the integration gate**, so no new provider was integrated and none is advertised as supported. `pnpm verify` reports all tests passing but exits non-zero on the repository's documented load-driven worker-timeout; that is recorded rather than called green.
 
 ## A. Provider matrix (GOAL §3)
 
@@ -39,7 +39,7 @@ Counts are dated snapshots, not permanent inventories. See `docs/provider-resear
 - **Candidates considered:** 19.
 - **Free active domain snapshots:** Mail.tm 1 (`euploading.com`, 2026-11-22T03:40:37Z); DropMail 19 (15 permanent, 4 rotating with `expiresAt`); GrabMail 3 free public (97 premium names withheld); Best-TempMail 5; PlainlyKit 6; Maildrop 1; Guerrilla 0 API-exposed (it assigns an address, it does not expose a domain list); 10 providers unmeasurable or key-gated.
 - **Domains actually provisioned in a bounded probe:** 1. No quota was exhausted; no more than one or two bounded anonymous accounts were created per eligible provider.
-- **Domains with verified real incoming mail on 2026-11-22:** **0**. The only two positive delivery observations in the repository are historical (2026-10-01, `docs/PROVIDERS.md` §5) and are not re-used as today's evidence. `LIVE DELIVERY NOT VERIFIED` is the reported state everywhere.
+- **Domains with verified real incoming mail on 2026-11-22:** **1** (`euploading.com`, Mail.tm), verified at message level in the built extension popup (section D), with the documented bare-text-link limitation. Only this one prepared mailbox was sampled — this is not a claim that every catalog domain received mail. The two earlier positive delivery observations in the repository are historical (2026-10-01, `docs/PROVIDERS.md` §5) and are not re-used as today's evidence.
 
 ## C. Implementation trace
 
@@ -83,4 +83,4 @@ Current milestone: M22 **APPLIED, SYNCED and ARCHIVED**. No M0–M21 history was
 
 ## Final answer
 
-**PARTIALLY MET.** The authorization-free programme — research, selection, shared foundations, truthful states, minimal domain-selection UX, independent review, spec sync and archive — is complete with measured evidence. The provider-diversity mission cannot go further without written third-party authorization, and two human gates (live delivery, final visual acceptance) remain open by design.
+**PARTIALLY MET.** The authorization-free programme — research, selection, shared foundations, truthful states, minimal domain-selection UX, independent review, spec sync and archive — is complete with measured evidence. The provider-diversity mission cannot go further without written third-party authorization, and two human gates (final visual acceptance, written provider authorization) remain open by design; live delivery was verified at message level on 2026-11-22.
