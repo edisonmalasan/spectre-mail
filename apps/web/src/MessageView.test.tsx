@@ -176,7 +176,7 @@ function providerReturning(
   return {
     id: "guerrilla",
     displayName: "Guerrilla Mail",
-    supports: () => false,
+    supports: () => "unobserved",
     checkHealth: () => Promise.resolve({ provider: "guerrilla", status: "ok" }),
     listDomains: () => Promise.resolve([]),
     createMailbox: () => Promise.resolve(mailbox()),

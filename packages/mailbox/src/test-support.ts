@@ -198,9 +198,10 @@ export function unreachable(provider: ProviderId = "guerrilla"): SpectreError {
 /**
  * A stub provider with call counts.
  *
- * `supports` returns `false` for everything: neither provider was measured to
- * offer either destructive operation, and a stub that claimed otherwise would let
- * a test pass on a capability no adapter has.
+ * `supports` returns `"unobserved"` for everything: neither provider was measured
+ * to offer either destructive operation, and a stub that claimed otherwise would
+ * let a test pass on a capability no adapter has. "Unobserved" rather than
+ * "absent" because nobody proved the operation impossible.
  */
 export function stubProvider(id: ProviderId, options: StubOptions = {}): StubProvider {
   const created: Mailbox[] = [];
@@ -235,7 +236,7 @@ export function stubProvider(id: ProviderId, options: StubOptions = {}): StubPro
     get listedFor(): readonly string[] {
       return [...listedFor];
     },
-    supports: () => false,
+    supports: () => "unobserved",
     // A stub has no domain API: the contract's listDomains is answered with the
     // honest empty list, so no test can accidentally build an address from a guess.
     listDomains: async () => [],

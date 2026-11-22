@@ -59,7 +59,7 @@ function providerReturning(over: {
   return {
     id: "guerrilla",
     displayName: "Guerrilla Mail",
-    supports: () => false,
+    supports: () => "unobserved",
     checkHealth: () => Promise.resolve({ provider: "guerrilla", status: "ok" }),
     // Typed `Promise<Mailbox>` even where it rejects, so a scripted failure and a
     // scripted success are the same shape. A `Promise<never>` here would be a lie
