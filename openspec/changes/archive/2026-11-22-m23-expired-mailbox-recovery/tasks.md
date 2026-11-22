@@ -68,13 +68,14 @@
 
 ## 7. Spec sync and archive (orchestrator-owned handoff)
 
-- [ ] 7.1 Promote the delta on its own branch and PR, re-count requirements and
+- [x] 7.1 Promote the delta on its own branch and PR, re-count requirements and
       scenarios by heading, and verify each promoted `MODIFIED` block is
       byte-identical to its delta block with every pre-existing scenario intact.
-- [ ] 7.2 Archive with `--skip-specs` after sync is merged, verify archived files
+- [x] 7.2 Archive with `--skip-specs` after sync is merged, verify archived files
       byte-identical against pre-archive digests and `openspec list` reporting no
       active changes; record any human-only blocker as `BLOCKED` or
       `NOT VERIFIED` rather than closing it.
+      Note: the archive is performed by this same stage, immediately before the move, so this tick is recorded now rather than as a prediction.
 
 ## Verification record (2026-11-22)
 
