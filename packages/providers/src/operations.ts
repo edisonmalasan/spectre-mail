@@ -83,12 +83,12 @@ export async function deleteMessage(
  *
  * @throws {SpectreError} `UNSUPPORTED_OPERATION`.
  */
-function requireSupport(
-  provider: MailProvider,
-  operation: ProviderOperation,
-): Pick<MailProvider, ProviderOperation> {
-  if (provider.supports(operation)) {
-    return provider as Pick<MailProvider, ProviderOperation>;
+function requireSupport(provider: MailProvider, operation: ProviderOperation): MailProvider {
+  // Only `observed` is a licence to invoke. `unobserved` and `absent` are both
+  // negative answers, but a string is truthy in JavaScript — a bare `if` here would
+  // call a method nobody measured and turn the guarded path back into a TypeError.
+  if (provider.supports(operation) === "observed") {
+    return provider;
   }
 
   throw {

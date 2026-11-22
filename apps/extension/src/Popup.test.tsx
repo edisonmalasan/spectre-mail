@@ -24,7 +24,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createMailbox } from "@spectre-mail/core";
+import { UNREPORTED_DOMAIN_PROVENANCE, createMailbox } from "@spectre-mail/core";
 import type { Mailbox } from "@spectre-mail/core";
 import type { InboxState, MailboxSession, SessionState } from "@spectre-mail/mailbox";
 
@@ -184,6 +184,9 @@ describe("the popup", () => {
       provider: "mailtm" as const,
       active: true,
       expiresAt: null,
+      // The honest case for a provider whose domain listing reported no provenance.
+      // Stated explicitly rather than left for the catalog's defensive fallback.
+      provenance: UNREPORTED_DOMAIN_PROVENANCE,
     };
     const session = stubSession({ kind: "idle", opened: null } as unknown as SessionState);
     (session.providers as unknown as {

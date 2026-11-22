@@ -93,7 +93,7 @@ describe("guarded optional operations", () => {
       // provider that lies about itself. Recorded here so the choice is visible.
       supports: (operation) => {
         calls.push(operation);
-        return false;
+        return "unobserved";
       },
       checkHealth: async () => ({ provider: "mailtm", status: "ok" }),
       listDomains: async () => [],
@@ -108,6 +108,31 @@ describe("guarded optional operations", () => {
 
     expect(calls).toEqual(["destroyMailbox"]);
     expect(error?.code).toBe(NormalizedErrorCode.UNSUPPORTED_OPERATION);
+  });
+
+  it("refuses a known-absent capability as well, not just an unobserved one", async () => {
+    // A string answer is truthy. A guard written as `if (provider.supports(op))`
+    // would pass both `unobserved` and `absent` straight through to the method —
+    // and turn the guarded path back into a TypeError.
+    const absent: MailProvider = {
+      id: "guerrilla" satisfies ProviderId,
+      displayName: "Absent",
+      supports: () => "absent",
+      checkHealth: async () => ({ provider: "guerrilla", status: "ok" }),
+      listDomains: async () => [],
+      createMailbox: async () => MAILBOX,
+      listMessages: async () => [],
+      getMessage: async () => {
+        throw new Error("unused");
+      },
+    };
+
+    const error = await capture(() => destroyMailbox(absent, MAILBOX));
+
+    expect(error?.code).toBe(NormalizedErrorCode.UNSUPPORTED_OPERATION);
+    expect(
+      error?.code === NormalizedErrorCode.UNSUPPORTED_OPERATION ? error.operation : undefined,
+    ).toBe("destroyMailbox");
   });
 
   it("throws a value the closed vocabulary recognises, not a bare TypeError", async () => {

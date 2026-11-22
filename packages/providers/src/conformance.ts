@@ -22,7 +22,7 @@ import { NormalizedErrorCode, isSpectreError } from "@spectre-mail/core";
 import type { Mailbox, MessageSummary, ProviderId, SpectreError } from "@spectre-mail/core";
 import { describe, expect, it } from "vitest";
 
-import type { MailProvider, ProviderOperation } from "./contract";
+import type { CapabilityAnswer, MailProvider, ProviderOperation } from "./contract";
 import type { RecordedStep } from "./recorder";
 import type { TransportRequest } from "./transport";
 
@@ -75,7 +75,19 @@ export interface ProviderConformance {
   readonly unclassifiable: readonly RecordedStep[];
 }
 
-const OPERATIONS: readonly ProviderOperation[] = ["deleteMessage", "destroyMailbox"];
+/**
+ * Every operation the typed surface names. The suite reads every flag, so an
+ * adapter that forgot one — or answered with a value outside the three declared
+ * ones — fails here rather than at a client's `if (provider.id === ...)`.
+ */
+const OPERATIONS: readonly ProviderOperation[] = [
+  "deleteMessage",
+  "destroyMailbox",
+  "listDomains",
+  "createOnChosenDomain",
+  "restoreSession",
+];
+const CAPABILITY_ANSWERS: readonly CapabilityAnswer[] = ["observed", "unobserved", "absent"];
 
 /**
  * Provider field names that must not appear in a normalized value.
@@ -149,12 +161,18 @@ export function runProviderConformance(conformance: ProviderConformance): void {
       }
     });
 
-    it("answers optional-operation support as a question, not an exception", () => {
+    it("answers every capability from the typed surface, never from a provider id", () => {
       const { adapter } = conformance.build([]);
 
+      // Every flag is read and must be one of the three declared answers. A client
+      // can therefore ask "can you list domains / create on a chosen one / restore"
+      // without testing an identifier, and an unmeasured capability stays visible.
       for (const operation of OPERATIONS) {
-        expect(typeof adapter.supports(operation)).toBe("boolean");
+        expect(CAPABILITY_ANSWERS).toContain(adapter.supports(operation));
       }
+      // The exact answer per operation is asserted in each adapter's own tests,
+      // where the measured evidence for that answer can be cited. The shared
+      // suite only requires that every flag be read from the declared surface.
     });
 
     it("lists only domains this provider can serve", async () => {

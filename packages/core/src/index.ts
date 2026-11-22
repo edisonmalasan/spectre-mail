@@ -34,7 +34,15 @@
 export { PROVIDER_IDS, isProviderId, assertProviderId } from "./provider";
 export type { ProviderId } from "./provider";
 
-export type { Domain } from "./domain";
+export { UNREPORTED_DOMAIN_PROVENANCE } from "./domain";
+export type {
+  Domain,
+  DomainCapability,
+  DomainLifecycle,
+  DomainProvenance,
+  DomainRuntime,
+  DomainTier,
+} from "./domain";
 
 export {
   assertGuerrillaCredentials,

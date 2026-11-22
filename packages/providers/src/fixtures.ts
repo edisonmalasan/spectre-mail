@@ -116,6 +116,32 @@ export const mailtmDomainsPage1: RecordedStep = {
   }),
 };
 
+/**
+ * SYNTHETIC. A `GET /domains?page=1` response carrying a domain-level `createdAt`.
+ *
+ * The reserved name and the timestamp are authored test data; the Hydra envelope
+ * is the measured one. It exists so the provenance mapping can be observed with a
+ * provider-reported discovery time rather than with a fabricated assertion about
+ * the measured fixture, which carries no such field.
+ */
+export const mailtmDomainsWithDiscoveryTime: RecordedStep = {
+  response: jsonResponse({
+    "@context": "/contexts/Domain",
+    "@id": "/domains/1",
+    "@type": "Collection",
+    "hydra:member": [
+      {
+        "@id": "/domains/1",
+        "@type": "Domain",
+        domain: "alpha.example",
+        isActive: true,
+        createdAt: "2026-01-15T12:00:00Z",
+      },
+    ],
+    "hydra:totalItems": 1,
+  }),
+};
+
 /** SYNTHETIC. The second page of {@link mailtmDomainsPage1}. */
 export const mailtmDomainsPage2: RecordedStep = {
   response: jsonResponse({

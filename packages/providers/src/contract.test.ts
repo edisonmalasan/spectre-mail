@@ -124,8 +124,19 @@ describe("the MailProvider contract", () => {
     expect(CONTRACT_SOURCE).toMatch(/MUST NOT retain state between calls/);
   });
 
-  it("keeps supports() required rather than optional", () => {
-    expect(DECLARATIONS).toMatch(/\bsupports\(operation: ProviderOperation\): boolean;/);
+  it("keeps supports() required and typed, never a boolean", () => {
+    expect(DECLARATIONS).toMatch(/\bsupports\(operation: ProviderOperation\): CapabilityAnswer;/);
+    // A boolean cannot distinguish "never observed" from "known absent", which is
+    // the distinction the provider-adapters delta requires.
+    expect(DECLARATIONS).not.toMatch(/supports\(operation: ProviderOperation\): boolean/);
+  });
+
+  it("names the three capability answers and the domain-listing completeness type", () => {
+    expect(DECLARATIONS).toMatch(
+      /export type CapabilityAnswer = "observed" \| "unobserved" \| "absent";/,
+    );
+    expect(DECLARATIONS).toMatch(/export interface DomainListing \{/);
+    expect(DECLARATIONS).toMatch(/listDomainListing\?\(\): Promise<DomainListing>;/);
   });
 
   it("declares listDomains and an optional domain argument to createMailbox", () => {
@@ -159,15 +170,21 @@ type AssertExactUnion<A, B> =
 type _NoSubscribe = "subscribe" extends keyof MailProvider ? never : true;
 
 /**
- * The optional operations the contract names must be exactly these two.
+ * The operations the typed capability surface names must be exactly these five.
  *
- * `AssertExactUnion` rather than assignability, so adding a third operation — or
+ * `AssertExactUnion` rather than assignability, so adding a sixth operation — or
  * renaming one — fails to compile. Assignability alone would accept a wider union
  * and quietly make a caller's exhaustive `switch` non-exhaustive.
  */
-type _OperationsAreTheDeclaredTwo = AssertExactUnion<
+type _OperationsAreTheDeclaredFive = AssertExactUnion<
   Parameters<MailProvider["supports"]>[0],
-  "deleteMessage" | "destroyMailbox"
+  "deleteMessage" | "destroyMailbox" | "listDomains" | "createOnChosenDomain" | "restoreSession"
+>;
+
+/** The answer to a capability question must be exactly the three declared strings. */
+type _CapabilityAnswerIsTheDeclaredUnion = AssertExactUnion<
+  ReturnType<MailProvider["supports"]>,
+  "observed" | "unobserved" | "absent"
 >;
 
 /**
@@ -211,7 +228,8 @@ type _CreateMailboxTakesAnOptionalDomain = AssertSame<
  */
 export type CONTRACT_INVARIANTS =
   | _NoSubscribe
-  | _OperationsAreTheDeclaredTwo
+  | _OperationsAreTheDeclaredFive
+  | _CapabilityAnswerIsTheDeclaredUnion
   | _CreateReturnsMailbox
   | _ListDomainsReturnsSharedDomains
   | _CreateMailboxTakesAnOptionalDomain;

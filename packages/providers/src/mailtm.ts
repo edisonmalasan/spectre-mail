@@ -21,7 +21,13 @@
 import { NormalizedErrorCode, createMailbox, createMessageSummary } from "@spectre-mail/core";
 import type { Domain, Mailbox, Message, MessageSummary, SpectreError } from "@spectre-mail/core";
 
-import type { MailProvider, ProviderHealth, ProviderOperation } from "./contract";
+import type {
+  CapabilityAnswer,
+  DomainListing,
+  MailProvider,
+  ProviderHealth,
+  ProviderOperation,
+} from "./contract";
 import type { CredentialSourceEnvironment } from "./environment";
 import { readHeader } from "./transport";
 import type { TransportRequest, TransportResponse } from "./transport";
@@ -33,7 +39,7 @@ const BASE_URL = "https://api.mail.tm";
  * is inconsistent, and an unbounded loop would spend its whole request window on
  * one picker. This is a bound on our work, not a claim about the provider's pages.
  */
-const MAX_DOMAIN_PAGES = 10;
+export const MAX_DOMAIN_PAGES = 10;
 
 /**
  * Re-exported for callers that already import this module.
@@ -51,6 +57,9 @@ interface HydraDomain {
   readonly domain?: unknown;
   readonly isActive?: unknown;
   readonly expiresAt?: unknown;
+  /** A domain-level creation time the provider may report; not the message's date. */
+  readonly createdAt?: unknown;
+  readonly isPrivate?: unknown;
 }
 
 interface HydraDomains {
@@ -254,17 +263,24 @@ export function createMailTmAdapter(environment: CredentialSourceEnvironment): M
   }
 
   /**
-   * Follow the Hydra `hydra:next` chain and return the domains this provider can
-   * actually use. Filtering is done here, where the wire fields live: an inactive
-   * or already-expired domain must never reach a picker that offers it.
+   * Follow the Hydra `hydra:next` chain up to a declared bound and return the
+   * domains this provider can actually use together with whether the walk was
+   * cut short. Filtering is done here, where the wire fields live: an inactive,
+   * private or already-expired domain must never reach a picker that offers it.
+   *
+   * The completeness signal is not derived from the number of entries returned.
+   * A short list can be the whole inventory and a long one can be a truncated
+   * page; the only honest signal is whether a `hydra:next` was still advertised
+   * when we stopped.
    */
-  async function listDomains(): Promise<Domain[]> {
+  async function walkDomainPages(): Promise<DomainListing> {
+    const bound = environment.maxDomainPages ?? MAX_DOMAIN_PAGES;
     const collected: Domain[] = [];
     const seen = new Set<string>();
     let next: string | undefined = "/domains?page=1";
     let pages = 0;
 
-    while (next !== undefined && pages < MAX_DOMAIN_PAGES) {
+    while (next !== undefined && pages < bound) {
       pages += 1;
       const response = await request("GET", next);
       if (response.status !== 200) {
@@ -278,7 +294,9 @@ export function createMailTmAdapter(environment: CredentialSourceEnvironment): M
         const expiresAt = expiryOf(member.expiresAt);
         // Absent expiry is not an expiry in the past. A reported one that has
         // passed is a domain the provider itself says is no longer usable.
-        if (!active || (expiresAt !== null && expiresAt <= now())) continue;
+        if (!active || member.isPrivate === true || (expiresAt !== null && expiresAt <= now())) {
+          continue;
+        }
         if (seen.has(member.domain)) continue;
         seen.add(member.domain);
         collected.push({
@@ -290,6 +308,18 @@ export function createMailTmAdapter(environment: CredentialSourceEnvironment): M
           provider: "mailtm",
           active,
           expiresAt,
+          provenance: {
+            // A domain-level creation time when the provider sent one; `null` when
+            // it did not. Never the message's date and never the clock's "now".
+            discoveredAt: expiryOf(member.createdAt),
+            // Mail.tm reports no `availableVia`-style interface signal. A runtime
+            // is supplied by the client's configured provider list, not inferred
+            // here from the domain's spelling.
+            runtime: null,
+            lifecycle: "active",
+            capabilities: ["listDomains", "createOnChosenDomain"],
+            // No measured Mail.tm response carries a premium distinction.
+          },
         });
       }
 
@@ -297,7 +327,12 @@ export function createMailTmAdapter(environment: CredentialSourceEnvironment): M
       next = typeof following === "string" && following.length > 0 ? following : undefined;
     }
 
-    return collected;
+    return { domains: collected, truncated: next !== undefined };
+  }
+
+  /** The list-only view the rest of this adapter and its callers already use. */
+  async function listDomains(): Promise<Domain[]> {
+    return [...(await walkDomainPages()).domains];
   }
 
   /** Choose the first usable domain when no specific one was requested. */
@@ -347,14 +382,28 @@ export function createMailTmAdapter(environment: CredentialSourceEnvironment): M
     id: "mailtm",
     displayName: "Mail.tm",
 
-    supports(operation: ProviderOperation): boolean {
-      // Both were observed live: message deletion is not in the measured surface,
-      // but mailbox deletion is (`DELETE /accounts/{id}` -> 204). Stating this as a
-      // lookup rather than a method presence keeps the answer in one place.
-      return operation === "destroyMailbox";
+    supports(operation: ProviderOperation): CapabilityAnswer {
+      // Each answer is read from one declared table rather than inferred from a
+      // method's presence, so an unmeasured capability stays visibly unmeasured.
+      // Deletion of a mailbox was observed live (`DELETE /accounts/{id}` -> 204);
+      // message deletion was not. Domain listing and creation on a chosen domain
+      // are in the measured surface. Restore is the mailbox layer's concern and
+      // was never measured at this adapter, so it stays unobserved.
+      switch (operation) {
+        case "destroyMailbox":
+        case "listDomains":
+        case "createOnChosenDomain":
+          return "observed";
+        case "deleteMessage":
+        case "restoreSession":
+          return "unobserved";
+      }
     },
 
     listDomains,
+
+    /** The same walk, with the bound/completeness signal its caller needs. */
+    listDomainListing: walkDomainPages,
 
     async checkHealth(): Promise<ProviderHealth> {
       try {

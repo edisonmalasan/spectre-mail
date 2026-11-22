@@ -26,9 +26,45 @@ import type { Domain, Mailbox, Message, MessageSummary, ProviderId } from "@spec
  *
  * Named rather than inferred from the interface's keys so that "which operations
  * does this provider support" is a question with a typed answer rather than a
- * property lookup that returns `undefined` at every call site.
+ * property lookup that returns `undefined` at every call site. The domain-selection
+ * operations are added here so a client reads the adapter's declared answer rather
+ * than testing a provider identifier.
  */
-export type ProviderOperation = "deleteMessage" | "destroyMailbox";
+export type ProviderOperation =
+  "deleteMessage" | "destroyMailbox" | "listDomains" | "createOnChosenDomain" | "restoreSession";
+
+/**
+ * A provider's answer to "can you do this operation".
+ *
+ * A boolean cannot say why an answer is negative, and conflating "nobody measured
+ * it" with "we know it is impossible" bakes an unmeasured claim into a user-facing
+ * message. The three answers are therefore distinct:
+ *
+ * - `observed` — the operation was seen to work on this provider.
+ * - `unobserved` — nobody measured it working; this is not proof of impossibility.
+ * - `absent` — the provider is known not to offer it (for example, no domain API).
+ *
+ * Every adapter answers every operation; an unreported capability is never
+ * silently turned into a false one. See design.md D1 and the amended
+ * `provider-adapters` scenario about an absent operation recorded as unobserved.
+ */
+export type CapabilityAnswer = "observed" | "unobserved" | "absent";
+
+/**
+ * A domain listing together with whether the fetch was bounded before the
+ * provider's inventory was exhausted.
+ *
+ * A partial list presented as a whole inventory is a false claim about a
+ * provider, so the completeness signal travels with the entries it describes.
+ */
+export interface DomainListing {
+  readonly domains: readonly Domain[];
+  /**
+   * `true` when a declared page bound was reached or the provider still
+   * advertised a next page, `false` when the walk ended on its own.
+   */
+  readonly truncated: boolean;
+}
 
 /**
  * A provider's answer to "can you serve requests right now".
@@ -64,14 +100,15 @@ export interface MailProvider {
   readonly displayName: string;
 
   /**
-   * Whether this provider offers `operation`.
+   * How this provider's support for `operation` is known.
    *
    * Required rather than inferred from the presence of an optional method: an
    * optional method whose absence surfaces only as `undefined` is a runtime trap
    * at every call site, and "can I do this?" is a question every caller must ask
-   * before invoking. See design.md D9.
+   * before invoking. The answer is a {@link CapabilityAnswer}, not a boolean, so
+   * an unmeasured capability stays visibly unmeasured. See design.md D9.
    */
-  supports(operation: ProviderOperation): boolean;
+  supports(operation: ProviderOperation): CapabilityAnswer;
 
   checkHealth(): Promise<ProviderHealth>;
 
@@ -86,6 +123,17 @@ export interface MailProvider {
    * belong in a client, an adapter, or a catalog.
    */
   listDomains(): Promise<Domain[]>;
+
+  /**
+   * List domains together with whether the fetch was truncated.
+   *
+   * Optional only so a provider with no domain API and an existing stub need not
+   * invent an answer. A caller that needs the completeness signal MUST use
+   * `catalog.ts`'s guarded path, which falls back to `listDomains()` and reports
+   * an unknown completeness rather than claiming one. A provider that implements
+   * this method and `listDomains()` MUST answer both from the same source.
+   */
+  listDomainListing?(): Promise<DomainListing>;
 
   /**
    * Create a new mailbox, optionally on a chosen domain.

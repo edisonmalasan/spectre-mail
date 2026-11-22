@@ -8,7 +8,7 @@
  * @module
  */
 
-import { NormalizedErrorCode } from "@spectre-mail/core";
+import { NormalizedErrorCode, UNREPORTED_DOMAIN_PROVENANCE } from "@spectre-mail/core";
 import type { Domain, Mailbox } from "@spectre-mail/core";
 import { describe, expect, it } from "vitest";
 
@@ -18,6 +18,7 @@ import { countingClock, providerOnlyEnvironment } from "./environments";
 import * as fixtures from "./fixtures";
 import { FIXTURE_IDS } from "./fixtures";
 import { createGuerrillaAdapter } from "./guerrilla";
+import { destroyMailbox } from "./operations";
 import type { RecordedStep } from "./recorder";
 
 const GUERRILLA = FIXTURE_IDS.guerrilla;
@@ -314,6 +315,7 @@ describe("Guerrilla Mail adapter", () => {
       provider: "mailtm",
       active: true,
       expiresAt: null,
+      provenance: UNREPORTED_DOMAIN_PROVENANCE,
     };
 
     // Guerrilla assigns an address itself and has no domain API. An empty list is
@@ -325,14 +327,37 @@ describe("Guerrilla Mail adapter", () => {
     expect(environment.requests).toHaveLength(1);
   });
 
-  it("reports deletion operations as unsupported, because none was observed", () => {
+  it("reports capabilities from the typed surface, distinguishing unobserved from absent", () => {
     const adapter = createGuerrillaAdapter(providerOnlyEnvironment([]));
 
-    // Both `false` because SpectreMail will not call an operation never seen to
-    // succeed. This is **unverified**, not proven: "not observed" is not "does not
-    // exist", and a future probe observing one working would change this.
-    expect(adapter.supports("deleteMessage")).toBe(false);
-    expect(adapter.supports("destroyMailbox")).toBe(false);
+    // Deletion was never seen to work, so it is `unobserved` — not `absent`, and
+    // never a boolean `false` that a reader could take as proven impossibility.
+    expect(adapter.supports("deleteMessage")).toBe("unobserved");
+    expect(adapter.supports("destroyMailbox")).toBe("unobserved");
+    // The domain API genuinely does not exist here; the site's widget is a
+    // rendered list, not a provider-supported source of domains.
+    expect(adapter.supports("listDomains")).toBe("absent");
+    expect(adapter.supports("createOnChosenDomain")).toBe("absent");
+    expect(adapter.supports("restoreSession")).toBe("unobserved");
+  });
+
+  it("refuses an unobserved optional operation through the guard, naming it", async () => {
+    const adapter = createGuerrillaAdapter(providerOnlyEnvironment([]));
+    const mailbox: Mailbox = {
+      id: "mailbox-1",
+      address: "someone@sharklasers.com",
+      createdAt: 1_000,
+      provider: "guerrilla",
+      credentials: { provider: "guerrilla", sessionId: "session" },
+      status: "active",
+    };
+
+    // A string answer is truthy, so a bare `if (supports(...))` would call an
+    // operation nobody measured. The guard is what keeps that from happening.
+    await expect(destroyMailbox(adapter, mailbox)).rejects.toMatchObject({
+      code: NormalizedErrorCode.UNSUPPORTED_OPERATION,
+      operation: "destroyMailbox",
+    });
   });
 
   it("reports a transport failure as a network error", async () => {
