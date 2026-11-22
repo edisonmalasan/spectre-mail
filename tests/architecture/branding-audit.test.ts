@@ -810,9 +810,9 @@ const SURFACES: readonly Surface[] = [
       // mail and its address gained a `<wbr>`. **A line number is a claim about a file, and any edit
       // above it falsifies the claim** — which is why this array and `docs/BRANDING.md`'s table are
       // both re-read here rather than adjusted from memory.
-      { file: "apps/extension/src/Popup.tsx", at: "331", form: "jsx-reference" },
-      { file: "apps/extension/src/Popup.tsx", at: "343", form: "jsx-reference" },
-      { file: "apps/extension/src/Popup.tsx", at: "351", form: "jsx-reference" },
+      { file: "apps/extension/src/Popup.tsx", at: "430", form: "jsx-reference" },
+      { file: "apps/extension/src/Popup.tsx", at: "442", form: "jsx-reference" },
+      { file: "apps/extension/src/Popup.tsx", at: "450", form: "jsx-reference" },
     ],
   },
   {

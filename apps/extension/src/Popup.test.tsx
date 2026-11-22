@@ -21,15 +21,16 @@
  * @vitest-environment jsdom
  */
 
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { UNREPORTED_DOMAIN_PROVENANCE, createMailbox } from "@spectre-mail/core";
-import type { Mailbox } from "@spectre-mail/core";
+import type { Domain, Mailbox } from "@spectre-mail/core";
 import type { InboxState, MailboxSession, SessionState } from "@spectre-mail/mailbox";
 
 import { Popup } from "./Popup";
 import type { PopupStorage } from "./Popup";
+import { POPUP_COPY } from "./popup-copy";
 
 const MAILBOX: Mailbox = createMailbox({
   id: "session-token",
@@ -87,20 +88,45 @@ function stubSession(initial: SessionState) {
             } as unknown as SessionState),
       ),
     ),
+    /**
+     * The replacement seam the Change path uses. The default answers with a fresh ready
+     * state; the guard cases override it with a gated or failing implementation so the
+     * coalescing, stale-answer and failure-preservation claims are all reachable here.
+     */
+    replace: vi.fn(async () =>
+      publish({
+        kind: "ready",
+        mailbox: MAILBOX,
+        inbox: { kind: "notStarted" },
+        opened: null,
+      } as unknown as SessionState),
+    ),
     health: vi.fn(async () => ({ provider: "guerrilla", status: "ok" })),
     checkInbox: vi.fn(
       async () =>
         ({ kind: "checked", listing: { messages: [], verdicts: new Map() } }) as InboxState,
     ),
     openMessage: vi.fn(),
+    closeMessage: vi.fn(),
     destroy: vi.fn(),
   };
 
-  return session as unknown as MailboxSession & {
+  return Object.assign(session, { publish }) as unknown as MailboxSession & {
     readonly open: ReturnType<typeof vi.fn>;
     readonly restore: ReturnType<typeof vi.fn>;
+    readonly replace: ReturnType<typeof vi.fn>;
     readonly checkInbox: ReturnType<typeof vi.fn>;
+    readonly publish: (next: SessionState) => SessionState;
   };
+}
+
+/** A promise whose resolution the test controls, for the out-of-order arm. */
+function gate<T>() {
+  let release!: (value: T) => void;
+  const promise = new Promise<T>((resolve) => {
+    release = resolve;
+  });
+  return { promise, release };
 }
 
 /** A storage that either reads a mailbox, reads nothing, or refuses. */
@@ -177,22 +203,27 @@ describe("the popup", () => {
     );
   });
 
-  it("creates on a provider-sourced domain when one is chosen", async () => {
-    const domain = {
+  it("creates on a provider-sourced domain when one is chosen, with Automatic first", async () => {
+    // **Two domains, not one.** The selection requirement offers a manual row only when
+    // more than one usable domain exists, so a single-domain fixture could not assert the
+    // shape the requirement names — it would render Automatic alone. Two also let this
+    // case read the order instead of trusting a count.
+    const first: Domain = {
       id: "d1",
       name: "example.test",
-      provider: "mailtm" as const,
+      provider: "mailtm",
       active: true,
       expiresAt: null,
       // The honest case for a provider whose domain listing reported no provenance.
       // Stated explicitly rather than left for the catalog's defensive fallback.
       provenance: UNREPORTED_DOMAIN_PROVENANCE,
     };
+    const second: Domain = { ...first, id: "d2", name: "second.test" };
     const session = stubSession({ kind: "idle", opened: null } as unknown as SessionState);
     (session.providers as unknown as {
       id: string;
-      listDomains: () => Promise<(typeof domain)[]>;
-    }) = [{ id: "mailtm", listDomains: async () => [domain] }] as never;
+      listDomains: () => Promise<Domain[]>;
+    }) = [{ id: "mailtm", listDomains: async () => [first, second] }] as never;
 
     render(
       <Popup
@@ -208,11 +239,23 @@ describe("the popup", () => {
       expect(screen.getByRole("button", { name: "Choose a domain" })).toBeDefined(),
     );
     fireEvent.click(screen.getByRole("button", { name: "Choose a domain" }));
-    fireEvent.click(screen.getByRole("button", { name: "@example.test" }));
+
+    // **Automatic is the first control in the group, before either manual row.** The names
+    // are read from `POPUP_COPY`, so a rename in copy is a rename in this assertion too —
+    // and a literal here would pass while the popup showed a different word.
+    const group = await screen.findByRole("group", { name: POPUP_COPY.chooseDomain });
+    const rows = within(group).getAllByRole("button");
+    expect(rows.map((row) => row.textContent)).toEqual([
+      POPUP_COPY.automatic,
+      "@example.test",
+      "@second.test",
+    ]);
+
+    fireEvent.click(within(group).getByRole("button", { name: "@example.test" }));
 
     // The chosen Domain reaches session.open(), not just the address text: a picker
     // that created on a different domain would be a claim the product cannot keep.
-    await waitFor(() => expect(session.open).toHaveBeenCalledWith(domain));
+    await waitFor(() => expect(session.open).toHaveBeenCalledWith(first));
   });
 
   it("adopts a stored mailbox instead of offering to create one", async () => {
@@ -478,6 +521,258 @@ describe("the popup", () => {
     // avoided — so this asserts the sentence, not the absence of a count.
     expect(await screen.findByText(/no longer receives mail/i)).toBeDefined();
     expect(screen.queryByText("No mail has arrived.")).toBeNull();
+  });
+});
+
+/**
+ * ## The bounded Change path, at the popup's own layer
+ *
+ * The website holds its guards in a hook and tests them there. The popup has no hook, so
+ * these cases mirror the website's two-press and older-answer recovery arms **at the surface
+ * that actually owns the coalescing ref and the generation token**. A browser-only test
+ * would prove the happy path and leave both guards unobserved.
+ */
+describe("the popup's Change path", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  const STALE_MAILBOX: Mailbox = {
+    ...MAILBOX,
+    id: "stale-session",
+    address: "stale@uberip.com",
+  };
+  const NEW_MAILBOX: Mailbox = { ...MAILBOX, id: "new-session", address: "new@uberip.com" };
+
+  function readyState(mailbox: Mailbox, opened: unknown): SessionState {
+    return {
+      kind: "ready",
+      mailbox,
+      inbox: { kind: "notStarted" },
+      opened,
+    } as unknown as SessionState;
+  }
+
+  function twoDomains(session: ReturnType<typeof stubSession>) {
+    const first: Domain = {
+      id: "d1",
+      name: "example.test",
+      provider: "mailtm",
+      active: true,
+      expiresAt: null,
+      provenance: UNREPORTED_DOMAIN_PROVENANCE,
+    };
+    const second: Domain = { ...first, id: "d2", name: "second.test" };
+    (session.providers as unknown as { id: string; listDomains: () => Promise<Domain[]> }[]) = [
+      { id: "mailtm", listDomains: async () => [first, second] },
+    ] as never;
+    return { first, second };
+  }
+
+  async function openChangeList() {
+    fireEvent.click(await screen.findByRole("button", { name: POPUP_COPY.change }));
+    return screen.findByRole("group", { name: POPUP_COPY.change });
+  }
+
+  it("opens Automatic first and sends a chosen domain to session.replace", async () => {
+    const session = stubSession(readyState(MAILBOX, { kind: "none" }));
+    const { second } = twoDomains(session);
+
+    render(
+      <Popup
+        session={session}
+        storage={storageReading(MAILBOX)}
+        primaryProviderName="Mail.tm"
+        providerNames={PROVIDER_NAMES}
+        requestBackgroundAlarm={armingAlarm()}
+      />,
+    );
+
+    const group = await openChangeList();
+    // **The catalog loads in an effect, after boot.** Waiting for the first manual row is
+    // the precondition for reading the list: a group opened one tick too early holds only
+    // Automatic, and that would be a test of timing rather than of the rendered choices.
+    await waitFor(() =>
+      expect(within(group).queryByRole("button", { name: "@example.test" })).not.toBeNull(),
+    );
+    const rows = within(group).getAllByRole("button");
+    // **The order and the names are both claims.** A second manual row is offered because
+    // two usable domains exist; with one, the requirement permits Automatic alone.
+    expect(rows.map((row) => row.textContent)).toEqual([
+      POPUP_COPY.automatic,
+      "@example.test",
+      "@second.test",
+    ]);
+    fireEvent.click(within(group).getByRole("button", { name: "@second.test" }));
+
+    await waitFor(() => expect(session.replace).toHaveBeenCalledWith(second));
+  });
+
+  it("coalesces two presses into one replacement while the first is outstanding", async () => {
+    const outstanding = gate<SessionState>();
+    const session = stubSession(readyState(MAILBOX, { kind: "none" }));
+    vi.mocked(session.replace).mockImplementation(() => outstanding.promise);
+
+    render(
+      <Popup
+        session={session}
+        storage={storageReading(MAILBOX)}
+        primaryProviderName="Mail.tm"
+        providerNames={PROVIDER_NAMES}
+        requestBackgroundAlarm={armingAlarm()}
+      />,
+    );
+
+    const group = await openChangeList();
+    const automatic = within(group).getByRole("button", { name: POPUP_COPY.automatic });
+    // **Both presses in one act, before React can close the list.** Two `.click()` calls
+    // separated by an awaited flush would simply be two presses of a control that had
+    // already gone away, which would prove nothing about coalescing.
+    await act(async () => {
+      automatic.click();
+      automatic.click();
+    });
+
+    expect(session.replace).toHaveBeenCalledTimes(1);
+  });
+
+  it("discards an older answer instead of replacing the newer mailbox", async () => {
+    const old = gate<SessionState>();
+    const session = stubSession({ kind: "idle", opened: null } as unknown as SessionState);
+    vi.mocked(session.open).mockImplementation(() => {
+      // The older run publishes its outcome the way the real session does, before its
+      // promise settles. It is the right mailbox at that instant.
+      session.publish(readyState(STALE_MAILBOX, { kind: "none" }));
+      return old.promise;
+    });
+    vi.mocked(session.replace).mockImplementation(async () =>
+      readyState(MAILBOX, { kind: "none" }),
+    );
+
+    render(
+      <Popup
+        session={session}
+        storage={storageReading(null)}
+        primaryProviderName="Mail.tm"
+        providerNames={PROVIDER_NAMES}
+        requestBackgroundAlarm={armingAlarm()}
+      />,
+    );
+
+    // Run one (a first create) delivers the stale mailbox.
+    fireEvent.click(await screen.findByRole("button", { name: POPUP_COPY.create }));
+    await waitFor(() => expect(screen.getByText(STALE_MAILBOX.address)).toBeDefined());
+
+    // Run two (Change) delivers a newer one while run one's promise is still open.
+    const group = await openChangeList();
+    fireEvent.click(within(group).getByRole("button", { name: POPUP_COPY.automatic }));
+    await waitFor(() => expect(screen.getByText(MAILBOX.address)).toBeDefined());
+
+    // The older answer lands last. Its generation is no longer current, so it may write
+    // neither the mailbox nor the opened-message selection.
+    await act(async () => {
+      old.release(readyState(STALE_MAILBOX, { kind: "none" }));
+      await old.promise;
+      await Promise.resolve();
+    });
+    expect(screen.getByText(MAILBOX.address)).toBeDefined();
+    expect(screen.queryByText(STALE_MAILBOX.address)).toBeNull();
+  });
+
+  it("keeps the previous mailbox and opened message when the replacement fails", async () => {
+    const failed = {
+      kind: "failed",
+      failure: { code: "RATE_LIMITED", description: "the provider refused" },
+    } as unknown as SessionState;
+    const session = stubSession(readyState(MAILBOX, { kind: "opened", message: OPENED }));
+    vi.mocked(session.replace).mockImplementation(async () => {
+      session.publish({ kind: "creating" } as unknown as SessionState);
+      session.publish(failed);
+      return failed;
+    });
+    // **Nothing to restore:** the initial state already holds the mailbox and its opened
+    // message. A stub storage that returned a mailbox would have the boot `restore` publish
+    // a fresh ready state with no opened message, erasing the very precondition this case
+    // is about before the first press.
+    const storage = storageReading(null);
+    const requestBackgroundAlarm = armingAlarm();
+
+    render(
+      <Popup
+        session={session}
+        storage={storage}
+        primaryProviderName="Mail.tm"
+        providerNames={PROVIDER_NAMES}
+        requestBackgroundAlarm={requestBackgroundAlarm}
+      />,
+    );
+
+    const group = await openChangeList();
+    fireEvent.click(within(group).getByRole("button", { name: POPUP_COPY.automatic }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe(POPUP_COPY.changeFailed),
+    );
+    // **Failure preservation, both halves.** The address and the opened message are the
+    // previous mailbox's, and neither has been replaced by the failed attempt.
+    expect(screen.getByText(MAILBOX.address)).toBeDefined();
+    expect(screen.getByTestId("message-opened")).toBeDefined();
+    expect(storage.addMailbox).not.toHaveBeenCalled();
+    expect(requestBackgroundAlarm).not.toHaveBeenCalled();
+  });
+
+  it("clears the opened message only when a replacement is confirmed", async () => {
+    const session = stubSession(readyState(MAILBOX, { kind: "opened", message: OPENED }));
+    const next = readyState(NEW_MAILBOX, { kind: "none" });
+    vi.mocked(session.replace).mockImplementation(async () => {
+      // The session publishes its outcome through `subscribe` before the promise settles;
+      // the popup must defer it while the replacement is in flight and apply it on the
+      // guarded answer instead.
+      session.publish(next);
+      return next;
+    });
+    const storage = storageReading(null);
+
+    render(
+      <Popup
+        session={session}
+        storage={storage}
+        primaryProviderName="Mail.tm"
+        providerNames={PROVIDER_NAMES}
+        requestBackgroundAlarm={armingAlarm()}
+      />,
+    );
+
+    await screen.findByTestId("message-opened");
+    const group = await openChangeList();
+    fireEvent.click(within(group).getByRole("button", { name: POPUP_COPY.automatic }));
+
+    await waitFor(() => expect(screen.getByText(NEW_MAILBOX.address)).toBeDefined());
+    expect(screen.queryByTestId("message-opened")).toBeNull();
+    await waitFor(() => expect(storage.addMailbox).toHaveBeenCalledWith(NEW_MAILBOX));
+  });
+
+  it("reports delivery as unverified even after a successful create", async () => {
+    const session = stubSession({ kind: "idle", opened: null } as unknown as SessionState);
+    render(
+      <Popup
+        session={session}
+        storage={storageReading(null)}
+        primaryProviderName="Mail.tm"
+        providerNames={PROVIDER_NAMES}
+        requestBackgroundAlarm={armingAlarm()}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: POPUP_COPY.create }));
+    await waitFor(() => expect(screen.getByText(MAILBOX.address)).toBeDefined());
+
+    // **A provisioned address is not a delivered one.** The sentence is the fixed one from
+    // copy, and no wording on this surface claims that mail arrived.
+    expect(screen.getByText(POPUP_COPY.deliveryUnverified).textContent).toBe(
+      "LIVE DELIVERY NOT VERIFIED",
+    );
+    expect(screen.queryByText(/^Delivered\.$/)).toBeNull();
   });
 });
 

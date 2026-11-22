@@ -28,7 +28,13 @@
 
 import { describe, expect, it } from "vitest";
 
-import { POPUP_COPY, POPUP_COPY_KEYS, POPUP_COPY_TEMPLATES } from "./popup-copy";
+import {
+  ADDRESS_TRUTH,
+  POPUP_COPY,
+  POPUP_COPY_KEYS,
+  POPUP_COPY_TEMPLATES,
+  reportAddressTruth,
+} from "./popup-copy";
 
 /** Every entry that holds something other than a string. */
 function nonStringEntries(): string[] {
@@ -89,6 +95,12 @@ describe("the popup copy", () => {
     // **A code with its own braces or spaces survives the substitution**, because `String.replace`
     // is given the code as the replacement rather than as part of a pattern.
     expect(POPUP_COPY.fillCode.replace("{code}", "a b {c}")).toBe("Fill in code a b {c}");
+
+    // **The third template is a domain row, and it is resolved the same way.** The `@` is
+    // data here rather than a literal in the component, so a row renamed in copy is a row
+    // renamed on screen and no JSX edit can quietly keep the old spelling.
+    expect(POPUP_COPY.domainOption.replace("{domain}", "example.test")).toBe("@example.test");
+    expect(POPUP_COPY.domainOption.replace("{domain}", "example.test")).not.toContain("{");
   });
 
   it("names no empty string, because a depiction cannot show one", () => {
@@ -101,5 +113,75 @@ describe("the popup copy", () => {
       .filter(([, value]) => (value as unknown) === "")
       .map(([key]) => key);
     expect(empties).toEqual([]);
+  });
+});
+
+/**
+ * ## The three truth claims (M22 task 4.3)
+ *
+ * The point of these cases is not that three strings exist — it is that **no observation this
+ * client can make promotes the third one**. A created mailbox, a provider confirmation and a
+ * recorded fixture are all enumerated below, and in every combination the delivery claim is
+ * still the fixed unverified sentence.
+ */
+describe("the popup's three address-truth claims", () => {
+  it("holds three different sentences, named by the three facts they report", () => {
+    // **Spelled literally on this side.** A record that collapsed two claims into one string
+    // would satisfy any test that compared the record to itself; asserting the names and the
+    // distinctness here is what keeps them three claims rather than one with two aliases.
+    expect(Object.keys(ADDRESS_TRUTH).sort()).toEqual([
+      "catalogAvailable",
+      "deliveryUnverified",
+      "provisioned",
+    ]);
+    expect(new Set(Object.values(ADDRESS_TRUTH)).size).toBe(3);
+
+    // **The exact sentence GOAL §8 names, and a name that says it is unverified.** A rename
+    // to "Delivered." would keep the value a string and keep the set distinct, and this is
+    // the assertion that would catch it.
+    expect(ADDRESS_TRUTH.deliveryUnverified).toBe("LIVE DELIVERY NOT VERIFIED");
+    expect(ADDRESS_TRUTH.deliveryUnverified).not.toMatch(/verified delivery|delivered/i);
+
+    // **The record is read from the copy the popup actually renders**, not spelled a second
+    // time. A copy edit that widened one claim must be visible here by name.
+    expect(ADDRESS_TRUTH.catalogAvailable).toBe(POPUP_COPY.catalogAvailable);
+    expect(ADDRESS_TRUTH.provisioned).toBe(POPUP_COPY.provisioned);
+    expect(ADDRESS_TRUTH.deliveryUnverified).toBe(POPUP_COPY.deliveryUnverified);
+  });
+
+  it("never upgrades delivery on a create, a confirmation, or a recorded fixture", () => {
+    // **All eight combinations, not the happy arm.** The two claims that can move are asserted
+    // to track their evidence; the third is asserted to be the same fixed sentence every time.
+    const observed: string[] = [];
+    for (const inCatalog of [false, true]) {
+      for (const providerConfirmed of [false, true]) {
+        for (const recorded of [false, true]) {
+          const report = reportAddressTruth({ inCatalog, providerConfirmed, recorded });
+          expect(report.catalogAvailable, `${inCatalog}/${providerConfirmed}/${recorded}`).toBe(
+            inCatalog,
+          );
+          expect(
+            report.provisionedByProvider,
+            `${inCatalog}/${providerConfirmed}/${recorded}`,
+          ).toBe(providerConfirmed);
+          expect(report.delivery, `${inCatalog}/${providerConfirmed}/${recorded}`).toBe(
+            ADDRESS_TRUTH.deliveryUnverified,
+          );
+          observed.push(report.delivery);
+        }
+      }
+    }
+
+    // **The enumeration really ran eight arms**, so a reader cannot satisfy the loop by
+    // changing the ranges to empty arrays and having nothing to assert.
+    expect(observed).toHaveLength(8);
+    expect(new Set(observed).size).toBe(1);
+
+    // **And the negative control on the reader itself.** A report that always answered
+    // "Delivered." would be caught by the equality above, but a reader that reported nothing
+    // would satisfy `new Set([]).size === 1`? No — an empty set has size 0, and the length
+    // check above has already failed. This control proves the distinctness assertion can
+    // fail in the other direction too: two different values make it report two.
+    expect(new Set([...observed, "Delivered."]).size).toBe(2);
   });
 });

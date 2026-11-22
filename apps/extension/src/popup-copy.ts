@@ -45,6 +45,39 @@ export const POPUP_COPY = {
   copy: "Copy address",
   copied: "Copied.",
   copyFailed: "The clipboard refused. Select the address and copy it by hand.",
+
+  /**
+   * The Change control beside Copy, and the sentence it says while a replacement is outstanding.
+   *
+   * **This is a domain choice and not a provider choice.** The popup still offers no selector over
+   * providers: a person choosing a domain is choosing one of the addresses the provider already
+   * serves, not deciding which provider this client will contact.
+   */
+  change: "Change address",
+  changing: "Asking for a new address",
+  /**
+   * **A refusal, not a verdict about the address on screen.** Nothing was substituted and the
+   * previous mailbox is still shown, so this says neither that the address is gone nor that the
+   * attempt is queued — both would be claims this popup cannot support.
+   */
+  changeFailed: "A replacement was not confirmed. The address above is unchanged.",
+  /** The first row of a domain list, and it names no provider. */
+  automatic: "Automatic",
+  /** One usable-domain row. The domain is provider-reported data, never a literal in JSX. */
+  domainOption: "@{domain}",
+
+  /**
+   * The three truth claims of M22, **each weaker than the one below it**.
+   *
+   * These are sentences the popup can report, not a single state machine: a domain being in a
+   * catalog, a mailbox being provisioned, and mail actually arriving are three different facts.
+   * The third is the one this product cannot establish — there is no external sender — so its
+   * wording is fixed here and no successful create or recorded fixture may change it.
+   */
+  catalogAvailable: "Available in a provider catalog",
+  provisioned: "Provisioned and confirmed by the provider",
+  deliveryUnverified: "LIVE DELIVERY NOT VERIFIED",
+
   status: "Provider status",
   askStatus: "Check provider",
   unknown: "Not asked yet",
@@ -142,7 +175,51 @@ export const POPUP_COPY = {
  * including a new template added next month. Declaring the list means a *second* token fails,
  * which is the only direction in which this can fail.
  */
-export const POPUP_COPY_TEMPLATES: readonly string[] = ["reaching", "fillCode"];
+export const POPUP_COPY_TEMPLATES: readonly string[] = ["reaching", "domainOption", "fillCode"];
 
 /** Every entry name, for a caller that resolves names rather than holding them. */
 export const POPUP_COPY_KEYS = Object.keys(POPUP_COPY);
+
+/**
+ * The three claims, named once and read from {@link POPUP_COPY} rather than spelled again.
+ *
+ * **Derived, not declared a second time.** A second table of the same sentences would be the
+ * shape this repository records as a defect: a copy edit would leave the two disagreeing, and a
+ * rule reading one would keep agreeing with itself while the popup said something else.
+ */
+export const ADDRESS_TRUTH = {
+  catalogAvailable: POPUP_COPY.catalogAvailable,
+  provisioned: POPUP_COPY.provisioned,
+  deliveryUnverified: POPUP_COPY.deliveryUnverified,
+} as const;
+
+/** What the client is entitled to report after one observation. */
+export interface AddressTruthReport {
+  /** The domain appeared in a provider's catalog. */
+  readonly catalogAvailable: boolean;
+  /** The provider confirmed that it provisioned a mailbox. */
+  readonly provisionedByProvider: boolean;
+  /** The delivery claim, which stays unverified until an external sender is observed. */
+  readonly delivery: string;
+}
+
+/**
+ * Report the three claims from the evidence this client can actually hold.
+ *
+ * **`recorded` is accepted and deliberately refused permission to change the outcome.** A
+ * recorded response may show a provider confirming a mailbox, so provisioning can be true from
+ * one; what it can never be is evidence that a person received mail. The function takes no
+ * "delivery verified" input at all: no caller in this build can supply one, so the claim is
+ * unrepresentable rather than merely unsupplied.
+ */
+export function reportAddressTruth(evidence: {
+  readonly inCatalog: boolean;
+  readonly providerConfirmed: boolean;
+  readonly recorded: boolean;
+}): AddressTruthReport {
+  return {
+    catalogAvailable: evidence.inCatalog,
+    provisionedByProvider: evidence.providerConfirmed,
+    delivery: ADDRESS_TRUTH.deliveryUnverified,
+  };
+}
