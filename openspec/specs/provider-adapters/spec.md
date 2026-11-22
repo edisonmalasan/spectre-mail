@@ -325,6 +325,20 @@ whether a given provider supports an optional operation before invoking it.
 > bake an unmeasured claim into a user-facing message, and the next probe observing
 > deletion working would then contradict the product's own words.
 
+The typed capability surface SHALL also answer, before any call is made, whether
+a provider can list domains, create a mailbox on a domain chosen from that list,
+and restore an already-issued session. A client SHALL NOT answer those questions
+by testing a provider identifier; it SHALL read the answer the adapter declared.
+Where a capability was never observed, the answer SHALL say it is unobserved
+rather than known to be absent, consistent with the scenario above.
+
+#### Scenario: Domain catalog capabilities are discoverable
+
+- **WHEN** a caller asks which provider can list domains, create on a chosen
+  domain, or restore an already-issued session
+- **THEN** each answer SHALL come from the contract's typed capability surface
+- **AND** no client SHALL decide capability by testing a provider identifier
+
 ### Requirement: Every adapter passes one shared conformance suite
 
 Adapters SHALL be verified by a single conformance suite that is not
@@ -383,6 +397,28 @@ fallback provider SHALL NOT be presented as though it were the primary.
 - **WHEN** a mailbox was created by a fallback provider
 - **THEN** its provider SHALL be reported as the fallback
 - **AND** it SHALL NOT be reported as the primary provider's result
+
+A fallback is **bounded** and **visible**: each configured provider SHALL be
+attempted at most once during one creation, the throttle SHALL be surfaced with
+the provider's own signal, and no attempt SHALL be repeated silently in a
+background loop. When every configured provider declines, the reported failure
+SHALL retain the normalized error code of the failure that decided the outcome,
+rather than being replaced by an untyped composition that describes the failures
+only in prose.
+
+#### Scenario: A fallback attempt is bounded and visible
+
+- **GIVEN** more than one configured provider
+- **WHEN** creation falls back after one provider declines
+- **THEN** each configured provider SHALL be attempted at most once
+- **AND** the fallback SHALL be reported to the user rather than retried silently
+
+#### Scenario: Bounded fallback preserves the normalized failure
+
+- **GIVEN** several configured providers each declining creation
+- **WHEN** the client exhausts its bounded fallback attempts
+- **THEN** the reported failure SHALL carry a normalized error code
+- **AND** it SHALL NOT be an untyped error whose only failure detail is prose
 
 ### Requirement: The provider layer does not persist anything
 
