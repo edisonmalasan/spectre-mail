@@ -265,5 +265,7 @@ to the newly printed address.
   on the structural point that a credential-free arbitrary-recipient send API
   is an open relay, plus the explicit non-goals against bypassing the controls
   that prevent that.
-- **No product code, OpenSpec file, `docs/PROVIDERS.md`, `AGENTS.md` or
-  `docs/ROADMAP.md` was edited.** The only deliverable is this report.
+- **No product code, OpenSpec file, `docs/PROVIDERS.md`, `AGENTS.md` or archived
+  file was edited.** The deliverables are the harness fix
+  (`apps/extension/e2e/live-reception.mjs`) plus the documentation updates in
+  `docs/GOAL-REPORT.md`, `docs/ROADMAP.md` and this report.
